@@ -201,6 +201,7 @@ public class ElasticsearchMappings {
 
         addAnomalyRecordFieldsToMapping(builder);
         addInfluencerFieldsToMapping(builder);
+        addModelSizeStatsFieldsToMapping(builder);
 
         if (termFieldNames != null) {
             ElasticsearchDotNotationReverser reverser = new ElasticsearchDotNotationReverser();
@@ -508,7 +509,7 @@ public class ElasticsearchMappings {
      * document or by searching for all documents of this type.
      */
     public static XContentBuilder modelSnapshotMapping() throws IOException {
-        return jsonBuilder()
+        XContentBuilder builder = jsonBuilder()
                 .startObject()
                 .startObject(ModelSnapshot.TYPE.getPreferredName())
                 .startObject(ALL)
@@ -540,33 +541,15 @@ public class ElasticsearchMappings {
                 .startObject(ModelSnapshot.SNAPSHOT_DOC_COUNT.getPreferredName())
                 .field(TYPE, INTEGER)
                 .endObject()
-                .startObject(ModelSizeStats.TYPE.getPreferredName())
+                .startObject(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName())
                 .startObject(PROPERTIES)
                 .startObject(Job.ID.getPreferredName())
                 .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName())
-                .field(TYPE, LONG)
-                .endObject()
-                .startObject(ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName())
-                .field(TYPE, LONG)
-                .endObject()
-                .startObject(ModelSizeStats.TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName())
-                .field(TYPE, LONG)
-                .endObject()
-                .startObject(ModelSizeStats.TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName())
-                .field(TYPE, LONG)
-                .endObject()
-                .startObject(ModelSizeStats.BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName())
-                .field(TYPE, LONG)
-                .endObject()
-                .startObject(ModelSizeStats.MEMORY_STATUS_FIELD.getPreferredName())
-                .field(TYPE, KEYWORD)
-                .endObject()
-                .startObject(ES_TIMESTAMP)
-                .field(TYPE, DATE)
-                .endObject()
-                .startObject(ModelSizeStats.LOG_TIME_FIELD.getPreferredName())
+                .endObject();
+
+        addModelSizeStatsFieldsToMapping(builder);
+
+        builder.startObject(ES_TIMESTAMP)
                 .field(TYPE, DATE)
                 .endObject()
                 .endObject()
@@ -593,50 +576,40 @@ public class ElasticsearchMappings {
                 .endObject()
                 .endObject()
                 .endObject();
+
+        return builder;
     }
 
     /**
-     * Create the Elasticsearch mapping for {@linkplain ModelSizeStats}.
+     * {@link ModelSizeStats} fields to be added under the 'properties' section of the mapping
+     * @param builder Add properties to this builder
+     * @return builder
+     * @throws IOException On write error
      */
-    public static XContentBuilder modelSizeStatsMapping() throws IOException {
-        return jsonBuilder()
-                .startObject()
-                .startObject(ModelSizeStats.TYPE.getPreferredName())
-                .startObject(ALL)
-                .field(ENABLED, false)
-                // analyzer must be specified even though _all is disabled
-                // because all types in the same index must have the same
-                // analyzer for a given field
-                .field(ANALYZER, WHITESPACE)
-                .endObject()
-                .startObject(PROPERTIES)
-                .startObject(ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName())
-                .field(TYPE, LONG)
+    private static XContentBuilder addModelSizeStatsFieldsToMapping(XContentBuilder builder) throws IOException {
+        builder.startObject(ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName())
+                    .field(TYPE, LONG)
                 .endObject()
                 .startObject(ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName())
-                .field(TYPE, LONG)
+                    .field(TYPE, LONG)
                 .endObject()
                 .startObject(ModelSizeStats.TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName())
-                .field(TYPE, LONG)
+                    .field(TYPE, LONG)
                 .endObject()
                 .startObject(ModelSizeStats.TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName())
-                .field(TYPE, LONG)
+                    .field(TYPE, LONG)
                 .endObject()
                 .startObject(ModelSizeStats.BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName())
-                .field(TYPE, LONG)
+                    .field(TYPE, LONG)
                 .endObject()
                 .startObject(ModelSizeStats.MEMORY_STATUS_FIELD.getPreferredName())
-                .field(TYPE, KEYWORD)
+                    .field(TYPE, KEYWORD)
                 .endObject()
-                .startObject(ES_TIMESTAMP)
+                    .startObject(ModelSizeStats.LOG_TIME_FIELD.getPreferredName())
                 .field(TYPE, DATE)
-                .endObject()
-                .startObject(ModelSizeStats.LOG_TIME_FIELD.getPreferredName())
-                .field(TYPE, DATE)
-                .endObject()
-                .endObject()
-                .endObject()
                 .endObject();
+
+        return builder;
     }
 
     /**

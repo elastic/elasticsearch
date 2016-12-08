@@ -47,10 +47,11 @@ setup:
   - do:
       index:
         index:  prelertresults-job-stats-test
-        type:   model_size_stats
+        type:   result
         id:     model_size_stats
         body:   {
                   "job_id": "job-stats-test",
+                  "result_type": "model_size_stats",
                   "log_time": 1480896000000,
                   "timestamp": 1480896000000,
                   "model_bytes": 100,

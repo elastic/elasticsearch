@@ -268,10 +268,10 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistModelSizeStats(ModelSizeStats modelSizeStats) {
         String jobId = modelSizeStats.getJobId();
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
-        Persistable persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, ModelSizeStats.TYPE::getPreferredName,
-                ModelSizeStats.TYPE::getPreferredName, () -> toXContentBuilder(modelSizeStats));
+        Persistable persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE::getPreferredName,
+                ModelSizeStats.RESULT_TYPE_FIELD::getPreferredName, () -> toXContentBuilder(modelSizeStats));
         persistable.persist();
-        persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, ModelSizeStats.TYPE::getPreferredName,
+        persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE::getPreferredName,
                 () -> null, () -> toXContentBuilder(modelSizeStats));
         persistable.persist();
         // Don't commit as we expect masses of these updates and they're only

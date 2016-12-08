@@ -187,7 +187,6 @@ public class JobProvider {
             XContentBuilder quantilesMapping = ElasticsearchMappings.quantilesMapping();
             XContentBuilder modelStateMapping = ElasticsearchMappings.modelStateMapping();
             XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
-            XContentBuilder modelSizeStatsMapping = ElasticsearchMappings.modelSizeStatsMapping();
             XContentBuilder modelDebugMapping = ElasticsearchMappings.modelDebugOutputMapping(termFields);
             XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
 
@@ -201,7 +200,6 @@ public class JobProvider {
             createIndexRequest.mapping(Quantiles.TYPE.getPreferredName(), quantilesMapping);
             createIndexRequest.mapping(ModelState.TYPE.getPreferredName(), modelStateMapping);
             createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
-            createIndexRequest.mapping(ModelSizeStats.TYPE.getPreferredName(), modelSizeStatsMapping);
             createIndexRequest.mapping(ModelDebugOutput.TYPE.getPreferredName(), modelDebugMapping);
             createIndexRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);
 
@@ -865,20 +863,6 @@ public class JobProvider {
         return new ElasticsearchBatchedModelDebugOutputIterator(client, jobId, parseFieldMatcher);
     }
 
-    /**
-     * Returns a {@link BatchedDocumentsIterator} that allows querying
-     * and iterating over a number of ModelSizeStats of the given job
-     *
-     * @param jobId the id of the job for which model snapshots are requested
-     * @return a model snapshot {@link BatchedDocumentsIterator}
-     */
-    public BatchedDocumentsIterator<ModelSizeStats> newBatchedModelSizeStatsIterator(String jobId) {
-        return new ElasticsearchBatchedModelSizeStatsIterator(client, jobId, parseFieldMatcher);
-    }
-
-    /**
-     * Get the persisted quantiles state for the job
-     */
     public Optional<Quantiles> getQuantiles(String jobId) {
         String indexName = JobResultsPersister.getJobIndexName(jobId);
         try {
@@ -983,7 +967,7 @@ public class JobProvider {
             Object timestamp = hit.getSource().remove(ElasticsearchMappings.ES_TIMESTAMP);
             hit.getSource().put(ModelSnapshot.TIMESTAMP.getPreferredName(), timestamp);
 
-            Object o = hit.getSource().get(ModelSizeStats.TYPE.getPreferredName());
+            Object o = hit.getSource().get(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
             if (o instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> map = (Map<String, Object>) o;
@@ -1091,11 +1075,11 @@ public class JobProvider {
     public Optional<ModelSizeStats> modelSizeStats(String jobId) {
         String indexName = JobResultsPersister.getJobIndexName(jobId);
         try {
-            LOGGER.trace("ES API CALL: get ID " + ModelSizeStats.TYPE +
-                    " type " + ModelSizeStats.TYPE + " from index " + indexName);
+            LOGGER.trace("ES API CALL: get result type {} ID {} from index {}",
+                    ModelSizeStats.RESULT_TYPE_VALUE, ModelSizeStats.RESULT_TYPE_FIELD, indexName);
 
             GetResponse modelSizeStatsResponse = client.prepareGet(
-                    indexName, ModelSizeStats.TYPE.getPreferredName(), ModelSizeStats.TYPE.getPreferredName()).get();
+                    indexName, Result.TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName()).get();
 
             if (!modelSizeStatsResponse.isExists()) {
                 String msg = "No memory usage details for job with id " + jobId;

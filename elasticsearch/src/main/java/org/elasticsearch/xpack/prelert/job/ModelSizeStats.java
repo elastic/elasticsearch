@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xpack.prelert.job.results.Result;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
 import java.io.IOException;
@@ -27,9 +28,14 @@ import java.util.Objects;
 public class ModelSizeStats extends ToXContentToBytes implements Writeable {
 
     /**
+     * Result type
+     */
+    public static final String RESULT_TYPE_VALUE = "model_size_stats";
+    public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
+
+    /**
      * Field Names
      */
-    private static final ParseField MODEL_SIZE_STATS_FIELD = new ParseField("model_size_stats");
     public static final ParseField MODEL_BYTES_FIELD = new ParseField("model_bytes");
     public static final ParseField TOTAL_BY_FIELD_COUNT_FIELD = new ParseField("total_by_field_count");
     public static final ParseField TOTAL_OVER_FIELD_COUNT_FIELD = new ParseField("total_over_field_count");
@@ -40,10 +46,11 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
     public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp");
 
     public static final ConstructingObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
-            MODEL_SIZE_STATS_FIELD.getPreferredName(), a -> new Builder((String) a[0]));
+            RESULT_TYPE_FIELD.getPreferredName(), a -> new Builder((String) a[0]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
+        PARSER.declareString((modelSizeStat, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareLong(Builder::setModelBytes, MODEL_BYTES_FIELD);
         PARSER.declareLong(Builder::setBucketAllocationFailuresCount, BUCKET_ALLOCATION_FAILURES_COUNT_FIELD);
         PARSER.declareLong(Builder::setTotalByFieldCount, TOTAL_BY_FIELD_COUNT_FIELD);
@@ -69,11 +76,6 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
         }, TIMESTAMP_FIELD, ValueType.VALUE);
         PARSER.declareField(Builder::setMemoryStatus, p -> MemoryStatus.fromString(p.text()), MEMORY_STATUS_FIELD, ValueType.STRING);
     }
-
-    /**
-     * Elasticsearch type
-     */
-    public static final ParseField TYPE = new ParseField("model_size_stats");
 
     /**
      * The status of the memory monitored by the ResourceMonitor. OK is default,
@@ -183,6 +185,7 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
 
     public XContentBuilder doXContentBody(XContentBuilder builder) throws IOException {
         builder.field(Job.ID.getPreferredName(), jobId);
+        builder.field(Result.RESULT_TYPE.getPreferredName(), RESULT_TYPE_VALUE);
         builder.field(MODEL_BYTES_FIELD.getPreferredName(), modelBytes);
         builder.field(TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName(), totalByFieldCount);
         builder.field(TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName(), totalOverFieldCount);
@@ -283,7 +286,7 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
 
         public Builder(String jobId) {
             this.jobId = jobId;
-            id = TYPE.getPreferredName();
+            id = RESULT_TYPE_FIELD.getPreferredName();
             memoryStatus = MemoryStatus.OK;
             logTime = new Date();
         }

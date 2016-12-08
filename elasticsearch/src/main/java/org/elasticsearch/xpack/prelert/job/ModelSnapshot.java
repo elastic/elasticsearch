@@ -63,7 +63,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         PARSER.declareLong(ModelSnapshot::setRestorePriority, RESTORE_PRIORITY);
         PARSER.declareString(ModelSnapshot::setSnapshotId, SNAPSHOT_ID);
         PARSER.declareInt(ModelSnapshot::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
-        PARSER.declareObject(ModelSnapshot::setModelSizeStats, ModelSizeStats.PARSER, ModelSizeStats.TYPE);
+        PARSER.declareObject(ModelSnapshot::setModelSizeStats, ModelSizeStats.PARSER, ModelSizeStats.RESULT_TYPE_FIELD);
         PARSER.declareField(ModelSnapshot::setLatestRecordTimeStamp, p -> {
             if (p.currentToken() == Token.VALUE_NUMBER) {
                 return new Date(p.longValue());
@@ -173,7 +173,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
         }
         builder.field(SNAPSHOT_DOC_COUNT.getPreferredName(), snapshotDocCount);
         if (modelSizeStats != null) {
-            builder.field(ModelSizeStats.TYPE.getPreferredName(), modelSizeStats);
+            builder.field(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName(), modelSizeStats);
         }
         if (latestRecordTimeStamp != null) {
             builder.field(LATEST_RECORD_TIME.getPreferredName(), latestRecordTimeStamp.getTime());

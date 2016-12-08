@@ -223,6 +223,11 @@ public abstract class StreamOutput extends OutputStream {
         writeByte((byte) i);
     }
 
+    public static int lengthVLong(long i) {
+        assert i >= 0;
+        return 1 + (int) Math.floor(Math.log(i) / Math.log(2)) / 7;
+    }
+
     /**
      * Writes a long in a variable-length format. Writes between one and ten bytes.
      * Values are remapped by sliding the sign bit into the lsb and then encoded as an unsigned number

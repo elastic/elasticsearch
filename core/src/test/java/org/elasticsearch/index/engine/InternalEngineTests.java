@@ -157,6 +157,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.max;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -3120,6 +3121,50 @@ public class InternalEngineTests extends ESTestCase {
         assertThat(engine.seqNoService().getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
         try (final Engine.GetResult result = engine.get(new Engine.Get(true, uid))) {
             assertThat(result.exists(), equalTo(exists));
+        }
+    }
+
+    /*
+     * This test tests that a no-op does not generate a new sequence number, that no-ops can advance the local checkpoint, and that no-ops
+     * are correctly added to the translog.
+     */
+    public void testNoOps() throws IOException {
+        engine.close();
+        InternalEngine noOpEngine = null;
+        final int maxSeqNo = randomIntBetween(0, 128);
+        final int localCheckpoint = randomIntBetween(0, maxSeqNo);
+        final int globalCheckpoint = randomIntBetween(0, localCheckpoint);
+        try {
+            final SequenceNumbersService seqNoService =
+                new SequenceNumbersService(shardId, defaultSettings, maxSeqNo, localCheckpoint, globalCheckpoint) {
+                    @Override
+                    public long generateSeqNo() {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            noOpEngine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, () -> seqNoService);
+            final long primaryTerm = randomNonNegativeLong();
+            final String reason = randomAsciiOfLength(16);
+            noOpEngine.noOp(
+                new Engine.NoOp(
+                    null,
+                    maxSeqNo + 1,
+                    primaryTerm,
+                    0,
+                    VersionType.INTERNAL,
+                    randomFrom(PRIMARY, REPLICA, PEER_RECOVERY, LOCAL_TRANSLOG_RECOVERY),
+                    System.nanoTime(),
+                    reason));
+            assertThat(noOpEngine.seqNoService().getLocalCheckpoint(), equalTo((long) (maxSeqNo + 1)));
+            assertThat(noOpEngine.getTranslog().totalOperations(), equalTo(1));
+            final Translog.Operation op = noOpEngine.getTranslog().newSnapshot().next();
+            assertThat(op, instanceOf(Translog.NoOp.class));
+            final Translog.NoOp noOp = (Translog.NoOp) op;
+            assertThat(noOp.seqNo(), equalTo((long) (maxSeqNo + 1)));
+            assertThat(noOp.primaryTerm(), equalTo(primaryTerm));
+            assertThat(noOp.reason(), equalTo(reason));
+        } finally {
+            IOUtils.close(noOpEngine);
         }
     }
 

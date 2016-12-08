@@ -38,6 +38,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.rest.yaml.section.Assertion;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -71,6 +73,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IllegalFormatCodePointException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -88,9 +91,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.typeCompatibleWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ESTestCase {
@@ -226,17 +232,28 @@ public class TranslogTests extends ESTestCase {
         assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
         assertThat(snapshot.totalOperations(), equalTo(ops.size()));
 
+        final long seqNo = randomNonNegativeLong();
+        final long primaryTerm = randomNonNegativeLong();
+        final String reason = randomAsciiOfLength(16);
+        addToTranslogAndList(translog, ops, new Translog.NoOp(seqNo, primaryTerm, reason));
+
         snapshot = translog.newSnapshot();
 
         Translog.Index index = (Translog.Index) snapshot.next();
-        assertThat(index != null, equalTo(true));
+        assertNotNull(index);
         assertThat(BytesReference.toBytes(index.source()), equalTo(new byte[]{1}));
 
         Translog.Delete delete = (Translog.Delete) snapshot.next();
-        assertThat(delete != null, equalTo(true));
+        assertNotNull(delete);
         assertThat(delete.uid(), equalTo(newUid("2")));
 
-        assertThat(snapshot.next(), equalTo(null));
+        Translog.NoOp noOp = (Translog.NoOp) snapshot.next();
+        assertNotNull(noOp);
+        assertThat(noOp.seqNo(), equalTo(seqNo));
+        assertThat(noOp.primaryTerm(), equalTo(primaryTerm));
+        assertThat(noOp.reason(), equalTo(reason));
+
+        assertNull(snapshot.next());
 
         long firstId = translog.currentFileGeneration();
         translog.prepareCommit();
@@ -268,68 +285,88 @@ public class TranslogTests extends ESTestCase {
 
     public void testStats() throws IOException {
         final long firstOperationPosition = translog.getFirstOperationPosition();
-        TranslogStats stats = stats();
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
-        long lastSize = stats.getTranslogSizeInBytes();
+        {
+            final TranslogStats stats = stats();
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
+        }
         assertThat((int) firstOperationPosition, greaterThan(CodecUtil.headerLength(TranslogWriter.TRANSLOG_CODEC)));
-        assertThat(lastSize, equalTo(firstOperationPosition));
-        TranslogStats total = new TranslogStats();
         translog.add(new Translog.Index("test", "1", new byte[]{1}));
-        stats = stats();
-        total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(1L));
-        assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
-        lastSize = stats.getTranslogSizeInBytes();
+
+        {
+            final TranslogStats stats = stats();
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(1L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(83L));
+        }
 
         translog.add(new Translog.Delete(newUid("2")));
-        stats = stats();
-        total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(2L));
-        assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
-        lastSize = stats.getTranslogSizeInBytes();
+        {
+            final TranslogStats stats = stats();
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(2L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(111L));
+        }
 
         translog.add(new Translog.Delete(newUid("3")));
+        {
+            final TranslogStats stats = stats();
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(3L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(139L));
+        }
+
+        final long seqNo = 1;
+        final long primaryTerm = 1;
+        translog.add(new Translog.NoOp(seqNo, primaryTerm, randomAsciiOfLength(16)));
+        {
+            final TranslogStats stats = stats();
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
+            assertThat(
+                stats.getTranslogSizeInBytes(),
+                equalTo(165L + StreamOutput.lengthVLong(seqNo) + StreamOutput.lengthVLong(primaryTerm)));
+        }
+
+        final long expectedSizeInBytes = 208L + StreamOutput.lengthVLong(seqNo) + StreamOutput.lengthVLong(primaryTerm);
         translog.prepareCommit();
-        stats = stats();
-        total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(3L));
-        assertThat(stats.getTranslogSizeInBytes(), greaterThan(lastSize));
+        {
+            final TranslogStats stats = stats();
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
+            assertThat(
+                stats.getTranslogSizeInBytes(),
+                equalTo(expectedSizeInBytes));
+        }
+
+        {
+            final TranslogStats stats = stats();
+            final BytesStreamOutput out = new BytesStreamOutput();
+            stats.writeTo(out);
+            final TranslogStats copy = new TranslogStats();
+            copy.readFrom(out.bytes().streamInput());
+
+            assertThat(copy.estimatedNumberOfOperations(), equalTo(4L));
+            assertThat(copy.getTranslogSizeInBytes(), equalTo(expectedSizeInBytes));
+
+            try (final XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.startObject();
+                copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+                assertThat(builder.string(), equalTo("{\"translog\":{\"operations\":4,\"size_in_bytes\":" + expectedSizeInBytes + "}}"));
+            }
+        }
 
         translog.commit();
-        stats = stats();
-        total.add(stats);
-        assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
-        assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
-        assertEquals(6, total.estimatedNumberOfOperations());
-        assertEquals(419, total.getTranslogSizeInBytes());
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        total.writeTo(out);
-        TranslogStats copy = new TranslogStats();
-        copy.readFrom(out.bytes().streamInput());
-
-        assertEquals(6, copy.estimatedNumberOfOperations());
-        assertEquals(419, copy.getTranslogSizeInBytes());
-
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            builder.startObject();
-            copy.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            assertEquals("{\"translog\":{\"operations\":6,\"size_in_bytes\":419}}", builder.string());
+        {
+            final TranslogStats stats = stats();
+            assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
         }
+    }
 
-        try {
-            new TranslogStats(1, -1);
-            fail("must be positive");
-        } catch (IllegalArgumentException ex) {
-            //all well
-        }
-        try {
-            new TranslogStats(-1, 1);
-            fail("must be positive");
-        } catch (IllegalArgumentException ex) {
-            //all well
-        }
+    public void testNegativeNumberOfOperations() {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(-1, 1));
+        assertThat(e, hasToString(containsString("numberOfOperations must be >= 0")));
+    }
+
+    public void testNegativeSizeInBytes() {
+        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new TranslogStats(1, -1));
+        assertThat(e, hasToString(containsString("translogSizeInBytes must be >= 0")));
     }
 
     public void testSnapshot() throws IOException {
@@ -465,8 +502,15 @@ public class TranslogTests extends ESTestCase {
                     assertEquals(expDelOp.version(), delOp.version());
                     assertEquals(expDelOp.versionType(), delOp.versionType());
                     break;
+                case NO_OP:
+                    final Translog.NoOp noOp = (Translog.NoOp) op;
+                    final Translog.NoOp expectedNoOp = (Translog.NoOp) expectedOp;
+                    assertThat(noOp.seqNo(), equalTo(expectedNoOp.seqNo()));
+                    assertThat(noOp.primaryTerm(), equalTo(expectedNoOp.primaryTerm()));
+                    assertThat(noOp.reason(), equalTo(expectedNoOp.reason()));
+                    break;
                 default:
-                    throw new ElasticsearchException("unsupported opType");
+                    throw new AssertionError("unsupported operation type [" + op.opType() + "]");
             }
 
         }
@@ -607,7 +651,9 @@ public class TranslogTests extends ESTestCase {
                     while (run.get()) {
                         long id = idGenerator.incrementAndGet();
                         final Translog.Operation op;
-                        switch (Translog.Operation.Type.values()[((int) (id % Translog.Operation.Type.values().length))]) {
+                        final Translog.Operation.Type type =
+                            Translog.Operation.Type.values()[((int) (id % Translog.Operation.Type.values().length))];
+                        switch (type) {
                             case CREATE:
                             case INDEX:
                                 op = new Translog.Index("type", "" + id, new byte[]{(byte) id});
@@ -615,8 +661,11 @@ public class TranslogTests extends ESTestCase {
                             case DELETE:
                                 op = new Translog.Delete(newUid("" + id));
                                 break;
+                            case NO_OP:
+                                op = new Translog.NoOp(id, id, Long.toString(id));
+                                break;
                             default:
-                                throw new ElasticsearchException("unknown type");
+                                throw new AssertionError("unsupported operation type [" + type + "]");
                         }
                         Translog.Location location = translog.add(op);
                         Translog.Location existing = writtenOps.put(op, location);
@@ -1293,7 +1342,8 @@ public class TranslogTests extends ESTestCase {
                 downLatch.await();
                 for (int opCount = 0; opCount < opsPerThread; opCount++) {
                     Translog.Operation op;
-                    switch (randomFrom(Translog.Operation.Type.values())) {
+                    final Translog.Operation.Type type = randomFrom(Translog.Operation.Type.values());
+                    switch (type) {
                         case CREATE:
                         case INDEX:
                             op = new Translog.Index("test", threadId + "_" + opCount,
@@ -1307,8 +1357,11 @@ public class TranslogTests extends ESTestCase {
                                 1 + randomInt(100000),
                                 randomFrom(VersionType.values()));
                             break;
+                        case NO_OP:
+                            op = new Translog.NoOp(randomNonNegativeLong(), randomNonNegativeLong(), randomAsciiOfLength(16));
+                            break;
                         default:
-                            throw new ElasticsearchException("not supported op type");
+                            throw new AssertionError("unsupported operation type [" + type + "]");
                     }
 
                     Translog.Location loc = add(op);

@@ -154,7 +154,7 @@ public class UnicastZenPingTests extends ESTestCase {
         NetworkHandle handleD = startServices(settingsMismatch, threadPool, "UZP_D", versionD, supplier);
         closeables.push(handleD.transportService);
 
-        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
 
         Settings hostsSettings = Settings.builder()
                 .putArray("discovery.zen.ping.unicast.hosts",
@@ -304,7 +304,7 @@ public class UnicastZenPingTests extends ESTestCase {
             .put("cluster.name", "test")
             .build();
 
-        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
 
         final UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, EMPTY_HOSTS_PROVIDER);
         zenPingA.start(new PingContextProvider() {

@@ -58,7 +58,12 @@ public abstract class AbstractBulkByQueryRestHandler<
         int scrollSize = searchRequest.source().size();
         searchRequest.source().size(SIZE_ALL_MATCHES);
 
-        parseSearchRequest(searchRequest, restRequest, bodyConsumers);
+        XContentParser searchRequestParser = extractRequestSpecificFieldsAndReturnSearchCompatibleParser(restRequest, bodyConsumers);
+        try {
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher, searchRequestParser);
+        } finally {
+            IOUtils.close(searchRequestParser);
+        }
 
         internal.setSize(searchRequest.source().size());
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", scrollSize));
@@ -74,41 +79,35 @@ public abstract class AbstractBulkByQueryRestHandler<
         }
     }
 
-    protected void parseSearchRequest(SearchRequest searchRequest, RestRequest restRequest,
+    /**
+     * We can't send parseSearchRequest REST content that it doesn't support
+     * so we will have to remove the content that is valid in addition to
+     * what it supports from the content first. This is a temporary hack and
+     * should get better when SearchRequest has full ObjectParser support
+     * then we can delegate and stuff.
+     */
+    private XContentParser extractRequestSpecificFieldsAndReturnSearchCompatibleParser(RestRequest restRequest,
                                       Map<String, Consumer<Object>> bodyConsumers) throws IOException {
-        assert searchRequest != null : "SearchRequest should not be null";
-        assert restRequest != null : "RestRequest should not be null";
-
-        /*
-         * We can't send parseSearchRequest REST content that it doesn't support
-         * so we will have to remove the content that is valid in addition to
-         * what it supports from the content first. This is a temporary hack and
-         * should get better when SearchRequest has full ObjectParser support
-         * then we can delegate and stuff.
-         */
         XContentParser parser = restRequest.contentOrSourceParamParserOrNull();
+        if (parser == null) {
+            return parser;
+        }
         try {
-            if (parser != null && (bodyConsumers != null && bodyConsumers.size() > 0)) {
-                Map<String, Object> body = parser.map();
-                parser.close();
-                boolean modified = false;
-                for (Map.Entry<String, Consumer<Object>> consumer : bodyConsumers.entrySet()) {
-                    Object value = body.remove(consumer.getKey());
-                    if (value != null) {
-                        consumer.getValue().accept(value);
-                        modified = true;
-                    }
-                }
+            Map<String, Object> body = parser.map();
+            parser.close();
 
-                if (modified) {
-                    try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
-                        parser = parser.contentType().xContent().createParser(builder.map(body).bytes());
-                    }
+            for (Map.Entry<String, Consumer<Object>> consumer : bodyConsumers.entrySet()) {
+                Object value = body.remove(consumer.getKey());
+                if (value != null) {
+                    consumer.getValue().accept(value);
                 }
             }
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher, parser);
+
+            try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
+                return parser.contentType().xContent().createParser(builder.map(body).bytes());
+            }
         } finally {
-            IOUtils.close(parser);
+            parser.close();
         }
     }
 }

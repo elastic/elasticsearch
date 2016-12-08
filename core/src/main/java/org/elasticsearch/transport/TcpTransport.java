@@ -1133,10 +1133,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             throw new IllegalArgumentException("transport content length received [" + new ByteSizeValue(dataLen) + "] exceeded ["
                     + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
         }
-
-        if (available < dataLen + sizeHeaderLength) {
-            throw new IllegalStateException("buffer must be >= to the message size but wasn't");
-        }
         return dataLen + TcpHeader.MESSAGE_LENGTH_SIZE;
     }
 

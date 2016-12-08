@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.scroll;
 
-import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -38,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.search.RestClearScrollAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -60,7 +58,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSe
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -534,43 +531,6 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         try {
             RestSearchScrollAction.buildFromContent(invalidContent, searchScrollRequest);
-            fail("expected parseContent failure");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
-        }
-    }
-
-    public void testParseClearScrollRequest() throws Exception {
-        BytesReference content = XContentFactory.jsonBuilder().startObject()
-            .array("scroll_id", "value_1", "value_2")
-            .endObject().bytes();
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        RestClearScrollAction.buildFromContent(content, clearScrollRequest);
-        assertThat(clearScrollRequest.scrollIds(), contains("value_1", "value_2"));
-    }
-
-    public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-
-        try {
-            RestClearScrollAction.buildFromContent(new BytesArray("{invalid_json}"), clearScrollRequest);
-            fail("expected parseContent failure");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
-        }
-    }
-
-    public void testParseClearScrollRequestWithUnknownParamThrowsException() throws Exception {
-        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
-            .array("scroll_id", "value_1", "value_2")
-            .field("unknown", "keyword")
-            .endObject().bytes();
-        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-
-        try {
-            RestClearScrollAction.buildFromContent(invalidContent, clearScrollRequest);
             fail("expected parseContent failure");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));

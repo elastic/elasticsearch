@@ -196,9 +196,9 @@ public class CppLogMessageHandler implements Closeable {
         } catch (IOException e) {
             if (jobId != null) {
                 LOGGER.warn(new ParameterizedMessage("[{}] Failed to parse C++ log message: {}",
-                        new Object[] {jobId, bytesRef.utf8ToString()}, e));
+                        new Object[] {jobId, bytesRef.utf8ToString()}), e);
             } else {
-                LOGGER.warn(new ParameterizedMessage("Failed to parse C++ log message: {}", new Object[] {bytesRef.utf8ToString()}, e));
+                LOGGER.warn(new ParameterizedMessage("Failed to parse C++ log message: {}", new Object[] {bytesRef.utf8ToString()}), e);
             }
         }
     }

@@ -1,8 +1,8 @@
 # Integration tests for Phonetic analysis components
 #
-
-
 "Metaphone":
+    - skip:
+        features: warnings
     - do:
         indices.create:
             index:  phonetic_sample
@@ -33,4 +33,3 @@
     - match:  { tokens.1.token: joe  }
     - match:  { tokens.2.token: BLKS  }
     - match:  { tokens.3.token: bloggs  }
-

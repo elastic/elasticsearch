@@ -1,6 +1,8 @@
 # Integration tests for Smart Chinese analysis components
 #
 "Tokenizer":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -18,6 +20,8 @@
     - match:  { tokens.6.token: "," }
 ---
 "Analyzer":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param

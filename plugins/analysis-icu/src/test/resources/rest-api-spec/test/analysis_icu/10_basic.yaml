@@ -1,6 +1,8 @@
 # Integration tests for ICU analysis components
 #
 "Tokenizer":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -13,6 +15,8 @@
     - match:  { tokens.1.token: Bar }
 ---
 "Normalization filter":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - filter request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -26,6 +30,8 @@
     - match:  { tokens.0.token: foo bar russ }
 ---
 "Normalization charfilter":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - char_filter request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -39,6 +45,8 @@
     - match:  { tokens.0.token: foo bar russ }
 ---
 "Folding filter":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - filter request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param

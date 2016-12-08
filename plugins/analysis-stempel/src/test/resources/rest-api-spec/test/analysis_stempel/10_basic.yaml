@@ -1,6 +1,8 @@
 # Integration tests for Polish analysis components
 #
 "Stemmer":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -14,6 +16,8 @@
     - match:  { tokens.0.token: student  }
 ---
 "Analyzer":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param

@@ -1,8 +1,8 @@
 # Integration tests for Phonetic analysis components
 #
-
-
 "Double Metaphone":
+    - skip:
+        features: warnings
     - do:
         indices.create:
             index:  phonetic_sample
@@ -30,4 +30,3 @@
 
     - length: { tokens: 1 }
     - match:  { tokens.0.token: SPRKLF }
-

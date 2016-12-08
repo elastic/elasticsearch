@@ -2,6 +2,8 @@
 #
 ---
 "Analyzer":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -19,6 +21,8 @@
     - match:  { tokens.6.token: 行く }
 ---
 "Tokenizer":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -33,6 +37,8 @@
     - match:  { tokens.3.token: 空港 }
 ---
 "Baseform filter":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -46,6 +52,8 @@
     - match:  { tokens.0.token: 飲む }
 ---
 "Reading filter":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param
@@ -59,6 +67,8 @@
     - match:  { tokens.0.token: スシ }
 ---
 "Stemming filter":
+    - skip:
+        features: warnings
     - do:
         warnings:
           - text request parameter is deprecated and will be removed in the next major release. Please use the JSON in the request body instead request param

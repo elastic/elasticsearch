@@ -34,6 +34,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -43,6 +44,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -81,9 +83,7 @@ public class RankEvalSpecTests extends ESTestCase {
         return result;
     }
 
-    private RankEvalSpec createTestItem(List<String> indices, List<String> types) throws IOException {
-        List<RatedRequest> ratedRequests = randomList(() -> RatedRequestsTests.createTestItem(indices, types));
-
+    private RankEvalSpec createTestItem() throws IOException {
         RankedListQualityMetric metric;
         if (randomBoolean()) {
             metric = PrecisionTests.createTestItem();
@@ -92,6 +92,7 @@ public class RankEvalSpecTests extends ESTestCase {
         }
 
         Script template = null;
+        List<RatedRequest> ratedRequests = null;
         if (randomBoolean()) {
             final Map<String, Object> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("key", "value");
             ScriptType scriptType = randomFrom(ScriptType.values());
@@ -108,15 +109,23 @@ public class RankEvalSpecTests extends ESTestCase {
             }
 
             template = new Script(scriptType, randomFrom("_lang1", "_lang2"), script, params);
+
+            Map<String, Object> templateParams = new HashMap<>();
+            templateParams.put("key", "value");
+            RatedRequest ratedRequest = new RatedRequest(
+                    "id", Arrays.asList(RatedDocumentTests.createRatedDocument()), templateParams);
+            ratedRequests = Arrays.asList(ratedRequest);
+        } else {
+            RatedRequest ratedRequest = new RatedRequest(
+                    "id", Arrays.asList(RatedDocumentTests.createRatedDocument()), new SearchSourceBuilder());
+            ratedRequests = Arrays.asList(ratedRequest);
         }
 
         return new RankEvalSpec(ratedRequests, metric, template); 
     }
 
     public void testRoundtripping() throws IOException {
-        List<String> indices = randomList(() -> randomAsciiOfLengthBetween(0, 50));
-        List<String> types = randomList(() -> randomAsciiOfLengthBetween(0, 50));
-        RankEvalSpec testItem = createTestItem(indices, types);
+        RankEvalSpec testItem = createTestItem();
 
         XContentBuilder shuffled = ESTestCase.shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
         XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
@@ -127,7 +136,7 @@ public class RankEvalSpecTests extends ESTestCase {
 
         RankEvalSpec parsedItem = RankEvalSpec.parse(itemParser, rankContext);
         // IRL these come from URL parameters - see RestRankEvalAction
-        parsedItem.getRatedRequests().stream().forEach(e -> {e.setIndices(indices); e.setTypes(types);});
+        // TODO Do we still need this? parsedItem.getRatedRequests().stream().forEach(e -> {e.setIndices(indices); e.setTypes(types);});
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
@@ -140,17 +149,17 @@ public class RankEvalSpecTests extends ESTestCase {
     }
     
     public void testMissingMetricFailsParsing() {
-        List<String> indices = randomList(() -> randomAsciiOfLengthBetween(0, 50));
-        List<String> types = randomList(() -> randomAsciiOfLengthBetween(0, 50));
-        List<RatedRequest> ratedRequests = randomList(() -> RatedRequestsTests.createTestItem(indices, types));
+        List<String> strings = Arrays.asList("value");
+        List<RatedRequest> ratedRequests = randomList(() -> RatedRequestsTests.createTestItem(strings, strings));
         expectThrows(IllegalStateException.class, () -> new RankEvalSpec(ratedRequests, null));
     }
 
     public void testMissingTemplateAndSearchRequestFailsParsing() {
-        List<String> indices = randomList(() -> randomAsciiOfLengthBetween(0, 50));
-        List<String> types = randomList(() -> randomAsciiOfLengthBetween(0, 50));
-        RatedRequest request = RatedRequestsTests.createTestItem(indices, types);
-        request.setTestRequest(null);
+        List<RatedDocument> ratedDocs = Arrays.asList(new RatedDocument(new DocumentKey("index1", "type1", "id1"), 1));
+        Map<String, Object> params = new HashMap<>();
+        params.put("key", "value");
+
+        RatedRequest request = new RatedRequest("id", ratedDocs, params);
         List<RatedRequest> ratedRequests = Arrays.asList(request);
         
         expectThrows(IllegalStateException.class, () -> new RankEvalSpec(ratedRequests, new Precision()));

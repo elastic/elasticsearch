@@ -88,34 +88,36 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         if (qualityTask.getTemplate() != null) {
              scriptWithoutParams = scriptService.compile(qualityTask.getTemplate(), ScriptContext.Standard.SEARCH, new HashMap<>());
         }
-        for (RatedRequest querySpecification : specifications) {
-            final RankEvalActionListener searchListener = new RankEvalActionListener(listener, qualityTask.getMetric(), querySpecification,
+        for (RatedRequest ratedRequest : specifications) {
+            final RankEvalActionListener searchListener = new RankEvalActionListener(listener, qualityTask.getMetric(), ratedRequest,
                     partialResults, errors, responseCounter);
-            SearchSourceBuilder specRequest = querySpecification.getTestRequest();
-            if (specRequest == null) {
-                Map<String, Object> params = querySpecification.getParams();
+            SearchSourceBuilder ratedSearchSource = ratedRequest.getTestRequest();
+            if (ratedSearchSource == null) {
+                Map<String, Object> params = ratedRequest.getParams();
                 String resolvedRequest = ((BytesReference) (scriptService.executable(scriptWithoutParams, params).run())).utf8ToString();
                 try (XContentParser subParser = XContentFactory.xContent(resolvedRequest).createParser(resolvedRequest)) {
                     QueryParseContext parseContext = new QueryParseContext(searchRequestParsers.queryParsers, subParser, parseFieldMatcher);
-                    specRequest = SearchSourceBuilder.fromXContent(parseContext, searchRequestParsers.aggParsers,
+                    ratedSearchSource = SearchSourceBuilder.fromXContent(parseContext, searchRequestParsers.aggParsers,
                             searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 } catch (IOException e) {
                     listener.onFailure(e);
                 }
             }
-            List<String> summaryFields = querySpecification.getSummaryFields();
+            List<String> summaryFields = ratedRequest.getSummaryFields();
             if (summaryFields.isEmpty()) {
-                specRequest.fetchSource(false);
+                ratedSearchSource.fetchSource(false);
             } else {
-                specRequest.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
+                ratedSearchSource.fetchSource(summaryFields.toArray(new String[summaryFields.size()]), new String[0]);
             }
 
-            String[] indices = new String[querySpecification.getIndices().size()];
-            querySpecification.getIndices().toArray(indices);
-            SearchRequest templatedRequest = new SearchRequest(indices, specRequest);
-            String[] types = new String[querySpecification.getTypes().size()];
-            querySpecification.getTypes().toArray(types);
+            String[] indices = new String[ratedRequest.getIndices().size()];
+            indices = ratedRequest.getIndices().toArray(indices);
+            SearchRequest templatedRequest = new SearchRequest(indices, ratedSearchSource);
+
+            String[] types = new String[ratedRequest.getTypes().size()];
+            types = ratedRequest.getTypes().toArray(types);
             templatedRequest.types(types);
+
             client.search(templatedRequest, searchListener);
         }
     }

@@ -20,12 +20,13 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -49,27 +50,59 @@ import java.util.Set;
 @SuppressWarnings("unchecked")
 public class RatedRequest extends ToXContentToBytes implements Writeable {
     private String id;
-    private SearchSourceBuilder testRequest;
-    private List<String> indices = new ArrayList<>();
-    private List<String> types = new ArrayList<>();
+    private List<String> indices;
+    private List<String> types;
     private List<String> summaryFields = new ArrayList<>();
     /** Collection of rated queries for this query QA specification.*/
     private List<RatedDocument> ratedDocs = new ArrayList<>();
+    /** Search request to execute for this rated request, can be null, if template and corresponding params are supplied. */
+    @Nullable
+    private SearchSourceBuilder testRequest;
     /** Map of parameters to use for filling a query template, can be used instead of providing testRequest. */
+    @Nullable
     private Map<String, Object> params = new HashMap<>();
 
-    public RatedRequest() {
-        // ctor that doesn't require all args to be present immediatly is easier to use with ObjectParser
-        // TODO decide if we can require only id as mandatory, set default values for the rest?
-    }
+    public RatedRequest(String id, List<String> summaryFields, List<RatedDocument> ratedDocs,
+            SearchSourceBuilder testRequest, Map<String, Object> params) {
+        if (params != null && (params.size() > 0 && testRequest != null)) {
+            throw new IllegalArgumentException(
+                    "Ambiguous rated request: Set both, verbatim test request and test request template parameters.");
+        }
+        // No documents with same _index/_type/id allowed.
+        Set<DocumentKey> docKeys = new HashSet<>();
+        for (RatedDocument doc : ratedDocs) {
+            if (docKeys.add(doc.getKey()) == false) {
+                String docKeyToString = doc.getKey().toString().replaceAll("\n", "").replaceAll("  ", " ");
+                throw new IllegalArgumentException(
+                        "Found duplicate rated document key [" + docKeyToString + "]");
+            }
+        }
 
-    public RatedRequest(String id, SearchSourceBuilder testRequest, List<String> indices, List<String> types,
-            List<RatedDocument> ratedDocs) {
         this.id = id;
         this.testRequest = testRequest;
-        this.indices = indices;
-        this.types = types;
-        setRatedDocs(ratedDocs);
+        if (summaryFields != null) {
+            this.summaryFields = summaryFields;
+        }
+        this.ratedDocs = ratedDocs;
+        if (params != null) {
+            this.params = params;
+        }
+    }
+    
+    public RatedRequest(String id, List<String> summaryFields, List<RatedDocument> ratedDocs, Map<String, Object> params) {
+        this(id, summaryFields, ratedDocs, null, params);
+    }
+
+    public RatedRequest(String id, List<RatedDocument> ratedDocs, Map<String, Object> params) {
+        this(id, new ArrayList<>(), ratedDocs, null, params);
+    }
+
+    public RatedRequest(String id,List<String> summaryFields, List<RatedDocument> ratedDocs, SearchSourceBuilder testRequest) {
+        this(id, summaryFields, ratedDocs, testRequest, new HashMap<>());
+    }
+
+    public RatedRequest(String id, List<RatedDocument> ratedDocs, SearchSourceBuilder testRequest) {
+        this(id, new ArrayList<>(), ratedDocs, testRequest, new HashMap<>());
     }
 
     public RatedRequest(StreamInput in) throws IOException {
@@ -127,24 +160,20 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         return testRequest;
     }
 
-    public void setTestRequest(SearchSourceBuilder testRequest) {
-        this.testRequest = testRequest;
+    public void setIndices(List<String> indices) {
+        this.indices = indices;
     }
 
     public List<String> getIndices() {
         return indices;
     }
 
-    public void setIndices(List<String> indices) {
-        this.indices = indices;
+    public void setTypes(List<String> types) {
+        this.types = types;
     }
 
     public List<String> getTypes() {
         return types;
-    }
-
-    public void setTypes(List<String> types) {
-        this.types = types;
     }
 
     /** Returns a user supplied spec id for easier referencing. */
@@ -152,42 +181,13 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         return id;
     }
 
-    /** Sets a user supplied spec id for easier referencing. */
-    public void setSpecId(String specId) {
-        this.id = specId;
-    }
-
     /** Returns a list of rated documents to evaluate. */
     public List<RatedDocument> getRatedDocs() {
         return ratedDocs;
     }
 
-    /**
-     * Set a list of rated documents for this query.
-     * No documents with same _index/_type/id allowed.
-     **/
-    public void setRatedDocs(List<RatedDocument> ratedDocs) {
-        Set<DocumentKey> docKeys = new HashSet<>();
-        for (RatedDocument doc : ratedDocs) {
-            if (docKeys.add(doc.getKey()) == false) {
-                String docKeyToString = doc.getKey().toString().replaceAll("\n", "").replaceAll("  ", " ");
-                throw new IllegalArgumentException(
-                        "Found duplicate rated document key [" + docKeyToString + "]");
-            }
-        }
-        this.ratedDocs = ratedDocs;
-    }
-
-    public void setParams(Map<String, Object> params) {
-        this.params = params;
-    }
-
     public Map<String, Object> getParams() {
         return this.params;
-    }
-
-    public void setSummaryFields(List<String> fields) {
-        this.summaryFields = fields;
     }
 
     /** Returns a list of fields that are included in the docs summary of matched documents. */
@@ -200,26 +200,30 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     private static final ParseField RATINGS_FIELD = new ParseField("ratings");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField FIELDS_FIELD = new ParseField("summary_fields");
-    private static final ObjectParser<RatedRequest, RankEvalContext> PARSER = new ObjectParser<>("requests", RatedRequest::new);
+
+    private static final ConstructingObjectParser<RatedRequest, RankEvalContext> PARSER = 
+            new ConstructingObjectParser<>("requests", a -> new RatedRequest(
+                    (String) a[0], (List<String>) a[1], (List<RatedDocument>) a[2],
+                    (SearchSourceBuilder) a[3], (Map<String, Object>) a[4]));
 
     static {
-        PARSER.declareString(RatedRequest::setSpecId, ID_FIELD);
-        PARSER.declareStringArray(RatedRequest::setSummaryFields, FIELDS_FIELD);
-        PARSER.declareObject(RatedRequest::setTestRequest, (p, c) -> {
-            try {
-                return SearchSourceBuilder.fromXContent(c.getParseContext(), c.getAggs(),  c.getSuggesters(), c.getSearchExtParsers());
-            } catch (IOException ex) {
-                throw new ParsingException(p.getTokenLocation(), "error parsing request", ex);
-            }
-        } , REQUEST_FIELD);
-        PARSER.declareObjectArray(RatedRequest::setRatedDocs, (p, c) -> {
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
+        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FIELDS_FIELD);
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
             try {
                 return RatedDocument.fromXContent(p, c);
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing ratings", ex);
             }
         }, RATINGS_FIELD);
-        PARSER.declareObject(RatedRequest::setParams, (p, c) -> {
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            try {
+                return SearchSourceBuilder.fromXContent(c.getParseContext(), c.getAggs(),  c.getSuggesters(), c.getSearchExtParsers());
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing request", ex);
+            }
+        } , REQUEST_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             try {
                 return (Map) p.map();
             } catch (IOException ex) {
@@ -250,7 +254,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
      *  }
      */
     public static RatedRequest fromXContent(XContentParser parser, RankEvalContext context) throws IOException {
-        return PARSER.parse(parser, context);
+        return PARSER.apply(parser, context);
     }
 
     @Override
@@ -290,6 +294,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
             return false;
         }
         RatedRequest other = (RatedRequest) obj;
+        
         return Objects.equals(id, other.id) &&
                 Objects.equals(testRequest, other.testRequest) &&
                 Objects.equals(indices, other.indices) &&

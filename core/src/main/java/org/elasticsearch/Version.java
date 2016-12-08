@@ -100,7 +100,9 @@ public class Version {
     // no version constant for 5.1.0 due to inadvertent release
     public static final int V_5_1_1_ID = 5010199;
     public static final Version V_5_1_1 = new Version(V_5_1_1_ID, org.apache.lucene.util.Version.LUCENE_6_3_0);
-    public static final Version CURRENT = V_5_1_1;
+    public static final int V_5_1_2_ID = 5010299;
+    public static final Version V_5_1_2 = new Version(V_5_1_2_ID, org.apache.lucene.util.Version.LUCENE_6_3_0);
+    public static final Version CURRENT = V_5_1_2;
 
     /* NOTE: don't add unreleased version to this list except of the version assigned to CURRENT.
      * If you need a version that doesn't exist here for instance V_5_1_1 then go and create such a version
@@ -122,6 +124,8 @@ public class Version {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_5_1_2_ID:
+                return V_5_1_2;
             case V_5_1_1_ID:
                 return V_5_1_1;
             case V_5_0_2_ID:

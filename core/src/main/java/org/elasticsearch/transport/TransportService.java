@@ -436,22 +436,39 @@ public class TransportService extends AbstractLifecycleComponent {
                                                                           TransportRequestOptions options,
                                                                           TransportResponseHandler<T> handler) throws TransportException {
         PlainTransportFuture<T> futureHandler = new PlainTransportFuture<>(handler);
-        sendRequest(getConnection(node), action, request, options, futureHandler);
+        try {
+            Transport.Connection connection = getConnection(node);
+            sendRequest(connection, action, request, options, futureHandler);
+        } catch (NodeNotConnectedException ex) {
+            // handle the NNCException from the getConnection - the caller might not handle it so we invoke the handler
+            futureHandler.handleException(ex);
+        }
         return futureHandler;
     }
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportResponseHandler<T> handler) {
-        sendRequest(getConnection(node), action, request, TransportRequestOptions.EMPTY, handler);
+        try {
+            Transport.Connection connection = getConnection(node);
+            sendRequest(connection, action, request, TransportRequestOptions.EMPTY, handler);
+        } catch (NodeNotConnectedException ex) {
+            // handle the NNCException from the getConnection - the caller might not handle it so we invoke the handler
+            handler.handleException(ex);
+        }
     }
 
     public final <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
-
-        sendRequest(getConnection(node), action, request, options, handler);
+        try {
+            Transport.Connection connection = getConnection(node);
+            sendRequest(connection, action, request, options, handler);
+        } catch (NodeNotConnectedException ex) {
+            // handle the NNCException from the getConnection - the caller might not handle it so we invoke the handler
+            handler.handleException(ex);
+        }
     }
 
     final <T extends TransportResponse> void sendRequest(final Transport.Connection connection, final String action,
@@ -462,6 +479,10 @@ public class TransportService extends AbstractLifecycleComponent {
         asyncSender.sendRequest(connection, action, request, options, handler);
     }
 
+    /**
+     * Returns either a real transport connection or a local node connection if we are using the local node optimization.
+     * @throws NodeNotConnectedException if the given node is not connected
+     */
     private Transport.Connection getConnection(DiscoveryNode node) {
         if (Objects.requireNonNull(node, "node must be non-null").equals(localNode)) {
             return localNodeConnection;
@@ -483,10 +504,14 @@ public class TransportService extends AbstractLifecycleComponent {
         request.setParentTask(localNode.getId(), parentTask.getId());
         try {
             taskManager.registerChildTask(parentTask, node.getId());
-            sendRequest(getConnection(node), action, request, options, handler);
+            final Transport.Connection connection = getConnection(node);
+            sendRequest(connection, action, request, options, handler);
         } catch (TaskCancelledException ex) {
             // The parent task is already cancelled - just fail the request
             handler.handleException(new TransportException(ex));
+        } catch (NodeNotConnectedException ex) {
+            // handle the NNCException from the getConnection - the caller might not handle it so we invoke the handler
+            handler.handleException(ex);
         }
 
     }

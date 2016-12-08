@@ -1438,7 +1438,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         service.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
             (request, channel) -> {
                 requestProcessed.set(true);
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                channel.sendResponse(new TestResponse());
             });
 
         DiscoveryNode node =

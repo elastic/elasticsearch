@@ -85,7 +85,7 @@ public class CompressorFactory {
     public static BytesReference uncompress(BytesReference bytes) throws IOException {
         Compressor compressor = compressor(bytes);
         if (compressor == null) {
-            throw new NotCompressedException();
+            throw new NotCompressedException("no compressor found");
         }
         return uncompress(bytes, compressor);
     }
@@ -96,5 +96,13 @@ public class CompressorFactory {
         Streams.copy(compressed, bStream);
         compressed.close();
         return bStream.bytes();
+    }
+
+    /**
+     * Returns a new stream to decompress the given stream.
+     * @throws NotCompressedException if the given stream is not compressed
+     */
+    public static StreamInput uncompress(StreamInput input) throws IOException {
+        return COMPRESSOR.streamInput(input);
     }
 }

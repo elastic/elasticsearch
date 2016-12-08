@@ -147,4 +147,11 @@ class ByteBufStreamInput extends StreamInput {
     public void close() throws IOException {
         // nothing to do here
     }
+
+    /**
+     * Consumes all pending bytes of this stream
+     */
+    void consumeFully() {
+        buffer.readerIndex(endIndex);
+    }
 }

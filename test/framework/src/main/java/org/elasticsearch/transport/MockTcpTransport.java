@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -130,31 +129,21 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
     private void readMessage(MockChannel mockChannel, StreamInput input) throws IOException {
         Socket socket = mockChannel.activeChannel;
-        byte[] minimalHeader = new byte[TcpHeader.MARKER_BYTES_SIZE];
+        assert input.markSupported();
+        input.mark(1);
         int firstByte = input.read();
         if (firstByte == -1) {
             throw new IOException("Connection reset by peer");
         }
-        minimalHeader[0] = (byte) firstByte;
-        minimalHeader[1] = (byte) input.read();
-        int msgSize = input.readInt();
+        input.reset();
+        final int msgSize = TcpTransport.validateMessageHeader(input);
         if (msgSize == -1) {
             socket.getOutputStream().flush();
         } else {
-            BytesStreamOutput output = new BytesStreamOutput();
-            final byte[] buffer = new byte[msgSize];
-            input.readFully(buffer);
-            output.write(minimalHeader);
-            output.writeInt(msgSize);
-            output.write(buffer);
-            final BytesReference bytes = output.bytes();
-            if (TcpTransport.validateMessageHeader(bytes)) {
-                InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
-                messageReceived(bytes.slice(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE, msgSize),
-                    mockChannel, mockChannel.profile, remoteAddress, msgSize);
-            } else {
-                // ping message - we just drop all stuff
-            }
+            InetSocketAddress remoteAddress = (InetSocketAddress) socket.getRemoteSocketAddress();
+            // now we read it all off the wire to be more consistent with what netty does
+            messageReceived(input.readBytesReference(msgSize).streamInput(),
+                mockChannel, mockChannel.profile, remoteAddress);
         }
     }
 
@@ -199,8 +188,6 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
         return nodeChannels;
     }
-
-
 
     private void configureSocket(Socket socket) throws SocketException {
         socket.setTcpNoDelay(TCP_NO_DELAY.get(settings));

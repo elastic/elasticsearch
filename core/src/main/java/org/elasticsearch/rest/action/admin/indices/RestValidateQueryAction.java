@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest.action.admin.indices;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.validate.query.QueryExplanation;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -72,16 +74,20 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
 
         Exception bodyParsingException = null;
-        if (request.hasContentOrSourceParam()) {
-            try {
-                validateQueryRequest.query(
-                    RestActions.getQueryContent(RestActions.getRestContent(request), indicesQueriesRegistry, parseFieldMatcher));
-            } catch (Exception e) {
-                bodyParsingException = e;
+        XContentParser parser = request.contentOrSourceParamParser();
+        try {
+            if (parser != null) {
+                try {
+                    validateQueryRequest.query(RestActions.getQueryContent(parser, indicesQueriesRegistry, parseFieldMatcher));
+                } catch (Exception e) {
+                    bodyParsingException = e;
+                }
+            } else if (request.hasParam("q")) {
+                QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+                validateQueryRequest.query(queryBuilder);
             }
-        } else if (request.hasParam("q")) {
-            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
-            validateQueryRequest.query(queryBuilder);
+        } finally {
+            IOUtils.close(parser);
         }
 
         final Exception finalBodyParsingException = bodyParsingException;

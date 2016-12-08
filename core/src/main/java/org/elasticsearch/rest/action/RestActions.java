@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -218,14 +216,10 @@ public class RestActions {
         return content;
     }
 
-    public static QueryBuilder getQueryContent(BytesReference source, IndicesQueriesRegistry indicesQueriesRegistry,
+    public static QueryBuilder getQueryContent(XContentParser requestParser, IndicesQueriesRegistry indicesQueriesRegistry,
                                                ParseFieldMatcher parseFieldMatcher) {
-        try (XContentParser requestParser = XContentFactory.xContent(source).createParser(source)) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, requestParser, parseFieldMatcher);
-            return context.parseTopLevelQueryBuilder();
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to parse source", e);
-        }
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, requestParser, parseFieldMatcher);
+        return context.parseTopLevelQueryBuilder();
     }
 
     /**

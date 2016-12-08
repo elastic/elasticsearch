@@ -257,3 +257,35 @@
             match:
               text: test
   - match: {hits.total: 1}
+
+---
+"Reindex from with broken query":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+        refresh: true
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      catch: /query malformed, no start_object after query name/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://${host}
+            index: source
+            query:
+              garbage: not a query
+          dest:
+            index: dest

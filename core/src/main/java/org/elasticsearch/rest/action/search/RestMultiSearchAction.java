@@ -36,7 +36,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -115,7 +114,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String searchType = request.param("search_type");
         String routing = request.param("routing");
 
-        final BytesReference data = RestActions.getRestContent(request);
+        final BytesReference data = request.contentOrSourceParam();
 
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -28,7 +27,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestController;
@@ -67,8 +65,7 @@ public class RestCountAction extends AbstractCatAction {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
         countRequest.source(searchSourceBuilder);
         try {
-            XContentParser parser = request.contentOrSourceParamParserOrNull();
-            try {
+            request.withContentOrSourceParamParserOrNull(parser -> {
                 if (parser == null) {
                     QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
                     if (queryBuilder != null) {
@@ -77,9 +74,7 @@ public class RestCountAction extends AbstractCatAction {
                 } else {
                     searchSourceBuilder.query(RestActions.getQueryContent(parser, indicesQueriesRegistry, parseFieldMatcher));
                 }
-            } finally {
-                IOUtils.close(parser);
-            }
+            });
         } catch (IOException e) {
             throw new ElasticsearchException("Couldn't parse query", e);
         }

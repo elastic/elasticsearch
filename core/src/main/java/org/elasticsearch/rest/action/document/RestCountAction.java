@@ -69,8 +69,7 @@ public class RestCountAction extends BaseRestHandler {
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
         countRequest.source(searchSourceBuilder);
-        XContentParser parser = request.contentOrSourceParamParserOrNull();
-        try {
+        request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser == null) {
                 QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
                 if (queryBuilder != null) {
@@ -79,9 +78,7 @@ public class RestCountAction extends BaseRestHandler {
             } else {
                 searchSourceBuilder.query(RestActions.getQueryContent(parser, indicesQueriesRegistry, parseFieldMatcher));
             }
-        } finally {
-            IOUtils.close(parser);
-        }
+        });
         countRequest.routing(request.param("routing"));
         float minScore = request.paramAsFloat("min_score", -1f);
         if (minScore != -1f) {

@@ -70,17 +70,14 @@ public class RestExplainAction extends BaseRestHandler {
         explainRequest.routing(request.param("routing"));
         explainRequest.preference(request.param("preference"));
         String queryString = request.param("q");
-        XContentParser parser = request.contentOrSourceParamParserOrNull();
-        try {
+        request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
                 explainRequest.query(RestActions.getQueryContent(parser, indicesQueriesRegistry, parseFieldMatcher));
             } else if (queryString != null) {
                 QueryBuilder query = RestActions.urlParamsToQueryBuilder(request);
                 explainRequest.query(query);
             }
-        } finally {
-            IOUtils.close(parser);
-        }
+        });
 
         if (request.param("fields") != null) {
             throw new IllegalArgumentException("The parameter [fields] is no longer supported, " +

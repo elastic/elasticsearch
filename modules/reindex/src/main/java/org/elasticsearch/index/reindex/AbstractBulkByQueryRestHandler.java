@@ -58,7 +58,8 @@ public abstract class AbstractBulkByQueryRestHandler<
         int scrollSize = searchRequest.source().size();
         searchRequest.source().size(SIZE_ALL_MATCHES);
 
-        XContentParser searchRequestParser = extractRequestSpecificFieldsAndReturnSearchCompatibleParser(restRequest, bodyConsumers);
+        XContentParser searchRequestParser = extractRequestSpecificFieldsAndReturnSearchCompatibleParser(
+                restRequest.contentOrSourceParamParserOrNull(), bodyConsumers);
         try {
             RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher, searchRequestParser);
         } finally {
@@ -86,9 +87,8 @@ public abstract class AbstractBulkByQueryRestHandler<
      * should get better when SearchRequest has full ObjectParser support
      * then we can delegate and stuff.
      */
-    private XContentParser extractRequestSpecificFieldsAndReturnSearchCompatibleParser(RestRequest restRequest,
+    private XContentParser extractRequestSpecificFieldsAndReturnSearchCompatibleParser(XContentParser parser,
                                       Map<String, Consumer<Object>> bodyConsumers) throws IOException {
-        XContentParser parser = restRequest.contentOrSourceParamParserOrNull();
         if (parser == null) {
             return parser;
         }

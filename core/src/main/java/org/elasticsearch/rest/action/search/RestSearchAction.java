@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -73,12 +72,8 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        XContentParser parser = request.contentOrSourceParamParserOrNull();
-        try {
-            parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, parser);
-        } finally {
-            IOUtils.close(parser);
-        }
+        request.withContentOrSourceParamParserOrNull(parser ->
+            parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, parser));
 
         return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }

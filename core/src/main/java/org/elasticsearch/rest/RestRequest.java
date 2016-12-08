@@ -19,8 +19,10 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.IOConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -272,6 +274,19 @@ public abstract class RestRequest implements ToXContent.Params {
             return null;
         }
         return XContentFactory.xContent(content).createParser(content);
+    }
+
+    /**
+     * TODO
+     */
+    @Nullable
+    public final void withContentOrSourceParamParserOrNull(IOConsumer<XContentParser> withParser) throws IOException {
+        XContentParser parser = contentOrSourceParamParserOrNull();
+        try {
+            withParser.accept(parser);
+        } finally {
+            IOUtils.close(parser);
+        }
     }
 
     /**

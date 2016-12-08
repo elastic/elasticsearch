@@ -59,7 +59,7 @@ public class RestMonitoringBulkAction extends MonitoringRestHandler {
             throw new IllegalArgumentException("no [" + INTERVAL + "] for monitoring bulk request");
         }
 
-        if (!RestActions.hasBodyContent(request)) {
+        if (false == request.hasContentOrSourceParam()) {
             throw new ElasticsearchParseException("no body content for monitoring bulk request");
         }
 

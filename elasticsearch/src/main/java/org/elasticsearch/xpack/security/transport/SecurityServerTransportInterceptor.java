@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.transport;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
@@ -213,7 +214,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     assert filter != null;
                     final Thread executingThread = Thread.currentThread();
 
-                    ActionListener.CheckedConsumer<Void> consumer = (x) -> {
+                    CheckedConsumer<Void, Exception> consumer = (x) -> {
                         final Executor executor;
                         if (executingThread == Thread.currentThread()) {
                             // only fork off if we get called on another thread this means we moved to

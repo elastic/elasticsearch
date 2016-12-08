@@ -192,10 +192,6 @@ Logging::
 Mapping::
 * Create the QueryShardContext lazily in DocumentMapperParser. {pull}21287[#21287]
 
-NOT CLASSIFIED::
-* [TEST] Remove create special case in yaml test client {pull}21030[#21030] (issue: {issue}20924[#20924])
-* introduce test plugin to inject random search ext elements in search request tests {pull}20521[#20521] (issue: {issue}17685[#17685])
-
 Network::
 * Grant Netty permission to read system somaxconn {pull}21840[#21840]
 * Lazy resolve unicast hosts {pull}21630[#21630] (issues: {issue}14441[#14441], {issue}16412[#16412])
@@ -534,9 +530,6 @@ Dates::
 
 Logging::
 * Upgrade Log4j 2 to version 2.7 {pull}20805[#20805] (issue: {issue}20304[#20304])
-
-NOT CLASSIFIED::
-* Upgrade to lucene-6.3.0-snapshot-ed102d6 {pull}21150[#21150]
 
 Network::
 * Upgrade to Netty 4.1.6 {pull}21051[#21051]

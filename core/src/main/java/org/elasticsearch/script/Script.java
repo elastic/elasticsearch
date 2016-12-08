@@ -214,8 +214,8 @@ public final class Script implements ToXContent, Writeable {
 
             if (type == ScriptType.STORED) {
                 if (lang != null) {
-                    DEPRECATION_LOGGER.deprecated("specifying " + LANG_PARSE_FIELD.getPreferredName() + " [" + lang + "] " +
-                        "as part of the namespace for " + ScriptType.STORED + " scripts is deprecated; use only the field " +
+                    DEPRECATION_LOGGER.deprecated("specifying the field [" + LANG_PARSE_FIELD.getPreferredName() + "] " +
+                        "for executing " + ScriptType.STORED + " scripts is deprecated; use only the field " +
                         "[" + ScriptType.STORED.getParseField().getPreferredName() + "] to specify an <id>");
                 }
             } else if (lang == null) {
@@ -396,7 +396,7 @@ public final class Script implements ToXContent, Writeable {
 
         if (type != ScriptType.INLINE && !options.isEmpty()) {
             throw new IllegalArgumentException(
-                "Compiler options [" + options + "] cannot be specified at runtime for [" + type + "] scripts.");
+                "compiler options [" + options + "] cannot be specified at runtime for [" + type + "] scripts");
         }
     }
 

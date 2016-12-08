@@ -164,7 +164,6 @@ hierarchy of directories is flattened and concatenated with underscores.  A
 script in `group1/group2/my_script.painless` should use `group1_group2_myscript`
 as the `file` name.
 
-
 [[reload-scripts]]
 [float]
 ==== Automatic script reloading
@@ -181,16 +180,39 @@ Script reloading can be completely disabled by setting
 === Stored Scripts
 
 Scripts may be stored in and retrieved from the cluster state using the
-`_scripts` end-point:
+`_scripts` end-point.
+
+==== Deprecated Namespace
+
+The namespace for stored scripts using both `lang` and `id` as a unique
+identifier has been deprecated.  The new namespace for stored scripts will
+only use `id`. Stored scripts with the same `id`, but different `lang`'s
+will no longer be allowed in 6.0.  To comply with the new namespace for
+stored scripts, existing stored scripts should be deleted and put again.
+Any scripts that share an `id` but have different `lang`s will need to
+be re-named.  For example, take the following:
+
+"id": "example", "lang": "painless"
+"id": "example", "lang": "expressions"
+
+The above scripts will conflict under the new namespace since the id's are
+the same.  At least one will have to be re-named to comply with the new
+namespace of only `id`.
+
+As a final caveat, stored search templates and stored scripts share
+the same namespace, so if a search template has the same `id` as a
+stored script, one of the two will have to be re-named as well using
+delete and put requests.
+
+==== Request Examples
+
+The following are examples of stored script requests:
 
 [source,js]
 -----------------------------------
 /_scripts/{id} <1>
 -----------------------------------
-<1> The `id` is a unique identifier for the stored script.  Note that
-stored search templates and stored scripts share the same namespace.  If
-a stored template is saved with the id of a stored script, it will overwrite
-the existing stored script.
+<1> The `id` is a unique identifier for the stored script.
 
 This example stores a Painless script called `calculate-score` in the cluster
 state:
@@ -216,7 +238,7 @@ GET _scripts/calculate-score
 // CONSOLE
 // TEST[continued]
 
-Stored scripts can be used by specifying the `lang` and `stored` parameters as follows:
+Stored scripts can be used by specifying the `stored` parameters as follows:
 
 [source,js]
 --------------------------------------------------
@@ -225,7 +247,6 @@ GET _search
   "query": {
     "script": {
       "script": {
-        "lang": "painless",
         "stored": "calculate-score",
         "params": {
           "my_modifier": 2

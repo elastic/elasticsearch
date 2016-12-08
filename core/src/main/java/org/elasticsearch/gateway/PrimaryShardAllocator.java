@@ -124,9 +124,11 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
         final FetchResult<NodeGatewayStartedShards> shardState = fetchData(unassignedShard, allocation);
         if (shardState.hasData() == false) {
             allocation.setHasPendingAsyncFetch();
-            if (explain == false) {
-                return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, null);
+            List<NodeAllocationResult> nodeDecisions = null;
+            if (explain) {
+                nodeDecisions = buildDecisionsForAllNodes(unassignedShard, allocation);
             }
+            return AllocateUnassignedDecision.no(AllocationStatus.FETCHING_SHARD_DATA, nodeDecisions);
         }
 
         // don't create a new IndexSetting object for every shard as this could cause a lot of garbage

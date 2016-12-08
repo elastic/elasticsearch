@@ -78,14 +78,12 @@ public class RestValidateQueryAction extends BaseRestHandler {
             request.withContentOrSourceParamParserOrNull(parser -> {
                 if (parser != null) {
                     validateQueryRequest.query(RestActions.getQueryContent(parser, indicesQueriesRegistry, parseFieldMatcher));
+                } else if (request.hasParam("q")) {
+                    validateQueryRequest.query(RestActions.urlParamsToQueryBuilder(request));
                 }
             });
         } catch (Exception e) {
             bodyParsingException = e;
-        }
-        if (validateQueryRequest.query() == null && request.hasParam("q")) {
-            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
-            validateQueryRequest.query(queryBuilder);
         }
 
         final Exception finalBodyParsingException = bodyParsingException;

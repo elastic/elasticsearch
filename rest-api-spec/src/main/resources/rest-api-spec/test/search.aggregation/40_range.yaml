@@ -210,9 +210,7 @@ setup:
 
   - match: { aggregations.ip_range.buckets.0.key: "::/24" }
 
-  - match: { aggregations.ip_range.buckets.0.from: "::" }
-
-  - match: { aggregations.ip_range.buckets.0.to: "0:ff:ffff:ffff:ffff:ffff:ffff:ffff" }
+  - match: { aggregations.ip_range.buckets.0.to: "0:100::" }
 
   - match: { aggregations.ip_range.buckets.0.doc_count: 3 } 
 
@@ -220,7 +218,7 @@ setup:
 
   - match: { aggregations.ip_range.buckets.1.from: "192.168.0.0" }
 
-  - match: { aggregations.ip_range.buckets.1.to: "192.168.255.255" }
+  - match: { aggregations.ip_range.buckets.1.to: "192.169.0.0" }
 
   - match: { aggregations.ip_range.buckets.1.doc_count: 2 } 
 

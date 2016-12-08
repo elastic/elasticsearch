@@ -20,11 +20,13 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
@@ -140,6 +142,101 @@ public class RatedRequestsTests extends ESTestCase {
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
+    
+    public void testSerialization() throws IOException {
+        List<String> indices = new ArrayList<>();
+        int size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            indices.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        List<String> types = new ArrayList<>();
+        size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            types.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        RatedRequest original = createTestItem(indices, types);
+
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
+
+        RatedRequest deserialized = RankEvalTestHelper.copy(original, RatedRequest::new, new NamedWriteableRegistry(namedWriteables));
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        List<String> indices = new ArrayList<>();
+        int size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            indices.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        List<String> types = new ArrayList<>();
+        size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            types.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        RatedRequest testItem = createTestItem(indices, types);
+
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
+
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, RatedRequest::new, new NamedWriteableRegistry(namedWriteables)));
+    }
+
+    private RatedRequest mutateTestItem(RatedRequest original) {
+        String id = original.getId();
+        SearchSourceBuilder testRequest = original.getTestRequest();
+        List<RatedDocument> ratedDocs = original.getRatedDocs();
+        List<String> indices = original.getIndices();
+        List<String> types = original.getTypes();
+        Map<String, Object> params = original.getParams();
+        List<String> summaryFields = original.getSummaryFields();
+
+        int mutate = randomIntBetween(0, 6);
+        switch (mutate) {
+            case 0:
+                id = randomValueOtherThan(id, () -> randomAsciiOfLength(10));
+                break;
+            case 1:
+                int size = randomValueOtherThan(testRequest.size(), () -> randomInt());
+                testRequest = new SearchSourceBuilder();
+                testRequest.size(size);
+                testRequest.query(new MatchAllQueryBuilder());
+                break;
+            case 2:
+                ratedDocs = Arrays.asList(
+                        randomValueOtherThanMany(ratedDocs::contains, () -> RatedDocumentTests.createRatedDocument()));
+                break;
+            case 3:
+                indices = Arrays.asList(randomValueOtherThanMany(indices::contains, () -> randomAsciiOfLength(10)));
+                break;
+            case 4:
+                types =  Arrays.asList(randomValueOtherThanMany(types::contains, () -> randomAsciiOfLength(10)));
+                break;
+            case 5:
+                params = new HashMap<>();
+                params.putAll(params);
+                params.put("one_more_key", "one_more_value");
+                break;
+            case 6:
+                summaryFields = Arrays.asList(randomValueOtherThanMany(summaryFields::contains, () -> randomAsciiOfLength(10)));
+                break;
+            default:
+                throw new IllegalStateException("Requested to modify more than available parameters.");
+        }
+
+        RatedRequest ratedRequest = new RatedRequest(id, summaryFields, ratedDocs, testRequest, params);
+        ratedRequest.setIndices(indices);
+        ratedRequest.setTypes(types);
+
+        return ratedRequest;
     }
 
     public void testDuplicateRatedDocThrowsException() {

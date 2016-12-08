@@ -167,6 +167,11 @@ public class PrecisionTests extends ESTestCase {
         assertEquals(0.3, metric.combine(partialResults), Double.MIN_VALUE);
     }
 
+    public void testInvalidRelevantThreshold() {
+        Precision prez = new Precision();
+        expectThrows(IllegalArgumentException.class, () -> prez.setRelevantRatingThreshhold(-1));
+    }
+
     public static Precision createTestItem() {
         Precision precision = new Precision();
         if (randomBoolean()) {
@@ -185,6 +190,34 @@ public class PrecisionTests extends ESTestCase {
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
+    
+    public void testSerialization() throws IOException {
+        Precision original = createTestItem();
+        Precision deserialized = RankEvalTestHelper.copy(original, Precision::new);
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        Precision testItem = createTestItem();
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, Precision::new));
+    }
+
+    private Precision mutateTestItem(Precision original) {
+        boolean ignoreUnlabeled = original.getIgnoreUnlabeled();
+        int relevantThreshold = original.getRelevantRatingThreshold();
+        Precision precision = new Precision();
+        precision.setIgnoreUnlabeled(ignoreUnlabeled);
+        precision.setRelevantRatingThreshhold(relevantThreshold);
+
+        List<Runnable> mutators = new ArrayList<>();
+        mutators.add(() -> precision.setIgnoreUnlabeled(! ignoreUnlabeled));
+        mutators.add(() -> precision.setRelevantRatingThreshhold(randomValueOtherThan(relevantThreshold, () -> randomIntBetween(0, 10))));
+        randomFrom(mutators).run();
+        return precision;
     }
 
     private static SearchHit[] toSearchHits(List<RatedDocument> rated, String index, String type) {

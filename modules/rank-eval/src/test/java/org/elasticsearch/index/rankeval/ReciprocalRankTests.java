@@ -123,8 +123,7 @@ public class ReciprocalRankTests extends ESTestCase {
     }
 
     public void testXContentRoundtrip() throws IOException {
-        ReciprocalRank testItem = new ReciprocalRank();
-        testItem.setRelevantRatingThreshhold(randomIntBetween(0, 20));
+        ReciprocalRank testItem = createTestItem();
         XContentParser itemParser = RankEvalTestHelper.roundtrip(testItem);
         itemParser.nextToken();
         itemParser.nextToken();
@@ -145,5 +144,38 @@ public class ReciprocalRankTests extends ESTestCase {
             hits[i].shard(new SearchShardTarget("testnode", new Index(index, "uuid"), 0));
         }
         return hits;
+    }
+    
+    private ReciprocalRank createTestItem() {
+        ReciprocalRank testItem = new ReciprocalRank();
+        testItem.setRelevantRatingThreshhold(randomIntBetween(0, 20));
+        return testItem;
+    }
+
+    public void testSerialization() throws IOException {
+        ReciprocalRank original = createTestItem();
+
+        ReciprocalRank deserialized = RankEvalTestHelper.copy(original, ReciprocalRank::new);
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        ReciprocalRank testItem = createTestItem();
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, ReciprocalRank::new));
+    }
+
+    private ReciprocalRank mutateTestItem(ReciprocalRank testItem) {
+        int relevantThreshold = testItem.getRelevantRatingThreshold();
+        ReciprocalRank rank = new ReciprocalRank();
+        rank.setRelevantRatingThreshhold(randomValueOtherThan(relevantThreshold, () -> randomIntBetween(0, 10)));
+        return rank;
+    }
+
+    public void testInvalidRelevantThreshold() {
+        ReciprocalRank prez = new ReciprocalRank();
+        expectThrows(IllegalArgumentException.class, () -> prez.setRelevantRatingThreshhold(-1));
     }
 }

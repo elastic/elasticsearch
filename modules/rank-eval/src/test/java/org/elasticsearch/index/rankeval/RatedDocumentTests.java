@@ -44,4 +44,52 @@ public class RatedDocumentTests extends ESTestCase {
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
+    
+    public void testSerialization() throws IOException {
+        RatedDocument original = createRatedDocument();
+        RatedDocument deserialized = RankEvalTestHelper.copy(original, RatedDocument::new);
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        RatedDocument testItem = createRatedDocument();
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, RatedDocument::new));
+    }
+
+    public void testInvalidParsing() throws IOException {
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument(null, "abc", "abc", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("", "abc", "abc", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", null, "abc", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "", "abc", 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "abc", null, 10));
+        expectThrows(IllegalArgumentException.class, () -> new RatedDocument("abc", "abc", "", 10));
+    }
+
+    private static RatedDocument mutateTestItem(RatedDocument original) {
+        int rating = original.getRating();
+        String index = original.getIndex();
+        String type = original.getType();
+        String docId = original.getDocID();
+
+        switch (randomIntBetween(0, 3)) {
+        case 0:
+            rating = randomValueOtherThan(rating, () -> randomInt());
+            break;
+        case 1:
+            index = randomValueOtherThan(index, () -> randomAsciiOfLength(10));
+            break;
+        case 2:
+            type = randomValueOtherThan(type, () -> randomAsciiOfLength(10));
+            break;
+        case 3:
+            docId = randomValueOtherThan(docId, () -> randomAsciiOfLength(10));
+            break;
+        default:
+            throw new IllegalStateException("The test should only allow two parameters mutated");
+        }
+        return new RatedDocument(index, type, docId, rating);
+    }
 }

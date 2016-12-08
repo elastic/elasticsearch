@@ -214,4 +214,32 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
     }
+    
+    public void testSerialization() throws IOException {
+        DiscountedCumulativeGain original = createTestItem();
+        DiscountedCumulativeGain deserialized = RankEvalTestHelper.copy(original, DiscountedCumulativeGain::new);
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        DiscountedCumulativeGain testItem = createTestItem();
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, DiscountedCumulativeGain::new));
+    }
+
+    private DiscountedCumulativeGain mutateTestItem(DiscountedCumulativeGain original) {
+        boolean normalise = original.getNormalize();
+        int unknownDocRating = original.getUnknownDocRating();
+        DiscountedCumulativeGain gain = new DiscountedCumulativeGain();
+        gain.setNormalize(normalise);
+        gain.setUnknownDocRating(unknownDocRating);
+
+        List<Runnable> mutators = new ArrayList<>();
+        mutators.add(() -> gain.setNormalize(! original.getNormalize()));
+        mutators.add(() -> gain.setUnknownDocRating(randomValueOtherThan(unknownDocRating, () -> randomIntBetween(0, 10))));
+        randomFrom(mutators).run();
+        return gain;
+    }
 }

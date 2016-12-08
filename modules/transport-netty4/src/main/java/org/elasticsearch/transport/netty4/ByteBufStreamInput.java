@@ -137,9 +137,9 @@ class ByteBufStreamInput extends StreamInput {
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
-        int read = read(b, offset, len);
+        final int read = read(b, offset, len);
         if (read < len) {
-            throw new IndexOutOfBoundsException();
+            throw new IndexOutOfBoundsException("failed to read " + len + " bytes max bytes to read: " + read);
         }
     }
 

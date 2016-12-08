@@ -10,13 +10,6 @@ Also see <<breaking-changes-5.0>>.
 Aliases::
 * Validate alias names the same as index names {pull}20771[#20771] (issue: {issue}20748[#20748])
 
-Discovery::
-* Remove pluggability of ElectMasterService {pull}21031[#21031]
-
-Exceptions::
-* Remove `IndexTemplateAlreadyExistsException` and `IndexShardAlreadyExistsException` {pull}21539[#21539] (issue: {issue}21494[#21494])
-* Replace IndexAlreadyExistsException with ResourceAlreadyExistsException {pull}21494[#21494]
-
 REST::
 * Remove lenient stats parsing 5.x {pull}21576[#21576] (issues: {issue}20722[#20722], {issue}21410[#21410], {issue}21417[#21417])
 
@@ -26,7 +19,12 @@ REST::
 [float]
 === Breaking Java changes
 
+Discovery::
+* Remove pluggability of ElectMasterService {pull}21031[#21031]
+
 Exceptions::
+* Remove `IndexTemplateAlreadyExistsException` and `IndexShardAlreadyExistsException` {pull}21539[#21539] (issue: {issue}21494[#21494])
+* Replace IndexAlreadyExistsException with ResourceAlreadyExistsException {pull}21494[#21494]
 * Backport: Replace IndexAlreadyExistsException with ResourceAlreadyExistsException {pull}21601[#21601] (issue: {issue}21494[#21494])
 
 Internal::

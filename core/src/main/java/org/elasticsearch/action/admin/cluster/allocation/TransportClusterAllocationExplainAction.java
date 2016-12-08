@@ -156,9 +156,8 @@ public class TransportClusterAllocationExplainAction
             shardDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         }
 
-        return new ClusterAllocationExplanation(shardRouting.shardId(), shardRouting.primary(),
-                                                   shardRouting.currentNodeId() != null ?
-                                                       allocation.routingNodes().node(shardRouting.currentNodeId()).node() : null,
-                                                   shardRouting.unassignedInfo(), clusterInfo, shardDecision);
+        return new ClusterAllocationExplanation(shardRouting,
+            shardRouting.currentNodeId() != null ? allocation.routingNodes().node(shardRouting.currentNodeId()).node() : null,
+            clusterInfo, shardDecision);
     }
 }

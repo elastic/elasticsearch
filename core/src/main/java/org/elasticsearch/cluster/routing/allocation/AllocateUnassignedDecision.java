@@ -238,37 +238,33 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
     @Override
     public String getExplanation() {
         checkDecisionState();
-        String explanation;
-        if (allocationStatus == null) {
-            explanation = "can allocate the shard";
-        } else if (allocationStatus == AllocationStatus.DECIDERS_THROTTLED) {
-            explanation = "allocation temporarily throttled";
-        } else {
-            if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
-                explanation = "cannot allocate because information about existing shard data is still being retrieved from " +
-                                  "some of the nodes";
-            } else if (allocationStatus == AllocationStatus.NO_VALID_SHARD_COPY) {
-                if (getNodeDecisions() != null && getNodeDecisions().size() > 0) {
-                    explanation = "cannot allocate because all existing copies of the shard are unreadable";
-                } else {
-                    explanation = "cannot allocate because a previous copy of the shard existed but could not be found";
-                }
-            } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-                explanation = "cannot allocate because the cluster is still waiting " +
-                                  TimeValue.timeValueMillis(remainingDelayInMillis) +
-                                  " for the departed node holding a replica to rejoin" +
-                                  (atLeastOneNodeWithYesDecision() ?
-                                       ", despite being allowed to allocate the shard to at least one other node" : "");
+        AllocationDecision allocationDecision = getAllocationDecision();
+        if (allocationDecision == AllocationDecision.YES) {
+            return "can allocate the shard";
+        } else if (allocationDecision == AllocationDecision.THROTTLE) {
+            return "allocation temporarily throttled";
+        } else if (allocationDecision == AllocationDecision.FETCH_PENDING) {
+            return "cannot allocate because information about existing shard data is still being retrieved from some of the nodes";
+        } else if (allocationDecision == AllocationDecision.NO_VALID_SHARD_COPY) {
+            if (getNodeDecisions() != null && getNodeDecisions().size() > 0) {
+                return "cannot allocate because all found copies of the shard are either stale or corrupt";
             } else {
-                assert allocationStatus == AllocationStatus.DECIDERS_NO;
-                if (reuseStore) {
-                    explanation = "cannot allocate because allocation is not permitted to any of the nodes that hold an in-sync shard copy";
-                } else {
-                    explanation = "cannot allocate because allocation is not permitted to any of the nodes";
-                }
+                return "cannot allocate because a previous copy of the shard existed but could not be found";
+            }
+        } else if (allocationDecision == AllocationDecision.DELAYED_ALLOCATION) {
+            return "cannot allocate because the cluster is still waiting " +
+                              TimeValue.timeValueMillis(remainingDelayInMillis) +
+                              " for the departed node holding a replica to rejoin" +
+                              (atLeastOneNodeWithYesDecision() ?
+                                   ", despite being allowed to allocate the shard to at least one other node" : "");
+        } else {
+            assert allocationDecision == AllocationDecision.NO;
+            if (reuseStore) {
+                return "cannot allocate because allocation is not permitted to any of the nodes that hold an in-sync shard copy";
+            } else {
+                return "cannot allocate because allocation is not permitted to any of the nodes";
             }
         }
-        return explanation;
     }
 
     @Override

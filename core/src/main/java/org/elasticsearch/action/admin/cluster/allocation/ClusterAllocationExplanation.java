@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Nullable;
@@ -42,58 +43,49 @@ import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDec
  */
 public final class ClusterAllocationExplanation implements ToXContent, Writeable {
 
-    private final ShardId shard;
-    private final boolean primary;
+    private final ShardRouting shardRouting;
     private final DiscoveryNode currentNode;
-    private final UnassignedInfo unassignedInfo;
     private final ClusterInfo clusterInfo;
     private final ShardAllocationDecision shardAllocationDecision;
 
-    public ClusterAllocationExplanation(ShardId shard, boolean primary, @Nullable DiscoveryNode currentNode,
-                                        @Nullable UnassignedInfo unassignedInfo, @Nullable ClusterInfo clusterInfo,
+    public ClusterAllocationExplanation(ShardRouting shardRouting, @Nullable DiscoveryNode currentNode, @Nullable ClusterInfo clusterInfo,
                                         ShardAllocationDecision shardAllocationDecision) {
-        this.shard = shard;
-        this.primary = primary;
+        this.shardRouting = shardRouting;
         this.currentNode = currentNode;
-        this.unassignedInfo = unassignedInfo;
         this.clusterInfo = clusterInfo;
         this.shardAllocationDecision = shardAllocationDecision;
     }
 
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
-        this.shard = ShardId.readShardId(in);
-        this.primary = in.readBoolean();
+        this.shardRouting = new ShardRouting(in);
         this.currentNode = in.readOptionalWriteable(DiscoveryNode::new);
-        this.unassignedInfo = in.readOptionalWriteable(UnassignedInfo::new);
         this.clusterInfo = in.readOptionalWriteable(ClusterInfo::new);
         this.shardAllocationDecision = new ShardAllocationDecision(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        this.getShard().writeTo(out);
-        out.writeBoolean(this.isPrimary());
+        shardRouting.writeTo(out);
         out.writeOptionalWriteable(currentNode);
-        out.writeOptionalWriteable(this.getUnassignedInfo());
-        out.writeOptionalWriteable(this.getClusterInfo());
+        out.writeOptionalWriteable(clusterInfo);
         shardAllocationDecision.writeTo(out);
     }
 
     /** Return the shard that the explanation is about */
     public ShardId getShard() {
-        return this.shard;
+        return shardRouting.shardId();
     }
 
     /** Return true if the explained shard is primary, false otherwise */
     public boolean isPrimary() {
-        return this.primary;
+        return shardRouting.primary();
     }
 
     /**
      * Returns {@code true} if the explained shard is currently assigned to a node, returns {@code false} otherwise.
      */
     public boolean isAssigned() {
-        return currentNode != null;
+        return shardRouting.assignedToNode();
     }
 
     /** Return the currently assigned node, or null if the shard is unassigned */
@@ -105,7 +97,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     /** Return the unassigned info for the shard or null if the shard is assigned */
     @Nullable
     public UnassignedInfo getUnassignedInfo() {
-        return this.unassignedInfo;
+        return shardRouting.unassignedInfo();
     }
 
     /** Return the cluster disk info for the cluster or null if none available */
@@ -121,12 +113,12 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
 
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(); {
-            builder.field("index_name", shard.getIndexName());
-            builder.field("shard", shard.getId());
-            builder.field("primary", primary);
+            builder.field("index", shardRouting.getIndexName());
+            builder.field("shard", shardRouting.getId());
+            builder.field("primary", shardRouting.primary());
             builder.field("assigned_to_node", this.currentNode != null);
-            if (unassignedInfo != null) {
-                unassignedInfoToXContent(unassignedInfo, builder, params);
+            if (shardRouting.unassignedInfo() != null) {
+                unassignedInfoToXContent(shardRouting.unassignedInfo(), builder);
             }
             if (currentNode != null) {
                 builder.startObject("current_node");
@@ -151,7 +143,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         return builder;
     }
 
-    private XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder, Params params)
+    private XContentBuilder unassignedInfoToXContent(UnassignedInfo unassignedInfo, XContentBuilder builder)
         throws IOException {
 
         builder.startObject("unassigned_info");
@@ -160,7 +152,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         if (unassignedInfo.getNumFailedAllocations() >  0) {
             builder.field("failed_allocation_attempts", unassignedInfo.getNumFailedAllocations());
         }
-        if (primary == false) {
+        if (shardRouting.primary() == false) {
             // delayed allocation only makes sense when explaining a replica shard
             builder.field("delayed", unassignedInfo.isDelayed());
         }

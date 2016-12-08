@@ -84,6 +84,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertFalse(cae.isPrimary());
         assertFalse(cae.isAssigned());
         AllocateUnassignedDecision decision = cae.getShardAllocationDecision().getAllocateDecision();
+        assertEquals(decision.getConfiguredDelayInMillis(), 60000L);
         assertThat("expecting a remaining delay, got: " + decision.getRemainingDelayInMillis(),
             decision.getRemainingDelayInMillis(), greaterThan(0L));
     }

@@ -23,6 +23,9 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -30,9 +33,11 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
@@ -48,12 +53,15 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 import static org.elasticsearch.search.internal.InternalSearchHitField.readSearchHitField;
 
@@ -274,7 +282,6 @@ public class InternalSearchHit implements SearchHit {
         return sourceAsString();
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         if (source == null) {
@@ -468,8 +475,8 @@ public class InternalSearchHit implements SearchHit {
             builder.field(Fields._SCORE, score);
         }
         for (SearchHitField field : metaFields) {
-            Object value = (Object) field.value();
-            builder.field(field.name(), value); 
+            Object value = field.value();
+            builder.field(field.name(), value);
         }
         if (source != null) {
             XContentHelper.writeRawField("_source", source, builder, params);
@@ -557,7 +564,9 @@ public class InternalSearchHit implements SearchHit {
         score = in.readFloat();
         id = in.readOptionalText();
         type = in.readOptionalText();
-        nestedIdentity = in.readOptionalStreamable(InternalNestedIdentity::new);
+        if (in.readBoolean()) {
+            nestedIdentity = new InternalNestedIdentity(in);
+        }
         version = in.readLong();
         source = in.readBytesReference();
         if (source.length() == 0) {
@@ -747,7 +756,8 @@ public class InternalSearchHit implements SearchHit {
             this.child = child;
         }
 
-        InternalNestedIdentity() {
+        InternalNestedIdentity(StreamInput in) throws IOException {
+            readFrom(in);
         }
 
         @Override
@@ -769,7 +779,9 @@ public class InternalSearchHit implements SearchHit {
         public void readFrom(StreamInput in) throws IOException {
             field = in.readOptionalText();
             offset = in.readInt();
-            child = in.readOptionalStreamable(InternalNestedIdentity::new);
+            if (in.readBoolean()) {
+                child = new InternalNestedIdentity(in);
+            }
         }
 
         @Override
@@ -781,7 +793,16 @@ public class InternalSearchHit implements SearchHit {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(Fields._NESTED);
+            builder.field(Fields._NESTED);
+            return innerToXContent(builder, params);
+        }
+
+        /**
+         * Rendering of the inner XContent object without the leading field name. This way the structure innerToXContent renders and
+         * fromXContent parses correspond to each other.
+         */
+        XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             if (field != null) {
                 builder.field(Fields._NESTED_FIELD, field);
             }
@@ -795,12 +816,42 @@ public class InternalSearchHit implements SearchHit {
             return builder;
         }
 
-        public static class Fields {
+        private static final ConstructingObjectParser<InternalNestedIdentity, ParseFieldMatcherSupplier> PARSER
+                = new ConstructingObjectParser<>("nested_identity",
+                        a -> new InternalNestedIdentity((String) a[0], (int) a[1], (InternalNestedIdentity) a[2]));
+        static {
+            PARSER.declareString(constructorArg(), new ParseField(Fields._NESTED_FIELD));
+            PARSER.declareInt(constructorArg(), new ParseField(Fields._NESTED_OFFSET));
+            PARSER.declareObject(optionalConstructorArg(), PARSER, new ParseField(Fields._NESTED));
+        }
 
+        public static InternalNestedIdentity fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, () -> ParseFieldMatcher.EMPTY);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            InternalNestedIdentity other = (InternalNestedIdentity) obj;
+            return Objects.equals(field, other.field) &&
+                    Objects.equals(offset, other.offset) &&
+                    Objects.equals(child, other.child);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(field, offset, child);
+        }
+
+        public static class Fields {
             static final String _NESTED = "_nested";
             static final String _NESTED_FIELD = "field";
             static final String _NESTED_OFFSET = "offset";
-
         }
     }
 

@@ -435,14 +435,17 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * Returns stored version. If currently stored version is {@link Versions#MATCH_ANY} and
+     * opType is {@link OpType#CREATE}, returns {@link Versions#MATCH_DELETED}.
+     */
     @Override
     public long version() {
         return resolveVersionDefaults();
     }
 
     /**
-     * Resolves the version based on operation type {@link #opType()}. Not explicitly setting any version if OpType == CREATE corresponds
-     * to setting Versions.MATCH_DELETED.
+     * Resolves the version based on operation type {@link #opType()}.
      */
     private long resolveVersionDefaults() {
         if (opType == OpType.CREATE && version == Versions.MATCH_ANY) {

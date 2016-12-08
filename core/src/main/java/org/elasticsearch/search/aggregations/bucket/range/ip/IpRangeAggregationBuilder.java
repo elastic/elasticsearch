@@ -55,6 +55,7 @@ public final class IpRangeAggregationBuilder
     private static final InternalAggregation.Type TYPE = new InternalAggregation.Type(NAME);
 
     public static class Range implements ToXContent {
+
         private final String key;
         private final String from;
         private final String to;
@@ -94,8 +95,18 @@ public final class IpRangeAggregationBuilder
             }
             this.key = key;
             try {
-                this.from = InetAddresses.toAddrString(InetAddress.getByAddress(lower));
-                this.to = InetAddresses.toAddrString(InetAddress.getByAddress(upper));
+                InetAddress fromAddress = InetAddress.getByAddress(lower);
+                if (fromAddress.equals(InetAddressPoint.MIN_VALUE)) {
+                    this.from = null;
+                } else {
+                    this.from = InetAddresses.toAddrString(fromAddress);
+                }
+                InetAddress inclusiveToAddress = InetAddress.getByAddress(upper);
+                if (inclusiveToAddress.equals(InetAddressPoint.MAX_VALUE)) {
+                    this.to = null;
+                } else {
+                    this.to = InetAddresses.toAddrString(InetAddressPoint.nextUp(inclusiveToAddress));
+                }
             } catch (UnknownHostException bogus) {
                 throw new AssertionError(bogus);
             }

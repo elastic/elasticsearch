@@ -481,7 +481,11 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
      * Make sure we can load stored binary fields.
      */
     void assertStoredBinaryFields(String indexName, Version version) throws Exception {
-        SearchHits hits = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).setSize(100).addStoredField("binary").get().getHits();
+        SearchRequestBuilder builder = client().prepareSearch(indexName);
+        builder.setQuery(QueryBuilders.matchAllQuery());
+        builder.setSize(100);
+        builder.addStoredField("binary");
+        SearchHits hits = builder.get().getHits();
         assertEquals(100, hits.hits().length);
         for(SearchHit hit : hits) {
             SearchHitField field = hit.field("binary");

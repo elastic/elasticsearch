@@ -28,7 +28,11 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.WriteResponse;
+import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -105,7 +109,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected WritePrimaryResult shardOperationOnPrimary(BulkShardRequest request, IndexShard primary) throws Exception {
+    protected WritePrimaryResult<BulkShardRequest, BulkShardResponse> shardOperationOnPrimary(
+            BulkShardRequest request, IndexShard primary) throws Exception {
         final IndexMetaData metaData = primary.indexSettings().getIndexMetaData();
 
         long[] preVersions = new long[request.items().length];
@@ -121,7 +126,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             responses[i] = items[i].getPrimaryResponse();
         }
         BulkShardResponse response = new BulkShardResponse(request.shardId(), responses);
-        return new WritePrimaryResult(request, response, location, null, primary);
+        return new WritePrimaryResult<>(request, response, location, null, primary, logger);
     }
 
     /** Executes bulk item requests and handles request execution exceptions */
@@ -355,7 +360,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected WriteReplicaResult shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+    protected WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
@@ -399,7 +404,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 }
             }
         }
-        return new WriteReplicaResult(request, location, null, replica);
+        return new WriteReplicaResult<>(request, location, null, replica, logger);
     }
 
     private Translog.Location locationToSync(Translog.Location current, Translog.Location next) {
@@ -411,6 +416,42 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         assert next != null : "next operation can't be null";
         assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
         return next;
+    }
+
+    public <Request extends ReplicatedWriteRequest<Request>, Response extends ReplicationResponse & WriteResponse>
+    WritePrimaryResult<Request, Response> executeSingleItemBulkRequestOnPrimary(
+            Request request, IndexShard primary) throws Exception {
+        BulkItemRequest[] itemRequests = new BulkItemRequest[1];
+        WriteRequest.RefreshPolicy refreshPolicy = request.getRefreshPolicy();
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest) request));
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(request.shardId(), refreshPolicy, itemRequests);
+        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = shardOperationOnPrimary(bulkShardRequest, primary);
+        BulkShardResponse bulkShardResponse = result.finalResponseIfSuccessful;
+        assert bulkShardResponse.getResponses().length == 1: "expected only one bulk shard response";
+        BulkItemResponse itemResponse = bulkShardResponse.getResponses()[0];
+        final Response response;
+        final Exception failure;
+        if (itemResponse.isFailed()) {
+            failure = itemResponse.getFailure().getCause();
+            response = null;
+        } else {
+            response = (Response) itemResponse.getResponse();
+            failure = null;
+        }
+        return new WritePrimaryResult<>(request, response, result.location, failure, primary, logger);
+    }
+
+    public <ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>>
+    WriteReplicaResult<ReplicaRequest> executeSingleItemBulkRequestOnReplica(
+            ReplicaRequest request, IndexShard replica) throws Exception {
+        BulkItemRequest[] itemRequests = new BulkItemRequest[1];
+        WriteRequest.RefreshPolicy refreshPolicy = request.getRefreshPolicy();
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
+        itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest) request));
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(request.shardId(), refreshPolicy, itemRequests);
+        WriteReplicaResult<BulkShardRequest> result = shardOperationOnReplica(bulkShardRequest, replica);
+        return new WriteReplicaResult<>(request, result.location, null, replica, logger);
     }
 
     /**

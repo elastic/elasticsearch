@@ -24,12 +24,17 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.TransportWriteAction;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,16 +49,21 @@ import org.elasticsearch.transport.TransportService;
  * <li><b>allowIdGeneration</b>: If the id is set not, should it be generated. Defaults to <tt>true</tt>.
  * </ul>
  */
-public class TransportIndexAction extends HandledTransportAction<IndexRequest, IndexResponse> {
+public class TransportIndexAction extends TransportWriteAction<IndexRequest, IndexRequest, IndexResponse> {
 
     private final TransportBulkAction bulkAction;
+    private final TransportShardBulkAction shardBulkAction;
 
     @Inject
-    public TransportIndexAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+    public TransportIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
+                                IndicesService indicesService,
+                                ThreadPool threadPool, ShardStateAction shardStateAction,
                                 ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                TransportBulkAction bulkAction) {
-        super(settings, IndexAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, IndexRequest::new);
+                                TransportBulkAction bulkAction, TransportShardBulkAction shardBulkAction) {
+        super(settings, IndexAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
+                actionFilters, indexNameExpressionResolver, IndexRequest::new, IndexRequest::new, ThreadPool.Names.INDEX);
         this.bulkAction = bulkAction;
+        this.shardBulkAction = shardBulkAction;
     }
 
     @Override
@@ -85,8 +95,20 @@ public class TransportIndexAction extends HandledTransportAction<IndexRequest, I
     }
 
     @Override
-    protected void doExecute(IndexRequest request, ActionListener<IndexResponse> listener) {
-        throw new UnsupportedOperationException("must have task with request");
+    protected IndexResponse newResponseInstance() {
+        return new IndexResponse();
+    }
+
+    @Override
+    protected WritePrimaryResult<IndexRequest, IndexResponse> shardOperationOnPrimary(
+            IndexRequest request, IndexShard primary) throws Exception {
+        return shardBulkAction.executeSingleItemBulkRequestOnPrimary(request, primary);
+    }
+
+    @Override
+    protected WriteReplicaResult<IndexRequest> shardOperationOnReplica(
+            IndexRequest request, IndexShard replica) throws Exception {
+        return shardBulkAction.executeSingleItemBulkRequestOnReplica(request, replica);
     }
 }
 

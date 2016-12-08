@@ -61,10 +61,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
     private static ThreadPool THREAD_POOL;
     private ClusterService clusterService;
     private TransportService transportService;
-    private ActionFilters actionFilters;
-    private IndexNameExpressionResolver indexNameExpressionResolver;
-    private TransportBulkAction bulkAction;
-    private Settings settings;
+    private TransportIndexAction transportIndexAction;
 
     @BeforeClass
     public static void createThreadPool() {
@@ -74,7 +71,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        settings = Settings.builder()
+        Settings settings = Settings.builder()
                 .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), false)
                 .build();
         clusterService = createClusterService(THREAD_POOL);
@@ -85,15 +82,18 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         ShardStateAction shardStateAction = new ShardStateAction(settings, clusterService, transportService, null, null, THREAD_POOL);
-        actionFilters = new ActionFilters(Collections.emptySet());
-        indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
+        ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);
         AutoCreateIndex autoCreateIndex = new AutoCreateIndex(settings, new ClusterSettings(settings,
                 ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), indexNameExpressionResolver);
         UpdateHelper updateHelper = new UpdateHelper(settings, null);
         TransportShardBulkAction shardBulkAction = new TransportShardBulkAction(settings, transportService, clusterService,
                 indicesService, THREAD_POOL, shardStateAction, null, updateHelper, actionFilters, indexNameExpressionResolver);
-        bulkAction = new TransportBulkAction(settings, THREAD_POOL, transportService, clusterService,
+        TransportBulkAction bulkAction = new TransportBulkAction(settings, THREAD_POOL, transportService, clusterService,
                 shardBulkAction, null, actionFilters, indexNameExpressionResolver, autoCreateIndex, System::currentTimeMillis);
+        transportIndexAction = new TransportIndexAction(settings, transportService, clusterService,
+                indicesService, THREAD_POOL, shardStateAction, actionFilters, indexNameExpressionResolver,
+                bulkAction, shardBulkAction);
     }
 
     @After
@@ -112,14 +112,12 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
     }
 
     public void testDynamicDisabled() {
-        TransportIndexAction action = new TransportIndexAction(settings, transportService,
-                THREAD_POOL, actionFilters, indexNameExpressionResolver, bulkAction);
 
         IndexRequest request = new IndexRequest("index", "type", "1");
         request.source("foo", 3);
         final AtomicBoolean onFailureCalled = new AtomicBoolean();
 
-        action.execute(request, new ActionListener<IndexResponse>() {
+        transportIndexAction.execute(request, new ActionListener<IndexResponse>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
                 fail("Indexing request should have failed");

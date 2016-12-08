@@ -239,19 +239,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     }
 
     /**
-     * Builds decisions for all nodes in the cluster, so that the explain API can provide information on
-     * allocation decisions for each node, while still waiting to allocate the shard (e.g. due to fetching shard data).
-     */
-    private List<NodeAllocationResult> buildDecisionsForAllNodes(ShardRouting shard, RoutingAllocation allocation) {
-        List<NodeAllocationResult> results = new ArrayList<>();
-        for (RoutingNode node : allocation.routingNodes()) {
-            Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
-            results.add(new NodeAllocationResult(node.node(), null, decision));
-        }
-        return results;
-    }
-
-    /**
      * Determines if the shard can be allocated on at least one node based on the allocation deciders.
      *
      * Returns the best allocation decision for allocating the shard on any node (i.e. YES if at least one

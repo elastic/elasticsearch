@@ -6,18 +6,18 @@ import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elastic.gradle.UploadS3Task
 
-String envAwsAccessKey = System.env.AWS_ACCESS_KEY
+String envAwsAccessKey = System.env.AWS_ACCESS_KEY_ID
 if (envAwsAccessKey != null) {
   project.ext.awsAccessKey = envAwsAccessKey
-} else if (project.hasProperty("AWS_ACCESS_KEY")) {
-  project.ext.awsAccessKey = AWS_ACCESS_KEY
+} else if (project.hasProperty("AWS_ACCESS_KEY_ID")) {
+  project.ext.awsAccessKey = AWS_ACCESS_KEY_ID
 }
 
-String envAwsSecretKey = System.env.AWS_SECRET_KEY
+String envAwsSecretKey = System.env.AWS_SECRET_ACCESS_KEY
 if (envAwsSecretKey != null) {
   project.ext.awsSecretKey = envAwsSecretKey
-} else if (project.hasProperty("AWS_SECRET_KEY")) {
-  project.ext.awsSecretKey = AWS_SECRET_KEY
+} else if (project.hasProperty("AWS_SECRET_ACCESS_KEY")) {
+  project.ext.awsSecretKey = AWS_SECRET_ACCESS_KEY
 }
 
 project.ext.isWindows = OperatingSystem.current().isWindows()

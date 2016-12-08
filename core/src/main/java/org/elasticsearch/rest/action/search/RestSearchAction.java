@@ -84,13 +84,10 @@ public class RestSearchAction extends BaseRestHandler {
     }
 
     /**
-     * Parses the rest request on top of the SearchRequest, preserving values
-     * that are not overridden by the rest request.
+     * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
      *
-     * @param restContent
-     *            override body content to use for the request. If null body
-     *            content is read from the request using
-     *            RestAction.hasBodyContent.
+     * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
+     *        parameter
      */
     public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request, SearchRequestParsers searchRequestParsers,
                                           ParseFieldMatcher parseFieldMatcher, XContentParser requestContentParser) throws IOException {

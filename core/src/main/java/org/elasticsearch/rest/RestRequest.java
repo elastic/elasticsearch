@@ -251,8 +251,8 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * A parser for the contents of this request if it has contents, otherwise a parser for the {@code source} parameter if there is one,
-     * otherwise throws an {@link ElasticsearchParseException}. Use {@link #contentOrSourceParamParserOrNull()} instead if you need to
-     * handle the absence of a body gracefully.
+     * otherwise throws an {@link ElasticsearchParseException}. Use {@link #withContentOrSourceParamParserOrNull(IOConsumer)} instead if you
+     * need to handle the absence request content gracefully.
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         BytesReference content = contentOrSourceParam();
@@ -265,7 +265,7 @@ public abstract class RestRequest implements ToXContent.Params {
     /**
      * Call a consumer with the parser for the contents of this request if it has contents, otherwise with a parser for the {@code source}
      * parameter if there is one, otherwise with {@code null}. Use {@link #contentOrSourceParamParser()} if you should throw an exception
-     * back to the user when there isn't a body.
+     * back to the user when there isn't request content.
      */
     public final void withContentOrSourceParamParserOrNull(IOConsumer<XContentParser> withParser) throws IOException {
         XContentParser parser = null;
@@ -283,7 +283,8 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * Get the content of the request or the contents of the {@code source} param. Prefer {@link #contentOrSourceParamParser()} if possible
-     * prefer methods like {@link #contentOrSourceParamParser()} and {@link #contentOrSourceParamXContentType()}.
+     * prefer methods like {@link #contentOrSourceParamParser()} and {@link #contentOrSourceParamXContentType()}. This should be private
+     * but isn't to support mostly legacy APIs.
      */
     public final BytesReference contentOrSourceParam() {
         if (hasContent()) {

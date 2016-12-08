@@ -26,8 +26,6 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
@@ -195,25 +193,6 @@ public class RestActions {
             queryBuilder.defaultOperator(Operator.fromString(defaultOperator));
         }
         return queryBuilder;
-    }
-
-    /**
-     * Get Rest content from either payload or source parameter
-     * @param request Rest request
-     * @return rest content
-     */
-    public static BytesReference getRestContent(RestRequest request) {
-        assert request != null;
-
-        BytesReference content = request.content();
-        if (!request.hasContent()) {
-            String source = request.param("source");
-            if (source != null) {
-                content = new BytesArray(source);
-            }
-        }
-
-        return content;
     }
 
     public static QueryBuilder getQueryContent(XContentParser requestParser, IndicesQueriesRegistry indicesQueriesRegistry,

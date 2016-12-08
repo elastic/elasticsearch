@@ -74,7 +74,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
 
         Exception bodyParsingException = null;
-        XContentParser parser = request.contentOrSourceParamParser();
+        XContentParser parser = request.contentOrSourceParamParserOrNull();
         try {
             if (parser != null) {
                 try {

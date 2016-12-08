@@ -50,8 +50,8 @@ import java.util.Set;
 @SuppressWarnings("unchecked")
 public class RatedRequest extends ToXContentToBytes implements Writeable {
     private String id;
-    private List<String> indices;
-    private List<String> types;
+    private List<String> indices = new ArrayList<>();
+    private List<String> types = new ArrayList<>();
     private List<String> summaryFields = new ArrayList<>();
     /** Collection of rated queries for this query QA specification.*/
     private List<RatedDocument> ratedDocs = new ArrayList<>();
@@ -59,14 +59,16 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     @Nullable
     private SearchSourceBuilder testRequest;
     /** Map of parameters to use for filling a query template, can be used instead of providing testRequest. */
-    @Nullable
     private Map<String, Object> params = new HashMap<>();
 
-    public RatedRequest(String id, List<String> summaryFields, List<RatedDocument> ratedDocs,
-            SearchSourceBuilder testRequest, Map<String, Object> params) {
+    public RatedRequest(String id, List<RatedDocument> ratedDocs, SearchSourceBuilder testRequest, Map<String, Object> params) {
         if (params != null && (params.size() > 0 && testRequest != null)) {
             throw new IllegalArgumentException(
                     "Ambiguous rated request: Set both, verbatim test request and test request template parameters.");
+        }
+        if ((params == null || params.size() < 1) && testRequest == null) {
+            throw new IllegalArgumentException(
+                    "Need to set at least test request or test request template parameters.");
         }
         // No documents with same _index/_type/id allowed.
         Set<DocumentKey> docKeys = new HashSet<>();
@@ -80,29 +82,18 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
 
         this.id = id;
         this.testRequest = testRequest;
-        if (summaryFields != null) {
-            this.summaryFields = summaryFields;
-        }
         this.ratedDocs = ratedDocs;
         if (params != null) {
             this.params = params;
         }
     }
     
-    public RatedRequest(String id, List<String> summaryFields, List<RatedDocument> ratedDocs, Map<String, Object> params) {
-        this(id, summaryFields, ratedDocs, null, params);
-    }
-
     public RatedRequest(String id, List<RatedDocument> ratedDocs, Map<String, Object> params) {
-        this(id, new ArrayList<>(), ratedDocs, null, params);
-    }
-
-    public RatedRequest(String id,List<String> summaryFields, List<RatedDocument> ratedDocs, SearchSourceBuilder testRequest) {
-        this(id, summaryFields, ratedDocs, testRequest, new HashMap<>());
+        this(id, ratedDocs, null, params);
     }
 
     public RatedRequest(String id, List<RatedDocument> ratedDocs, SearchSourceBuilder testRequest) {
-        this(id, new ArrayList<>(), ratedDocs, testRequest, new HashMap<>());
+        this(id, ratedDocs, testRequest, new HashMap<>());
     }
 
     public RatedRequest(StreamInput in) throws IOException {
@@ -194,6 +185,13 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     public List<String> getSummaryFields() {
         return summaryFields;
     }
+    
+    public void setSummaryFields(List<String> summaryFields) {
+        if (summaryFields == null) {
+            throw new IllegalArgumentException("Setting summaryFields to null not allowed.");
+        }
+        this.summaryFields = summaryFields;
+    }
 
     private static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField REQUEST_FIELD = new ParseField("request");
@@ -203,12 +201,10 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
 
     private static final ConstructingObjectParser<RatedRequest, RankEvalContext> PARSER = 
             new ConstructingObjectParser<>("requests", a -> new RatedRequest(
-                    (String) a[0], (List<String>) a[1], (List<RatedDocument>) a[2],
-                    (SearchSourceBuilder) a[3], (Map<String, Object>) a[4]));
+                    (String) a[0], (List<RatedDocument>) a[1], (SearchSourceBuilder) a[2], (Map<String, Object>) a[3]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
-        PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), FIELDS_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
             try {
                 return RatedDocument.fromXContent(p, c);
@@ -230,6 +226,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
                 throw new ParsingException(p.getTokenLocation(), "error parsing ratings", ex);
             }
         }, PARAMS_FIELD);
+        PARSER.declareStringArray(RatedRequest::setSummaryFields, FIELDS_FIELD);
     }
 
     /**

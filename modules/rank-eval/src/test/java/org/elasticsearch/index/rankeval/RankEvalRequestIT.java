@@ -77,15 +77,17 @@ public class RankEvalRequestIT  extends ESIntegTestCase {
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
         RatedRequest amsterdamRequest = new RatedRequest(
-                "amsterdam_query", Arrays.asList(new String[]{ "text", "title" }), createRelevant("2", "3", "4", "5"), testQuery);
+                "amsterdam_query", createRelevant("2", "3", "4", "5"), testQuery);
         amsterdamRequest.setIndices(indices);
         amsterdamRequest.setTypes(types);
+        amsterdamRequest.setSummaryFields(Arrays.asList(new String[]{ "text", "title" }));
 
         specifications.add(amsterdamRequest);
         RatedRequest berlinRequest = new RatedRequest(
-                "berlin_query", Arrays.asList(new String[]{ "text", "title" }), createRelevant("1"), testQuery);
+                "berlin_query", createRelevant("1"), testQuery);
         berlinRequest.setIndices(indices);
         berlinRequest.setTypes(types);
+        berlinRequest.setSummaryFields(Arrays.asList(new String[]{ "text", "title" }));
         
         specifications.add(berlinRequest);
 

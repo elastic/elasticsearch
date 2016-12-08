@@ -323,46 +323,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
-    public IndexRequest source(String field1, Object value1) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
-    public IndexRequest source(String field1, Object value1, String field2, Object value2) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).field(field2, value2).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
-    public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
-    public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).field(field4, value4).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
+    /**
+     * Sets the content source to index.
+     * <p>
+     * <b>Note: the number of objects passed to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
+     */
     public IndexRequest source(Object... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");

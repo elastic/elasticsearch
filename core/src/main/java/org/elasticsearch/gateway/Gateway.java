@@ -60,7 +60,7 @@ public class Gateway extends AbstractComponent implements ClusterStateApplier {
         this.metaState = metaState;
         this.listGatewayMetaState = listGatewayMetaState;
         this.minimumMasterNodesProvider = discovery::getMinimumMasterNodes;
-        clusterService.addLast(this);
+        clusterService.addApplierLast(this);
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {

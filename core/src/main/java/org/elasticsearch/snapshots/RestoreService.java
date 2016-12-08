@@ -159,7 +159,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
-        clusterService.add(this);
+        clusterService.addApplier(this);
         this.clusterSettings = clusterSettings;
         this.cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor(logger);
     }

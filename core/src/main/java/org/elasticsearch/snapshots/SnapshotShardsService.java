@@ -119,8 +119,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         if (DiscoveryNode.isDataNode(settings)) {
             // this is only useful on the nodes that can hold data
-            // addLast to make sure that Repository will be created before snapshot
-            clusterService.addLast(this);
+            // addApplierLast to make sure that Repository will be created before snapshot
+            clusterService.addApplierLast(this);
         }
 
         if (DiscoveryNode.isMasterNode(settings)) {
@@ -152,7 +152,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
 
     @Override
     protected void doClose() {
-        clusterService.remove(this);
+        clusterService.removeApplier(this);
     }
 
     @Override

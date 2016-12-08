@@ -120,7 +120,7 @@ public class ClusterStateHealthTests extends ESTestCase {
         setState(clusterService, ClusterState.builder(clusterService.state())
             .nodes(DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null)).build());
 
-        clusterService.add(event -> {
+        clusterService.addApplier(event -> {
             listenerCalled.countDown();
             try {
                 applyLatch.await();

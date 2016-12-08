@@ -123,8 +123,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         this.threadPool = threadPool;
 
         if (DiscoveryNode.isMasterNode(settings)) {
-            // addLast to make sure that Repository will be created before snapshot
-            clusterService.addLast(this);
+            // addApplierLast to make sure that Repository will be created before snapshot
+            clusterService.addApplierLast(this);
         }
     }
 
@@ -1273,7 +1273,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     @Override
     protected void doClose() {
-        clusterService.remove(this);
+        clusterService.removeApplier(this);
     }
 
     public RepositoriesService getRepositoriesService() {

@@ -121,8 +121,8 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final Collection<ClusterStateApplier> lastClusterStateAppliers = new CopyOnWriteArrayList<>();
     final Map<ClusterStateTaskExecutor, LinkedHashSet<UpdateTask>> updateTasksPerExecutor = new HashMap<>();
     // TODO this is rather frequently changing I guess a Synced Set would be better here and a dedicated remove API
-    private final Collection<ClusterStateListener> fixedClusterStateListeners = new CopyOnWriteArrayList<>();
-    private final Collection<TimeoutClusterStateListener> tempClusterStateListeners =
+    private final Collection<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
+    private final Collection<TimeoutClusterStateListener> timeoutClusterStateListeners =
         Collections.newSetFromMap(new ConcurrentHashMap<TimeoutClusterStateListener, Boolean>());
     private final Iterable<ClusterStateApplier> clusterStateAppliers = Iterables.concat(priorityClusterStateAppliers,
         normalClusterStateAppliers, lastClusterStateAppliers);
@@ -233,7 +233,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
         ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
         // close timeout listeners that did not have an ongoing timeout
-        tempClusterStateListeners.forEach(TimeoutClusterStateListener::onClose);
+        timeoutClusterStateListeners.forEach(TimeoutClusterStateListener::onClose);
         removeListener(localNodeMasterListeners);
     }
 
@@ -267,28 +267,28 @@ public class ClusterService extends AbstractLifecycleComponent {
     /**
      * Adds a priority applier of updated cluster states.
      */
-    public void addFirst(ClusterStateApplier applier) {
+    public void addApplierFirst(ClusterStateApplier applier) {
         priorityClusterStateAppliers.add(applier);
     }
 
     /**
      * Adds an applier which will be called after all priority and normal appliers have been called.
      */
-    public void addLast(ClusterStateApplier applier) {
+    public void addApplierLast(ClusterStateApplier applier) {
         lastClusterStateAppliers.add(applier);
     }
 
     /**
      * Adds a applier of updated cluster states.
      */
-    public void add(ClusterStateApplier applier) {
+    public void addApplier(ClusterStateApplier applier) {
         normalClusterStateAppliers.add(applier);
     }
 
     /**
      * Removes an applier of updated cluster states.
      */
-    public void remove(ClusterStateApplier applier) {
+    public void removeApplier(ClusterStateApplier applier) {
         normalClusterStateAppliers.remove(applier);
         priorityClusterStateAppliers.remove(applier);
         lastClusterStateAppliers.remove(applier);
@@ -298,21 +298,21 @@ public class ClusterService extends AbstractLifecycleComponent {
      * Add a listener for updated cluster states
      */
     public void addListener(ClusterStateListener listener) {
-        fixedClusterStateListeners.add(listener);
+        clusterStateListeners.add(listener);
     }
 
     /**
      * Removes a listener for updated cluster states.
      */
     public void removeListener(ClusterStateListener listener) {
-        fixedClusterStateListeners.remove(listener);
+        clusterStateListeners.remove(listener);
     }
 
     /**
      * Removes a timeout listener for updated cluster states.
      */
     public void removeTimeoutListener(TimeoutClusterStateListener listener) {
-        tempClusterStateListeners.remove(listener);
+        timeoutClusterStateListeners.remove(listener);
         for (Iterator<NotifyTimeout> it = onGoingTimeouts.iterator(); it.hasNext(); ) {
             NotifyTimeout timeout = it.next();
             if (timeout.listener.equals(listener)) {
@@ -325,24 +325,24 @@ public class ClusterService extends AbstractLifecycleComponent {
     /**
      * Add a listener for on/off local node master events
      */
-    public void add(LocalNodeMasterListener listener) {
+    public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
         localNodeMasterListeners.add(listener);
     }
 
     /**
      * Remove the given listener for on/off local master events
      */
-    public void remove(LocalNodeMasterListener listener) {
+    public void removeLocalNodeMasterListener(LocalNodeMasterListener listener) {
         localNodeMasterListeners.remove(listener);
     }
 
     /**
-     * Adds a cluster state listener that will timeout after the provided timeout,
-     * and is executed after the clusterstate has been successfully applied ie.
-     * NOTE: a {@code null} timeout means that the listener will never be removed
-     * automatically
+     * Adds a cluster state listener that is expected to be removed during a short period of time.
+     * If provided, the listener will be notified once a specific time has elapsed.
+     *
+     * NOTE: the listener is not remmoved on timeout. This is the responsibility of the caller.
      */
-    public void add(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {
+    public void addTimeoutListener(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {
         if (lifecycle.stoppedOrClosed()) {
             listener.onClose();
             return;
@@ -357,7 +357,7 @@ public class ClusterService extends AbstractLifecycleComponent {
                         notifyTimeout.future = threadPool.schedule(timeout, ThreadPool.Names.GENERIC, notifyTimeout);
                         onGoingTimeouts.add(notifyTimeout);
                     }
-                    tempClusterStateListeners.add(listener);
+                    timeoutClusterStateListeners.add(listener);
                     listener.postAdded();
                 }
             });
@@ -778,7 +778,7 @@ public class ClusterService extends AbstractLifecycleComponent {
 
         updateState(css -> newClusterState);
 
-        Stream.concat(fixedClusterStateListeners.stream(), tempClusterStateListeners.stream()).forEach(listener -> {
+        Stream.concat(clusterStateListeners.stream(), timeoutClusterStateListeners.stream()).forEach(listener -> {
             try {
                 logger.trace("calling [{}] with change to version [{}]", listener, newClusterState.version());
                 listener.clusterChanged(clusterChangedEvent);

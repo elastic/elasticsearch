@@ -72,7 +72,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
         // Nothing happens there anyway
         if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
-            clusterService.add(this);
+            clusterService.addApplier(this);
         }
         this.verifyAction = new VerifyNodeRepositoryAction(settings, transportService, clusterService, this);
     }

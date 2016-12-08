@@ -77,7 +77,7 @@ public class GatewayAllocator extends AbstractComponent {
 
     public void setReallocation(final ClusterService clusterService, final RoutingService routingService) {
         this.routingService = routingService;
-        clusterService.add(event -> {
+        clusterService.addApplier(event -> {
             boolean cleanCache = false;
             DiscoveryNode localNode = event.state().nodes().getLocalNode();
             if (localNode != null) {

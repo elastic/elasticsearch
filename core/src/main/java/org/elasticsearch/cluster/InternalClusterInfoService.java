@@ -106,7 +106,7 @@ public class InternalClusterInfoService extends AbstractComponent
         clusterSettings.addSettingsUpdateConsumer(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
 
         // Add InternalClusterInfoService to listen for Master changes
-        this.clusterService.add(this);
+        this.clusterService.addLocalNodeMasterListener(this);
         // Add to listen for state changes (when nodes are added)
         this.clusterService.addListener(this);
     }

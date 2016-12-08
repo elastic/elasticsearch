@@ -1152,7 +1152,7 @@ public class ClusterServiceTests extends ESTestCase {
         TimedClusterService timedClusterService = createTimedClusterService(false);
 
         AtomicBoolean isMaster = new AtomicBoolean();
-        timedClusterService.add(new LocalNodeMasterListener() {
+        timedClusterService.addLocalNodeMasterListener(new LocalNodeMasterListener() {
             @Override
             public void onMaster() {
                 isMaster.set(true);
@@ -1192,7 +1192,7 @@ public class ClusterServiceTests extends ESTestCase {
 
     public void testClusterStateApplierCantSampleClusterState() throws InterruptedException {
         AtomicReference<Throwable> error = new AtomicReference<>();
-        clusterService.add(event -> {
+        clusterService.addApplier(event -> {
             try {
                 clusterService.state();
                 error.set(new AssertionError("successfully sampled state"));

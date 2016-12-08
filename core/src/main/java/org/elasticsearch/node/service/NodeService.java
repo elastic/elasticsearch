@@ -19,9 +19,6 @@
 
 package org.elasticsearch.node.service;
 
-import java.io.Closeable;
-import java.io.IOException;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
@@ -43,6 +40,9 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.Closeable;
+import java.io.IOException;
 
 public class NodeService extends AbstractComponent implements Closeable {
 
@@ -78,8 +78,8 @@ public class NodeService extends AbstractComponent implements Closeable {
         this.ingestService = ingestService;
         this.settingsFilter = settingsFilter;
         this.scriptService = scriptService;
-        clusterService.add(ingestService.getPipelineStore());
-        clusterService.add(ingestService.getPipelineExecutionService());
+        clusterService.addApplier(ingestService.getPipelineStore());
+        clusterService.addApplier(ingestService.getPipelineExecutionService());
     }
 
     public NodeInfo info(boolean settings, boolean os, boolean process, boolean jvm, boolean threadPool,

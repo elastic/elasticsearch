@@ -140,6 +140,18 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         int msgSize = input.readInt();
         if (msgSize == -1) {
             socket.getOutputStream().flush();
+        } else if (msgSize ==  TcpTransport.HANDSHAKE_REQUEST_DATA_SIZE) {
+            BytesStreamOutput output = new BytesStreamOutput();
+            final byte[] buffer = new byte[4];
+            input.readFully(buffer);
+            output.writeBytes(buffer);
+            receiveHandshakeRequest(mockChannel, output.bytes());
+        } else if (msgSize ==  TcpTransport.HANDSHAKE_RESPONSE_DATA_SIZE) {
+            BytesStreamOutput output = new BytesStreamOutput();
+            final byte[] buffer = new byte[4];
+            input.readFully(buffer);
+            output.writeBytes(buffer);
+            receiveHandshakeResponse(mockChannel, output.bytes());
         } else {
             BytesStreamOutput output = new BytesStreamOutput();
             final byte[] buffer = new byte[msgSize];
@@ -166,6 +178,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         final Socket socket = new Socket();
         try {
             Consumer<MockChannel> onClose = (channel) -> {
+                onChannelClosed(channel);
                 final NodeChannels connected = connectedNodes.get(node);
                 if (connected != null && connected.hasChannel(channel)) {
                     try {

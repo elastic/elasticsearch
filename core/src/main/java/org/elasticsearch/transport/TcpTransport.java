@@ -26,6 +26,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -89,13 +90,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -149,7 +153,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final int PING_DATA_SIZE = -1;
-
+    public static final int HANDSHAKE_REQUEST_DATA_SIZE = -2;
+    public static final int HANDSHAKE_RESPONSE_DATA_SIZE = -3;
+    public static final int HANDSHAKE_RESPONSE_MESSAGE_SIZE = 10;
     protected final boolean blockingClient;
     private final CircuitBreakerService circuitBreakerService;
     // package visibility for tests
@@ -402,8 +408,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                                 "failed to connect to [{}], cleaning dangling connections", node), e);
                         throw e;
                     }
-                    // we acquire a connection lock, so no way there is an existing connection
                     nodeChannels.connectionsEstablished();
+                    Channel channel = nodeChannels.channel(TransportRequestOptions.Type.PING);
+                    executeHandshake(channel);
+                    // we acquire a connection lock, so no way there is an existing connection
                     connectedNodes.put(node, nodeChannels);
                     if (logger.isDebugEnabled()) {
                         logger.debug("connected to node [{}]", node);
@@ -1117,7 +1125,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 // and returning null
                 return false;
             }
+            if (dataLen == HANDSHAKE_REQUEST_DATA_SIZE) {
+                return true;
+            }
+            if (dataLen == HANDSHAKE_RESPONSE_DATA_SIZE) {
+                return true;
+            }
         }
+
         if (dataLen <= 0) {
             throw new StreamCorruptedException("invalid data length: " + dataLen);
         }
@@ -1373,4 +1388,89 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             }
         }
     }
+
+    private final Map<Channel, ActionListener<Version>> pendingHandshakes = new ConcurrentHashMap<>();
+
+    public void receiveHandshakeRequest(Channel c, BytesReference reference) throws IOException {
+        try (StreamInput input = reference.streamInput()) {
+            Version version = Version.readVersion(input);
+        }
+        final BytesReference handshakeResponse = buildHandshakeMessage(HANDSHAKE_RESPONSE_DATA_SIZE);
+        sendMessage(c, handshakeResponse, () -> {});
+    }
+
+    protected void sendHandshakeRequest(Channel c) throws IOException {
+        final BytesReference handshakeRequest = buildHandshakeMessage(HANDSHAKE_REQUEST_DATA_SIZE);
+        sendMessage(c, handshakeRequest, () -> {});
+    }
+
+    private BytesReference buildHandshakeMessage(int type) throws IOException {
+        BytesReference handshakeRequest;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeByte((byte) 'E');
+            out.writeByte((byte) 'S');
+            out.writeInt(type);
+            Version.writeVersion(Version.CURRENT, out);
+            handshakeRequest = out.bytes();
+        }
+        return handshakeRequest;
+    }
+
+    public void receiveHandshakeResponse(Channel channel, BytesReference reference) throws IOException {
+        try (StreamInput input = reference.streamInput()) {
+            Version version = Version.readVersion(input);
+            ActionListener<Version> versionConsumer = pendingHandshakes.remove(channel);
+            if (versionConsumer == null) {
+                logger.debug("no version consumer found for channel {}", channel);
+            }
+            versionConsumer.onResponse(version);
+        }
+
+    }
+
+    protected void onChannelClosed(Channel channel) {
+        ActionListener<Version> versionConsumer = pendingHandshakes.remove(channel);
+        if (versionConsumer != null) {
+            versionConsumer.onFailure(new ConnectTransportException(null, "channel is closed"));
+        }
+    }
+
+    private void executeHandshake(Channel channel) throws IOException, InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Version> versionRef = new AtomicReference<>();
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        pendingHandshakes.put(channel, new ActionListener<Version>() {
+            @Override
+            public void onResponse(Version version) {
+                versionRef.set(version);
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exceptionRef.set(e);
+                latch.countDown();
+            }
+        });
+        boolean success = false;
+        try {
+            sendHandshakeRequest(channel);
+            success = true;
+        } finally {
+            if (success == false) {
+                pendingHandshakes.remove(channel);
+            }
+        }
+        latch.await();
+        if (exceptionRef.get() != null) {
+            throw new IllegalStateException("handshake failed", exceptionRef.get());
+        } else {
+            Version version = versionRef.get();
+            if (Version.CURRENT.isCompatible(version) == false) {
+                throw new IllegalStateException("Received message from unsupported version: [" + version
+                    + "] minimal compatible version is: [" + getCurrentVersion().minimumCompatibilityVersion() + "]");
+            }
+        }
+    }
+
 }

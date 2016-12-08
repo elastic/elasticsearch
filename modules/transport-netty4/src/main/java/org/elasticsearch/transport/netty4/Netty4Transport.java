@@ -419,6 +419,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         public void operationComplete(final ChannelFuture future) throws Exception {
+            onChannelClosed(future.channel());
             NodeChannels nodeChannels = connectedNodes.get(node);
             if (nodeChannels != null && nodeChannels.hasChannel(future.channel())) {
                 threadPool.generic().execute(() -> disconnectFromNode(node, future.channel(), "channel closed event"));

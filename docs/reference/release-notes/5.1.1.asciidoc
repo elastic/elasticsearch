@@ -1,6 +1,8 @@
 [[release-notes-5.1.1]]
 == 5.1.1 Release Notes
 
+Also see <<breaking-changes-5.0>>.
+
 [[breaking-5.1.1]]
 [float]
 === Breaking changes

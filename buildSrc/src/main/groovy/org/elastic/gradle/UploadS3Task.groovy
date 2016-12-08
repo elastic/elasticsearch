@@ -51,7 +51,7 @@ class UploadS3Task extends DefaultTask {
 
     @TaskAction
     public void uploadToS3() {
-        AWSCredentials creds = new BasicAWSCredentials(project.awsAccessKey, project.awsSecretKey)
+        AWSCredentials creds = new BasicAWSCredentials(project.prelertAwsAccessKey, project.prelertAwsSecretKey)
 
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,

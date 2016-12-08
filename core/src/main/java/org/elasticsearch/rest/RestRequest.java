@@ -265,7 +265,7 @@ public abstract class RestRequest implements ToXContent.Params {
     /**
      * A parser for the contents of this request if it has contents, otherwise a parser for the {@code source} parameter if there is one,
      * otherwise {@code null}. Use {@link #contentOrSourceParamParser()} if you should throw an exception back to the user when there isn't
-     * a body.
+     * a body. See also {@link #withContentOrSourceParamParserOrNull(IOConsumer)} which may cleaner to use.
      */
     @Nullable
     public final XContentParser contentOrSourceParamParserOrNull() throws IOException {
@@ -277,7 +277,8 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     /**
-     * TODO
+     * Helper around {@link #contentOrSourceParamParserOrNull()} that closes the parser for you. This is just syntactic sugar to ease
+     * handling the nullable parser.
      */
     @Nullable
     public final void withContentOrSourceParamParserOrNull(IOConsumer<XContentParser> withParser) throws IOException {

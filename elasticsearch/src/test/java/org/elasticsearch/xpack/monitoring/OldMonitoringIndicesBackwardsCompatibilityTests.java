@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.AbstractOldXPackIndicesBackwardsCompatibilityTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -53,6 +54,7 @@ import static org.hamcrest.Matchers.is;
  */
 //Give ourselves 30 seconds instead of 5 to shut down. Sometimes it takes a while, especially on weak hardware. But we do get there.
 @ThreadLeakLingering(linger = 30000)
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/4314")
 public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOldXPackIndicesBackwardsCompatibilityTestCase {
 
     private final boolean httpExporter = randomBoolean();

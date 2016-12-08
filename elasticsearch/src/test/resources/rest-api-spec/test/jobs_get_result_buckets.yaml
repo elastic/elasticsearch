@@ -68,3 +68,67 @@ setup:
   - match: { buckets.0.timestamp: 1464739200000}
   - match: { buckets.0.job_id: farequote }
   - match: { buckets.0.result_type: bucket}
+
+---
+"Test mutually-exclusive params":
+  - do:
+      catch: request
+      xpack.prelert.get_buckets:
+        job_id: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+        start: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.prelert.get_buckets:
+        job_id: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+        end: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.prelert.get_buckets:
+        job_id: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+        from: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.prelert.get_buckets:
+        job_id: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+        end: "2016-05-01T00:00:00Z"
+
+---
+"Test mutually-exclusive params (via body)":
+  - do:
+      catch: request
+      xpack.prelert.get_buckets:
+        job_id: "farequote"
+        body:
+          timestamp: "2016-06-01T00:00:00Z"
+          start: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.prelert.get_buckets:
+        job_id: "farequote"
+        body:
+          timestamp: "2016-06-01T00:00:00Z"
+          end: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.prelert.get_buckets:
+        job_id: "farequote"
+        body:
+          timestamp: "2016-06-01T00:00:00Z"
+          from: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.prelert.get_buckets:
+        job_id: "farequote"
+        body:
+          timestamp: "2016-06-01T00:00:00Z"
+          end: "2016-05-01T00:00:00Z"

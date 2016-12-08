@@ -55,18 +55,22 @@ public class RestGetBucketsAction extends BaseRestHandler {
         } else {
             request = new GetBucketsAction.Request(jobId);
             String timestamp = restRequest.param(GetBucketsAction.Request.TIMESTAMP.getPreferredName());
-            String start = restRequest.param(GetBucketsAction.Request.START.getPreferredName());
-            String end = restRequest.param(GetBucketsAction.Request.END.getPreferredName());
 
             // Single bucket
             if (timestamp != null && !timestamp.isEmpty()) {
                 request.setTimestamp(timestamp);
-                request.setExpand(restRequest.paramAsBoolean(GetBucketsAction.Request.EXPAND.getPreferredName(), false));
-                request.setIncludeInterim(restRequest.paramAsBoolean(GetBucketsAction.Request.INCLUDE_INTERIM.getPreferredName(), false));
-            } else {
+            }
+            if (restRequest.hasParam(PageParams.FROM.getPreferredName())
+                    || restRequest.hasParam(PageParams.SIZE.getPreferredName())
+                    || restRequest.hasParam(GetBucketsAction.Request.START.getPreferredName())
+                    || restRequest.hasParam(GetBucketsAction.Request.END.getPreferredName())
+                    || restRequest.hasParam(GetBucketsAction.Request.ANOMALY_SCORE.getPreferredName())
+                    || restRequest.hasParam(GetBucketsAction.Request.MAX_NORMALIZED_PROBABILITY.getPreferredName())
+                    || timestamp == null) {
+
                 // Multiple buckets
-                request.setStart(start);
-                request.setEnd(end);
+                request.setStart(restRequest.param(GetBucketsAction.Request.START.getPreferredName()));
+                request.setEnd(restRequest.param(GetBucketsAction.Request.END.getPreferredName()));
                 request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
                         restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
                 request.setAnomalyScore(
@@ -74,9 +78,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
                 request.setMaxNormalizedProbability(
                         Double.parseDouble(restRequest.param(
                                 GetBucketsAction.Request.MAX_NORMALIZED_PROBABILITY.getPreferredName(), "0.0")));
-                if (restRequest.hasParam(GetBucketsAction.Request.PARTITION_VALUE.getPreferredName())) {
-                    request.setPartitionValue(restRequest.param(GetBucketsAction.Request.PARTITION_VALUE.getPreferredName()));
-                }
+                request.setPartitionValue(restRequest.param(GetBucketsAction.Request.PARTITION_VALUE.getPreferredName()));
             }
 
             // Common options

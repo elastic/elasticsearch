@@ -106,9 +106,9 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         private String partitionValue;
         private String start;
         private String end;
-        private PageParams pageParams = new PageParams();
-        private double anomalyScore = 0.0;
-        private double maxNormalizedProbability = 0.0;
+        private PageParams pageParams;
+        private Double anomalyScore;
+        private Double maxNormalizedProbability;
 
         Request() {
         }
@@ -122,6 +122,15 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         }
 
         public void setTimestamp(String timestamp) {
+            if (pageParams != null || start != null || end != null || anomalyScore != null || maxNormalizedProbability != null) {
+                throw new IllegalArgumentException("Param [" + TIMESTAMP.getPreferredName() + "] is incompatible with ["
+                                + PageParams.FROM.getPreferredName() + ","
+                                + PageParams.SIZE.getPreferredName() + ","
+                                + START.getPreferredName() + ","
+                                + END.getPreferredName() + ","
+                                + ANOMALY_SCORE.getPreferredName() + ","
+                                + MAX_NORMALIZED_PROBABILITY.getPreferredName() + "]");
+            }
             this.timestamp = ExceptionsHelper.requireNonNull(timestamp, Bucket.TIMESTAMP.getPreferredName());
         }
 
@@ -150,7 +159,11 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         }
 
         public void setPartitionValue(String partitionValue) {
-            this.partitionValue = ExceptionsHelper.requireNonNull(partitionValue, PARTITION_VALUE.getPreferredName());
+            if (timestamp != null) {
+                throw new IllegalArgumentException("Param [" + PARTITION_VALUE.getPreferredName() + "] is incompatible with ["
+                        + TIMESTAMP.getPreferredName() + "].");
+            }
+            this.partitionValue = partitionValue;
         }
 
         public String getStart() {
@@ -158,6 +171,10 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         }
 
         public void setStart(String start) {
+            if (timestamp != null) {
+                throw new IllegalArgumentException("Param [" + START.getPreferredName() + "] is incompatible with ["
+                        + TIMESTAMP.getPreferredName() + "].");
+            }
             this.start = start;
         }
 
@@ -166,6 +183,10 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         }
 
         public void setEnd(String end) {
+            if (timestamp != null) {
+                throw new IllegalArgumentException("Param [" + END.getPreferredName() + "] is incompatible with ["
+                        + TIMESTAMP.getPreferredName() + "].");
+            }
             this.end = end;
         }
 
@@ -174,6 +195,10 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         }
 
         public void setPageParams(PageParams pageParams) {
+            if (timestamp != null) {
+                throw new IllegalArgumentException("Param [" + PageParams.FROM.getPreferredName() 
+                        + ", " + PageParams.SIZE.getPreferredName() + "] is incompatible with [" + TIMESTAMP.getPreferredName() + "].");
+            }
             this.pageParams = ExceptionsHelper.requireNonNull(pageParams, PageParams.PAGE.getPreferredName());
         }
 
@@ -182,6 +207,10 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         }
 
         public void setAnomalyScore(double anomalyScore) {
+            if (timestamp != null) {
+                throw new IllegalArgumentException("Param [" + ANOMALY_SCORE.getPreferredName() + "] is incompatible with ["
+                        + TIMESTAMP.getPreferredName() + "].");
+            }
             this.anomalyScore = anomalyScore;
         }
 
@@ -190,6 +219,10 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         }
 
         public void setMaxNormalizedProbability(double maxNormalizedProbability) {
+            if (timestamp != null) {
+                throw new IllegalArgumentException("Param [" + MAX_NORMALIZED_PROBABILITY.getPreferredName() + "] is incompatible with ["
+                        + TIMESTAMP.getPreferredName() + "].");
+            }
             this.maxNormalizedProbability = maxNormalizedProbability;
         }
 
@@ -208,8 +241,8 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             partitionValue = in.readOptionalString();
             start = in.readOptionalString();
             end = in.readOptionalString();
-            anomalyScore = in.readDouble();
-            maxNormalizedProbability = in.readDouble();
+            anomalyScore = in.readOptionalDouble();
+            maxNormalizedProbability = in.readOptionalDouble();
             pageParams = in.readOptionalWriteable(PageParams::new);
         }
 
@@ -223,8 +256,8 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             out.writeOptionalString(partitionValue);
             out.writeOptionalString(start);
             out.writeOptionalString(end);
-            out.writeDouble(anomalyScore);
-            out.writeDouble(maxNormalizedProbability);
+            out.writeOptionalDouble(anomalyScore);
+            out.writeOptionalDouble(maxNormalizedProbability);
             out.writeOptionalWriteable(pageParams);
         }
 
@@ -240,13 +273,21 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             if (partitionValue != null) {
                 builder.field(PARTITION_VALUE.getPreferredName(), partitionValue);
             }
-            builder.field(START.getPreferredName(), start);
-            builder.field(END.getPreferredName(), end);
+            if (start != null) {
+                builder.field(START.getPreferredName(), start);
+            }
+            if (end != null) {
+                builder.field(END.getPreferredName(), end);
+            }
             if (pageParams != null) {
                 builder.field(PageParams.PAGE.getPreferredName(), pageParams);
             }
-            builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
-            builder.field(MAX_NORMALIZED_PROBABILITY.getPreferredName(), maxNormalizedProbability);
+            if (anomalyScore != null) {
+                builder.field(ANOMALY_SCORE.getPreferredName(), anomalyScore);
+            }
+            if (maxNormalizedProbability != null) {
+                builder.field(MAX_NORMALIZED_PROBABILITY.getPreferredName(), maxNormalizedProbability);
+            }
             builder.endObject();
             return builder;
         }

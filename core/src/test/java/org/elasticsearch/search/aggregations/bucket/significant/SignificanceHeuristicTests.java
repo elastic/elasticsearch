@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -68,6 +69,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -272,10 +274,10 @@ public class SignificanceHeuristicTests extends ESTestCase {
                     "{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
             QueryParseContext parseContext = new QueryParseContext(registry, stParser, ParseFieldMatcher.STRICT);
             stParser.nextToken();
-            new SignificantTermsParser(significanceHeuristicParserRegistry, registry).parse("testagg", parseContext);
+            new SignificantTermsParser(significanceHeuristicParserRegistry).parse("testagg", parseContext);
             fail();
-        } catch (ElasticsearchParseException e) {
-            assertTrue(e.getMessage().contains(expectedError));
+        } catch (ParsingException e) {
+            assertThat(e.getCause().getMessage(), containsString(expectedError));
         }
     }
 
@@ -296,7 +298,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         QueryParseContext parseContext = new QueryParseContext(registry, stParser, ParseFieldMatcher.STRICT);
         stParser.nextToken();
         SignificantTermsAggregationBuilder aggregatorFactory = (SignificantTermsAggregationBuilder) new SignificantTermsParser(
-                significanceHeuristicParserRegistry, registry).parse("testagg", parseContext);
+                significanceHeuristicParserRegistry).parse("testagg", parseContext);
         stParser.nextToken();
         assertThat(aggregatorFactory.getBucketCountThresholds().getMinDocCount(), equalTo(200L));
         assertThat(stParser.currentToken(), equalTo(null));

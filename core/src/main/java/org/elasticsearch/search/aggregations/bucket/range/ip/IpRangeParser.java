@@ -18,24 +18,19 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.ip;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.BytesValuesSourceParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.ip.IpRangeAggregationBuilder.Range;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.BytesValuesSourceParser;
+
+import java.io.IOException;
 
 /**
  * A parser for ip range aggregations.
@@ -44,29 +39,26 @@ public class IpRangeParser extends BytesValuesSourceParser {
 
     private static final ParseField MASK_FIELD = new ParseField("mask");
 
+    private final ObjectParser<IpRangeAggregationBuilder, QueryParseContext> parser;
+
     public IpRangeParser() {
-        super(false, false);
+        parser = new ObjectParser<>(IpRangeAggregationBuilder.NAME);
+        addFields(parser, false, false);
+
+        parser.declareBoolean(IpRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
+
+        parser.declareObjectArray((agg, ranges) -> {
+            for (Range range : ranges) agg.addRange(range);
+        }, IpRangeParser::parseRange, RangeAggregator.RANGES_FIELD);
     }
 
     @Override
-    protected ValuesSourceAggregationBuilder<ValuesSource.Bytes, ?> createFactory(
-            String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        IpRangeAggregationBuilder range = new IpRangeAggregationBuilder(aggregationName);
-        @SuppressWarnings("unchecked")
-        Iterable<Range> ranges = (Iterable<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
-        if (otherOptions.containsKey(RangeAggregator.RANGES_FIELD)) {
-            for (Range r : ranges) {
-                range.addRange(r);
-            }
-        }
-        if (otherOptions.containsKey(RangeAggregator.KEYED_FIELD)) {
-            range.keyed((Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD));
-        }
-        return range;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new IpRangeAggregationBuilder(aggregationName), context);
     }
 
-    private Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
+        final ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
         String key = null;
         String from = null;
         String to = null;
@@ -99,30 +91,6 @@ public class IpRangeParser extends BytesValuesSourceParser {
         } else {
             return new Range(key, from, to);
         }
-    }
-
-    @Override
-    protected boolean token(String aggregationName, String currentFieldName,
-                            Token token,
-                            XContentParseContext context,
-                            Map<ParseField, Object> otherOptions) throws IOException {
-        XContentParser parser = context.getParser();
-        if (context.matchField(currentFieldName, RangeAggregator.RANGES_FIELD)) {
-            if (parser.currentToken() != Token.START_ARRAY) {
-                throw new ParsingException(parser.getTokenLocation(), "[ranges] must be passed as an array, but got a " + token);
-            }
-            List<Range> ranges = new ArrayList<>();
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                Range range = parseRange(parser, context.getParseFieldMatcher());
-                ranges.add(range);
-            }
-            otherOptions.put(RangeAggregator.RANGES_FIELD, ranges);
-            return true;
-        } else if (context.matchField(parser.currentName(), RangeAggregator.KEYED_FIELD)) {
-            otherOptions.put(RangeAggregator.KEYED_FIELD, parser.booleanValue());
-            return true;
-        }
-        return false;
     }
 
 }

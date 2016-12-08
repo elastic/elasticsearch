@@ -174,19 +174,19 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
             return new HDRPercentilesAggregatorFactory(name, type, config, percents, numberOfSignificantValueDigits, keyed, context, parent,
                     subFactoriesBuilder, metaData);
         default:
-            throw new IllegalStateException("Illegal method [" + method.getName() + "]");
+            throw new IllegalStateException("Illegal method [" + method + "]");
         }
     }
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.array(PercentilesParser.PERCENTS_FIELD.getPreferredName(), percents);
-        builder.field(AbstractPercentilesParser.KEYED_FIELD.getPreferredName(), keyed);
-        builder.startObject(method.getName());
+        builder.field(PercentilesParser.KEYED_FIELD.getPreferredName(), keyed);
+        builder.startObject(method.toString());
         if (method == PercentilesMethod.TDIGEST) {
-            builder.field(AbstractPercentilesParser.COMPRESSION_FIELD.getPreferredName(), compression);
+            builder.field(PercentilesParser.COMPRESSION_FIELD.getPreferredName(), compression);
         } else {
-            builder.field(AbstractPercentilesParser.NUMBER_SIGNIFICANT_DIGITS_FIELD.getPreferredName(), numberOfSignificantValueDigits);
+            builder.field(PercentilesParser.NUMBER_SIGNIFICANT_DIGITS_FIELD.getPreferredName(), numberOfSignificantValueDigits);
         }
         builder.endObject();
         return builder;
@@ -207,7 +207,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
             equalSettings = Objects.equals(compression, other.compression);
             break;
         default:
-            throw new IllegalStateException("Illegal method [" + method.getName() + "]");
+            throw new IllegalStateException("Illegal method [" + method.toString() + "]");
         }
         return equalSettings
                 && Objects.deepEquals(percents, other.percents)
@@ -223,7 +223,7 @@ public class PercentilesAggregationBuilder extends LeafOnly<ValuesSource.Numeric
         case TDIGEST:
             return Objects.hash(Arrays.hashCode(percents), keyed, compression, method);
         default:
-            throw new IllegalStateException("Illegal method [" + method.getName() + "]");
+            throw new IllegalStateException("Illegal method [" + method.toString() + "]");
         }
     }
 

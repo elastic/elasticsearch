@@ -417,7 +417,7 @@ public class SearchModule {
                     .addResultReader(LongTerms.NAME, LongTerms::new)
                     .addResultReader(DoubleTerms.NAME, DoubleTerms::new));
         registerAggregation(new AggregationSpec(SignificantTermsAggregationBuilder.NAME, SignificantTermsAggregationBuilder::new,
-                new SignificantTermsParser(significanceHeuristicParserRegistry, queryParserRegistry))
+                new SignificantTermsParser(significanceHeuristicParserRegistry))
                     .addResultReader(SignificantStringTerms.NAME, SignificantStringTerms::new)
                     .addResultReader(SignificantLongTerms.NAME, SignificantLongTerms::new)
                     .addResultReader(UnmappedSignificantTerms.NAME, UnmappedSignificantTerms::new));

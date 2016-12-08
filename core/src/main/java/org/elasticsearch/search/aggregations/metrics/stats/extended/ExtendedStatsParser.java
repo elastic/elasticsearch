@@ -18,42 +18,26 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class ExtendedStatsParser extends NumericValuesSourceParser {
 
+    private final ObjectParser<ExtendedStatsAggregationBuilder, QueryParseContext> parser;
+
     public ExtendedStatsParser() {
-        super(true, true, false);
+        parser = new ObjectParser<>(ExtendedStatsAggregationBuilder.NAME);
+        addFields(parser, true, true, false);
+        parser.declareDouble(ExtendedStatsAggregationBuilder::sigma, ExtendedStatsAggregator.SIGMA_FIELD);
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        if (context.matchField(currentFieldName, ExtendedStatsAggregator.SIGMA_FIELD)) {
-            if (token.isValue()) {
-                otherOptions.put(ExtendedStatsAggregator.SIGMA_FIELD, context.getParser().doubleValue());
-                return true;
-            }
-        }
-        return false;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new ExtendedStatsAggregationBuilder(aggregationName), context);
     }
 
-    @Override
-    protected ExtendedStatsAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        ExtendedStatsAggregationBuilder factory = new ExtendedStatsAggregationBuilder(aggregationName);
-        Double sigma = (Double) otherOptions.get(ExtendedStatsAggregator.SIGMA_FIELD);
-        if (sigma != null) {
-            factory.sigma(sigma);
-        }
-        return factory;
-    }
 }

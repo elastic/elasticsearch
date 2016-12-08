@@ -18,17 +18,13 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Aggregates Geo information into cells determined by geohashes of a given precision.
@@ -40,46 +36,19 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
     public static final int DEFAULT_PRECISION = 5;
     public static final int DEFAULT_MAX_NUM_CELLS = 10000;
 
+    private final ObjectParser<GeoGridAggregationBuilder, QueryParseContext> parser;
+
     public GeoHashGridParser() {
-        super(false, false);
+        parser = new ObjectParser<>(GeoGridAggregationBuilder.NAME);
+        addFields(parser, false, false);
+        parser.declareInt(GeoGridAggregationBuilder::precision, GeoHashGridParams.FIELD_PRECISION);
+        parser.declareInt(GeoGridAggregationBuilder::size, GeoHashGridParams.FIELD_SIZE);
+        parser.declareInt(GeoGridAggregationBuilder::shardSize, GeoHashGridParams.FIELD_SHARD_SIZE);
     }
 
     @Override
-    protected GeoGridAggregationBuilder createFactory(
-            String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        GeoGridAggregationBuilder factory = new GeoGridAggregationBuilder(aggregationName);
-        Integer precision = (Integer) otherOptions.get(GeoHashGridParams.FIELD_PRECISION);
-        if (precision != null) {
-            factory.precision(precision);
-        }
-        Integer size = (Integer) otherOptions.get(GeoHashGridParams.FIELD_SIZE);
-        if (size != null) {
-            factory.size(size);
-        }
-        Integer shardSize = (Integer) otherOptions.get(GeoHashGridParams.FIELD_SHARD_SIZE);
-        if (shardSize != null) {
-            factory.shardSize(shardSize);
-        }
-        return factory;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new GeoGridAggregationBuilder(aggregationName), context);
     }
 
-    @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        XContentParser parser = context.getParser();
-        if (token == XContentParser.Token.VALUE_NUMBER || token == XContentParser.Token.VALUE_STRING) {
-            if (context.matchField(currentFieldName, GeoHashGridParams.FIELD_PRECISION)) {
-                otherOptions.put(GeoHashGridParams.FIELD_PRECISION, parser.intValue());
-                return true;
-            } else if (context.matchField(currentFieldName, GeoHashGridParams.FIELD_SIZE)) {
-                otherOptions.put(GeoHashGridParams.FIELD_SIZE, parser.intValue());
-                return true;
-            } else if (context.matchField(currentFieldName, GeoHashGridParams.FIELD_SHARD_SIZE)) {
-                otherOptions.put(GeoHashGridParams.FIELD_SHARD_SIZE, parser.intValue());
-                return true;
-            }
-        }
-        return false;
-    }
 }

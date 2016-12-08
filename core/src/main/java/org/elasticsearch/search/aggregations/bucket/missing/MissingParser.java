@@ -18,31 +18,24 @@
  */
 package org.elasticsearch.search.aggregations.bucket.missing;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class MissingParser extends AnyValuesSourceParser {
 
+    private final ObjectParser<MissingAggregationBuilder, QueryParseContext> parser;
+
     public MissingParser() {
-        super(true, true);
+        parser = new ObjectParser<>(MissingAggregationBuilder.NAME);
+        addFields(parser, true, true);
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        return false;
-    }
-
-    @Override
-    protected MissingAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                      ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new MissingAggregationBuilder(aggregationName, targetValueType);
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new MissingAggregationBuilder(aggregationName, null), context);
     }
 }

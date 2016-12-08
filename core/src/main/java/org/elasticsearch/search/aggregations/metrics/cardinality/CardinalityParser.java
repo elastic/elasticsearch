@@ -20,47 +20,30 @@
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Map;
 
 
 public class CardinalityParser extends AnyValuesSourceParser {
 
     private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
 
+    private final ObjectParser<CardinalityAggregationBuilder, QueryParseContext> parser;
+
     public CardinalityParser() {
-        super(true, false);
+        parser = new ObjectParser<>(CardinalityAggregationBuilder.NAME);
+        addFields(parser, true, false);
+        parser.declareLong(CardinalityAggregationBuilder::precisionThreshold, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD);
+        parser.declareLong((b, v) -> {/*ignore*/}, REHASH);
     }
 
     @Override
-    protected CardinalityAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                          ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        CardinalityAggregationBuilder factory = new CardinalityAggregationBuilder(aggregationName, targetValueType);
-        Long precisionThreshold = (Long) otherOptions.get(CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD);
-        if (precisionThreshold != null) {
-            factory.precisionThreshold(precisionThreshold);
-        }
-        return factory;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new CardinalityAggregationBuilder(aggregationName, null), context);
     }
 
-    @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        if (token.isValue()) {
-            if (context.matchField(currentFieldName, CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD)) {
-                otherOptions.put(CardinalityAggregationBuilder.PRECISION_THRESHOLD_FIELD, context.getParser().longValue());
-                return true;
-            } else if (context.matchField(currentFieldName, REHASH)) {
-                // ignore
-                return true;
-            }
-        }
-        return false;
-    }
 }

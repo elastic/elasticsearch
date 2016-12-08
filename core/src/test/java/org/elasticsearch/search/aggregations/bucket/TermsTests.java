@@ -69,10 +69,10 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.missing("MISSING");
         }
         if (randomBoolean()) {
-            factory.bucketCountThresholds().setRequiredSize(randomIntBetween(1, Integer.MAX_VALUE));
+            factory.size(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            factory.bucketCountThresholds().setShardSize(randomIntBetween(1, Integer.MAX_VALUE));
+            factory.shardSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
             int minDocCount = randomInt(4);
@@ -83,12 +83,12 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             case 2:
             case 3:
             case 4:
-                minDocCount = randomInt();
+                minDocCount = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             default:
                 fail();
             }
-            factory.bucketCountThresholds().setMinDocCount(minDocCount);
+            factory.minDocCount(minDocCount);
         }
         if (randomBoolean()) {
             int shardMinDocCount = randomInt(4);
@@ -99,12 +99,12 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             case 2:
             case 3:
             case 4:
-                shardMinDocCount = randomInt();
+                shardMinDocCount = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             default:
                 fail();
             }
-            factory.bucketCountThresholds().setShardMinDocCount(shardMinDocCount);
+            factory.shardMinDocCount(shardMinDocCount);
         }
         if (randomBoolean()) {
             factory.collectMode(randomFrom(SubAggCollectionMode.values()));

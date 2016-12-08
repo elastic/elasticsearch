@@ -19,42 +19,67 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 
-public class PercentileRanksParser extends AbstractPercentilesParser {
+import java.io.IOException;
+
+public class PercentileRanksParser extends NumericValuesSourceParser {
 
     public static final ParseField VALUES_FIELD = new ParseField("values");
 
+    private static class TDigestOptions {
+        Double compression;
+    }
+
+    private static final ObjectParser<TDigestOptions, QueryParseContext> TDIGEST_OPTIONS_PARSER =
+            new ObjectParser<>(PercentilesMethod.TDIGEST.getParseField().getPreferredName(), TDigestOptions::new);
+    static {
+        TDIGEST_OPTIONS_PARSER.declareDouble((opts, compression) -> opts.compression = compression, new ParseField("compression"));
+    }
+
+    private static class HDROptions {
+        Integer numberOfSigDigits;
+    }
+
+    private static final ObjectParser<HDROptions, QueryParseContext> HDR_OPTIONS_PARSER =
+            new ObjectParser<>(PercentilesMethod.HDR.getParseField().getPreferredName(), HDROptions::new);
+    static {
+        HDR_OPTIONS_PARSER.declareInt((opts, numberOfSigDigits) -> opts.numberOfSigDigits = numberOfSigDigits,
+                new ParseField("number_of_significant_value_digits"));
+    }
+
+    private final ObjectParser<PercentileRanksAggregationBuilder, QueryParseContext> parser;
+
     public PercentileRanksParser() {
-        super(false);
+        parser = new ObjectParser<>(PercentileRanksAggregationBuilder.NAME);
+        addFields(parser, true, false, false);
+
+        parser.declareDoubleArray(
+                (b, v) -> b.values(v.stream().mapToDouble(Double::doubleValue).toArray()),
+                VALUES_FIELD);
+
+        parser.declareBoolean(PercentileRanksAggregationBuilder::keyed, PercentilesParser.KEYED_FIELD);
+
+        parser.declareField((b, v) -> {
+            b.method(PercentilesMethod.TDIGEST);
+            if (v.compression != null) {
+                b.compression(v.compression);
+            }
+        }, TDIGEST_OPTIONS_PARSER::parse, PercentilesMethod.TDIGEST.getParseField(), ObjectParser.ValueType.OBJECT);
+
+        parser.declareField((b, v) -> {
+            b.method(PercentilesMethod.HDR);
+            if (v.numberOfSigDigits != null) {
+                b.numberOfSignificantValueDigits(v.numberOfSigDigits);
+            }
+        }, HDR_OPTIONS_PARSER::parse, PercentilesMethod.HDR.getParseField(), ObjectParser.ValueType.OBJECT);
     }
 
     @Override
-    protected ParseField keysField() {
-        return VALUES_FIELD;
-    }
-
-    @Override
-    protected ValuesSourceAggregationBuilder<Numeric, ?> buildFactory(String aggregationName, double[] keys, PercentilesMethod method,
-                                                                      Double compression, Integer numberOfSignificantValueDigits,
-                                                                      Boolean keyed) {
-        PercentileRanksAggregationBuilder factory = new PercentileRanksAggregationBuilder(aggregationName);
-        if (keys != null) {
-            factory.values(keys);
-        }
-        if (method != null) {
-            factory.method(method);
-        }
-        if (compression != null) {
-            factory.compression(compression);
-        }
-        if (numberOfSignificantValueDigits != null) {
-            factory.numberOfSignificantValueDigits(numberOfSignificantValueDigits);
-        }
-        if (keyed != null) {
-            factory.keyed(keyed);
-        }
-        return factory;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new PercentileRanksAggregationBuilder(aggregationName), context);
     }
 }

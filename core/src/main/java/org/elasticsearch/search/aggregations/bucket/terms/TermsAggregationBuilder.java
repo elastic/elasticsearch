@@ -96,18 +96,6 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
         out.writeBoolean(showTermDocCountError);
     }
 
-    public TermsAggregator.BucketCountThresholds bucketCountThresholds() {
-        return bucketCountThresholds;
-    }
-
-    public TermsAggregationBuilder bucketCountThresholds(TermsAggregator.BucketCountThresholds bucketCountThresholds) {
-        if (bucketCountThresholds == null) {
-            throw new IllegalArgumentException("[bucketCountThresholds] must not be null: [" + name + "]");
-        }
-        this.bucketCountThresholds = bucketCountThresholds;
-        return this;
-    }
-
     /**
      * Sets the size - indicating how many term buckets should be returned
      * (defaults to 10)

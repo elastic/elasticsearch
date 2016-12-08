@@ -18,31 +18,24 @@
  */
 package org.elasticsearch.search.aggregations.metrics.sum;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class SumParser extends NumericValuesSourceParser {
 
+    private final ObjectParser<SumAggregationBuilder, QueryParseContext> parser;
+
     public SumParser() {
-        super(true, true, false);
+        parser = new ObjectParser<>(SumAggregationBuilder.NAME);
+        addFields(parser, true, true, false);
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        return false;
-    }
-
-    @Override
-    protected SumAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                  ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new SumAggregationBuilder(aggregationName);
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new SumAggregationBuilder(aggregationName), context);
     }
 }

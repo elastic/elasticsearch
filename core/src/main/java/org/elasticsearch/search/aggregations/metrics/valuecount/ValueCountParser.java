@@ -18,33 +18,25 @@
  */
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class ValueCountParser extends AnyValuesSourceParser {
 
+    private final ObjectParser<ValueCountAggregationBuilder, QueryParseContext> parser;
+
     public ValueCountParser() {
-        super(true, true);
+        parser = new ObjectParser<>(ValueCountAggregationBuilder.NAME);
+        addFields(parser, true, true);
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        return false;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new ValueCountAggregationBuilder(aggregationName, null), context);
     }
 
-    @Override
-    protected ValuesSourceAggregationBuilder<ValuesSource, ValueCountAggregationBuilder> createFactory(
-            String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new ValueCountAggregationBuilder(aggregationName, targetValueType);
-    }
 }

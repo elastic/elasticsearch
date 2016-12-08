@@ -18,35 +18,36 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
-import org.elasticsearch.search.aggregations.bucket.range.RangeParser;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
 
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
 
-public class DateRangeParser extends RangeParser {
+public class DateRangeParser extends NumericValuesSourceParser {
+
+    private final ObjectParser<DateRangeAggregationBuilder, QueryParseContext> parser;
 
     public DateRangeParser() {
-        super(true, true, true);
+        parser = new ObjectParser<>(DateRangeAggregationBuilder.NAME);
+        addFields(parser, true, true, true);
+        parser.declareBoolean(DateRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
+
+        parser.declareObjectArray((agg, ranges) -> {
+            for (Range range : ranges) agg.addRange(range);
+        }, DateRangeParser::parseRange, RangeAggregator.RANGES_FIELD);
     }
 
     @Override
-    protected DateRangeAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                        ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        DateRangeAggregationBuilder factory = new DateRangeAggregationBuilder(aggregationName);
-        @SuppressWarnings("unchecked")
-        List<Range> ranges = (List<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
-        for (Range range : ranges) {
-            factory.addRange(range);
-        }
-        Boolean keyed = (Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD);
-        if (keyed != null) {
-            factory.keyed(keyed);
-        }
-        return factory;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new DateRangeAggregationBuilder(aggregationName), context);
+    }
+
+    private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
+        return Range.fromXContent(parser, context.getParseFieldMatcher());
     }
 }

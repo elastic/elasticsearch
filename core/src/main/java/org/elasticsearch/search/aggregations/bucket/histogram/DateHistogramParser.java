@@ -18,17 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * A parser for date histograms. This translates json into a
@@ -36,112 +34,68 @@ import java.util.Map;
  */
 public class DateHistogramParser extends NumericValuesSourceParser {
 
+    private final ObjectParser<DateHistogramAggregationBuilder, QueryParseContext> parser;
+
     public DateHistogramParser() {
-        super(true, true, true);
+        parser = new ObjectParser<>(DateHistogramAggregationBuilder.NAME);
+        addFields(parser, true, true, true);
+
+        parser.declareField((histogram, interval) -> {
+            if (interval instanceof Long) {
+                histogram.interval((long) interval);
+            } else {
+                histogram.dateHistogramInterval((DateHistogramInterval) interval);
+            }
+        }, p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return p.longValue();
+            } else {
+                return new DateHistogramInterval(p.text());
+            }
+        }, Histogram.INTERVAL_FIELD, ObjectParser.ValueType.LONG);
+
+        parser.declareField(DateHistogramAggregationBuilder::offset, p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return p.longValue();
+            } else {
+                return DateHistogramAggregationBuilder.parseStringOffset(p.text());
+            }
+        }, Histogram.OFFSET_FIELD, ObjectParser.ValueType.LONG);
+
+        parser.declareBoolean(DateHistogramAggregationBuilder::keyed, Histogram.KEYED_FIELD);
+
+        parser.declareLong(DateHistogramAggregationBuilder::minDocCount, Histogram.MIN_DOC_COUNT_FIELD);
+
+        parser.declareField(DateHistogramAggregationBuilder::extendedBounds, ExtendedBounds.PARSER::apply,
+                ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+
+        parser.declareField(DateHistogramAggregationBuilder::order, DateHistogramParser::parseOrder,
+                Histogram.ORDER_FIELD, ObjectParser.ValueType.OBJECT);
     }
 
     @Override
-    protected DateHistogramAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        DateHistogramAggregationBuilder factory = new DateHistogramAggregationBuilder(aggregationName);
-        Object interval = otherOptions.get(Histogram.INTERVAL_FIELD);
-        if (interval == null) {
-            throw new ParsingException(null, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
-        } else if (interval instanceof Long) {
-            factory.interval((Long) interval);
-        } else if (interval instanceof DateHistogramInterval) {
-            factory.dateHistogramInterval((DateHistogramInterval) interval);
-        } else {
-            throw new IllegalStateException("Unexpected interval class: " + interval.getClass());
-        }
-        Long offset = (Long) otherOptions.get(Histogram.OFFSET_FIELD);
-        if (offset != null) {
-            factory.offset(offset);
-        }
-
-        ExtendedBounds extendedBounds = (ExtendedBounds) otherOptions.get(ExtendedBounds.EXTENDED_BOUNDS_FIELD);
-        if (extendedBounds != null) {
-            factory.extendedBounds(extendedBounds);
-        }
-        Boolean keyed = (Boolean) otherOptions.get(Histogram.KEYED_FIELD);
-        if (keyed != null) {
-            factory.keyed(keyed);
-        }
-        Long minDocCount = (Long) otherOptions.get(Histogram.MIN_DOC_COUNT_FIELD);
-        if (minDocCount != null) {
-            factory.minDocCount(minDocCount);
-        }
-        InternalOrder order = (InternalOrder) otherOptions.get(Histogram.ORDER_FIELD);
-        if (order != null) {
-            factory.order(order);
-        }
-        return factory;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new DateHistogramAggregationBuilder(aggregationName), context);
     }
 
-    @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        XContentParser parser = context.getParser();
-        if (token.isValue()) {
-            if (context.matchField(currentFieldName, Histogram.INTERVAL_FIELD)) {
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    otherOptions.put(Histogram.INTERVAL_FIELD, new DateHistogramInterval(parser.text()));
-                    return true;
-                } else {
-                    otherOptions.put(Histogram.INTERVAL_FIELD, parser.longValue());
-                    return true;
+    private static InternalOrder parseOrder(XContentParser parser, QueryParseContext context) throws IOException {
+        InternalOrder order = null;
+        Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                String dir = parser.text();
+                boolean asc = "asc".equals(dir);
+                if (!asc && !"desc".equals(dir)) {
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown order direction: [" + dir
+                            + "]. Should be either [asc] or [desc]");
                 }
-            } else if (context.matchField(currentFieldName, Histogram.MIN_DOC_COUNT_FIELD)) {
-                otherOptions.put(Histogram.MIN_DOC_COUNT_FIELD, parser.longValue());
-                return true;
-            } else if (context.matchField(currentFieldName, Histogram.KEYED_FIELD)) {
-                otherOptions.put(Histogram.KEYED_FIELD, parser.booleanValue());
-                return true;
-            } else if (context.matchField(currentFieldName, Histogram.OFFSET_FIELD)) {
-                if (token == XContentParser.Token.VALUE_STRING) {
-                    otherOptions.put(Histogram.OFFSET_FIELD,
-                            DateHistogramAggregationBuilder.parseStringOffset(parser.text()));
-                    return true;
-                } else {
-                    otherOptions.put(Histogram.OFFSET_FIELD, parser.longValue());
-                    return true;
-                }
-            } else {
-                return false;
+                order = resolveOrder(currentFieldName, asc);
             }
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            if (context.matchField(currentFieldName, Histogram.ORDER_FIELD)) {
-                InternalOrder order = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.VALUE_STRING) {
-                        String dir = parser.text();
-                        boolean asc = "asc".equals(dir);
-                        if (!asc && !"desc".equals(dir)) {
-                            throw new ParsingException(parser.getTokenLocation(), "Unknown order direction in aggregation ["
-                                    + aggregationName + "]: [" + dir
-                                    + "]. Should be either [asc] or [desc]");
-                        }
-                        order = resolveOrder(currentFieldName, asc);
-                    }
-                }
-                otherOptions.put(Histogram.ORDER_FIELD, order);
-                return true;
-            } else if (context.matchField(currentFieldName, ExtendedBounds.EXTENDED_BOUNDS_FIELD)) {
-                try {
-                    otherOptions.put(ExtendedBounds.EXTENDED_BOUNDS_FIELD,
-                            ExtendedBounds.PARSER.apply(parser, context::getParseFieldMatcher));
-                } catch (Exception e) {
-                    throw new ParsingException(parser.getTokenLocation(), "Error parsing [{}]", e, aggregationName);
-                }
-                return true;
-            } else {
-                return false;
-            }
-        } else {
-            return false;
         }
+        return order;
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

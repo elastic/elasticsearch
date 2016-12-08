@@ -46,7 +46,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     public static final String NAME = "geo_distance";
     public static final Type TYPE = new Type(NAME);
 
-    private final GeoPoint origin;
+    private GeoPoint origin;
     private List<Range> ranges = new ArrayList<>();
     private DistanceUnit unit = DistanceUnit.DEFAULT;
     private GeoDistance distanceType = GeoDistance.DEFAULT;
@@ -54,14 +54,14 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
 
     public GeoDistanceAggregationBuilder(String name, GeoPoint origin) {
         this(name, origin, InternalGeoDistance.FACTORY);
+        if (origin == null) {
+            throw new IllegalArgumentException("[origin] must not be null: [" + name + "]");
+        }
     }
 
     private GeoDistanceAggregationBuilder(String name, GeoPoint origin,
                                           InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> rangeFactory) {
         super(name, rangeFactory.type(), rangeFactory.getValueSourceType(), rangeFactory.getValueType());
-        if (origin == null) {
-            throw new IllegalArgumentException("[origin] must not be null: [" + name + "]");
-        }
         this.origin = origin;
     }
 
@@ -80,6 +80,23 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         keyed = in.readBoolean();
         distanceType = GeoDistance.readFromStream(in);
         unit = DistanceUnit.readFromStream(in);
+    }
+
+    // for parsing
+    GeoDistanceAggregationBuilder(String name) {
+        this(name, null, InternalGeoDistance.FACTORY);
+    }
+
+    GeoDistanceAggregationBuilder origin(GeoPoint origin) {
+        this.origin = origin;
+        return this;
+    }
+
+    /**
+     * Return the {@link GeoPoint} that is used for distance computations.
+     */
+    public GeoPoint origin() {
+        return origin;
     }
 
     @Override

@@ -19,24 +19,22 @@
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.GeoPointParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 public class GeoDistanceParser extends GeoPointValuesSourceParser {
 
@@ -44,10 +42,35 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
     static final ParseField UNIT_FIELD = new ParseField("unit");
     static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
 
-    private GeoPointParser geoPointParser = new GeoPointParser(GeoDistanceAggregationBuilder.TYPE, ORIGIN_FIELD);
+    private final ObjectParser<GeoDistanceAggregationBuilder, QueryParseContext> parser;
 
     public GeoDistanceParser() {
-        super(true, false);
+        parser = new ObjectParser<>(GeoDistanceAggregationBuilder.NAME);
+        addFields(parser, true, false);
+
+        parser.declareBoolean(GeoDistanceAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
+
+        parser.declareObjectArray((agg, ranges) -> {
+            for (Range range : ranges) agg.addRange(range);
+        }, GeoDistanceParser::parseRange, RangeAggregator.RANGES_FIELD);
+
+        parser.declareField(GeoDistanceAggregationBuilder::unit, p -> DistanceUnit.fromString(p.text()),
+                UNIT_FIELD, ObjectParser.ValueType.STRING);
+
+        parser.declareField(GeoDistanceAggregationBuilder::distanceType, p -> GeoDistance.fromString(p.text()),
+                DISTANCE_TYPE_FIELD, ObjectParser.ValueType.STRING);
+
+        parser.declareField(GeoDistanceAggregationBuilder::origin, GeoDistanceParser::parseGeoPoint,
+                ORIGIN_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
+    }
+
+    @Override
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        GeoDistanceAggregationBuilder builder = parser.parse(context.parser(), new GeoDistanceAggregationBuilder(aggregationName), context);
+        if (builder.origin() == null) {
+            throw new IllegalArgumentException("Aggregation [" + aggregationName + "] must define an [origin].");
+        }
+        return builder;
     }
 
     public static class Range extends RangeAggregator.Range {
@@ -81,92 +104,86 @@ public class GeoDistanceParser extends GeoPointValuesSourceParser {
         }
     }
 
-    @Override
-    protected GeoDistanceAggregationBuilder createFactory(
-            String aggregationName, ValuesSourceType valuesSourceType, ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        GeoPoint origin = (GeoPoint) otherOptions.get(ORIGIN_FIELD);
-        GeoDistanceAggregationBuilder factory = new GeoDistanceAggregationBuilder(aggregationName, origin);
-        @SuppressWarnings("unchecked")
-        List<Range> ranges = (List<Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
-        for (Range range : ranges) {
-            factory.addRange(range);
+    private static GeoPoint parseGeoPoint(XContentParser parser, QueryParseContext context) throws IOException {
+        Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_STRING) {
+            GeoPoint point = new GeoPoint();
+            point.resetFromString(parser.text());
+            return point;
         }
-        Boolean keyed = (Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD);
-        if (keyed != null) {
-            factory.keyed(keyed);
-        }
-        DistanceUnit unit = (DistanceUnit) otherOptions.get(UNIT_FIELD);
-        if (unit != null) {
-            factory.unit(unit);
-        }
-        GeoDistance distanceType = (GeoDistance) otherOptions.get(DISTANCE_TYPE_FIELD);
-        if (distanceType != null) {
-            factory.distanceType(distanceType);
-        }
-        return factory;
-    }
-
-    @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        XContentParser parser = context.getParser();
-        if (geoPointParser.token(aggregationName, currentFieldName, token, parser, context.getParseFieldMatcher(), otherOptions)) {
-            return true;
-        } else if (token == XContentParser.Token.VALUE_STRING) {
-            if (context.matchField(currentFieldName, UNIT_FIELD)) {
-                DistanceUnit unit = DistanceUnit.fromString(parser.text());
-                otherOptions.put(UNIT_FIELD, unit);
-                return true;
-            } else if (context.matchField(currentFieldName, DISTANCE_TYPE_FIELD)) {
-                GeoDistance distanceType = GeoDistance.fromString(parser.text());
-                otherOptions.put(DISTANCE_TYPE_FIELD, distanceType);
-                return true;
+        if (token == XContentParser.Token.START_ARRAY) {
+            double lat = Double.NaN;
+            double lon = Double.NaN;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (Double.isNaN(lon)) {
+                    lon = parser.doubleValue();
+                } else if (Double.isNaN(lat)) {
+                    lat = parser.doubleValue();
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "malformed [" + ORIGIN_FIELD.getPreferredName()
+                        + "]: a geo point array must be of the form [lon, lat]");
+                }
             }
-        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            if (context.matchField(currentFieldName, RangeAggregator.KEYED_FIELD)) {
-                boolean keyed = parser.booleanValue();
-                otherOptions.put(RangeAggregator.KEYED_FIELD, keyed);
-                return true;
-            }
-        } else if (token == XContentParser.Token.START_ARRAY) {
-            if (context.matchField(currentFieldName, RangeAggregator.RANGES_FIELD)) {
-                List<Range> ranges = new ArrayList<>();
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    String fromAsStr = null;
-                    String toAsStr = null;
-                    double from = 0.0;
-                    double to = Double.POSITIVE_INFINITY;
-                    String key = null;
-                    String toOrFromOrKey = null;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            toOrFromOrKey = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if (context.matchField(toOrFromOrKey, Range.FROM_FIELD)) {
-                                from = parser.doubleValue();
-                            } else if (context.matchField(toOrFromOrKey, Range.TO_FIELD)) {
-                                to = parser.doubleValue();
-                            }
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            if (context.matchField(toOrFromOrKey, Range.KEY_FIELD)) {
-                                key = parser.text();
-                            } else if (context.matchField(toOrFromOrKey, Range.FROM_FIELD)) {
-                                fromAsStr = parser.text();
-                            } else if (context.matchField(toOrFromOrKey, Range.TO_FIELD)) {
-                                toAsStr = parser.text();
-                            }
-                        }
-                    }
-                    if (fromAsStr != null || toAsStr != null) {
-                        ranges.add(new Range(key, Double.parseDouble(fromAsStr), Double.parseDouble(toAsStr)));
-                    } else {
-                        ranges.add(new Range(key, from, to));
+            return new GeoPoint(lat, lon);
+        }
+        if (token == XContentParser.Token.START_OBJECT) {
+            String currentFieldName = null;
+            double lat = Double.NaN;
+            double lon = Double.NaN;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                    if ("lat".equals(currentFieldName)) {
+                        lat = parser.doubleValue();
+                    } else if ("lon".equals(currentFieldName)) {
+                        lon = parser.doubleValue();
                     }
                 }
-                otherOptions.put(RangeAggregator.RANGES_FIELD, ranges);
-                return true;
+            }
+            if (Double.isNaN(lat) || Double.isNaN(lon)) {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "malformed [" + currentFieldName + "] geo point object. either [lat] or [lon] (or both) are " + "missing");
+            }
+            return new GeoPoint(lat, lon);
+        }
+
+        // should not happen since we only parse geo points when we encounter a string, an object or an array
+        throw new IllegalArgumentException("Unexpected token [" + token + "] while parsing geo point");
+    }
+
+    private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
+        ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
+        String fromAsStr = null;
+        String toAsStr = null;
+        double from = 0.0;
+        double to = Double.POSITIVE_INFINITY;
+        String key = null;
+        String toOrFromOrKey = null;
+        Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                toOrFromOrKey = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                if (parseFieldMatcher.match(toOrFromOrKey, Range.FROM_FIELD)) {
+                    from = parser.doubleValue();
+                } else if (parseFieldMatcher.match(toOrFromOrKey, Range.TO_FIELD)) {
+                    to = parser.doubleValue();
+                }
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                if (parseFieldMatcher.match(toOrFromOrKey, Range.KEY_FIELD)) {
+                    key = parser.text();
+                } else if (parseFieldMatcher.match(toOrFromOrKey, Range.FROM_FIELD)) {
+                    fromAsStr = parser.text();
+                } else if (parseFieldMatcher.match(toOrFromOrKey, Range.TO_FIELD)) {
+                    toAsStr = parser.text();
+                }
             }
         }
-        return false;
+        if (fromAsStr != null || toAsStr != null) {
+            return new Range(key, Double.parseDouble(fromAsStr), Double.parseDouble(toAsStr));
+        } else {
+            return new Range(key, from, to);
+        }
     }
 }

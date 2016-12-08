@@ -45,12 +45,12 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
@@ -61,11 +61,85 @@ import java.util.TreeSet;
  * exclusion has precedence, where the {@code include} is evaluated first and then the {@code exclude}.
  */
 public class IncludeExclude implements Writeable, ToXContent {
-    private static final ParseField INCLUDE_FIELD = new ParseField("include");
-    private static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
-    private static final ParseField PATTERN_FIELD = new ParseField("pattern");
-    private static final ParseField PARTITION_FIELD = new ParseField("partition");
-    private static final ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
+    public static final ParseField INCLUDE_FIELD = new ParseField("include");
+    public static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
+    public static final ParseField PATTERN_FIELD = new ParseField("pattern");
+    public static final ParseField PARTITION_FIELD = new ParseField("partition");
+    public static final ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
+
+    // for parsing purposes only
+    // TODO: move all aggs to the same package so that this stuff could be pkg-private
+    public static IncludeExclude merge(IncludeExclude include, IncludeExclude exclude) {
+        if (include == null) {
+            return exclude;
+        }
+        if (exclude == null) {
+            return include;
+        }
+        if (include.isPartitionBased()) {
+            throw new IllegalArgumentException("Cannot specify any excludes when using a partition-based include");
+        }
+        String includeMethod = include.isRegexBased() ? "regex" : "set";
+        String excludeMethod = exclude.isRegexBased() ? "regex" : "set";
+        if (includeMethod.equals(excludeMethod) == false) {
+            throw new IllegalArgumentException("Cannot mix a " + includeMethod + "-based include with a "
+                    + excludeMethod + "-based method");
+        }
+        if (include.isRegexBased()) {
+            return new IncludeExclude(include.include, exclude.exclude);
+        } else {
+            return new IncludeExclude(include.includeValues, exclude.excludeValues);
+        }
+    }
+
+    public static IncludeExclude parseInclude(XContentParser parser, QueryParseContext context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_STRING) {
+            return new IncludeExclude(parser.text(), null);
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            return new IncludeExclude(new TreeSet<>(parseArrayToSet(parser)), null);
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
+            String currentFieldName = null;
+            Integer partition = null, numPartitions = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                // This "include":{"pattern":"foo.*"} syntax is undocumented since 2.0
+                // Regexes should be "include":"foo.*" 
+                if (parseFieldMatcher.match(currentFieldName, PATTERN_FIELD)) {
+                    return new IncludeExclude(parser.text(), null);
+                } else if (parseFieldMatcher.match(currentFieldName, NUM_PARTITIONS_FIELD)) {
+                    numPartitions = parser.intValue();
+                } else if (parseFieldMatcher.match(currentFieldName, PARTITION_FIELD)) {
+                    partition = parser.intValue();
+                } else {
+                    throw new ElasticsearchParseException(
+                            "Unknown parameter in Include/Exclude clause: " + currentFieldName);
+                }
+            }
+            if (partition == null) {
+                throw new IllegalArgumentException("Missing [" + PARTITION_FIELD.getPreferredName()
+                    + "] parameter for partition-based include");
+            }
+            if (numPartitions == null) {
+                throw new IllegalArgumentException("Missing [" + NUM_PARTITIONS_FIELD.getPreferredName()
+                    + "] parameter for partition-based include");
+            }
+            return new IncludeExclude(partition, numPartitions);
+        } else {
+            throw new IllegalArgumentException("Unrecognized token for an include [" + token + "]");
+        }
+    }
+
+    public static IncludeExclude parseExclude(XContentParser parser, QueryParseContext context) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_STRING) {
+            return new IncludeExclude(null, parser.text());
+        } else if (token == XContentParser.Token.START_ARRAY) {
+            return new IncludeExclude(null, new TreeSet<>(parseArrayToSet(parser)));
+        } else {
+            throw new IllegalArgumentException("Unrecognized token for an exclude [" + token + "]");
+        }
+    }
 
     // The includeValue and excludeValue ByteRefs which are the result of the parsing
     // process are converted into a LongFilter when used on numeric fields
@@ -485,157 +559,18 @@ public class IncludeExclude implements Writeable, ToXContent {
 
     }
 
-
-
-    public static class Parser {
-
-        public boolean token(String currentFieldName, XContentParser.Token token, XContentParser parser,
-                ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
-
-            if (token == XContentParser.Token.VALUE_STRING) {
-                if (parseFieldMatcher.match(currentFieldName, INCLUDE_FIELD)) {
-                    otherOptions.put(INCLUDE_FIELD, parser.text());
-                } else if (parseFieldMatcher.match(currentFieldName, EXCLUDE_FIELD)) {
-                    otherOptions.put(EXCLUDE_FIELD, parser.text());
-                } else {
-                    return false;
-                }
-                return true;
-            }
-
-            if (token == XContentParser.Token.START_ARRAY) {
-                if (parseFieldMatcher.match(currentFieldName, INCLUDE_FIELD)) {
-                    otherOptions.put(INCLUDE_FIELD, new TreeSet<>(parseArrayToSet(parser)));
-                     return true;
-                }
-                if (parseFieldMatcher.match(currentFieldName, EXCLUDE_FIELD)) {
-                    otherOptions.put(EXCLUDE_FIELD, new TreeSet<>(parseArrayToSet(parser)));
-                      return true;
-                }
-                return false;
-            }
-
-            if (token == XContentParser.Token.START_OBJECT) {
-                if (parseFieldMatcher.match(currentFieldName, INCLUDE_FIELD)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        
-                        // This "include":{"pattern":"foo.*"} syntax is undocumented since 2.0
-                        // Regexes should be "include":"foo.*" 
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            if (parseFieldMatcher.match(currentFieldName, PATTERN_FIELD)) {
-                                otherOptions.put(INCLUDE_FIELD, parser.text());
-                            } else {
-                                throw new ElasticsearchParseException(
-                                        "Unknown string parameter in Include/Exclude clause: " + currentFieldName);
-                            }
-                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if (parseFieldMatcher.match(currentFieldName, NUM_PARTITIONS_FIELD)) {
-                                otherOptions.put(NUM_PARTITIONS_FIELD, parser.intValue());
-                            } else if (parseFieldMatcher.match(currentFieldName, PARTITION_FIELD)) {
-                                otherOptions.put(INCLUDE_FIELD, parser.intValue());
-                            } else {
-                                throw new ElasticsearchParseException(
-                                        "Unknown numeric parameter in Include/Exclude clause: " + currentFieldName);
-                            }
-                        }
-                    }
-                } else if (parseFieldMatcher.match(currentFieldName, EXCLUDE_FIELD)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            if (parseFieldMatcher.match(currentFieldName, PATTERN_FIELD)) {
-                                otherOptions.put(EXCLUDE_FIELD, parser.text());
-                            }
-                        }
-                    }
-                } else {
-                    return false;
-                }
-                return true;
-            }
-
-            return false;
+    private static Set<BytesRef> parseArrayToSet(XContentParser parser) throws IOException {
+        final Set<BytesRef> set = new HashSet<>();
+        if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
+            throw new ElasticsearchParseException("Missing start of array in include/exclude clause");
         }
-
-        private Set<BytesRef> parseArrayToSet(XContentParser parser) throws IOException {
-            final Set<BytesRef> set = new HashSet<>();
-            if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-                throw new ElasticsearchParseException("Missing start of array in include/exclude clause");
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            if (!parser.currentToken().isValue()) {
+                throw new ElasticsearchParseException("Array elements in include/exclude clauses should be string values");
             }
-            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                if (!parser.currentToken().isValue()) {
-                    throw new ElasticsearchParseException("Array elements in include/exclude clauses should be string values");
-                }
-                set.add(new BytesRef(parser.text()));
-            }
-            return set;
+            set.add(new BytesRef(parser.text()));
         }
-
-        public IncludeExclude createIncludeExclude(Map<ParseField, Object> otherOptions) {
-            Object includeObject = otherOptions.get(INCLUDE_FIELD);
-            String include = null;
-            int partition = -1;
-            int numPartitions = -1;
-            SortedSet<BytesRef> includeValues = null;
-            if (includeObject != null) {
-                if (includeObject instanceof String) {
-                    include = (String) includeObject;
-                } else if (includeObject instanceof SortedSet) {
-                    includeValues = (SortedSet<BytesRef>) includeObject;
-                } else if (includeObject instanceof Integer) {
-                    partition = (Integer) includeObject;
-                    Object numPartitionsObject = otherOptions.get(NUM_PARTITIONS_FIELD);
-                    if (numPartitionsObject instanceof Integer) {
-                        numPartitions = (Integer) numPartitionsObject;
-                        if (numPartitions < 2) {
-                            throw new IllegalArgumentException(NUM_PARTITIONS_FIELD.getPreferredName() + " must be >1");
-                        }
-                        if (partition < 0 || partition >= numPartitions) {
-                            throw new IllegalArgumentException(
-                                    PARTITION_FIELD.getPreferredName() + " must be >=0 and <" + numPartitions);
-                        }
-                    } else {
-                        if (numPartitionsObject == null) {
-                            throw new IllegalArgumentException(NUM_PARTITIONS_FIELD.getPreferredName() + " parameter is missing");
-                        }
-                        throw new IllegalArgumentException(NUM_PARTITIONS_FIELD.getPreferredName() + " value must be an integer");
-                    }
-                }
-            }
-            Object excludeObject = otherOptions.get(EXCLUDE_FIELD);
-            if (numPartitions >0 ){
-                if(excludeObject!=null){
-                    throw new IllegalArgumentException("Partitioned Include cannot be used in combination with excludes");                    
-                }
-                return new IncludeExclude(partition, numPartitions);
-            }
-            
-            
-            String exclude = null;
-            SortedSet<BytesRef> excludeValues = null;
-            if (excludeObject != null) {
-                if (excludeObject instanceof String) {
-                    exclude = (String) excludeObject;
-                } else if (excludeObject instanceof SortedSet) {
-                    excludeValues = (SortedSet<BytesRef>) excludeObject;
-                }
-            }
-            RegExp includePattern =  include != null ? new RegExp(include) : null;
-            RegExp excludePattern = exclude != null ? new RegExp(exclude) : null;
-            if (includePattern != null || excludePattern != null) {
-                if (includeValues != null || excludeValues != null) {
-                    throw new IllegalArgumentException("Can only use regular expression include/exclude or a set of values, not both");
-                }
-                return new IncludeExclude(includePattern, excludePattern);
-            } else if (includeValues != null || excludeValues != null) {
-                return new IncludeExclude(includeValues, excludeValues);
-            } else {
-                return null;
-            }
-        }
+        return set;
     }
 
     public boolean isRegexBased() {

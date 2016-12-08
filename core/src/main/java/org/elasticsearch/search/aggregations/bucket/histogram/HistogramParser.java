@@ -24,13 +24,11 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * A parser for date histograms. This translates json into an
@@ -46,93 +44,51 @@ public class HistogramParser extends NumericValuesSourceParser {
         EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
     }
 
+    private final ObjectParser<HistogramAggregationBuilder, QueryParseContext> parser;
+
     public HistogramParser() {
-        super(true, true, false);
+        parser = new ObjectParser<>(HistogramAggregationBuilder.NAME);
+        addFields(parser, true, true, false);
+
+        parser.declareDouble(HistogramAggregationBuilder::interval, Histogram.INTERVAL_FIELD);
+
+        parser.declareDouble(HistogramAggregationBuilder::offset, Histogram.OFFSET_FIELD);
+
+        parser.declareBoolean(HistogramAggregationBuilder::keyed, Histogram.KEYED_FIELD);
+
+        parser.declareLong(HistogramAggregationBuilder::minDocCount, Histogram.MIN_DOC_COUNT_FIELD);
+
+        parser.declareField((histogram, extendedBounds) -> {
+            histogram.extendedBounds(extendedBounds[0], extendedBounds[1]);
+        }, EXTENDED_BOUNDS_PARSER::apply, ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+
+        parser.declareField(HistogramAggregationBuilder::order, HistogramParser::parseOrder,
+                Histogram.ORDER_FIELD, ObjectParser.ValueType.OBJECT);
     }
 
     @Override
-    protected HistogramAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        HistogramAggregationBuilder factory = new HistogramAggregationBuilder(aggregationName);
-        Double interval = (Double) otherOptions.get(Histogram.INTERVAL_FIELD);
-        if (interval == null) {
-            throw new ParsingException(null, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
-        } else {
-            factory.interval(interval);
-        }
-        Double offset = (Double) otherOptions.get(Histogram.OFFSET_FIELD);
-        if (offset != null) {
-            factory.offset(offset);
-        }
-
-        double[] extendedBounds = (double[]) otherOptions.get(Histogram.EXTENDED_BOUNDS_FIELD);
-        if (extendedBounds != null) {
-            factory.extendedBounds(extendedBounds[0], extendedBounds[1]);
-        }
-        Boolean keyed = (Boolean) otherOptions.get(Histogram.KEYED_FIELD);
-        if (keyed != null) {
-            factory.keyed(keyed);
-        }
-        Long minDocCount = (Long) otherOptions.get(Histogram.MIN_DOC_COUNT_FIELD);
-        if (minDocCount != null) {
-            factory.minDocCount(minDocCount);
-        }
-        InternalOrder order = (InternalOrder) otherOptions.get(Histogram.ORDER_FIELD);
-        if (order != null) {
-            factory.order(order);
-        }
-        return factory;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new HistogramAggregationBuilder(aggregationName), context);
     }
 
-    @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        XContentParser parser = context.getParser();
-        if (token.isValue()) {
-            if (context.matchField(currentFieldName, Histogram.INTERVAL_FIELD)) {
-                otherOptions.put(Histogram.INTERVAL_FIELD, parser.doubleValue());
-                return true;
-            } else if (context.matchField(currentFieldName, Histogram.MIN_DOC_COUNT_FIELD)) {
-                otherOptions.put(Histogram.MIN_DOC_COUNT_FIELD, parser.longValue());
-                return true;
-            } else if (context.matchField(currentFieldName, Histogram.KEYED_FIELD)) {
-                otherOptions.put(Histogram.KEYED_FIELD, parser.booleanValue());
-                return true;
-            } else if (context.matchField(currentFieldName, Histogram.OFFSET_FIELD)) {
-                otherOptions.put(Histogram.OFFSET_FIELD, parser.doubleValue());
-                return true;
-            } else {
-                return false;
-            }
-        } else if (token == XContentParser.Token.START_OBJECT) {
-            if (context.matchField(currentFieldName, Histogram.ORDER_FIELD)) {
-                InternalOrder order = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token == XContentParser.Token.VALUE_STRING) {
-                        String dir = parser.text();
-                        boolean asc = "asc".equals(dir);
-                        if (!asc && !"desc".equals(dir)) {
-                            throw new ParsingException(parser.getTokenLocation(), "Unknown order direction in aggregation ["
-                                    + aggregationName + "]: [" + dir
-                                    + "]. Should be either [asc] or [desc]");
-                        }
-                        order = resolveOrder(currentFieldName, asc);
-                    }
+    private static InternalOrder parseOrder(XContentParser parser, QueryParseContext context) throws IOException {
+        InternalOrder order = null;
+        Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                String dir = parser.text();
+                boolean asc = "asc".equals(dir);
+                if (!asc && !"desc".equals(dir)) {
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown order direction: [" + dir
+                            + "]. Should be either [asc] or [desc]");
                 }
-                otherOptions.put(Histogram.ORDER_FIELD, order);
-                return true;
-            } else if (context.matchField(currentFieldName, Histogram.EXTENDED_BOUNDS_FIELD)) {
-                double[] bounds = EXTENDED_BOUNDS_PARSER.apply(parser, context::getParseFieldMatcher);
-                otherOptions.put(Histogram.EXTENDED_BOUNDS_FIELD, bounds);
-                return true;
-            } else {
-                return false;
+                order = resolveOrder(currentFieldName, asc);
             }
-        } else {
-            return false;
         }
+        return order;
     }
 
     static InternalOrder resolveOrder(String key, boolean asc) {

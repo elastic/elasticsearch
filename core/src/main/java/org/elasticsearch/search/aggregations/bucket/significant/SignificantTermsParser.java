@@ -19,89 +19,59 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
-import org.elasticsearch.search.aggregations.bucket.terms.AbstractTermsParser;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.Optional;
 
-public class SignificantTermsParser extends AbstractTermsParser {
-    private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry;
-    private final IndicesQueriesRegistry queriesRegistry;
+public class SignificantTermsParser extends AnyValuesSourceParser {
 
-    public SignificantTermsParser(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
-            IndicesQueriesRegistry queriesRegistry) {
-        this.significanceHeuristicParserRegistry = significanceHeuristicParserRegistry;
-        this.queriesRegistry = queriesRegistry;
+    private final ObjectParser<SignificantTermsAggregationBuilder, QueryParseContext> parser;
+
+    public SignificantTermsParser(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry) {
+        parser = new ObjectParser<>(SignificantTermsAggregationBuilder.NAME);
+        addFields(parser, true, true);
+
+        parser.declareInt(SignificantTermsAggregationBuilder::shardSize, TermsParser.SHARD_SIZE_FIELD_NAME);
+
+        parser.declareLong(SignificantTermsAggregationBuilder::minDocCount, TermsParser.MIN_DOC_COUNT_FIELD_NAME);
+
+        parser.declareLong(SignificantTermsAggregationBuilder::shardMinDocCount, TermsParser.SHARD_MIN_DOC_COUNT_FIELD_NAME);
+
+        parser.declareInt(SignificantTermsAggregationBuilder::size, TermsParser.REQUIRED_SIZE_FIELD_NAME);
+
+        parser.declareString(SignificantTermsAggregationBuilder::executionHint, TermsParser.EXECUTION_HINT_FIELD_NAME);
+
+        parser.declareObject((b, v) -> { if (v.isPresent()) b.backgroundFilter(v.get()); },
+                (parser, context) -> context.parseInnerQueryBuilder(),
+                SignificantTermsAggregationBuilder.BACKGROUND_FILTER);
+
+        parser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(v, b.includeExclude())),
+                IncludeExclude::parseInclude, IncludeExclude.INCLUDE_FIELD, ObjectParser.ValueType.OBJECT_ARRAY_OR_STRING);
+
+        parser.declareField((b, v) -> b.includeExclude(IncludeExclude.merge(b.includeExclude(), v)),
+                IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
+
+        for (String name : significanceHeuristicParserRegistry.getNames()) {
+            parser.declareObject(SignificantTermsAggregationBuilder::significanceHeuristic,
+                    (parser, context) -> {
+                        SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
+                                .lookupReturningNullIfNotFound(name, context.getParseFieldMatcher());
+                        return significanceHeuristicParser.parse(context);
+                    },
+                    new ParseField(name));
+        }
     }
 
     @Override
-    protected SignificantTermsAggregationBuilder doCreateFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                                 ValueType targetValueType, BucketCountThresholds bucketCountThresholds,
-                                                                 SubAggCollectionMode collectMode, String executionHint,
-                                                                 IncludeExclude incExc, Map<ParseField, Object> otherOptions) {
-        SignificantTermsAggregationBuilder factory = new SignificantTermsAggregationBuilder(aggregationName, targetValueType);
-        if (bucketCountThresholds != null) {
-            factory.bucketCountThresholds(bucketCountThresholds);
-        }
-        if (executionHint != null) {
-            factory.executionHint(executionHint);
-        }
-        if (incExc != null) {
-            factory.includeExclude(incExc);
-        }
-        QueryBuilder backgroundFilter = (QueryBuilder) otherOptions.get(SignificantTermsAggregationBuilder.BACKGROUND_FILTER);
-        if (backgroundFilter != null) {
-            factory.backgroundFilter(backgroundFilter);
-        }
-        SignificanceHeuristic significanceHeuristic =
-            (SignificanceHeuristic) otherOptions.get(SignificantTermsAggregationBuilder.HEURISTIC);
-        if (significanceHeuristic != null) {
-            factory.significanceHeuristic(significanceHeuristic);
-        }
-        return factory;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new SignificantTermsAggregationBuilder(aggregationName, null), context);
     }
 
-    @Override
-    public boolean parseSpecial(String aggregationName, XContentParseContext context, Token token,
-                                String currentFieldName, Map<ParseField, Object> otherOptions) throws IOException {
-        if (token == XContentParser.Token.START_OBJECT) {
-            SignificanceHeuristicParser significanceHeuristicParser = significanceHeuristicParserRegistry
-                    .lookupReturningNullIfNotFound(currentFieldName, context.getParseFieldMatcher());
-            if (significanceHeuristicParser != null) {
-                SignificanceHeuristic significanceHeuristic = significanceHeuristicParser.parse(context);
-                otherOptions.put(SignificantTermsAggregationBuilder.HEURISTIC, significanceHeuristic);
-                return true;
-            } else if (context.matchField(currentFieldName, SignificantTermsAggregationBuilder.BACKGROUND_FILTER)) {
-                QueryParseContext queryParseContext = new QueryParseContext(context.getDefaultScriptLanguage(), queriesRegistry,
-                        context.getParser(), context.getParseFieldMatcher());
-                Optional<QueryBuilder> filter = queryParseContext.parseInnerQueryBuilder();
-                if (filter.isPresent()) {
-                    otherOptions.put(SignificantTermsAggregationBuilder.BACKGROUND_FILTER, filter.get());
-                }
-                return true;
-            }
-        }
-        return false;
-    }
-
-    @Override
-    protected BucketCountThresholds getDefaultBucketCountThresholds() {
-        return new TermsAggregator.BucketCountThresholds(SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS);
-    }
 }

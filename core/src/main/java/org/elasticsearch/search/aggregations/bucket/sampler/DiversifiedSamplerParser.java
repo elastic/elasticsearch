@@ -19,61 +19,27 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class DiversifiedSamplerParser extends AnyValuesSourceParser {
+
+    private final ObjectParser<DiversifiedAggregationBuilder, QueryParseContext> parser;
+
     public DiversifiedSamplerParser() {
-        super(true, false);
+        parser = new ObjectParser<>(DiversifiedAggregationBuilder.NAME);
+        addFields(parser, true, false);
+        parser.declareInt(DiversifiedAggregationBuilder::shardSize, SamplerAggregator.SHARD_SIZE_FIELD);
+        parser.declareInt(DiversifiedAggregationBuilder::maxDocsPerValue, SamplerAggregator.MAX_DOCS_PER_VALUE_FIELD);
+        parser.declareString(DiversifiedAggregationBuilder::executionHint, SamplerAggregator.EXECUTION_HINT_FIELD);
     }
 
     @Override
-    protected DiversifiedAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                          ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        DiversifiedAggregationBuilder factory = new DiversifiedAggregationBuilder(aggregationName);
-        Integer shardSize = (Integer) otherOptions.get(SamplerAggregator.SHARD_SIZE_FIELD);
-        if (shardSize != null) {
-            factory.shardSize(shardSize);
-        }
-        Integer maxDocsPerValue = (Integer) otherOptions.get(SamplerAggregator.MAX_DOCS_PER_VALUE_FIELD);
-        if (maxDocsPerValue != null) {
-            factory.maxDocsPerValue(maxDocsPerValue);
-        }
-        String executionHint = (String) otherOptions.get(SamplerAggregator.EXECUTION_HINT_FIELD);
-        if (executionHint != null) {
-            factory.executionHint(executionHint);
-        }
-        return factory;
-    }
-
-    @Override
-    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        XContentParser parser = context.getParser();
-        if (token == XContentParser.Token.VALUE_NUMBER) {
-            if (context.matchField(currentFieldName, SamplerAggregator.SHARD_SIZE_FIELD)) {
-                int shardSize = parser.intValue();
-                otherOptions.put(SamplerAggregator.SHARD_SIZE_FIELD, shardSize);
-                return true;
-            } else if (context.matchField(currentFieldName, SamplerAggregator.MAX_DOCS_PER_VALUE_FIELD)) {
-                int maxDocsPerValue = parser.intValue();
-                otherOptions.put(SamplerAggregator.MAX_DOCS_PER_VALUE_FIELD, maxDocsPerValue);
-                return true;
-            }
-        } else if (token == XContentParser.Token.VALUE_STRING) {
-            if (context.matchField(currentFieldName, SamplerAggregator.EXECUTION_HINT_FIELD)) {
-                String executionHint = parser.text();
-                otherOptions.put(SamplerAggregator.EXECUTION_HINT_FIELD, executionHint);
-                return true;
-            }
-        }
-        return false;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new DiversifiedAggregationBuilder(aggregationName), context);
     }
 }

@@ -18,75 +18,35 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 public class RangeParser extends NumericValuesSourceParser {
 
+    private final ObjectParser<RangeAggregationBuilder, QueryParseContext> parser;
+
     public RangeParser() {
-        this(true, true, false);
-    }
+        parser = new ObjectParser<>(RangeAggregationBuilder.NAME);
+        addFields(parser, true, true, false);
+        parser.declareBoolean(RangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
 
-    /**
-     * Used by subclasses that parse slightly different kinds of ranges.
-     */
-    protected RangeParser(boolean scriptable, boolean formattable, boolean timezoneAware) {
-        super(scriptable, formattable, timezoneAware);
-    }
-
-    @Override
-    protected AbstractRangeBuilder<?, ?> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        RangeAggregationBuilder factory = new RangeAggregationBuilder(aggregationName);
-        @SuppressWarnings("unchecked")
-        List<? extends Range> ranges = (List<? extends Range>) otherOptions.get(RangeAggregator.RANGES_FIELD);
-        for (Range range : ranges) {
-            factory.addRange(range);
-        }
-        Boolean keyed = (Boolean) otherOptions.get(RangeAggregator.KEYED_FIELD);
-        if (keyed != null) {
-            factory.keyed(keyed);
-        }
-        return factory;
+        parser.declareObjectArray((agg, ranges) -> {
+            for (Range range : ranges) agg.addRange(range);
+        }, RangeParser::parseRange, RangeAggregator.RANGES_FIELD);
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        XContentParser parser = context.getParser();
-        if (token == XContentParser.Token.START_ARRAY) {
-            if (context.matchField(currentFieldName, RangeAggregator.RANGES_FIELD)) {
-                List<Range> ranges = new ArrayList<>();
-                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                    Range range = parseRange(parser, context.getParseFieldMatcher());
-                    ranges.add(range);
-                }
-                otherOptions.put(RangeAggregator.RANGES_FIELD, ranges);
-                return true;
-            }
-        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            if (context.matchField(currentFieldName, RangeAggregator.KEYED_FIELD)) {
-                boolean keyed = parser.booleanValue();
-                otherOptions.put(RangeAggregator.KEYED_FIELD, keyed);
-                return true;
-            }
-        }
-        return false;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new RangeAggregationBuilder(aggregationName), context);
     }
 
-    protected Range parseRange(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return Range.fromXContent(parser, parseFieldMatcher);
+    private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
+        return Range.fromXContent(parser, context.getParseFieldMatcher());
     }
 }

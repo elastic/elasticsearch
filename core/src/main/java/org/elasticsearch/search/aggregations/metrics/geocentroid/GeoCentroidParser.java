@@ -19,34 +19,28 @@
 
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Parser class for {@link org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregator}
  */
 public class GeoCentroidParser extends GeoPointValuesSourceParser {
 
+    private final ObjectParser<GeoCentroidAggregationBuilder, QueryParseContext> parser;
+
     public GeoCentroidParser() {
-        super(true, false);
+        parser = new ObjectParser<>(GeoCentroidAggregationBuilder.NAME);
+        addFields(parser, true, false);
     }
 
     @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        return false;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new GeoCentroidAggregationBuilder(aggregationName), context);
     }
 
-    @Override
-    protected GeoCentroidAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                          ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        return new GeoCentroidAggregationBuilder(aggregationName);
-    }
 }

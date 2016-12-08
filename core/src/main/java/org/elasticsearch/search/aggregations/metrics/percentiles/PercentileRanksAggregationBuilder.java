@@ -174,19 +174,19 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
             return new HDRPercentileRanksAggregatorFactory(name, type, config, values, numberOfSignificantValueDigits, keyed, context,
                     parent, subFactoriesBuilder, metaData);
         default:
-            throw new IllegalStateException("Illegal method [" + method.getName() + "]");
+            throw new IllegalStateException("Illegal method [" + method + "]");
         }
     }
 
     @Override
     protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.array(PercentileRanksParser.VALUES_FIELD.getPreferredName(), values);
-        builder.field(AbstractPercentilesParser.KEYED_FIELD.getPreferredName(), keyed);
-        builder.startObject(method.getName());
+        builder.field(PercentilesParser.KEYED_FIELD.getPreferredName(), keyed);
+        builder.startObject(method.toString());
         if (method == PercentilesMethod.TDIGEST) {
-            builder.field(AbstractPercentilesParser.COMPRESSION_FIELD.getPreferredName(), compression);
+            builder.field(PercentilesParser.COMPRESSION_FIELD.getPreferredName(), compression);
         } else {
-            builder.field(AbstractPercentilesParser.NUMBER_SIGNIFICANT_DIGITS_FIELD.getPreferredName(), numberOfSignificantValueDigits);
+            builder.field(PercentilesParser.NUMBER_SIGNIFICANT_DIGITS_FIELD.getPreferredName(), numberOfSignificantValueDigits);
         }
         builder.endObject();
         return builder;
@@ -207,7 +207,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
             equalSettings = Objects.equals(compression, other.compression);
             break;
         default:
-            throw new IllegalStateException("Illegal method [" + method.getName() + "]");
+            throw new IllegalStateException("Illegal method [" + method + "]");
         }
         return equalSettings
                 && Objects.deepEquals(values, other.values)
@@ -223,7 +223,7 @@ public class PercentileRanksAggregationBuilder extends LeafOnly<ValuesSource.Num
         case TDIGEST:
             return Objects.hash(Arrays.hashCode(values), keyed, compression, method);
         default:
-            throw new IllegalStateException("Illegal method [" + method.getName() + "]");
+            throw new IllegalStateException("Illegal method [" + method + "]");
         }
     }
 

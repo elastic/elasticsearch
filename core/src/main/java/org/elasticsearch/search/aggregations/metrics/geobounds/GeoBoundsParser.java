@@ -19,43 +19,26 @@
 
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.GeoPointValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.XContentParseContext;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Map;
 
 public class GeoBoundsParser extends GeoPointValuesSourceParser {
 
+    private final ObjectParser<GeoBoundsAggregationBuilder, QueryParseContext> parser;
+
     public GeoBoundsParser() {
-        super(false, false);
+        parser = new ObjectParser<>(GeoBoundsAggregationBuilder.NAME);
+        addFields(parser, false, false);
+        parser.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
     }
 
     @Override
-    protected GeoBoundsAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                        ValueType targetValueType, Map<ParseField, Object> otherOptions) {
-        GeoBoundsAggregationBuilder factory = new GeoBoundsAggregationBuilder(aggregationName);
-        Boolean wrapLongitude = (Boolean) otherOptions.get(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
-        if (wrapLongitude != null) {
-            factory.wrapLongitude(wrapLongitude);
-        }
-        return factory;
+    public AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return parser.parse(context.parser(), new GeoBoundsAggregationBuilder(aggregationName), context);
     }
 
-    @Override
-    protected boolean token(String aggregationName, String currentFieldName, Token token,
-                            XContentParseContext context, Map<ParseField, Object> otherOptions) throws IOException {
-        if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            if (context.matchField(currentFieldName, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD)) {
-                otherOptions.put(GeoBoundsAggregator.WRAP_LONGITUDE_FIELD, context.getParser().booleanValue());
-                return true;
-            }
-        }
-        return false;
-    }
 }

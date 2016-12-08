@@ -7,22 +7,16 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elastic.gradle.UploadS3Task
 
 String envPrelertAwsAccessKey = System.env.PRELERT_AWS_ACCESS_KEY_ID
-print 'BUILD - System.env.PRELERT_AWS_ACCESS_KEY_ID: ' + envPrelertAwsAccessKey + '\n'
 if (envPrelertAwsAccessKey != null) {
-  print 'using access key from System.env.PRELERT_AWS_ACCESS_KEY_ID: ' + envPrelertAwsAccessKey + '\n'
   project.ext.prelertAwsAccessKey = envPrelertAwsAccessKey
 } else if (project.hasProperty("PRELERT_AWS_ACCESS_KEY_ID")) {
-  print 'using access key from gradle.properties: ' + PRELERT_AWS_ACCESS_KEY_ID + '\n'
   project.ext.prelertAwsAccessKey = PRELERT_AWS_ACCESS_KEY_ID
 }
 
 String envPrelertAwsSecretKey = System.env.PRELERT_AWS_SECRET_ACCESS_KEY
-print 'BUILD - System.env.PRELERT_AWS_SECRET_ACCESS_KEY: ' + envPrelertAwsSecretKey + '\n'
 if (envPrelertAwsSecretKey != null) {
-  print 'using access key from System.env.PRELERT_AWS_SECRET_ACCESS_KEY: ' + envPrelertAwsSecretKey + '\n'
   project.ext.prelertAwsSecretKey = envPrelertAwsSecretKey
 } else if (project.hasProperty("PRELERT_AWS_SECRET_ACCESS_KEY")) {
-  print 'using secret key from gradle.properties: ' + PRELERT_AWS_SECRET_ACCESS_KEY + '\n'
   project.ext.prelertAwsSecretKey = PRELERT_AWS_SECRET_ACCESS_KEY
 }
 

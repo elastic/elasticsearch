@@ -51,8 +51,8 @@ class DownloadS3Task extends DefaultTask {
 
     @TaskAction
     public void downloadFromS3() {
-        print 'DownloadS3Task - AWS ACCESS KEY ID: ' + project.awsAccessKey
-        print 'DownloadS3Task - AWS SECRET ACCESS KEY: ' + project.awsSecretKey
+        print 'DownloadS3Task - AWS ACCESS KEY ID: ' + project.awsAccessKey + '\n'
+        print 'DownloadS3Task - AWS SECRET ACCESS KEY: ' + project.awsSecretKey + '\n'
         AWSCredentials creds = new BasicAWSCredentials(project.awsAccessKey, project.awsSecretKey)
 
         ClientConfiguration clientConfiguration = new ClientConfiguration();

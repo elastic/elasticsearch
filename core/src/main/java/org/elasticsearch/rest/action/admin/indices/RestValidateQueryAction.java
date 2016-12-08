@@ -74,20 +74,18 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
 
         Exception bodyParsingException = null;
-        XContentParser parser = request.contentOrSourceParamParserOrNull();
         try {
-            if (parser != null) {
-                try {
+            request.withContentOrSourceParamParserOrNull(parser -> {
+                if (parser != null) {
                     validateQueryRequest.query(RestActions.getQueryContent(parser, indicesQueriesRegistry, parseFieldMatcher));
-                } catch (Exception e) {
-                    bodyParsingException = e;
                 }
-            } else if (request.hasParam("q")) {
-                QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
-                validateQueryRequest.query(queryBuilder);
-            }
-        } finally {
-            IOUtils.close(parser);
+            });
+        } catch (Exception e) {
+            bodyParsingException = e;
+        }
+        if (validateQueryRequest.query() == null && request.hasParam("q")) {
+            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+            validateQueryRequest.query(queryBuilder);
         }
 
         final Exception finalBodyParsingException = bodyParsingException;

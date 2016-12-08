@@ -58,13 +58,19 @@ public abstract class AbstractBulkByQueryRestHandler<
         int scrollSize = searchRequest.source().size();
         searchRequest.source().size(SIZE_ALL_MATCHES);
 
-        XContentParser searchRequestParser = extractRequestSpecificFieldsAndReturnSearchCompatibleParser(
-                restRequest.contentOrSourceParamParserOrNull(), bodyConsumers);
-        try {
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher, searchRequestParser);
-        } finally {
-            IOUtils.close(searchRequestParser);
-        }
+        restRequest.withContentOrSourceParamParserOrNull(parser -> {
+            XContentParser searchRequestParser = extractRequestSpecificFieldsAndReturnSearchCompatibleParser(parser, bodyConsumers);
+            /* searchRequestParser might be parser or it might be a new parser built from parser's contents. If it is parser then
+             * withContentOrSourceParamParserOrNull will close it for us but if it isn't then we should close it. Technically close on
+             * the generated parser probably is a noop but we should do the accounting just in case. It doesn't hurt to close twice but it
+             * really hurts not to close if by some miracle we have to. */
+            try {
+                RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher,
+                        searchRequestParser);
+            } finally {
+                IOUtils.close(searchRequestParser);
+            }
+        });
 
         internal.setSize(searchRequest.source().size());
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", scrollSize));
@@ -94,7 +100,6 @@ public abstract class AbstractBulkByQueryRestHandler<
         }
         try {
             Map<String, Object> body = parser.map();
-            parser.close();
 
             for (Map.Entry<String, Consumer<Object>> consumer : bodyConsumers.entrySet()) {
                 Object value = body.remove(consumer.getKey());

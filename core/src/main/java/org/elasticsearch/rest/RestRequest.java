@@ -245,7 +245,7 @@ public abstract class RestRequest implements ToXContent.Params {
      */
     @Nullable
     public final XContentType contentOrSourceParamXContentType() {
-        BytesReference content = contentOrSource();
+        BytesReference content = contentOrSourceParam();
         return content == null ? null : XContentFactory.xContentType(content);
     }
 
@@ -255,7 +255,7 @@ public abstract class RestRequest implements ToXContent.Params {
      * handle the absence of a body gracefully.
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
-        BytesReference content = contentOrSource();
+        BytesReference content = contentOrSourceParam();
         if (content.length() == 0) {
             throw new ElasticsearchParseException("Body required");
         }
@@ -263,26 +263,17 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     /**
-     * A parser for the contents of this request if it has contents, otherwise a parser for the {@code source} parameter if there is one,
-     * otherwise {@code null}. Use {@link #contentOrSourceParamParser()} if you should throw an exception back to the user when there isn't
-     * a body. See also {@link #withContentOrSourceParamParserOrNull(IOConsumer)} which may cleaner to use.
+     * Call a consumer with the parser for the contents of this request if it has contents, otherwise with a parser for the {@code source}
+     * parameter if there is one, otherwise with {@code null}. Use {@link #contentOrSourceParamParser()} if you should throw an exception
+     * back to the user when there isn't a body.
      */
-    @Nullable
-    public final XContentParser contentOrSourceParamParserOrNull() throws IOException {
-        BytesReference content = contentOrSource();
-        if (content.length() == 0) {
-            return null;
-        }
-        return XContentFactory.xContent(content).createParser(content);
-    }
-
-    /**
-     * Helper around {@link #contentOrSourceParamParserOrNull()} that closes the parser for you. This is just syntactic sugar to ease
-     * handling the nullable parser.
-     */
-    @Nullable
     public final void withContentOrSourceParamParserOrNull(IOConsumer<XContentParser> withParser) throws IOException {
-        XContentParser parser = contentOrSourceParamParserOrNull();
+        XContentParser parser = null;
+        BytesReference content = contentOrSourceParam();
+        if (content.length() > 0) {
+            parser = XContentFactory.xContent(content).createParser(content);
+        }
+
         try {
             withParser.accept(parser);
         } finally {
@@ -292,20 +283,9 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * Get the content of the request or the contents of the {@code source} param. Prefer {@link #contentOrSourceParamParser()} if possible
-     * to centralize parser construction.
+     * prefer methods like {@link #contentOrSourceParamParser()} and {@link #contentOrSourceParamXContentType()}.
      */
     public final BytesReference contentOrSourceParam() {
-        return contentOrSource();
-    }
-
-    /**
-     * The String representation of the body if there is one or the {@code source} parameter if there isn't a body.
-     */
-    public final String contentOrSourceParamString() throws IOException {
-        return contentOrSource().utf8ToString();
-    }
-
-    private BytesReference contentOrSource() {
         if (hasContent()) {
             return content();
         }
@@ -314,5 +294,13 @@ public abstract class RestRequest implements ToXContent.Params {
             return new BytesArray(source);
         }
         return BytesArray.EMPTY;
+    }
+
+    /**
+     * The String representation of the body if there is one or the {@code source} parameter if there isn't content. Use this only if you
+     * aren't need to process raw strings.
+     */
+    public final String contentOrSourceParamString() throws IOException {
+        return contentOrSourceParam().utf8ToString();
     }
 }

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -33,10 +34,40 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 
 public class RestRequestTests extends ESTestCase {
+    public void testContentOrSourceParam() throws IOException {
+        assertEquals(BytesArray.EMPTY, new ContentRestRequest("", emptyMap()).contentOrSourceParam());
+        assertEquals(new BytesArray("stuff"), new ContentRestRequest("stuff", emptyMap()).contentOrSourceParam());
+        assertEquals(new BytesArray("stuff"), new ContentRestRequest("stuff", singletonMap("source", "stuff2")).contentOrSourceParam());
+        assertEquals(new BytesArray("stuff"), new ContentRestRequest("", singletonMap("source", "stuff")).contentOrSourceParam());
+    }
+
+    public void testHasContentOrSourceParam() throws IOException {
+        assertEquals(false, new ContentRestRequest("", emptyMap()).hasContentOrSourceParam());
+        assertEquals(true, new ContentRestRequest("stuff", emptyMap()).hasContentOrSourceParam());
+        assertEquals(true, new ContentRestRequest("stuff", singletonMap("source", "stuff2")).hasContentOrSourceParam());
+        assertEquals(true, new ContentRestRequest("", singletonMap("source", "stuff")).hasContentOrSourceParam());
+    }
+
+    public void testContentOrSourceParamXContentType() throws IOException {
+        assertNull(new ContentRestRequest("", emptyMap()).contentOrSourceParamXContentType());
+        assertNull(new ContentRestRequest("stuff", emptyMap()).contentOrSourceParamXContentType());
+        assertNull(new ContentRestRequest("stuff", singletonMap("source", "stuff2")).contentOrSourceParamXContentType());
+        assertNull(new ContentRestRequest("", singletonMap("source", "stuff")).contentOrSourceParamXContentType());
+        assertEquals(XContentType.JSON, new ContentRestRequest("{}", emptyMap()).contentOrSourceParamXContentType());
+        assertEquals(XContentType.JSON, new ContentRestRequest("{}", singletonMap("source", "stuff2")).contentOrSourceParamXContentType());
+        assertEquals(XContentType.JSON, new ContentRestRequest("", singletonMap("source", "{}")).contentOrSourceParamXContentType());
+        assertEquals(XContentType.YAML, new ContentRestRequest("---", emptyMap()).contentOrSourceParamXContentType());
+        assertEquals(XContentType.YAML, new ContentRestRequest("---", singletonMap("source", "stuff2")).contentOrSourceParamXContentType());
+        assertEquals(XContentType.YAML, new ContentRestRequest("", singletonMap("source", "---")).contentOrSourceParamXContentType());
+    }
+
     public void testContentOrSourceParamParserOrNull() throws IOException {
-        assertNull(new ContentRestRequest("", emptyMap()).contentOrSourceParamParserOrNull());
-        assertEquals(emptyMap(), new ContentRestRequest("{}", emptyMap()).contentOrSourceParamParserOrNull().map());
-        assertEquals(emptyMap(), new ContentRestRequest("", singletonMap("source", "{}")).contentOrSourceParamParserOrNull().map());
+        new ContentRestRequest("", emptyMap()).withContentOrSourceParamParserOrNull(parser -> assertNull(parser));
+        new ContentRestRequest("{}", emptyMap()).withContentOrSourceParamParserOrNull(parser -> assertEquals(emptyMap(), parser.map()));
+        new ContentRestRequest("{}", singletonMap("source", "stuff2")).withContentOrSourceParamParserOrNull(parser ->
+                assertEquals(emptyMap(), parser.map()));
+        new ContentRestRequest("", singletonMap("source", "{}")).withContentOrSourceParamParserOrNull(parser ->
+                assertEquals(emptyMap(), parser.map()));
     }
 
     public void testContentOrSourceParamParser() throws IOException {
@@ -44,6 +75,7 @@ public class RestRequestTests extends ESTestCase {
             new ContentRestRequest("", emptyMap()).contentOrSourceParamParser());
         assertEquals("Body required", e.getMessage());
         assertEquals(emptyMap(), new ContentRestRequest("{}", emptyMap()).contentOrSourceParamParser().map());
+        assertEquals(emptyMap(), new ContentRestRequest("{}", singletonMap("source", "stuff2")).contentOrSourceParamParser().map());
         assertEquals(emptyMap(), new ContentRestRequest("", singletonMap("source", "{}")).contentOrSourceParamParser().map());
     }
 

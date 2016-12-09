@@ -22,7 +22,7 @@ package org.elasticsearch.rest;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.IOConsumer;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -251,8 +251,8 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * A parser for the contents of this request if it has contents, otherwise a parser for the {@code source} parameter if there is one,
-     * otherwise throws an {@link ElasticsearchParseException}. Use {@link #withContentOrSourceParamParserOrNull(IOConsumer)} instead if you
-     * need to handle the absence request content gracefully.
+     * otherwise throws an {@link ElasticsearchParseException}. Use {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} instead
+     * if you need to handle the absence request content gracefully.
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         BytesReference content = contentOrSourceParam();
@@ -267,7 +267,7 @@ public abstract class RestRequest implements ToXContent.Params {
      * parameter if there is one, otherwise with {@code null}. Use {@link #contentOrSourceParamParser()} if you should throw an exception
      * back to the user when there isn't request content.
      */
-    public final void withContentOrSourceParamParserOrNull(IOConsumer<XContentParser> withParser) throws IOException {
+    public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         XContentParser parser = null;
         BytesReference content = contentOrSourceParam();
         if (content.length() > 0) {
@@ -283,7 +283,7 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * Get the content of the request or the contents of the {@code source} param. Prefer {@link #contentOrSourceParamParser()} or
-     * {@link #withContentOrSourceParamParserOrNull(IOConsumer)} if you need a parser.
+     * {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
      */
     public final BytesReference contentOrSourceParam() {
         if (hasContent()) {

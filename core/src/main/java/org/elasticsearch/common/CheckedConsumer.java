@@ -19,12 +19,12 @@
 
 package org.elasticsearch.common;
 
-import java.io.IOException;
 import java.util.function.Consumer;
 
 /**
- * Like {@link Consumer} but can throw an {@link IOException}.
+ * A {@link Consumer}-like interface which allows throwing checked exceptions.
  */
-public interface IOConsumer<T> {
-    void accept(T t) throws IOException;
+@FunctionalInterface
+public interface CheckedConsumer<T, E extends Exception> {
+    void accept(T t) throws E;
 }

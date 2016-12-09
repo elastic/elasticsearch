@@ -793,7 +793,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void forceMerge(ForceMergeRequest forceMerge) throws IOException {
-        verifyStarted();
+        verifyStartedOrRelocated();
         if (logger.isTraceEnabled()) {
             logger.trace("force merge with {}", forceMerge);
         }
@@ -805,7 +805,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Upgrades the shard to the current version of Lucene and returns the minimum segment version
      */
     public org.apache.lucene.util.Version upgrade(UpgradeRequest upgrade) throws IOException {
-        verifyStarted();
+        verifyStartedOrRelocated();
         if (logger.isTraceEnabled()) {
             logger.trace("upgrade with {}", upgrade);
         }
@@ -1163,10 +1163,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    protected final void verifyStarted() throws IllegalIndexShardStateException {
+    protected final void verifyStartedOrRelocated() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED) {
-            throw new IndexShardNotStartedException(shardId, state);
+        if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
+            throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard is started or marked as relocated");
         }
     }
 

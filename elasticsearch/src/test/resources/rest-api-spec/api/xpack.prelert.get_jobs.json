@@ -15,7 +15,7 @@
         },
         "metric" : {
           "type" : "list",
-          "options" : ["_all", "config", "data_counts", "model_size_stats", "scheduler_state", "status"],
+          "options" : ["_all", "config", "data_counts", "model_size_stats", "scheduler_status", "status"],
           "description" : "Limit the information returned to the specified statistics"
         }
       },

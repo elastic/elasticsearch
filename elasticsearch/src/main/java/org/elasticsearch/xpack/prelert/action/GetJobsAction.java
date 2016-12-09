@@ -68,11 +68,11 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
     private static final String CONFIG = "config";
     private static final String DATA_COUNTS = "data_counts";
     private static final String MODEL_SIZE_STATS = "model_size_stats";
-    private static final String SCHEDULER_STATE = "scheduler_state";
+    private static final String SCHEDULER_STATUS = "scheduler_status";
     private static final String STATUS = "status";
 
     private static final List<String> METRIC_WHITELIST = Arrays.asList(ALL, CONFIG, DATA_COUNTS,
-            MODEL_SIZE_STATS, SCHEDULER_STATE, STATUS);
+            MODEL_SIZE_STATS, SCHEDULER_STATUS, STATUS);
 
     private GetJobsAction() {
         super(NAME);
@@ -195,7 +195,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 config(stats.contains(CONFIG));
                 dataCounts(stats.contains(DATA_COUNTS));
                 modelSizeStats(stats.contains(MODEL_SIZE_STATS));
-                schedulerStatus(stats.contains(SCHEDULER_STATE));
+                schedulerStatus(stats.contains(SCHEDULER_STATUS));
                 status(stats.contains(STATUS));
             }
         }
@@ -343,7 +343,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                     builder.field(MODEL_SIZE_STATS, modelSizeStats);
                 }
                 if (schedulerStatus != null) {
-                    builder.field(SCHEDULER_STATE, schedulerStatus);
+                    builder.field(SCHEDULER_STATUS, schedulerStatus);
                 }
                 if (status != null) {
                     builder.field(STATUS, status);

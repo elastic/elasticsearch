@@ -67,7 +67,7 @@ setup:
   - is_true: jobs.0.config
   - is_false: jobs.0.data_counts
   - is_false: jobs.0.model_size_stats
-  - is_false: jobs.0.scheduler_state
+  - is_false: jobs.0.scheduler_status
 
 
   - do:
@@ -101,7 +101,7 @@ setup:
   - is_false: jobs.0.config
   - is_true: jobs.0.data_counts
   - is_false: jobs.0.model_size_stats
-  - is_false: jobs.0.scheduler_state
+  - is_false: jobs.0.scheduler_status
 
   - do:
       xpack.prelert.get_jobs:
@@ -109,13 +109,13 @@ setup:
         metric: "model_size_stats"
   - is_false: jobs.0.config
   - is_false: jobs.0.data_counts
-  - is_false: jobs.0.scheduler_state
+  - is_false: jobs.0.scheduler_status
   - match: { jobs.0.model_size_stats.model_bytes: 100 }
 
   - do:
       xpack.prelert.get_jobs:
         job_id: "job-stats-test"
-        metric: "scheduler_state"
+        metric: "scheduler_status"
   - is_false: jobs.0.config
   - is_false: jobs.0.data_counts
 
@@ -126,7 +126,7 @@ setup:
   - is_false: jobs.0.config
   - is_false: jobs.0.data_counts
   - is_false: jobs.0.model_size_stats
-  - is_false: jobs.0.scheduler_state
+  - is_false: jobs.0.scheduler_status
   - match: { jobs.0.status: OPENED }
 
   - do:
@@ -135,18 +135,18 @@ setup:
         metric: "_all"
   - is_true: jobs.0.config
   - is_true: jobs.0.data_counts
-  - is_false: jobs.0.scheduler_state
+  - is_false: jobs.0.scheduler_status
   - match: { jobs.0.job_id: job-stats-test }
   - match: { jobs.0.status: OPENED }
 
   - do:
       xpack.prelert.get_jobs:
         job_id: "scheduled-job"
-        metric: "scheduler_state"
+        metric: "scheduler_status"
   - is_false: jobs.0.config
   - is_false: jobs.0.data_counts
   - is_false: jobs.0.model_size_stats
-  - match: { jobs.0.scheduler_state: STOPPED }
+  - match: { jobs.0.scheduler_status: STOPPED }
 
 ---
 "Test bad metric":

@@ -188,7 +188,7 @@ public class ScheduledJobIT extends ESRestTestCase {
             assertBusy(() -> {
                 try {
                     Response getJobResponse = client.performRequest("get", PrelertPlugin.BASE_PATH + "jobs/" + jobId + "/_stats",
-                            Collections.singletonMap("metric", "scheduler_state"));
+                            Collections.singletonMap("metric", "scheduler_status"));
                     assertThat(responseEntityToString(getJobResponse), containsString("\"status\":\"STOPPED\""));
                 } catch (Exception e) {
                     throw new RuntimeException(e);

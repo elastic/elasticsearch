@@ -529,8 +529,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         out.writeBytesReference(source);
         out.writeByte(opType.getId());
-        // ES versions below 5.1.1 don't know about resolveVersionDefaults but resolve the version eagerly (which messes with validation).
-        if (out.getVersion().before(Version.V_5_1_1_UNRELEASED)) {
+        // ES versions below 5.1.2 don't know about resolveVersionDefaults but resolve the version eagerly (which messes with validation).
+        if (out.getVersion().before(Version.V_5_1_2_UNRELEASED)) {
             out.writeLong(resolveVersionDefaults());
         } else {
             out.writeLong(version);

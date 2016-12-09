@@ -20,6 +20,7 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -297,12 +298,12 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
                         source = builder.bytes();
                     }
                 } else if (FIELDS.equals(currentFieldName)) {
-                    while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         GetField getField = GetField.fromXContent(parser);
                         fields.put(getField.getName(), getField);
                     }
                 } else {
-                    assert false;
+                    throw new ParsingException(parser.getTokenLocation(), "unsupported field: " + currentFieldName);
                 }
             }
         }

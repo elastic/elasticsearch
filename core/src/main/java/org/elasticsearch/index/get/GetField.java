@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.get;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -106,13 +107,18 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
     }
 
     public static GetField fromXContent(XContentParser parser) throws IOException {
-        assert parser.currentToken() == XContentParser.Token.FIELD_NAME;
+        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "expected " + XContentParser.Token.FIELD_NAME + " - found " + parser.currentToken());
+        }
         String fieldName = parser.currentName();
         List<Object> values = new ArrayList<>();
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.START_ARRAY;
-        while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            assert token.isValue();
+        if (token != XContentParser.Token.START_ARRAY) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "expected " + XContentParser.Token.START_ARRAY + " - found " + parser.currentToken());
+        }
+        while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
             values.add(parser.objectText());
         }
         return new GetField(fieldName, values);

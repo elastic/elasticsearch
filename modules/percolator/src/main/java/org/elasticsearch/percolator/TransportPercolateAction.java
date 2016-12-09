@@ -209,7 +209,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
             try (XContentParser parser = XContentHelper.createParser(querySource)) {
                 QueryParseContext queryParseContext = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
                 BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-                queryParseContext.parseInnerQueryBuilder().ifPresent(boolQueryBuilder::must);
+                boolQueryBuilder.must(queryParseContext.parseInnerQueryBuilder());
                 boolQueryBuilder.filter(percolateQueryBuilder);
                 searchSource.field("query", boolQueryBuilder);
             }

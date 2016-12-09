@@ -22,7 +22,6 @@ package org.elasticsearch.search.builder;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -314,17 +313,5 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             assertEquals(1, sourceAsMap.size());
             assertEquals("query", sourceAsMap.keySet().iterator().next());
         }
-    }
-
-    public void testEmptyPostFilter() throws IOException {
-        SearchSourceBuilder builder = new SearchSourceBuilder();
-        String query = "{ \"post_filter\": {} }";
-        assertParseSearchSource(builder, new BytesArray(query), ParseFieldMatcher.EMPTY);
-    }
-
-    public void testEmptyQuery() throws IOException {
-        SearchSourceBuilder builder = new SearchSourceBuilder();
-        String query = "{ \"query\": {} }";
-        assertParseSearchSource(builder, new BytesArray(query), ParseFieldMatcher.EMPTY);
     }
 }

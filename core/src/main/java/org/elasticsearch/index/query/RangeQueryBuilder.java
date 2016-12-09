@@ -44,7 +44,6 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A Query that matches documents within an range of terms.
@@ -344,7 +343,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         builder.endObject();
     }
 
-    public static Optional<RangeQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static RangeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -435,7 +434,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
         if (relation != null) {
             rangeQuery.relation(relation);
         }
-        return Optional.of(rangeQuery);
+        return rangeQuery;
     }
 
     @Override

@@ -57,7 +57,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -685,7 +684,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         builder.endObject();
     }
 
-    public static Optional<QueryStringQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static QueryStringQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         String currentFieldName = null;
         XContentParser.Token token;
@@ -855,7 +854,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         queryStringQuery.queryName(queryName);
         queryStringQuery.splitOnWhitespace(splitOnWhitespace);
         queryStringQuery.useAllFields(useAllFields);
-        return Optional.of(queryStringQuery);
+        return queryStringQuery;
     }
 
     @Override

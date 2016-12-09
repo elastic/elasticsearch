@@ -23,6 +23,8 @@
 
 * The deprecated `indices` query has been removed.
 
+* Support for empty query objects (`{ }`) has been removed.
+
 ==== Search shards API
 
 The search shards API no longer accepts the `type` url parameter, which didn't

@@ -650,6 +650,16 @@ public class InternalEngine extends Engine {
                 }
                 updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
                 index.parsedDoc().version().setLongValue(updatedVersion);
+
+                // Update the document's sequence number and primary term, the
+                // sequence number here is derived here from either the sequence
+                // number service if this is on the primary, or the existing
+                // document's sequence number if this is on the replica. The
+                // primary term here has already been set, see
+                // IndexShard.prepareIndex where the Engine.Index operation is
+                // created
+                index.parsedDoc().updateSeqID(seqNo, index.primaryTerm());
+
                 if (currentVersion == Versions.NOT_FOUND && forceUpdateDocument == false) {
                     // document does not exists, we can optimize for create, but double check if assertions are running
                     assert assertDocDoesNotExist(index, canOptimizeAddDocument == false);

@@ -102,6 +102,8 @@ public class Version {
     // no version constant for 5.1.0 due to inadvertent release
     public static final int V_5_1_1_ID_UNRELEASED = 5010199;
     public static final Version V_5_1_1_UNRELEASED = new Version(V_5_1_1_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
+    public static final int V_5_1_2_ID_UNRELEASED = 5010299;
+    public static final Version V_5_1_2_UNRELEASED = new Version(V_5_1_2_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
     public static final int V_5_2_0_ID_UNRELEASED = 5020099;
     public static final Version V_5_2_0_UNRELEASED = new Version(V_5_2_0_ID_UNRELEASED, org.apache.lucene.util.Version.LUCENE_6_3_0);
     public static final int V_6_0_0_alpha1_ID_UNRELEASED = 6000001;
@@ -126,6 +128,8 @@ public class Version {
                 return V_6_0_0_alpha1_UNRELEASED;
             case V_5_2_0_ID_UNRELEASED:
                 return V_5_2_0_UNRELEASED;
+            case V_5_1_2_ID_UNRELEASED:
+                return V_5_1_2_UNRELEASED;
             case V_5_1_1_ID_UNRELEASED:
                 return V_5_1_1_UNRELEASED;
             case V_5_0_3_ID_UNRELEASED:

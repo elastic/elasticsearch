@@ -111,4 +111,3 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
         return shardBulkAction.executeSingleItemBulkRequestOnReplica(request, replica);
     }
 }
-

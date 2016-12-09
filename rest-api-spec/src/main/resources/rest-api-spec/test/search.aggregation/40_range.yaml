@@ -111,6 +111,9 @@ setup:
 
 ---
 "IP range":
+  - skip:
+      version: " - 5.1.1"
+      reason: IP range queries had an exclusive range bug prior to 5.1.2
   - do:
       index:
         index: test

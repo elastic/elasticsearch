@@ -18,12 +18,10 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApiParser;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -102,7 +100,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
                 "    }," +
                 "    \"body\": null" +
                 "  }" +
-                "}", "Found duplicate part [index]");
+                "}", JsonParseException.class,"Duplicate field 'index'");
     }
 
     public void testDuplicateParams() throws Exception {
@@ -132,7 +130,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
                 "    }," +
                 "    \"body\": null" +
                 "  }" +
-                "}", "Found duplicate param [timeout]");
+                "}", JsonParseException.class, "Duplicate field 'timeout'");
     }
 
     public void testBrokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnParams() throws Exception {
@@ -144,10 +142,15 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     }
 
     private void parseAndExpectFailure(String brokenJson, String expectedErrorMessage) throws Exception {
+        parseAndExpectFailure(brokenJson, IllegalArgumentException.class, expectedErrorMessage);
+    }
+
+    private <T extends Throwable> void parseAndExpectFailure(String brokenJson, Class<T> expectedExceptionClass,
+                                                             String expectedErrorMessage) throws Exception {
         XContentParser parser = JsonXContent.jsonXContent.createParser(brokenJson);
         ClientYamlSuiteRestApiParser restApiParser = new ClientYamlSuiteRestApiParser();
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> restApiParser.parse("location", parser));
+        Throwable e = expectThrows(expectedExceptionClass, () -> restApiParser.parse("location", parser));
         assertThat(e.getMessage(), containsString(expectedErrorMessage));
     }
 

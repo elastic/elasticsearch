@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -67,15 +68,15 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     /**
-     * test that multiple "filter" elements causes {@link ParsingException}
+     * test that multiple "filter" elements causes {@link JsonParseException}
      */
     public void testMultipleFilterElements() throws IOException {
         String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {\n" +
                                     "\"filter\" : { \"term\": { \"foo\": \"a\" } },\n" +
                                     "\"filter\" : { \"term\": { \"foo\": \"x\" } },\n" +
                             "} }";
-        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryString));
-        assertThat(e.getMessage(), containsString("accepts only one 'filter' element"));
+        JsonParseException e = expectThrows(JsonParseException.class, () -> parseQuery(queryString));
+        assertThat(e.getMessage(), containsString("Duplicate field 'filter'"));
     }
 
     /**

@@ -56,6 +56,15 @@ public class JsonXContent implements XContent {
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
+        boolean strictDuplicateDetection;
+        try {
+            // Don't allow duplicate keys in JSON content by default but let the user opt out
+            strictDuplicateDetection = Boolean.valueOf(System.getProperty("es.json.strict_duplicate_detection", "true"));
+        } catch (Exception ex) {
+            // don't be lenient if the user specified an invalid value
+            throw new ExceptionInInitializerError(ex);
+        }
+        jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, strictDuplicateDetection);
         jsonXContent = new JsonXContent();
     }
 

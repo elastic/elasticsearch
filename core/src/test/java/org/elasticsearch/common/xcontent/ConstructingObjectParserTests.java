@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -174,10 +175,10 @@ public class ConstructingObjectParserTests extends ESTestCase {
                 + "  \"vegetable\": 2\n"
                 + "}");
         Throwable e = expectThrows(ParsingException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, MATCHER));
-        assertEquals("[has_required_arguments] failed to parse field [vegetable]", e.getMessage());
+        assertEquals("[has_required_arguments] failed to parse object", e.getMessage());
         e = e.getCause();
-        assertThat(e, instanceOf(IllegalArgumentException.class));
-        assertEquals("Can't repeat param [vegetable]", e.getMessage());
+        assertThat(e, instanceOf(JsonParseException.class));
+        assertEquals("Duplicate field 'vegetable'", e.getMessage());
     }
 
     public void testBadParam() throws IOException {

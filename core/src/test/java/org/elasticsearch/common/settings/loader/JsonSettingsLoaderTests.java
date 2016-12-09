@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings.loader;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -50,14 +51,8 @@ public class JsonSettingsLoaderTests extends ESTestCase {
     public void testDuplicateKeysThrowsException() {
         final String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
         final SettingsException e = expectThrows(SettingsException.class, () -> Settings.builder().loadFromSource(json).build());
-        assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);
-        assertThat(
-                e.toString(),
-                containsString("duplicate settings key [foo] " +
-                        "found at line number [1], " +
-                        "column number [20], " +
-                        "previous value [bar], " +
-                        "current value [baz]"));
+        assertEquals(e.getCause().getClass(), JsonParseException.class);
+        assertThat(e.toString(), containsString("Duplicate field 'foo'"));
     }
 
     public void testNullValuedSettingThrowsException() {

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -386,8 +387,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "    }\n" +
                 "  }\n" +
                 "}";
-        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
-        assertEquals("[match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", ex.getMessage());
+        JsonParseException ex = expectThrows(JsonParseException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
+        assertEquals("Duplicate field 'match'", ex.getMessage());
     }
 
     public void testRewrite() throws IOException {

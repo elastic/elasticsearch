@@ -151,7 +151,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
         // test two fieldnames
         directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
         assertIllegalXContent(directGenerator, ParsingException.class,
-                "[direct_generator] failed to parse field [field]");
+                "[direct_generator] failed to parse object");
 
         // test unknown field
         directGenerator = "{ \"unknown_param\" : \"f1\" }";

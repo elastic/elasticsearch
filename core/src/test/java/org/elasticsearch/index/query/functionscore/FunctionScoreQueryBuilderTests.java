@@ -737,12 +737,16 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "        }\n" +
                 "    }\n" +
                 "}";
-        expectParsingException(json, "[query] is already defined.");
+        expectException(json, JsonParseException.class, equalTo("Duplicate field 'query'"));
+    }
+
+    private static <T extends Throwable> void expectException(String json, Class<T> expectedException, Matcher<String> messageMatcher) {
+        Throwable e = expectThrows(expectedException, () -> parseQuery(json));
+        assertThat(e.getMessage(), messageMatcher);
     }
 
     private static void expectParsingException(String json, Matcher<String> messageMatcher) {
-        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
-        assertThat(e.getMessage(), messageMatcher);
+        expectException(json, ParsingException.class, messageMatcher);
     }
 
     private static void expectParsingException(String json, String message) {

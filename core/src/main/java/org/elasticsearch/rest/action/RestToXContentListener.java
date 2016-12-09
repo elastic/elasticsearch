@@ -42,10 +42,18 @@ public class RestToXContentListener<Response extends ToXContent> extends RestRes
     }
 
     public final RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-        builder.startObject();
+        if (wrapInObject()) {
+            builder.startObject();
+        }
         response.toXContent(builder, channel.request());
-        builder.endObject();
+        if (wrapInObject()) {
+            builder.endObject();
+        }
         return new BytesRestResponse(getStatus(response), builder);
+    }
+
+    protected boolean wrapInObject() {
+        return true;
     }
 
     protected RestStatus getStatus(Response response) {

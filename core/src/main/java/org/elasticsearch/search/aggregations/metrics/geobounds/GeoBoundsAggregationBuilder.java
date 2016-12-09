@@ -21,8 +21,11 @@ package org.elasticsearch.search.aggregations.metrics.geobounds;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -30,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -38,6 +42,17 @@ import java.util.Objects;
 public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource.GeoPoint, GeoBoundsAggregationBuilder> {
     public static final String NAME = "geo_bounds";
     private static final Type TYPE = new Type(NAME);
+
+    private static final ObjectParser<GeoBoundsAggregationBuilder, QueryParseContext> PARSER;
+    static {
+        PARSER = new ObjectParser<>(GeoBoundsAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareGeoFields(PARSER, false, false);
+        PARSER.declareBoolean(GeoBoundsAggregationBuilder::wrapLongitude, GeoBoundsAggregator.WRAP_LONGITUDE_FIELD);
+    }
+
+    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new GeoBoundsAggregationBuilder(aggregationName), context);
+    }
 
     private boolean wrapLongitude = true;
 

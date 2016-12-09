@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,7 +44,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 
 /**
  * A collection of tombstones for explicitly marking indices as deleted in the cluster state.
@@ -367,7 +367,7 @@ public final class IndexGraveyard implements MetaData.Custom {
             TOMBSTONE_PARSER.declareString((b, s) -> {}, new ParseField(DELETE_DATE_KEY));
         }
 
-        static BiFunction<XContentParser, ParseFieldMatcherSupplier, Tombstone> getParser() {
+        static ContextParser<ParseFieldMatcherSupplier, Tombstone> getParser() {
             return (p, c) -> TOMBSTONE_PARSER.apply(p, c).build();
         }
 

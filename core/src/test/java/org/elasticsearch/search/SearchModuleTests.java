@@ -42,7 +42,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSq
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
@@ -149,7 +148,8 @@ public class SearchModuleTests extends ModuleTestCase {
 
         SearchPlugin registersDupeAggregation = new SearchPlugin() {
             public List<AggregationSpec> getAggregations() {
-                return singletonList(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new, new TermsParser()));
+                return singletonList(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
+                        TermsAggregationBuilder::parse));
             }
         };
         expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,

@@ -209,7 +209,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         XContentParser.Token token = null;
         String currentFieldName = null;
         String otherBucketKey = null;
-        Boolean otherBucket = false;
+        Boolean otherBucket = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -260,8 +260,9 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             }
         }
 
-        if (otherBucket && otherBucketKey == null) {
-            otherBucketKey = "_other_";
+        if (otherBucket == null && otherBucketKey != null) {
+            // automatically enable the other bucket if a key is set, as per the doc
+            otherBucket = true;
         }
 
         FiltersAggregationBuilder factory;

@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -59,10 +60,11 @@ public class RestSearchScrollAction extends BaseRestHandler {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null, "scroll")));
         }
 
-        if (request.hasContentOrSourceParam()) {
+        BytesReference body = request.contentOrSourceParam();
+        if (body != null) {
             if (request.contentOrSourceParamXContentType() == null) {
                 if (scrollId == null) {
-                    scrollId = request.contentOrSourceParamString();
+                    scrollId = body.utf8ToString();
                     searchScrollRequest.scrollId(scrollId);
                 }
             } else {

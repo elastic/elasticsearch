@@ -23,8 +23,10 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -51,9 +53,10 @@ public class RestClearScrollAction extends BaseRestHandler {
         String scrollIds = request.param("scroll_id");
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
-        if (request.hasContentOrSourceParam()) {
-            if (request.contentOrSourceParamXContentType() == null) {
-                scrollIds = request.contentOrSourceParamString();
+        BytesReference body = request.contentOrSourceParam();
+        if (body != null) {
+            if (XContentFactory.xContentType(body)  == null) {
+                scrollIds = body.utf8ToString();
                 clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
             } else {
                 // NOTE: if rest request with xcontent body has request parameters, these parameters does not override xcontent value

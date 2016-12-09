@@ -282,9 +282,8 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     /**
-     * Get the content of the request or the contents of the {@code source} param. Prefer {@link #contentOrSourceParamParser()} if possible
-     * prefer methods like {@link #contentOrSourceParamParser()} and {@link #contentOrSourceParamXContentType()}. This should be private
-     * but isn't to support mostly legacy APIs.
+     * Get the content of the request or the contents of the {@code source} param. Prefer {@link #contentOrSourceParamParser()} or
+     * {@link #withContentOrSourceParamParserOrNull(IOConsumer)} if you need a parser.
      */
     public final BytesReference contentOrSourceParam() {
         if (hasContent()) {
@@ -295,13 +294,5 @@ public abstract class RestRequest implements ToXContent.Params {
             return new BytesArray(source);
         }
         return BytesArray.EMPTY;
-    }
-
-    /**
-     * The String representation of the body if there is one or the {@code source} parameter if there isn't content. Use this only if you
-     * aren't need to process raw strings.
-     */
-    public final String contentOrSourceParamString() throws IOException {
-        return contentOrSourceParam().utf8ToString();
     }
 }

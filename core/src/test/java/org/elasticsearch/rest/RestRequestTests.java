@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -46,19 +45,6 @@ public class RestRequestTests extends ESTestCase {
         assertEquals(true, new ContentRestRequest("stuff", emptyMap()).hasContentOrSourceParam());
         assertEquals(true, new ContentRestRequest("stuff", singletonMap("source", "stuff2")).hasContentOrSourceParam());
         assertEquals(true, new ContentRestRequest("", singletonMap("source", "stuff")).hasContentOrSourceParam());
-    }
-
-    public void testContentOrSourceParamXContentType() throws IOException {
-        assertNull(new ContentRestRequest("", emptyMap()).contentOrSourceParamXContentType());
-        assertNull(new ContentRestRequest("stuff", emptyMap()).contentOrSourceParamXContentType());
-        assertNull(new ContentRestRequest("stuff", singletonMap("source", "stuff2")).contentOrSourceParamXContentType());
-        assertNull(new ContentRestRequest("", singletonMap("source", "stuff")).contentOrSourceParamXContentType());
-        assertEquals(XContentType.JSON, new ContentRestRequest("{}", emptyMap()).contentOrSourceParamXContentType());
-        assertEquals(XContentType.JSON, new ContentRestRequest("{}", singletonMap("source", "stuff2")).contentOrSourceParamXContentType());
-        assertEquals(XContentType.JSON, new ContentRestRequest("", singletonMap("source", "{}")).contentOrSourceParamXContentType());
-        assertEquals(XContentType.YAML, new ContentRestRequest("---", emptyMap()).contentOrSourceParamXContentType());
-        assertEquals(XContentType.YAML, new ContentRestRequest("---", singletonMap("source", "stuff2")).contentOrSourceParamXContentType());
-        assertEquals(XContentType.YAML, new ContentRestRequest("", singletonMap("source", "---")).contentOrSourceParamXContentType());
     }
 
     public void testContentOrSourceParamParserOrNull() throws IOException {

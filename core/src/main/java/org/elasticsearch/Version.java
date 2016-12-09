@@ -35,12 +35,6 @@ public class Version {
      * values below 25 are for alpha builder (since 5.0), and above 25 and below 50 are beta builds, and below 99 are RC builds, with 99
      * indicating a release the (internal) format of the id is there so we can easily do after/before checks on the id
      */
-    public static final int V_2_0_0_beta1_ID = 2000001;
-    public static final Version V_2_0_0_beta1 = new Version(V_2_0_0_beta1_ID, org.apache.lucene.util.Version.LUCENE_5_2_1);
-    public static final int V_2_0_0_beta2_ID = 2000002;
-    public static final Version V_2_0_0_beta2 = new Version(V_2_0_0_beta2_ID, org.apache.lucene.util.Version.LUCENE_5_2_1);
-    public static final int V_2_0_0_rc1_ID = 2000051;
-    public static final Version V_2_0_0_rc1 = new Version(V_2_0_0_rc1_ID, org.apache.lucene.util.Version.LUCENE_5_2_1);
     public static final int V_2_0_0_ID = 2000099;
     public static final Version V_2_0_0 = new Version(V_2_0_0_ID, org.apache.lucene.util.Version.LUCENE_5_2_1);
     public static final int V_2_0_1_ID = 2000199;
@@ -190,12 +184,6 @@ public class Version {
                 return V_2_0_1;
             case V_2_0_0_ID:
                 return V_2_0_0;
-            case V_2_0_0_rc1_ID:
-                return V_2_0_0_rc1;
-            case V_2_0_0_beta2_ID:
-                return V_2_0_0_beta2;
-            case V_2_0_0_beta1_ID:
-                return V_2_0_0_beta1;
             default:
                 return new Version(id, org.apache.lucene.util.Version.LATEST);
         }

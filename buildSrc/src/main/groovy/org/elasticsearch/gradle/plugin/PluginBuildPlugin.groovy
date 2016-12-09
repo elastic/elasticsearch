@@ -19,7 +19,7 @@
 package org.elasticsearch.gradle.plugin
 
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.test.IntegTestPlugin
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -78,7 +78,7 @@ public class PluginBuildPlugin extends BuildPlugin {
                 skipIntegTestInDisguise = true
             }
         }
-        createIntegTestTask(project)
+        project.pluginManager.apply(IntegTestPlugin)
         createBundleTask(project)
         project.configurations.getByName('default').extendsFrom(project.configurations.getByName('runtime'))
         project.tasks.create('run', RunTask) // allow running ES with this plugin in the foreground of a build
@@ -96,13 +96,6 @@ public class PluginBuildPlugin extends BuildPlugin {
             provided "org.apache.logging.log4j:log4j-core:${project.versions.log4j}"
             provided "net.java.dev.jna:jna:${project.versions.jna}"
         }
-    }
-
-    /** Adds an integTest task which runs rest tests */
-    private static void createIntegTestTask(Project project) {
-        RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.mustRunAfter(project.precommit, project.test)
-        project.check.dependsOn(integTest)
     }
 
     /**

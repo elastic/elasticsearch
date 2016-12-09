@@ -27,10 +27,13 @@ public class RestTestPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.pluginManager.apply(StandaloneTestBasePlugin)
+        createIntegTestTask(project)
+    }
 
-        RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
-        integTest.cluster.distribution = 'zip' // rest tests should run with the real zip
-        integTest.mustRunAfter(project.precommit)
-        project.check.dependsOn(integTest)
+    static void createIntegTestTask(Project project) {
+        RestIntegTestTask task = project.tasks.create('integTest', RestIntegTestTask.class)
+        task.cluster.distribution = 'zip' // rest tests should run with the real zip
+        task.mustRunAfter(project.precommit)
+        project.check.dependsOn(task)
     }
 }

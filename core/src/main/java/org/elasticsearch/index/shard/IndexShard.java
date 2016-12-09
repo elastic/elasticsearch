@@ -759,7 +759,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {
-        verifyStartedOrRecovering();
+        verifyNotClosed();
         logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
         Engine engine = getEngine();
         if (engine.isRecovering()) {
@@ -779,7 +779,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // while recovering, and we want to keep the translog at bay (up to deletes, which
         // we don't gc). Yet, we don't use flush internally to clear deletes and flush the indexwriter since
         // we use #writeIndexingBuffer for this now.
-        verifyStartedOrRecovering();
+        verifyNotClosed();
         Engine engine = getEngine();
         if (engine.isRecovering()) {
             throw new IllegalIndexShardStateException(shardId(), state, "flush is only allowed if the engine is not recovery" +
@@ -1145,13 +1145,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // must use exception that is not ignored by replication logic. See TransportActions.isShardNotAvailableException
             throw new IllegalStateException("active primary shard cannot be a replication target before " +
                 " relocation hand off " + shardRouting + ", state is [" + state + "]");
-        }
-    }
-
-    protected final void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
-        IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
-            throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering");
         }
     }
 

@@ -505,6 +505,11 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
+        public long newRequestId() {
+            return transport.newRequestId();
+        }
+
+        @Override
         public Lifecycle.State lifecycleState() {
             return transport.lifecycleState();
         }

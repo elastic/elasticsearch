@@ -89,4 +89,6 @@ public interface Transport extends LifecycleComponent {
     default CircuitBreaker getInFlightRequestBreaker() {
         return new NoopCircuitBreaker("in-flight-noop");
     }
+
+    long newRequestId();
 }

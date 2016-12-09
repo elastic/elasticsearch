@@ -207,7 +207,7 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                protected Object nodeChannel(DiscoveryNode node, TransportRequestOptions options) throws ConnectTransportException {
+                protected Object nodeChannel(DiscoveryNode node, TransportRequestOptions.Type type) throws ConnectTransportException {
                     return new NodeChannels(new Object[ConnectionProfile.LIGHT_PROFILE.getNumConnections()],
                         ConnectionProfile.LIGHT_PROFILE);
                 }

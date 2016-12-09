@@ -755,7 +755,7 @@ public class IncludeExclude implements Writeable, ToXContent {
             }
             builder.endArray();
         }
-        if (incNumPartitions > 0) {
+        if (isPartitionBased()) {
             builder.field(PARTITION_FIELD.getPreferredName(), incZeroBasedPartition);
             builder.field(NUM_PARTITIONS_FIELD.getPreferredName(), incNumPartitions);
         }

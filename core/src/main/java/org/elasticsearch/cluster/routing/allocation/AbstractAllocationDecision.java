@@ -140,7 +140,7 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
     public XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
         throws IOException {
 
-        if (nodeDecisions != null) {
+        if (nodeDecisions != null && nodeDecisions.isEmpty() == false) {
             builder.startArray("node_allocation_decisions");
             {
                 for (NodeAllocationResult explanation : nodeDecisions) {

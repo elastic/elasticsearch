@@ -71,7 +71,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
             assertThat(noDecision.getExplanation(), startsWith("cannot allocate because the cluster is still waiting"));
         } else {
             assertThat(noDecision.getExplanation(),
-                startsWith("cannot allocate because a previous copy of the shard existed"));
+                startsWith("cannot allocate because a previous copy of the primary shard existed"));
         }
         assertNull(noDecision.getNodeDecisions());
         assertNull(noDecision.getTargetNode());

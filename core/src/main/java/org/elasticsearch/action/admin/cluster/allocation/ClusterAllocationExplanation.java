@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.allocation;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Nullable;
@@ -83,10 +84,10 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     }
 
     /**
-     * Returns {@code true} if the explained shard is currently assigned to a node, returns {@code false} otherwise.
+     * Returns the current {@link org.elasticsearch.cluster.routing.ShardRoutingState} of the shard.
      */
-    public boolean isAssigned() {
-        return shardRouting.assignedToNode();
+    public ShardRoutingState getShardState() {
+        return shardRouting.state();
     }
 
     /** Return the currently assigned node, or null if the shard is unassigned */

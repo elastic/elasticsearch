@@ -21,13 +21,16 @@ package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo.Reason;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
@@ -39,135 +42,22 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests for the cluster allocation explanation
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public final class ClusterAllocationExplainIT extends ESIntegTestCase {
-
-    @TestLogging("_root:DEBUG")
-    public void testDelayShards() throws Exception {
-        logger.info("--> starting 3 nodes");
-        internalCluster().startNodes(3);
-
-        // Wait for all 3 nodes to be up
-        logger.info("--> waiting for 3 nodes to be up");
-        ensureStableCluster(3);
-
-        logger.info("--> creating 'test' index");
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "1m")
-                .put(IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 5)
-                .put(IndexMetaData.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1))
-                .setWaitForActiveShards(ActiveShardCount.ALL).get());
-
-        logger.info("--> stopping a random node");
-        assertTrue(internalCluster().stopRandomDataNode());
-
-        logger.info("--> waiting for the master to remove the stopped node from the cluster state");
-        ensureStableCluster(2);
-
-        ClusterAllocationExplainResponse resp = client().admin().cluster().prepareAllocationExplain().useAnyUnassignedShard().get();
-        ClusterAllocationExplanation cae = resp.getExplanation();
-        assertThat(cae.getShard().getIndexName(), equalTo("test"));
-        assertFalse(cae.isPrimary());
-        assertFalse(cae.isAssigned());
-        AllocateUnassignedDecision decision = cae.getShardAllocationDecision().getAllocateDecision();
-        assertEquals(decision.getConfiguredDelayInMillis(), 60000L);
-        assertThat("expecting a remaining delay, got: " + decision.getRemainingDelayInMillis(),
-            decision.getRemainingDelayInMillis(), greaterThan(0L));
-    }
-
-    public void testUnassignedShards() throws Exception {
-        logger.info("--> starting 3 nodes");
-        String noAttrNode = internalCluster().startNode();
-        String barAttrNode = internalCluster().startNode(Settings.builder().put("node.attr.bar", "baz"));
-        String fooBarAttrNode = internalCluster().startNode(Settings.builder()
-                .put("node.attr.foo", "bar")
-                .put("node.attr.bar", "baz"));
-
-        // Wait for all 3 nodes to be up
-        logger.info("--> waiting for 3 nodes to be up");
-        client().admin().cluster().health(Requests.clusterHealthRequest().waitForNodes("3")).actionGet();
-
-        client().admin().indices().prepareCreate("anywhere")
-                .setSettings(Settings.builder()
-                        .put("index.number_of_shards", 5)
-                        .put("index.number_of_replicas", 1))
-                .setWaitForActiveShards(ActiveShardCount.ALL)  // wait on all shards
-                .get();
-
-        client().admin().indices().prepareCreate("only-baz")
-                .setSettings(Settings.builder()
-                        .put("index.routing.allocation.include.bar", "baz")
-                        .put("index.number_of_shards", 5)
-                        .put("index.number_of_replicas", 1))
-                .setWaitForActiveShards(ActiveShardCount.ALL)
-                .get();
-
-        client().admin().indices().prepareCreate("only-foo")
-                .setSettings(Settings.builder()
-                        .put("index.routing.allocation.include.foo", "bar")
-                        .put("index.number_of_shards", 1)
-                        .put("index.number_of_replicas", 1))
-                .get();
-
-        ClusterAllocationExplainResponse resp = client().admin().cluster().prepareAllocationExplain()
-                .setIndex("only-foo")
-                .setShard(0)
-                .setPrimary(false)
-                .get();
-        ClusterAllocationExplanation cae = resp.getExplanation();
-        assertThat(cae.getShard().getIndexName(), equalTo("only-foo"));
-        assertFalse(cae.isPrimary());
-        assertFalse(cae.isAssigned());
-        AllocateUnassignedDecision allocateUnassignedDecision = cae.getShardAllocationDecision().getAllocateDecision();
-        assertFalse(allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.FETCH_PENDING);
-        assertThat(UnassignedInfo.Reason.INDEX_CREATED, equalTo(cae.getUnassignedInfo().getReason()));
-        assertThat("expecting no remaining delay: " + allocateUnassignedDecision.getRemainingDelayInMillis(),
-            allocateUnassignedDecision.getRemainingDelayInMillis(), equalTo(0L));
-
-        List<NodeAllocationResult> explanations = allocateUnassignedDecision.getNodeDecisions();
-
-        int barAttrWeight = -1;
-        int fooBarAttrWeight = -1;
-        for (NodeAllocationResult explanation : explanations) {
-            DiscoveryNode node = explanation.getNode();
-            String nodeName = node.getName();
-            AllocationDecision nodeDecision = explanation.getNodeDecision();
-            Decision d = explanation.getCanAllocateDecision();
-            int weight = explanation.getWeightRanking();
-
-            assertEquals(d.type(), Decision.Type.NO);
-            assertEquals(AllocationDecision.NO, nodeDecision);
-            if (noAttrNode.equals(nodeName)) {
-                assertThat(d.toString(), containsString("node does not match index setting [index.routing.allocation.include] " +
-                                                            "filters [foo:\"bar\"]"));
-            } else if (barAttrNode.equals(nodeName)) {
-                assertThat(d.toString(), containsString("node does not match index setting [index.routing.allocation.include] " +
-                                                            "filters [foo:\"bar\"]"));
-                barAttrWeight = weight;
-            } else if (fooBarAttrNode.equals(nodeName)) {
-                assertThat(d.toString(), containsString("the shard cannot be allocated to the same node"));
-                fooBarAttrWeight = weight;
-            } else {
-                fail("unexpected node with name: " + nodeName +
-                     ", I have: " + noAttrNode + ", " + barAttrNode + ", " + fooBarAttrNode);
-            }
-        }
-        assertFalse(barAttrWeight == fooBarAttrWeight);
-    }
 
     public void testUnassignedPrimaryWithExistingIndex() throws Exception {
         logger.info("--> starting 2 nodes");
@@ -181,17 +71,58 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName()));
         ensureStableCluster(1);
 
-        ClusterAllocationExplanation explanation = runExplain(true);
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
+
+        ShardId shardId = explanation.getShard();
+        boolean isPrimary = explanation.isPrimary();
+        ShardRoutingState shardState = explanation.getShardState();
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+        ClusterInfo clusterInfo = explanation.getClusterInfo();
+        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+
+        // verify shard info
+        assertEquals("idx", shardId.getIndexName());
+        assertEquals(0, shardId.getId());
+        assertTrue(isPrimary);
+
+        // verify current node info
+        assertNotEquals(ShardRoutingState.STARTED, shardState);
+        assertNull(currentNode);
+
+        // verify unassigned info
+        assertNotNull(unassignedInfo);
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
+        assertTrue(unassignedInfo.getLastAllocationStatus() == AllocationStatus.FETCHING_SHARD_DATA
+                       || unassignedInfo.getLastAllocationStatus() == AllocationStatus.NO_VALID_SHARD_COPY);
+
+        // verify cluster info
+        verifyClusterInfo(clusterInfo, includeDiskInfo, 1);
+
+        // very decision objects
+        assertTrue(allocateDecision.isDecisionTaken());
+        assertFalse(moveDecision.isDecisionTaken());
+        assertEquals(AllocationDecision.NO_VALID_SHARD_COPY, allocateDecision.getAllocationDecision());
+        assertEquals("cannot allocate because a previous copy of the primary shard existed but could not be found",
+            allocateDecision.getExplanation());
+        assertNull(allocateDecision.getAllocationId());
+        assertNull(allocateDecision.getTargetNode());
+        assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());
+        assertEquals(0L, allocateDecision.getRemainingDelayInMillis());
+        assertEquals(0, allocateDecision.getNodeDecisions().size());
     }
 
-    //TODO: intermittently fails
     public void testUnassignedPrimaryDueToFailedInitialization() throws Exception {
         logger.info("--> starting 2 nodes");
         internalCluster().startNodes(2);
         ensureStableCluster(2);
 
         logger.info("--> creating an index with 1 primary, 0 replicas");
-        createIndexAndIndexData(1, 0);
+        // set max retries to 1 to speed the process up
+        createIndexAndIndexData(1, 0, Settings.builder().put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 1).build(), true);
         Index index = resolveIndex("idx");
         String primaryNode = primaryNodeName();
         Path shardPath = internalCluster().getInstance(NodeEnvironment.class, primaryNode).availableShardPaths(new ShardId(index, 0))[0];
@@ -206,15 +137,72 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> restarting the node with the primary [{}]", primaryNode);
         internalCluster().startDataOnlyNode(Settings.builder().put("node.name", primaryNode).build());
         ensureStableCluster(2);
-        // wait till we passed the fetching shard data phase
+        // wait until shard has attempted to initialize max number of retries
         assertBusy(() -> {
-            UnassignedInfo unassignedInfo = client().admin().cluster().prepareAllocationExplain().setIndex("idx").setShard(0)
-                .setPrimary(true).get().getExplanation().getUnassignedInfo();
-            assertNotNull("unassigned info is null", unassignedInfo);
-            assertEquals(UnassignedInfo.AllocationStatus.DECIDERS_NO, unassignedInfo.getLastAllocationStatus());
+            UnassignedInfo unassignedInfo = client().admin().cluster().prepareAllocationExplain()
+                .setIndex("idx").setShard(0).setPrimary(true).get().getExplanation().getUnassignedInfo();
+            assertNotNull(unassignedInfo);
+            assertThat(unassignedInfo.getNumFailedAllocations(), greaterThanOrEqualTo(1));
         });
 
-        ClusterAllocationExplanation explanation = runExplain(true);
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
+
+        ShardId shardId = explanation.getShard();
+        boolean isPrimary = explanation.isPrimary();
+        ShardRoutingState shardRoutingState = explanation.getShardState();
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+        ClusterInfo clusterInfo = explanation.getClusterInfo();
+        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+
+        // verify shard info
+        assertEquals("idx", shardId.getIndexName());
+        assertEquals(0, shardId.getId());
+        assertTrue(isPrimary);
+
+        // verify current node info
+        assertNotEquals(ShardRoutingState.STARTED, shardRoutingState);
+        assertNull(currentNode);
+
+        // verify unassigned info
+        assertNotNull(unassignedInfo);
+        assertEquals(Reason.ALLOCATION_FAILED, unassignedInfo.getReason());
+
+        // verify cluster info
+        verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
+
+        // very decision objects
+        assertTrue(allocateDecision.isDecisionTaken());
+        assertFalse(moveDecision.isDecisionTaken());
+        assertEquals(AllocationDecision.NO, allocateDecision.getAllocationDecision());
+        assertEquals("cannot allocate because allocation is not permitted to any of the nodes that hold an in-sync shard copy",
+            allocateDecision.getExplanation());
+        assertNull(allocateDecision.getAllocationId());
+        assertNull(allocateDecision.getTargetNode());
+        assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());
+        assertEquals(0L, allocateDecision.getRemainingDelayInMillis());
+        assertEquals(1, allocateDecision.getNodeDecisions().size());
+        NodeAllocationResult result = allocateDecision.getNodeDecisions().get(0);
+        assertNotNull(result.getNode());
+        assertEquals(AllocationDecision.NO, result.getNodeDecision());
+        assertTrue(result.getShardStoreInfo().isInSync());
+        assertNotNull(result.getShardStoreInfo().getAllocationId());
+        if (includeYesDecisions) {
+            assertThat(result.getCanAllocateDecision().getDecisions().size(), greaterThan(1));
+        } else {
+            assertEquals(1, result.getCanAllocateDecision().getDecisions().size());
+        }
+        for (Decision d : result.getCanAllocateDecision().getDecisions()) {
+            assertEquals(d.label().equals("max_retry") ? Decision.Type.NO : Decision.Type.YES, d.type());
+            assertNotNull(d.getExplanation());
+            if (d.label().equals("max_retry")) {
+                assertThat(d.getExplanation(), startsWith("shard has exceeded the maximum number of retries [1] on failed allocation " +
+                    "attempts - manually call [/_cluster/reroute?retry_failed=true] to retry"));
+            }
+        }
     }
 
     public void testUnassignedReplicaDelayedAllocation() throws Exception {
@@ -229,7 +217,78 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         ensureStableCluster(2);
 
         logger.info("--> observing delayed allocation...");
-        ClusterAllocationExplanation explanation = runExplain(false);
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        ClusterAllocationExplanation explanation = runExplain(false, includeYesDecisions, includeDiskInfo);
+
+        ShardId shardId = explanation.getShard();
+        boolean isPrimary = explanation.isPrimary();
+        ShardRoutingState shardRoutingState = explanation.getShardState();
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+        ClusterInfo clusterInfo = explanation.getClusterInfo();
+        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+
+        // verify shard info
+        assertEquals("idx", shardId.getIndexName());
+        assertEquals(0, shardId.getId());
+        assertFalse(isPrimary);
+
+        // verify current node info
+        assertNotEquals(ShardRoutingState.STARTED, shardRoutingState);
+        assertNull(currentNode);
+
+        // verify unassigned info
+        assertNotNull(unassignedInfo);
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
+        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.getLastAllocationStatus());
+
+        // verify cluster info
+        verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
+
+        // verify decision objects
+        assertTrue(allocateDecision.isDecisionTaken());
+        assertFalse(moveDecision.isDecisionTaken());
+        assertEquals(AllocationDecision.DELAYED_ALLOCATION, allocateDecision.getAllocationDecision());
+        assertThat(allocateDecision.getExplanation(), startsWith("cannot allocate because the cluster is still waiting"));
+        assertThat(allocateDecision.getExplanation(), containsString(
+            "despite being allowed to allocate the shard to at least one other node"));
+        assertNull(allocateDecision.getAllocationId());
+        assertNull(allocateDecision.getTargetNode());
+        assertEquals(60000L, allocateDecision.getConfiguredDelayInMillis());
+        assertThat(allocateDecision.getRemainingDelayInMillis(), greaterThan(0L));
+        assertEquals(2, allocateDecision.getNodeDecisions().size());
+        String primaryNodeName = primaryNodeName();
+        for (NodeAllocationResult result : allocateDecision.getNodeDecisions()) {
+            assertNotNull(result.getNode());
+            boolean nodeHoldingPrimary = result.getNode().getName().equals(primaryNodeName);
+            if (nodeHoldingPrimary) {
+                // shouldn't be able to allocate to the same node as the primary, the same shard decider should say no
+                assertEquals(AllocationDecision.NO, result.getNodeDecision());
+                assertThat(result.getShardStoreInfo().getMatchingBytes(), greaterThan(0L));
+            } else {
+                assertEquals(AllocationDecision.YES, result.getNodeDecision());
+                assertNull(result.getShardStoreInfo());
+            }
+            if (includeYesDecisions) {
+                assertThat(result.getCanAllocateDecision().getDecisions().size(), greaterThan(1));
+            } else {
+                // if we are not including YES decisions, then the node holding the primary should have 1 NO decision,
+                // the other node should have zero NO decisions
+                assertEquals(nodeHoldingPrimary ? 1 : 0, result.getCanAllocateDecision().getDecisions().size());
+            }
+            for (Decision d : result.getCanAllocateDecision().getDecisions()) {
+                if (d.label().equals("same_shard") && nodeHoldingPrimary) {
+                    assertEquals(Decision.Type.NO, d.type());
+                    assertThat(d.getExplanation(), startsWith(
+                        "the shard cannot be allocated to the same node on which a copy of the shard already exists"));
+                } else {
+                    assertEquals(Decision.Type.YES, d.type());
+                    assertNotNull(d.getExplanation());
+                }
+            }
+        }
     }
 
     public void testUnassignedReplicaWithPriorCopy() throws Exception {
@@ -254,9 +313,86 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> restarting the stopped nodes");
         internalCluster().startNode(Settings.builder().put("node.name", nodes.get(0)).build());
         internalCluster().startNode(Settings.builder().put("node.name", nodes.get(1)).build());
-        runExplain(false); // run once to get out of pending fetch state
+        ensureStableCluster(3);
 
-        ClusterAllocationExplanation explanation = runExplain(false);
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        assertBusy(() -> {
+            if (includeDiskInfo) {
+                // wait till all cluster info is ready
+                assertEquals(3, client().admin().cluster().prepareAllocationExplain()
+                    .setIndex("idx").setShard(0).setPrimary(true).setIncludeDiskInfo(true).get()
+                    .getExplanation().getClusterInfo().getNodeLeastAvailableDiskUsages().size());
+            }
+        });
+        ClusterAllocationExplanation explanation = runExplain(false, includeYesDecisions, includeDiskInfo);
+
+        ShardId shardId = explanation.getShard();
+        boolean isPrimary = explanation.isPrimary();
+        ShardRoutingState shardRoutingState = explanation.getShardState();
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+        ClusterInfo clusterInfo = explanation.getClusterInfo();
+        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+
+        // verify shard info
+        assertEquals("idx", shardId.getIndexName());
+        assertEquals(0, shardId.getId());
+        assertFalse(isPrimary);
+
+        // verify current node info
+        assertNotEquals(ShardRoutingState.STARTED, shardRoutingState);
+        assertNull(currentNode);
+
+        // verify unassigned info
+        assertNotNull(unassignedInfo);
+        assertEquals(Reason.NODE_LEFT, unassignedInfo.getReason());
+        assertEquals(AllocationStatus.NO_ATTEMPT, unassignedInfo.getLastAllocationStatus());
+
+        // verify cluster info
+        verifyClusterInfo(clusterInfo, includeDiskInfo, 3);
+
+        // verify decision objects
+        assertTrue(allocateDecision.isDecisionTaken());
+        assertFalse(moveDecision.isDecisionTaken());
+        AllocationDecision decisionToAllocate = allocateDecision.getAllocationDecision();
+        assertTrue(decisionToAllocate == AllocationDecision.FETCH_PENDING || decisionToAllocate == AllocationDecision.NO);
+        if (decisionToAllocate == AllocationDecision.FETCH_PENDING) {
+            assertEquals("cannot allocate because information about existing shard data is still being retrieved from some of the nodes",
+                allocateDecision.getExplanation());
+        } else {
+            assertEquals("cannot allocate because allocation is not permitted to any of the nodes", allocateDecision.getExplanation());
+        }
+        assertNull(allocateDecision.getAllocationId());
+        assertNull(allocateDecision.getTargetNode());
+        assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());
+        assertEquals(0L, allocateDecision.getRemainingDelayInMillis());
+        assertEquals(3, allocateDecision.getNodeDecisions().size());
+        for (NodeAllocationResult result : allocateDecision.getNodeDecisions()) {
+            assertNotNull(result.getNode());
+            boolean nodeHoldingPrimary = result.getNode().getName().equals(primaryNodeName);
+            assertEquals(AllocationDecision.NO, result.getNodeDecision());
+            if (includeYesDecisions) {
+                assertThat(result.getCanAllocateDecision().getDecisions().size(), greaterThan(1));
+            } else {
+                assertEquals(1, result.getCanAllocateDecision().getDecisions().size());
+            }
+            for (Decision d : result.getCanAllocateDecision().getDecisions()) {
+                if (d.label().equals("same_shard") && nodeHoldingPrimary) {
+                    assertEquals(Decision.Type.NO, d.type());
+                    assertThat(d.getExplanation(), startsWith(
+                        "the shard cannot be allocated to the same node on which a copy of the shard already exists"));
+                } else if (d.label().equals("filter") && nodeHoldingPrimary == false) {
+                    assertEquals(Decision.Type.NO, d.type());
+                    assertEquals("node does not match [index.routing.allocation.include] filters [_name:\"" + primaryNodeName + "\"]",
+                        d.getExplanation());
+                } else {
+                    assertEquals(Decision.Type.YES, d.type());
+                    assertNotNull(d.getExplanation());
+                }
+            }
+        }
     }
 
     public void testAllocationFilteringOnIndexCreation() throws Exception {
@@ -267,7 +403,62 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> creating an index with 1 primary, 0 replicas, with allocation filtering so the primary can't be assigned");
         createIndexAndIndexData(1, 0, Settings.builder().put("index.routing.allocation.include._name", "non_existent_node").build(), false);
 
-        ClusterAllocationExplanation explanation = runExplain(true);
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
+
+        ShardId shardId = explanation.getShard();
+        boolean isPrimary = explanation.isPrimary();
+        ShardRoutingState shardRoutingState = explanation.getShardState();
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+        ClusterInfo clusterInfo = explanation.getClusterInfo();
+        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+
+        // verify shard info
+        assertEquals("idx", shardId.getIndexName());
+        assertEquals(0, shardId.getId());
+        assertTrue(isPrimary);
+
+        // verify current node info
+        assertNotEquals(ShardRoutingState.STARTED, shardRoutingState);
+        assertNull(currentNode);
+
+        // verify unassigned info
+        assertNotNull(unassignedInfo);
+        assertEquals(Reason.INDEX_CREATED, unassignedInfo.getReason());
+        assertEquals(AllocationStatus.DECIDERS_NO, unassignedInfo.getLastAllocationStatus());
+
+        // verify cluster info
+        verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
+
+        // verify decision objects
+        assertTrue(allocateDecision.isDecisionTaken());
+        assertFalse(moveDecision.isDecisionTaken());
+        assertEquals(AllocationDecision.NO, allocateDecision.getAllocationDecision());
+        assertEquals("cannot allocate because allocation is not permitted to any of the nodes", allocateDecision.getExplanation());
+        assertNull(allocateDecision.getAllocationId());
+        assertNull(allocateDecision.getTargetNode());
+        assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());
+        assertEquals(0L, allocateDecision.getRemainingDelayInMillis());
+        assertEquals(2, allocateDecision.getNodeDecisions().size());
+        for (NodeAllocationResult result : allocateDecision.getNodeDecisions()) {
+            assertNotNull(result.getNode());
+            assertEquals(AllocationDecision.NO, result.getNodeDecision());
+            if (includeYesDecisions) {
+                assertThat(result.getCanAllocateDecision().getDecisions().size(), greaterThan(1));
+            } else {
+                assertEquals(1, result.getCanAllocateDecision().getDecisions().size());
+            }
+            for (Decision d : result.getCanAllocateDecision().getDecisions()) {
+                if (d.label().equals("filter")) {
+                    assertEquals(Decision.Type.NO, d.type());
+                    assertEquals("node does not match [index.routing.allocation.include] filters [_name:\"non_existent_node\"]",
+                        d.getExplanation());
+                }
+            }
+        }
     }
 
     public void testAllocationFilteringPreventsShardMove() throws Exception {
@@ -282,7 +473,80 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings("idx").setSettings(
             Settings.builder().put("index.routing.allocation.include._name", "non_existent_node")).get();
 
-        ClusterAllocationExplanation explanation = runExplain(true);
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
+
+        ShardId shardId = explanation.getShard();
+        boolean isPrimary = explanation.isPrimary();
+        ShardRoutingState shardRoutingState = explanation.getShardState();
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+        ClusterInfo clusterInfo = explanation.getClusterInfo();
+        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+
+        // verify shard info
+        assertEquals("idx", shardId.getIndexName());
+        assertEquals(0, shardId.getId());
+        assertTrue(isPrimary);
+
+        // verify current node info
+        assertEquals(ShardRoutingState.STARTED, shardRoutingState);
+        assertNotNull(currentNode);
+
+        // verify unassigned info
+        assertNull(unassignedInfo);
+
+        // verify cluster info
+        verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
+
+        // verify decision object
+        assertFalse(allocateDecision.isDecisionTaken());
+        assertTrue(moveDecision.isDecisionTaken());
+        assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
+        assertEquals("cannot move shard to another node, even though it is not allowed to remain on its current node",
+            moveDecision.getExplanation());
+        assertFalse(moveDecision.canRemain());
+        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.canRebalanceCluster());
+        assertNull(moveDecision.getClusterRebalanceDecision());
+        assertNull(moveDecision.getTargetNode());
+        assertEquals(0, moveDecision.getCurrentNodeRanking());
+        // verifying can remain decision object
+        assertNotNull(moveDecision.getCanRemainDecision());
+        assertEquals(Decision.Type.NO, moveDecision.getCanRemainDecision().type());
+        for (Decision d : moveDecision.getCanRemainDecision().getDecisions()) {
+            if (d.label().equals("filter")) {
+                assertEquals(Decision.Type.NO, d.type());
+                assertEquals("node does not match [index.routing.allocation.include] filters [_name:\"non_existent_node\"]",
+                    d.getExplanation());
+            } else {
+                assertEquals(Decision.Type.YES, d.type());
+                assertNotNull(d.getExplanation());
+            }
+        }
+        // verify node decisions
+        assertEquals(1, moveDecision.getNodeDecisions().size());
+        NodeAllocationResult result = moveDecision.getNodeDecisions().get(0);
+        assertNotNull(result.getNode());
+        assertEquals(1, result.getWeightRanking());
+        assertEquals(AllocationDecision.NO, result.getNodeDecision());
+        if (includeYesDecisions) {
+            assertThat(result.getCanAllocateDecision().getDecisions().size(), greaterThan(1));
+        } else {
+            assertEquals(1, result.getCanAllocateDecision().getDecisions().size());
+        }
+        for (Decision d : result.getCanAllocateDecision().getDecisions()) {
+            if (d.label().equals("filter")) {
+                assertEquals(Decision.Type.NO, d.type());
+                assertEquals("node does not match [index.routing.allocation.include] filters [_name:\"non_existent_node\"]",
+                    d.getExplanation());
+            } else {
+                assertEquals(Decision.Type.YES, d.type());
+                assertNotNull(d.getExplanation());
+            }
+        }
     }
 
     public void testRebalancingNotAllowed() throws Exception {
@@ -299,7 +563,74 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> starting another node, with rebalancing disabled, it should get no shards");
         internalCluster().startNode();
 
-        ClusterAllocationExplanation explanation = runExplain(true);
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
+
+        ShardId shardId = explanation.getShard();
+        boolean isPrimary = explanation.isPrimary();
+        ShardRoutingState shardRoutingState = explanation.getShardState();
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+        ClusterInfo clusterInfo = explanation.getClusterInfo();
+        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+
+        // verify shard info
+        assertEquals("idx", shardId.getIndexName());
+        assertEquals(0, shardId.getId());
+        assertTrue(isPrimary);
+
+        // verify current node info
+        assertEquals(ShardRoutingState.STARTED, shardRoutingState);
+        assertNotNull(currentNode);
+
+        // verify unassigned info
+        assertNull(unassignedInfo);
+
+        // verify cluster info
+        verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
+
+        // verify decision object
+        assertFalse(allocateDecision.isDecisionTaken());
+        assertTrue(moveDecision.isDecisionTaken());
+        assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
+        assertEquals("rebalancing is not allowed on the cluster even though there is at least one node on which the shard can be allocated",
+            moveDecision.getExplanation());
+        assertTrue(moveDecision.canRemain());
+        assertFalse(moveDecision.forceMove());
+        assertFalse(moveDecision.canRebalanceCluster());
+        assertNotNull(moveDecision.getCanRemainDecision());
+        assertNull(moveDecision.getTargetNode());
+        assertEquals(2, moveDecision.getCurrentNodeRanking());
+        // verifying cluster rebalance decision object
+        assertNotNull(moveDecision.getClusterRebalanceDecision());
+        assertEquals(Decision.Type.NO, moveDecision.getClusterRebalanceDecision().type());
+        for (Decision d : moveDecision.getClusterRebalanceDecision().getDecisions()) {
+            if (d.label().equals("enable")) {
+                assertEquals(Decision.Type.NO, d.type());
+                assertEquals("no rebalancing is allowed due to [index.routing.rebalance.enable=none]",
+                    d.getExplanation());
+            } else {
+                assertEquals(Decision.Type.YES, d.type());
+                assertNotNull(d.getExplanation());
+            }
+        }
+        // verify node decisions
+        assertEquals(1, moveDecision.getNodeDecisions().size());
+        NodeAllocationResult result = moveDecision.getNodeDecisions().get(0);
+        assertNotNull(result.getNode());
+        assertEquals(1, result.getWeightRanking());
+        assertEquals(AllocationDecision.YES, result.getNodeDecision());
+        if (includeYesDecisions) {
+            assertThat(result.getCanAllocateDecision().getDecisions().size(), greaterThan(0));
+        } else {
+            assertEquals(0, result.getCanAllocateDecision().getDecisions().size());
+        }
+        for (Decision d : result.getCanAllocateDecision().getDecisions()) {
+            assertEquals(Decision.Type.YES, d.type());
+            assertNotNull(d.getExplanation());
+        }
     }
 
     public void testWorseBalance() throws Exception {
@@ -316,7 +647,68 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> starting another node, with the rebalance threshold so high, it should not get any shards");
         internalCluster().startNode();
 
-        ClusterAllocationExplanation explanation = runExplain(true);
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
+
+        ShardId shardId = explanation.getShard();
+        boolean isPrimary = explanation.isPrimary();
+        ShardRoutingState shardRoutingState = explanation.getShardState();
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+        ClusterInfo clusterInfo = explanation.getClusterInfo();
+        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+
+        // verify shard info
+        assertEquals("idx", shardId.getIndexName());
+        assertEquals(0, shardId.getId());
+        assertTrue(isPrimary);
+
+        // verify current node info
+        assertEquals(ShardRoutingState.STARTED, shardRoutingState);
+        assertNotNull(currentNode);
+
+        // verify unassigned info
+        assertNull(unassignedInfo);
+
+        // verify cluster info
+        verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
+
+        // verify decision object
+        assertFalse(allocateDecision.isDecisionTaken());
+        assertTrue(moveDecision.isDecisionTaken());
+        assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
+        assertEquals("cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
+            moveDecision.getExplanation());
+        assertTrue(moveDecision.canRemain());
+        assertFalse(moveDecision.forceMove());
+        assertTrue(moveDecision.canRebalanceCluster());
+        assertNotNull(moveDecision.getCanRemainDecision());
+        assertNull(moveDecision.getTargetNode());
+        assertEquals(1, moveDecision.getCurrentNodeRanking());
+        // verifying cluster rebalance decision object
+        assertNotNull(moveDecision.getClusterRebalanceDecision());
+        assertEquals(Decision.Type.YES, moveDecision.getClusterRebalanceDecision().type());
+        for (Decision d : moveDecision.getClusterRebalanceDecision().getDecisions()) {
+            assertEquals(Decision.Type.YES, d.type());
+            assertNotNull(d.getExplanation());
+        }
+        // verify node decisions
+        assertEquals(1, moveDecision.getNodeDecisions().size());
+        NodeAllocationResult result = moveDecision.getNodeDecisions().get(0);
+        assertNotNull(result.getNode());
+        assertEquals(1, result.getWeightRanking());
+        assertEquals(AllocationDecision.WORSE_BALANCE, result.getNodeDecision());
+        if (includeYesDecisions) {
+            assertThat(result.getCanAllocateDecision().getDecisions().size(), greaterThan(0));
+        } else {
+            assertEquals(0, result.getCanAllocateDecision().getDecisions().size());
+        }
+        for (Decision d : result.getCanAllocateDecision().getDecisions()) {
+            assertEquals(Decision.Type.YES, d.type());
+            assertNotNull(d.getExplanation());
+        }
     }
 
     public void testBetterBalanceButCannotAllocate() throws Exception {
@@ -333,17 +725,99 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> starting another node, with filtering not allowing allocation to the new node, it should not get any shards");
         internalCluster().startNode();
 
-        ClusterAllocationExplanation explanation = runExplain(true);
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
+
+        ShardId shardId = explanation.getShard();
+        boolean isPrimary = explanation.isPrimary();
+        ShardRoutingState shardRoutingState = explanation.getShardState();
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+        ClusterInfo clusterInfo = explanation.getClusterInfo();
+        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+
+        // verify shard info
+        assertEquals("idx", shardId.getIndexName());
+        assertEquals(0, shardId.getId());
+        assertTrue(isPrimary);
+
+        // verify current node info
+        assertEquals(ShardRoutingState.STARTED, shardRoutingState);
+        assertNotNull(currentNode);
+
+        // verify unassigned info
+        assertNull(unassignedInfo);
+
+        // verify cluster info
+        verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
+
+        // verify decision object
+        assertFalse(allocateDecision.isDecisionTaken());
+        assertTrue(moveDecision.isDecisionTaken());
+        assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
+        assertEquals("cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
+            moveDecision.getExplanation());
+        assertTrue(moveDecision.canRemain());
+        assertFalse(moveDecision.forceMove());
+        assertTrue(moveDecision.canRebalanceCluster());
+        assertNotNull(moveDecision.getCanRemainDecision());
+        assertNull(moveDecision.getTargetNode());
+        assertEquals(2, moveDecision.getCurrentNodeRanking());
+        // verifying cluster rebalance decision object
+        assertNotNull(moveDecision.getClusterRebalanceDecision());
+        assertEquals(Decision.Type.YES, moveDecision.getClusterRebalanceDecision().type());
+        for (Decision d : moveDecision.getClusterRebalanceDecision().getDecisions()) {
+            assertEquals(Decision.Type.YES, d.type());
+            assertNotNull(d.getExplanation());
+        }
+        // verify node decisions
+        assertEquals(1, moveDecision.getNodeDecisions().size());
+        NodeAllocationResult result = moveDecision.getNodeDecisions().get(0);
+        assertNotNull(result.getNode());
+        assertEquals(1, result.getWeightRanking());
+        assertEquals(AllocationDecision.NO, result.getNodeDecision());
+        if (includeYesDecisions) {
+            assertThat(result.getCanAllocateDecision().getDecisions().size(), greaterThan(1));
+        } else {
+            assertEquals(1, result.getCanAllocateDecision().getDecisions().size());
+        }
+        String primaryNodeName = primaryNodeName();
+        for (Decision d : result.getCanAllocateDecision().getDecisions()) {
+            if (d.label().equals("filter")) {
+                assertEquals(Decision.Type.NO, d.type());
+                assertEquals("node does not match [index.routing.allocation.include] filters [_name:\"" + primaryNodeName + "\"]",
+                    d.getExplanation());
+            } else {
+                assertEquals(Decision.Type.YES, d.type());
+                assertNotNull(d.getExplanation());
+            }
+        }
     }
 
-    private ClusterAllocationExplanation runExplain(boolean primary) throws Exception {
+    private void verifyClusterInfo(ClusterInfo clusterInfo, boolean includeDiskInfo, int numNodes) {
+        if (includeDiskInfo) {
+            assertEquals(numNodes, clusterInfo.getNodeMostAvailableDiskUsages().size());
+            assertEquals(numNodes, clusterInfo.getNodeLeastAvailableDiskUsages().size());
+        } else {
+            assertNull(clusterInfo);
+        }
+    }
+
+    private ClusterAllocationExplanation runExplain(boolean primary, boolean includeYesDecisions, boolean includeDiskInfo)
+        throws Exception {
+
         ClusterAllocationExplanation explanation = client().admin().cluster().prepareAllocationExplain()
-            .setIndex("idx").setShard(0).setPrimary(primary).get().getExplanation();
-        if (logger.isInfoEnabled()) {
+            .setIndex("idx").setShard(0).setPrimary(primary)
+            .setIncludeYesDecisions(includeYesDecisions)
+            .setIncludeDiskInfo(includeDiskInfo)
+            .get().getExplanation();
+        if (logger.isDebugEnabled()) {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.prettyPrint();
             builder.humanReadable(true);
-            logger.info("--> explain json output: \n{}", explanation.toXContent(builder, ToXContent.EMPTY_PARAMS).string());
+            logger.debug("--> explain json output: \n{}", explanation.toXContent(builder, ToXContent.EMPTY_PARAMS).string());
         }
         return explanation;
     }
@@ -364,7 +838,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             for (int i = 0; i < 10; i++) {
                 index("idx", "t", Integer.toString(i), Collections.singletonMap("f1", Integer.toString(i)));
             }
-            refresh("idx");
+            flushAndRefresh("idx");
         }
     }
 

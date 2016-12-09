@@ -246,10 +246,10 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         } else if (allocationDecision == AllocationDecision.FETCH_PENDING) {
             return "cannot allocate because information about existing shard data is still being retrieved from some of the nodes";
         } else if (allocationDecision == AllocationDecision.NO_VALID_SHARD_COPY) {
-            if (getNodeDecisions() != null && getNodeDecisions().size() > 0) {
+            if (getNodeDecisions() != null && getNodeDecisions().isEmpty() == false) {
                 return "cannot allocate because all found copies of the shard are either stale or corrupt";
             } else {
-                return "cannot allocate because a previous copy of the shard existed but could not be found";
+                return "cannot allocate because a previous copy of the primary shard existed but could not be found";
             }
         } else if (allocationDecision == AllocationDecision.DELAYED_ALLOCATION) {
             return "cannot allocate because the cluster is still waiting " +

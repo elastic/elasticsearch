@@ -139,7 +139,8 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * Creates a new move decision from this decision, plus adding a remain decision.
      */
     public MoveDecision withRemainDecision(Decision canRemainDecision) {
-        return new MoveDecision(canRemainDecision, clusterRebalanceDecision, allocationDecision, targetNode, nodeDecisions, currentNodeRanking);
+        return new MoveDecision(canRemainDecision, clusterRebalanceDecision, allocationDecision,
+                                   targetNode, nodeDecisions, currentNodeRanking);
     }
 
     /**
@@ -178,7 +179,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      */
     public boolean canRebalanceCluster() {
         checkDecisionState();
-        return clusterRebalanceDecision.type() == Type.YES;
+        return clusterRebalanceDecision != null && clusterRebalanceDecision.type() == Type.YES;
     }
 
     /**

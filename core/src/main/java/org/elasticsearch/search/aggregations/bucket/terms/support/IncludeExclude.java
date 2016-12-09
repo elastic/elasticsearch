@@ -690,6 +690,10 @@ public class IncludeExclude implements Writeable, ToXContent {
             }
             builder.endArray();
         }
+        if (isPartitionBased()) {
+            builder.field(PARTITION_FIELD.getPreferredName(), incZeroBasedPartition);
+            builder.field(NUM_PARTITIONS_FIELD.getPreferredName(), incNumPartitions);
+        }
         if (exclude != null) {
             builder.field(EXCLUDE_FIELD.getPreferredName(), exclude.getOriginalString());
         }
@@ -705,8 +709,10 @@ public class IncludeExclude implements Writeable, ToXContent {
 
     @Override
     public int hashCode() {
-        return Objects.hash(include == null ? null : include.getOriginalString(), exclude == null ? null : exclude.getOriginalString(),
-                includeValues, excludeValues);
+        return Objects.hash(
+                include == null ? null : include.getOriginalString(),
+                exclude == null ? null : exclude.getOriginalString(),
+                includeValues, excludeValues, incZeroBasedPartition, incNumPartitions);
     }
 
     @Override
@@ -720,7 +726,9 @@ public class IncludeExclude implements Writeable, ToXContent {
         return Objects.equals(include == null ? null : include.getOriginalString(), other.include == null ? null : other.include.getOriginalString())
                 && Objects.equals(exclude == null ? null : exclude.getOriginalString(), other.exclude == null ? null : other.exclude.getOriginalString())
                 && Objects.equals(includeValues, other.includeValues)
-                && Objects.equals(excludeValues, other.excludeValues);
+                && Objects.equals(excludeValues, other.excludeValues)
+                && Objects.equals(incZeroBasedPartition, other.incZeroBasedPartition)
+                && Objects.equals(incNumPartitions, other.incNumPartitions);
     }
 
 }

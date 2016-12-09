@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 
@@ -27,8 +28,7 @@ public class VersionHttpResourceTests extends ESTestCase {
     private final RestClient client = mock(RestClient.class);
 
     public void testDoCheckAndPublishSuccess() throws IOException {
-        final Version minimumVersion =
-                randomFrom(Version.V_2_0_0, Version.V_2_0_0_beta1, Version.V_2_0_0_rc1, Version.V_2_3_3, Version.CURRENT);
+        final Version minimumVersion = VersionUtils.randomVersion(random());
         final Version version = randomFrom(minimumVersion, Version.CURRENT);
         final Response response = responseForVersion(version);
 

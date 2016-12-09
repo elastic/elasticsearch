@@ -108,7 +108,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
     public void testDynamicDisabled() {
         TransportIndexAction action = new TransportIndexAction(settings, transportService, clusterService,
-                indicesService, THREAD_POOL, shardStateAction, null, null, actionFilters, indexNameExpressionResolver,
+                indicesService, null, THREAD_POOL, shardStateAction, null, null, actionFilters, indexNameExpressionResolver,
                 autoCreateIndex);
 
         IndexRequest request = new IndexRequest("index", "type", "1");

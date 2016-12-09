@@ -1,5 +1,3 @@
-package org.elasticsearch.action.ingest;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -19,22 +17,21 @@ package org.elasticsearch.action.ingest;
  * under the License.
  */
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.bulk.BulkRequest;
-import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
+package org.elasticsearch.action.bulk;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -50,7 +47,7 @@ public class BulkRequestModifierTests extends ESTestCase {
             bulkRequest.add(new IndexRequest("_index", "_type", String.valueOf(i)).source("{}"));
         }
         CaptureActionListener actionListener = new CaptureActionListener();
-        IngestActionFilter.BulkRequestModifier bulkRequestModifier = new IngestActionFilter.BulkRequestModifier(bulkRequest);
+        TransportBulkAction.BulkRequestModifier bulkRequestModifier = new TransportBulkAction.BulkRequestModifier(bulkRequest);
 
         int i = 0;
         Set<Integer> failedSlots = new HashSet<>();
@@ -91,7 +88,7 @@ public class BulkRequestModifierTests extends ESTestCase {
             originalBulkRequest.add(new IndexRequest("index", "type", String.valueOf(i)));
         }
 
-        IngestActionFilter.BulkRequestModifier modifier = new IngestActionFilter.BulkRequestModifier(originalBulkRequest);
+        TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
         for (int i = 0; modifier.hasNext(); i++) {
             modifier.next();
             if (i % 2 == 0) {
@@ -118,7 +115,8 @@ public class BulkRequestModifierTests extends ESTestCase {
         List<BulkItemResponse> originalResponses = new ArrayList<>();
         for (DocWriteRequest actionRequest : bulkRequest.requests()) {
             IndexRequest indexRequest = (IndexRequest) actionRequest;
-            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.type(), indexRequest.id(), 1, 1, true);
+            IndexResponse indexResponse = new IndexResponse(new ShardId("index", "_na_", 0), indexRequest.type(),
+                                                               indexRequest.id(), 1, 1, true);
             originalResponses.add(new BulkItemResponse(Integer.parseInt(indexRequest.id()), indexRequest.opType(), indexResponse));
         }
         bulkResponseListener.onResponse(new BulkResponse(originalResponses.toArray(new BulkItemResponse[originalResponses.size()]), 0));
@@ -135,7 +133,7 @@ public class BulkRequestModifierTests extends ESTestCase {
             originalBulkRequest.add(new IndexRequest("index", "type", String.valueOf(i)));
         }
 
-        IngestActionFilter.BulkRequestModifier modifier = new IngestActionFilter.BulkRequestModifier(originalBulkRequest);
+        TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
         while (modifier.hasNext()) {
             modifier.next();
         }

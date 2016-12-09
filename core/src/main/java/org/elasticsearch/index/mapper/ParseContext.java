@@ -29,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -254,13 +255,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Field seqNo() {
-            return in.seqNo();
+        public SeqNoFieldMapper.SequenceID seqID() {
+            return in.seqID();
         }
 
         @Override
-        public void seqNo(Field seqNo) {
-            in.seqNo(seqNo);
+        public void seqID(SeqNoFieldMapper.SequenceID seqID) {
+            in.seqID(seqID);
         }
 
         @Override
@@ -310,7 +311,7 @@ public abstract class ParseContext {
 
         private Field version;
 
-        private Field seqNo;
+        private SeqNoFieldMapper.SequenceID seqID;
 
         private final AllEntries allEntries;
 
@@ -404,15 +405,14 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Field seqNo() {
-            return this.seqNo;
+        public SeqNoFieldMapper.SequenceID seqID() {
+            return this.seqID;
         }
 
         @Override
-        public void seqNo(Field seqNo) {
-            this.seqNo = seqNo;
+        public void seqID(SeqNoFieldMapper.SequenceID seqID) {
+            this.seqID = seqID;
         }
-
 
         @Override
         public AllEntries allEntries() {
@@ -540,9 +540,9 @@ public abstract class ParseContext {
 
     public abstract void version(Field version);
 
-    public abstract Field seqNo();
+    public abstract SeqNoFieldMapper.SequenceID seqID();
 
-    public abstract void seqNo(Field seqNo);
+    public abstract void seqID(SeqNoFieldMapper.SequenceID seqID);
 
     public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
         return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);

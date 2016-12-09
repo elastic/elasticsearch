@@ -73,7 +73,7 @@ public class NodeExplanation implements Writeable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         node.writeTo(out);
-        Decision.writeTo(nodeDecision, out);
+        nodeDecision.writeTo(out);
         out.writeFloat(nodeWeight);
         if (storeStatus == null) {
             out.writeBoolean(false);
@@ -108,7 +108,9 @@ public class NodeExplanation implements Writeable, ToXContent {
             builder.field("final_decision", finalDecision.toString());
             builder.field("final_explanation", finalExplanation);
             builder.field("weight", nodeWeight);
+            builder.startArray("decisions");
             nodeDecision.toXContent(builder, params);
+            builder.endArray();
         }
         builder.endObject(); // end node <uuid>
         return builder;

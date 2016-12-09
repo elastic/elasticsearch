@@ -59,36 +59,6 @@ public class HistogramAggregationBuilder
         EXTENDED_BOUNDS_PARSER.declareDouble((bounds, d) -> bounds[1] = d, new ParseField("max"));
     }
 
-    private static InternalOrder parseOrder(XContentParser parser, QueryParseContext context) throws IOException {
-        InternalOrder order = null;
-        Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                String dir = parser.text();
-                boolean asc = "asc".equals(dir);
-                if (!asc && !"desc".equals(dir)) {
-                    throw new ParsingException(parser.getTokenLocation(), "Unknown order direction: [" + dir
-                            + "]. Should be either [asc] or [desc]");
-                }
-                order = resolveOrder(currentFieldName, asc);
-            }
-        }
-        return order;
-    }
-
-    static InternalOrder resolveOrder(String key, boolean asc) {
-        if ("_key".equals(key)) {
-            return (InternalOrder) (asc ? InternalOrder.KEY_ASC : InternalOrder.KEY_DESC);
-        }
-        if ("_count".equals(key)) {
-            return (InternalOrder) (asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC);
-        }
-        return new InternalOrder.Aggregation(key, asc);
-    }
-
     private static final ObjectParser<HistogramAggregationBuilder, QueryParseContext> PARSER;
     static {
         PARSER = new ObjectParser<>(HistogramAggregationBuilder.NAME);
@@ -316,5 +286,35 @@ public class HistogramAggregationBuilder
                 && Objects.equals(offset, other.offset)
                 && Objects.equals(minBound, other.minBound)
                 && Objects.equals(maxBound, other.maxBound);
+    }
+
+    private static InternalOrder parseOrder(XContentParser parser, QueryParseContext context) throws IOException {
+        InternalOrder order = null;
+        Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                String dir = parser.text();
+                boolean asc = "asc".equals(dir);
+                if (!asc && !"desc".equals(dir)) {
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown order direction: [" + dir
+                            + "]. Should be either [asc] or [desc]");
+                }
+                order = resolveOrder(currentFieldName, asc);
+            }
+        }
+        return order;
+    }
+
+    static InternalOrder resolveOrder(String key, boolean asc) {
+        if ("_key".equals(key)) {
+            return (InternalOrder) (asc ? InternalOrder.KEY_ASC : InternalOrder.KEY_DESC);
+        }
+        if ("_count".equals(key)) {
+            return (InternalOrder) (asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC);
+        }
+        return new InternalOrder.Aggregation(key, asc);
     }
 }

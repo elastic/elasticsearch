@@ -99,48 +99,6 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
         return PARSER.parse(context.parser(), new TermsAggregationBuilder(aggregationName, null), context);
     }
 
-    private static Terms.Order parseOrderParam(XContentParser parser, QueryParseContext context) throws IOException {
-        XContentParser.Token token;
-        Terms.Order orderParam = null;
-        String orderKey = null;
-        boolean orderAsc = false;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                orderKey = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                String dir = parser.text();
-                if ("asc".equalsIgnoreCase(dir)) {
-                    orderAsc = true;
-                } else if ("desc".equalsIgnoreCase(dir)) {
-                    orderAsc = false;
-                } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown terms order direction [" + dir + "]");
-                }
-            } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "Unexpected token " + token + " for [order]");
-            }
-        }
-        if (orderKey == null) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "Must specify at least one field for [order]");
-        } else {
-            orderParam = resolveOrder(orderKey, orderAsc);
-        }
-        return orderParam;
-    }
-
-    static Terms.Order resolveOrder(String key, boolean asc) {
-        if ("_term".equals(key)) {
-            return Order.term(asc);
-        }
-        if ("_count".equals(key)) {
-            return Order.count(asc);
-        }
-        return Order.aggregation(key, asc);
-    }
-
     private Terms.Order order = Terms.Order.compound(Terms.Order.count(false), Terms.Order.term(true));
     private IncludeExclude includeExclude = null;
     private String executionHint = null;
@@ -370,5 +328,47 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    private static Terms.Order parseOrderParam(XContentParser parser, QueryParseContext context) throws IOException {
+        XContentParser.Token token;
+        Terms.Order orderParam = null;
+        String orderKey = null;
+        boolean orderAsc = false;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                orderKey = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                String dir = parser.text();
+                if ("asc".equalsIgnoreCase(dir)) {
+                    orderAsc = true;
+                } else if ("desc".equalsIgnoreCase(dir)) {
+                    orderAsc = false;
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(),
+                            "Unknown terms order direction [" + dir + "]");
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "Unexpected token " + token + " for [order]");
+            }
+        }
+        if (orderKey == null) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "Must specify at least one field for [order]");
+        } else {
+            orderParam = resolveOrder(orderKey, orderAsc);
+        }
+        return orderParam;
+    }
+
+    static Terms.Order resolveOrder(String key, boolean asc) {
+        if ("_term".equals(key)) {
+            return Order.term(asc);
+        }
+        if ("_count".equals(key)) {
+            return Order.count(asc);
+        }
+        return Order.aggregation(key, asc);
     }
 }

@@ -38,6 +38,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -55,6 +56,8 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -242,6 +245,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertUpgradeWorks(client(), indexName, version);
         assertPositionIncrementGapDefaults(indexName, version);
         assertAliasWithBadName(indexName, version);
+        assertStoredBinaryFields(indexName, version);
         unloadIndex(indexName);
     }
 
@@ -459,6 +463,25 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         // We can remove the alias.
         assertAcked(client().admin().indices().prepareAliases().removeAlias(indexName, aliasName).get());
         assertFalse(client().admin().indices().prepareAliasesExist(aliasName).get().exists());
+    }
+
+    /**
+     * Make sure we can load stored binary fields.
+     */
+    void assertStoredBinaryFields(String indexName, Version version) throws Exception {
+        SearchRequestBuilder builder = client().prepareSearch(indexName);
+        builder.setQuery(QueryBuilders.matchAllQuery());
+        builder.setSize(100);
+        builder.addStoredField("binary");
+        SearchHits hits = builder.get().getHits();
+        assertEquals(100, hits.hits().length);
+        for(SearchHit hit : hits) {
+            SearchHitField field = hit.field("binary");
+            assertNotNull(field);
+            Object value = field.value();
+            assertTrue(value instanceof BytesArray);
+            assertEquals(16, ((BytesArray) value).length());
+        }
     }
 
     private Path getNodeDir(String indexFile) throws IOException {

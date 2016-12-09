@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.prelert.job.manager;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -13,12 +12,9 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
-import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
@@ -32,7 +28,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.prelert.job.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -68,49 +63,6 @@ public class JobManagerTests extends ESTestCase {
 
         assertTrue(diff.size() == 1);
         assertTrue(diff.contains("tom"));
-    }
-
-    public void testRemoveJobFromClusterState_GivenExistingMetadata() {
-        JobManager jobManager = createJobManager();
-        ClusterState clusterState = createClusterState();
-        Job job = buildJobBuilder("foo").build();
-        clusterState = jobManager.innerPutJob(job, false, clusterState);
-
-        clusterState = jobManager.removeJobFromClusterState("foo", clusterState);
-
-        PrelertMetadata prelertMetadata = clusterState.metaData().custom(PrelertMetadata.TYPE);
-        assertThat(prelertMetadata.getJobs().containsKey("foo"), is(false));
-    }
-
-    public void testRemoveJobFromClusterState_GivenJobIsOpened() {
-        JobManager jobManager = createJobManager();
-        ClusterState clusterState = createClusterState();
-        Job job = buildJobBuilder("foo").build();
-        clusterState = jobManager.innerPutJob(job, false, clusterState);
-        Allocation.Builder allocation = new Allocation.Builder();
-        allocation.setNodeId("myNode");
-        allocation.setJobId(job.getId());
-        allocation.setStatus(JobStatus.OPENING);
-        PrelertMetadata.Builder newMetadata = new PrelertMetadata.Builder(clusterState.metaData().custom(PrelertMetadata.TYPE));
-        newMetadata.assignToNode(job.getId(), "myNode");
-        newMetadata.updateAllocation(job.getId(), allocation.build());
-
-        ClusterState jobRunningClusterState = new ClusterState.Builder(clusterState)
-                .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, newMetadata.build())).build();
-
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-                () -> jobManager.removeJobFromClusterState("foo", jobRunningClusterState));
-        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
-        assertThat(e.getMessage(), equalTo("Cannot delete job 'foo' while it is OPENING"));
-    }
-
-    public void testRemoveJobFromClusterState_jobMissing() {
-        JobManager jobManager = createJobManager();
-        ClusterState clusterState = createClusterState();
-        Job job = buildJobBuilder("foo").build();
-        ClusterState clusterState2 = jobManager.innerPutJob(job, false, clusterState);
-        Exception e = expectThrows(ResourceNotFoundException.class, () -> jobManager.removeJobFromClusterState("bar", clusterState2));
-        assertThat(e.getMessage(), equalTo("job [bar] does not exist"));
     }
 
     public void testGetJobOrThrowIfUnknown_GivenUnknownJob() {

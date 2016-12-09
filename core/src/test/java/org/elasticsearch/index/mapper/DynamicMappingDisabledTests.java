@@ -90,7 +90,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         TransportShardBulkAction shardBulkAction = new TransportShardBulkAction(settings, transportService, clusterService,
                 indicesService, THREAD_POOL, shardStateAction, null, updateHelper, actionFilters, indexNameExpressionResolver);
         TransportBulkAction bulkAction = new TransportBulkAction(settings, THREAD_POOL, transportService, clusterService,
-                shardBulkAction, null, actionFilters, indexNameExpressionResolver, autoCreateIndex, System::currentTimeMillis);
+                null, shardBulkAction, null, actionFilters, indexNameExpressionResolver, autoCreateIndex, System::currentTimeMillis);
         transportIndexAction = new TransportIndexAction(settings, transportService, clusterService,
                 indicesService, THREAD_POOL, shardStateAction, actionFilters, indexNameExpressionResolver,
                 bulkAction, shardBulkAction);

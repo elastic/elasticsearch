@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.RandomAccessOrds;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
@@ -28,24 +29,29 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData implements IndexOrdinalsFieldData {
 
     private final IndexSettings indexSettings;
     private final IndexFieldDataCache cache;
     private final CircuitBreakerService breakerService;
+    private final Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction;
 
-    public SortedSetDVOrdinalsIndexFieldData(IndexSettings indexSettings, IndexFieldDataCache cache, String fieldName, CircuitBreakerService breakerService) {
+    public SortedSetDVOrdinalsIndexFieldData(IndexSettings indexSettings, IndexFieldDataCache cache, String fieldName,
+            CircuitBreakerService breakerService, Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction) {
         super(indexSettings.getIndex(), fieldName);
         this.indexSettings = indexSettings;
         this.cache = cache;
         this.breakerService = breakerService;
+        this.scriptFunction = scriptFunction;
     }
 
     @Override
@@ -55,7 +61,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
 
     @Override
     public AtomicOrdinalsFieldData load(LeafReaderContext context) {
-        return new SortedSetDVBytesAtomicFieldData(context.reader(), fieldName);
+        return new SortedSetDVBytesAtomicFieldData(context.reader(), fieldName, scriptFunction);
     }
 
     @Override
@@ -100,6 +106,6 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
 
     @Override
     public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger);
+        return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger, scriptFunction);
     }
 }

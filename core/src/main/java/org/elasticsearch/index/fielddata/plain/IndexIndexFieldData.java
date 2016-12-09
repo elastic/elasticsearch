@@ -56,6 +56,7 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final String index;
 
         IndexAtomicFieldData(String index) {
+            super(DEFAULT_SCRIPT_FUNCTION);
             this.index = index;
         }
 

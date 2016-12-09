@@ -1128,6 +1128,11 @@ public abstract class TransportReplicationAction<
         public String getTargetAllocationID() {
             return targetAllocationID;
         }
+
+        @Override
+        public String toString() {
+            return "request: " + request + ", target allocation id: " + targetAllocationID;
+        }
     }
 
     /**

@@ -226,6 +226,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                     threadPool,
                     transportService,
                     clusterService,
+                    null,
                     shardBulkAction,
                     createIndexAction,
                     actionFilters,

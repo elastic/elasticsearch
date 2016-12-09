@@ -80,7 +80,7 @@ public class DeflateCompressor implements Compressor {
             len += read;
         }
         if (len != HEADER.length || Arrays.equals(headerBytes, HEADER) == false) {
-            throw new NotCompressedException("Input stream is not compressed with DEFLATE! expected expected "
+            throw new NotCompressedException("Input stream is not compressed with DEFLATE! expected "
                 + new BytesRef(HEADER).toString() + " but got: " + new BytesRef(headerBytes));
         }
 

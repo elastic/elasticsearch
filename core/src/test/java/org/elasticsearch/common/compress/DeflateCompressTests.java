@@ -432,7 +432,7 @@ public class DeflateCompressTests extends ESTestCase {
     public void testDecompressNonCompressedBinary() throws IOException {
         NotCompressedException helloworld = expectThrows(NotCompressedException.class,
             () -> compressor.streamInput(new BytesArray("helloworld").streamInput()));
-        assertEquals("Input stream is not compressed with DEFLATE! expected expected [44 46 4c 0] but got: [68 65 6c 6c]",
+        assertEquals("Input stream is not compressed with DEFLATE! expected [44 46 4c 0] but got: [68 65 6c 6c]",
             helloworld.getMessage());
     }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.prelert.job.process.autodetect.params;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
+import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
 import java.util.Objects;
@@ -86,7 +87,7 @@ public class InterimResultsParams {
         }
 
         public Builder advanceTime(String timestamp) {
-            advanceTime = timestamp;
+            advanceTime = ExceptionsHelper.requireNonNull(timestamp, "advance");
             return this;
         }
 

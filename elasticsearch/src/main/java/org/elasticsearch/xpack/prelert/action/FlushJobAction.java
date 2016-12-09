@@ -240,13 +240,20 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         protected final void doExecute(FlushJobAction.Request request, ActionListener<FlushJobAction.Response> listener) {
             threadPool.executor(PrelertPlugin.THREAD_POOL_NAME).execute(() -> {
                 try {
-                    TimeRange timeRange = TimeRange.builder().startTime(request.getStart()).endTime(request.getEnd()).build();
-                    InterimResultsParams params = InterimResultsParams.builder()
-                            .calcInterim(request.getCalcInterim())
-                            .forTimeRange(timeRange)
-                            .advanceTime(request.getAdvanceTime())
-                            .build();
-                    processManager.flushJob(request.getJobId(), params);
+                    InterimResultsParams.Builder paramsBuilder = InterimResultsParams.builder();
+                    paramsBuilder.calcInterim(request.getCalcInterim());
+                    if (request.getAdvanceTime() != null) {
+                        paramsBuilder.advanceTime(request.getAdvanceTime());
+                    }
+                    TimeRange.Builder timeRangeBuilder = TimeRange.builder();
+                    if (request.getStart() != null) {
+                        timeRangeBuilder.startTime(request.getStart());
+                    }
+                    if (request.getEnd() != null) {
+                        timeRangeBuilder.endTime(request.getEnd());
+                    }
+                    paramsBuilder.forTimeRange(timeRangeBuilder.build());
+                    processManager.flushJob(request.getJobId(), paramsBuilder.build());
                     listener.onResponse(new Response(true));
                 } catch (Exception e) {
                     listener.onFailure(e);

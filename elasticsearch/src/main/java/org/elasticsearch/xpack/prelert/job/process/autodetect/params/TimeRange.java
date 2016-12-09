@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.prelert.job.process.autodetect.params;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
+import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
 import java.util.Objects;
@@ -62,12 +63,12 @@ public class TimeRange {
         }
 
         public Builder startTime(String start) {
-            this.start = start;
+            this.start = ExceptionsHelper.requireNonNull(start, "start");
             return this;
         }
 
         public Builder endTime(String end) {
-            this.end = end;
+            this.end = ExceptionsHelper.requireNonNull(end, "end");
             return this;
         }
 

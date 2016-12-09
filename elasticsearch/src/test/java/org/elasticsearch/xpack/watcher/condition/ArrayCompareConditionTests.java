@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -215,8 +216,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        expectedException.expect(ElasticsearchParseException.class);
-        expectedException.expectMessage("duplicate comparison operator");
+        expectedException.expect(JsonParseException.class);
+        expectedException.expectMessage("Duplicate field '" + op.id() + "'");
 
         ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }
@@ -263,8 +264,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        expectedException.expect(ElasticsearchParseException.class);
-        expectedException.expectMessage("duplicate field \"value\"");
+        expectedException.expect(JsonParseException.class);
+        expectedException.expectMessage("Duplicate field 'value'");
 
         ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }
@@ -288,8 +289,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        expectedException.expect(ElasticsearchParseException.class);
-        expectedException.expectMessage("duplicate field \"quantifier\"");
+        expectedException.expect(JsonParseException.class);
+        expectedException.expectMessage("Duplicate field 'quantifier'");
 
         ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }

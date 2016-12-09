@@ -100,7 +100,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 
-import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -558,11 +557,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
         try {
             return snapshotFormat.read(snapshotsBlobContainer, snapshotId.getUUID());
-        } catch (FileNotFoundException | NoSuchFileException ex) {
+        } catch (NoSuchFileException ex) {
             // File is missing - let's try legacy format instead
             try {
                 return snapshotLegacyFormat.read(snapshotsBlobContainer, snapshotId.getName());
-            } catch (FileNotFoundException | NoSuchFileException ex1) {
+            } catch (NoSuchFileException ex1) {
                 throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
             } catch (IOException | NotXContentException ex1) {
                 throw new SnapshotException(metadata.name(), snapshotId, "failed to get snapshots", ex1);
@@ -588,7 +587,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
         try {
             metaData = globalMetaDataFormat(snapshotVersion).read(snapshotsBlobContainer, snapshotId.getUUID());
-        } catch (FileNotFoundException | NoSuchFileException ex) {
+        } catch (NoSuchFileException ex) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
         } catch (IOException ex) {
             throw new SnapshotException(metadata.name(), snapshotId, "failed to get snapshots", ex);
@@ -744,7 +743,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 repositoryData = upgradeRepositoryData(repositoryData);
             }
             return repositoryData;
-        } catch (NoSuchFileException nsfe) {
+        } catch (NoSuchFileException ex) {
             // repository doesn't have an index blob, its a new blank repo
             return RepositoryData.EMPTY;
         } catch (IOException ioe) {

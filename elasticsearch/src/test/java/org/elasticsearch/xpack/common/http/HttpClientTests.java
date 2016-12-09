@@ -6,33 +6,32 @@
 package org.elasticsearch.xpack.common.http;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
-import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.TestsSSLService;
 import org.elasticsearch.xpack.ssl.VerificationMode;
 import org.junit.After;
 import org.junit.Before;
 
-import javax.net.ssl.SSLSocket;
-import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.SSLContext;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.UnknownHostException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.concurrent.ExecutorService;
@@ -42,6 +41,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -49,7 +49,7 @@ import static org.hamcrest.core.Is.is;
 
 public class HttpClientTests extends ESTestCase {
 
-    private MockWebServer webServer;
+    private MockWebServer webServer = new MockWebServer();
     private HttpClient httpClient;
     private HttpAuthRegistry authRegistry;
     private Environment environment = new Environment(Settings.builder().put("path.home", createTempDir()).build());
@@ -57,20 +57,19 @@ public class HttpClientTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         authRegistry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
-        webServer = startWebServer();
+        webServer.start();
         httpClient = new HttpClient(Settings.EMPTY, authRegistry, new SSLService(environment.settings(), environment));
     }
 
     @After
     public void shutdown() throws Exception {
-        webServer.shutdown();
+        webServer.close();
     }
 
     public void testBasics() throws Exception {
         int responseCode = randomIntBetween(200, 203);
         String body = randomAsciiOfLengthBetween(2, 8096);
         webServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
-
 
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.POST)
@@ -90,18 +89,16 @@ public class HttpClientTests extends ESTestCase {
         HttpRequest request = requestBuilder.build();
 
         HttpResponse response = httpClient.execute(request);
-        RecordedRequest recordedRequest = webServer.takeRequest();
-
 
         assertThat(response.status(), equalTo(responseCode));
         assertThat(response.body().utf8ToString(), equalTo(body));
-        assertThat(webServer.getRequestCount(), equalTo(1));
-        assertThat(recordedRequest.getBody().readString(StandardCharsets.UTF_8), equalTo(request.body()));
-        assertThat(recordedRequest.getPath().split("\\?")[0], equalTo(request.path()));
-        assertThat(recordedRequest.getPath().split("\\?")[1], equalTo(paramKey + "=" + paramValue));
-        assertThat(recordedRequest.getHeader(headerKey), equalTo(headerValue));
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getUri().getPath(), equalTo(request.path()));
+        assertThat(webServer.requests().get(0).getUri().getQuery(), equalTo(paramKey + "=" + paramValue));
+        assertThat(webServer.requests().get(0).getHeader(headerKey), equalTo(headerValue));
     }
 
+    @TestLogging("org.elasticsearch.http.test:TRACE")
     public void testNoQueryString() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
@@ -112,9 +109,9 @@ public class HttpClientTests extends ESTestCase {
         assertThat(response.status(), equalTo(200));
         assertThat(response.body().utf8ToString(), equalTo("body"));
 
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test"));
-        assertThat(recordedRequest.getBody().readUtf8Line(), nullValue());
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getUri().getPath(), is("/test"));
+        assertThat(webServer.requests().get(0).getBody(), is(nullValue()));
     }
 
     public void testUrlEncodingWithQueryStrings() throws Exception{
@@ -128,9 +125,10 @@ public class HttpClientTests extends ESTestCase {
         assertThat(response.status(), equalTo(200));
         assertThat(response.body().utf8ToString(), equalTo("body"));
 
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test?key=value+123%3A123"));
-        assertThat(recordedRequest.getBody().readUtf8Line(), nullValue());
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getUri().getPath(), is("/test"));
+        assertThat(webServer.requests().get(0).getUri().getRawQuery(), is("key=value+123%3A123"));
+        assertThat(webServer.requests().get(0).getBody(), is(nullValue()));
     }
 
     public void testBasicAuth() throws Exception {
@@ -143,17 +141,19 @@ public class HttpClientTests extends ESTestCase {
         HttpResponse response = httpClient.execute(request.build());
         assertThat(response.status(), equalTo(200));
         assertThat(response.body().utf8ToString(), equalTo("body"));
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test"));
-        assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic dXNlcjpwYXNz"));
+
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getUri().getPath(), is("/test"));
+        assertThat(webServer.requests().get(0).getHeader("Authorization"), is("Basic dXNlcjpwYXNz"));
     }
 
     public void testNoPathSpecified() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("doesntmatter"));
         HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort()).method(HttpMethod.GET);
         httpClient.execute(request.build());
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/"));
+
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getUri().getPath(), is("/"));
     }
 
     public void testHttps() throws Exception {
@@ -171,26 +171,16 @@ public class HttpClientTests extends ESTestCase {
                     .put("xpack.ssl.truststore.password", "truststore-testnode-only")
                     .build();
         }
-        HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
+        httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
         // We can't use the client created above for the server since it is only a truststore
         Settings settings2 = Settings.builder()
                 .put("xpack.ssl.keystore.path", getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks"))
                 .put("xpack.ssl.keystore.password", "testnode")
                 .build();
-        webServer.useHttps(new SSLService(settings2, environment).sslSocketFactory(Settings.EMPTY), false);
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort())
-                .scheme(Scheme.HTTPS)
-                .path("/test")
-                .body("body");
-        HttpResponse response = httpClient.execute(request.build());
-        assertThat(response.status(), equalTo(200));
-        assertThat(response.body().utf8ToString(), equalTo("body"));
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test"));
-        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
+        TestsSSLService sslService = new TestsSSLService(settings2, environment);
+        testSslMockWebserver(sslService.sslContext(), false);
     }
 
     public void testHttpsDisableHostnameVerification() throws Exception {
@@ -210,7 +200,7 @@ public class HttpClientTests extends ESTestCase {
                     .put("xpack.ssl.verification_mode", randomFrom(VerificationMode.NONE, VerificationMode.CERTIFICATE))
                     .build();
         }
-        HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
+        httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
         // We can't use the client created above for the server since it only defines a truststore
         Settings settings2 = Settings.builder()
@@ -218,52 +208,38 @@ public class HttpClientTests extends ESTestCase {
                         getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode-no-subjaltname.jks"))
                 .put("xpack.ssl.keystore.password", "testnode-no-subjaltname")
                 .build();
-        webServer.useHttps(new SSLService(settings2, environment).sslSocketFactory(Settings.EMPTY), false);
 
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort())
-                .scheme(Scheme.HTTPS)
-                .path("/test")
-                .body("body");
-        HttpResponse response = httpClient.execute(request.build());
-        assertThat(response.status(), equalTo(200));
-        assertThat(response.body().utf8ToString(), equalTo("body"));
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test"));
-        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
+        TestsSSLService sslService = new TestsSSLService(settings2, environment);
+        testSslMockWebserver(sslService.sslContext(), false);
     }
 
     public void testHttpsClientAuth() throws Exception {
         Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
-        Settings settings;
-        if (randomBoolean()) {
-            settings = Settings.builder()
-                    .put("xpack.http.ssl.keystore.path", resource.toString())
-                    .put("xpack.http.ssl.keystore.password", "testnode")
-                    .build();
-        } else {
-            settings = Settings.builder()
+        Settings settings = Settings.builder()
                     .put("xpack.ssl.keystore.path", resource.toString())
                     .put("xpack.ssl.keystore.password", "testnode")
                     .build();
+
+        TestsSSLService sslService = new TestsSSLService(settings, environment);
+        httpClient = new HttpClient(settings, authRegistry, sslService);
+        testSslMockWebserver(sslService.sslContext(), true);
+    }
+
+    private void testSslMockWebserver(SSLContext sslContext, boolean needClientAuth) throws IOException {
+        try (MockWebServer mockWebServer = new MockWebServer(sslContext, needClientAuth)) {
+            mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
+            mockWebServer.start();
+
+            HttpRequest.Builder request = HttpRequest.builder("localhost", mockWebServer.getPort())
+                    .scheme(Scheme.HTTPS)
+                    .path("/test");
+            HttpResponse response = httpClient.execute(request.build());
+            assertThat(response.status(), equalTo(200));
+            assertThat(response.body().utf8ToString(), equalTo("body"));
+
+            assertThat(mockWebServer.requests(), hasSize(1));
+            assertThat(mockWebServer.requests().get(0).getUri().getPath(), is("/test"));
         }
-
-        final SSLService sslService = new SSLService(settings, environment);
-        HttpClient httpClient = new HttpClient(settings, authRegistry, sslService);
-        webServer.useHttps(
-                new ClientAuthRequiringSSLSocketFactory(sslService.sslSocketFactory(settings.getByPrefix("xpack.http.ssl."))), false);
-
-        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
-        HttpRequest.Builder request = HttpRequest.builder("localhost", webServer.getPort())
-                .scheme(Scheme.HTTPS)
-                .path("/test")
-                .body("body");
-        HttpResponse response = httpClient.execute(request.build());
-        assertThat(response.status(), equalTo(200));
-        assertThat(response.body().utf8ToString(), equalTo("body"));
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test"));
-        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
     }
 
     public void testHttpResponseWithAnyStatusCodeCanReturnBody() throws Exception {
@@ -304,10 +280,9 @@ public class HttpClientTests extends ESTestCase {
 
     public void testThatProxyCanBeConfigured() throws Exception {
         // this test fakes a proxy server that sends a response instead of forwarding it to the mock web server
-        MockWebServer proxyServer = startWebServer();
-        proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
-
-        try {
+        try (MockWebServer proxyServer = new MockWebServer()) {
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
+            proxyServer.start();
             Settings settings = Settings.builder()
                     .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
                     .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort())
@@ -323,19 +298,16 @@ public class HttpClientTests extends ESTestCase {
             assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
 
             // ensure we hit the proxyServer and not the webserver
-            assertThat(webServer.getRequestCount(), equalTo(0));
-            assertThat(proxyServer.getRequestCount(), equalTo(1));
-        } finally {
-            proxyServer.shutdown();
+            assertThat(webServer.requests(), hasSize(0));
+            assertThat(proxyServer.requests(), hasSize(1));
         }
     }
 
     public void testThatProxyCanBeOverriddenByRequest() throws Exception {
         // this test fakes a proxy server that sends a response instead of forwarding it to the mock web server
-        MockWebServer proxyServer = startWebServer();
-        proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
-
-        try {
+        try (MockWebServer proxyServer = new MockWebServer()) {
+            proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
+            proxyServer.start();
             Settings settings = Settings.builder()
                     .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
                     .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort() + 1)
@@ -352,26 +324,24 @@ public class HttpClientTests extends ESTestCase {
             assertThat(response.body().utf8ToString(), equalTo("fullProxiedContent"));
 
             // ensure we hit the proxyServer and not the webserver
-            assertThat(webServer.getRequestCount(), equalTo(0));
-            assertThat(proxyServer.getRequestCount(), equalTo(1));
-        } finally {
-            proxyServer.shutdown();
+            assertThat(webServer.requests(), hasSize(0));
+            assertThat(proxyServer.requests(), hasSize(1));
         }
     }
 
     public void testThatUrlPathIsNotEncoded() throws Exception {
         // %2F is a slash that needs to be encoded to not be misinterpreted as a path
-        String path = "/<logstash-{now%2Fd}>/_search";
+        String path = "/%3Clogstash-%7Bnow%2Fd%7D%3E/_search";
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("foo"));
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path(path).build();
         httpClient.execute(request);
 
-        assertThat(webServer.getRequestCount(), is(1));
+        assertThat(webServer.requests(), hasSize(1));
 
-        RecordedRequest recordedRequest = webServer.takeRequest();
         // under no circumstances have a double encode of %2F => %25 (percent sign)
-        assertThat(recordedRequest.getPath(), not(containsString("%25")));
-        assertThat(recordedRequest.getPath(), equalTo(path));
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getUri().getRawPath(), not(containsString("%25")));
+        assertThat(webServer.requests().get(0).getUri().getPath(), is("/<logstash-{now/d}>/_search"));
     }
 
     public void testThatHttpClientFailsOnNonHttpResponse() throws Exception {
@@ -395,66 +365,6 @@ public class HttpClientTests extends ESTestCase {
             assertThat("A server side exception occured, but shouldnt", hasExceptionHappened.get(), is(nullValue()));
         } finally {
             terminate(executor);
-        }
-    }
-
-    private MockWebServer startWebServer() throws IOException {
-        MockWebServer mockWebServer = new MockWebServer();
-        mockWebServer.setProtocolNegotiationEnabled(false);
-        mockWebServer.start();
-        return mockWebServer;
-    }
-
-    static class ClientAuthRequiringSSLSocketFactory extends SSLSocketFactory {
-        final SSLSocketFactory delegate;
-
-        ClientAuthRequiringSSLSocketFactory(SSLSocketFactory delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public String[] getDefaultCipherSuites() {
-            return delegate.getDefaultCipherSuites();
-        }
-
-        @Override
-        public String[] getSupportedCipherSuites() {
-            return delegate.getSupportedCipherSuites();
-        }
-
-        @Override
-        public Socket createSocket(Socket socket, String s, int i, boolean b) throws IOException {
-            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(socket, s, i, b);
-            sslSocket.setNeedClientAuth(true);
-            return sslSocket;
-        }
-
-        @Override
-        public Socket createSocket(String s, int i) throws IOException, UnknownHostException {
-            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(s, i);
-            sslSocket.setNeedClientAuth(true);
-            return sslSocket;
-        }
-
-        @Override
-        public Socket createSocket(String s, int i, InetAddress inetAddress, int i1) throws IOException, UnknownHostException {
-            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(s, i, inetAddress, i1);
-            sslSocket.setNeedClientAuth(true);
-            return sslSocket;
-        }
-
-        @Override
-        public Socket createSocket(InetAddress inetAddress, int i) throws IOException {
-            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(inetAddress, i);
-            sslSocket.setNeedClientAuth(true);
-            return sslSocket;
-        }
-
-        @Override
-        public Socket createSocket(InetAddress inetAddress, int i, InetAddress inetAddress1, int i1) throws IOException {
-            SSLSocket sslSocket = (SSLSocket) delegate.createSocket(inetAddress, i, inetAddress1, i1);
-            sslSocket.setNeedClientAuth(true);
-            return sslSocket;
         }
     }
 }

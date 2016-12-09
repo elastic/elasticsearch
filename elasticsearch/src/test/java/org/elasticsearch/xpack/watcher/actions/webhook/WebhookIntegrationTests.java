@@ -5,13 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
-import com.squareup.okhttp.mockwebserver.QueueDispatcher;
-import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -31,25 +28,22 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
-    private MockWebServer webServer;
+    private MockWebServer webServer = new MockWebServer();;
 
     @Before
     public void startWebservice() throws Exception {
-        webServer = new MockWebServer();
-        QueueDispatcher dispatcher = new QueueDispatcher();
-        dispatcher.setFailFast(true);
-        webServer.setDispatcher(dispatcher);
         webServer.start();
     }
 
     @After
     public void stopWebservice() throws Exception {
-        webServer.shutdown();
+        webServer.close();
     }
 
     public void testWebhook() throws Exception {
@@ -74,10 +68,12 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         }
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(),
-                anyOf(equalTo("/test/_id?watch_id=_id&param1=value1"), equalTo("/test/_id?param1=value1&watch_id=_id")));
-        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("_body"));
+
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getUri().getQuery(),
+                anyOf(equalTo("watch_id=_id&param1=value1"), equalTo("param1=value1&watch_id=_id")));
+
+        assertThat(webServer.requests().get(0).getBody(), is("_body"));
 
         SearchResponse response = searchWatchRecords(b -> QueryBuilders.termQuery(WatchRecord.Field.STATE.getPreferredName(), "executed"));
 
@@ -114,10 +110,11 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         }
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(),
-                anyOf(equalTo("/test/_id?watch_id=_id&param1=value1"), equalTo("/test/_id?param1=value1&watch_id=_id")));
-        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("_body"));
-        assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic X3VzZXJuYW1lOl9wYXNzd29yZA=="));
+
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getUri().getQuery(),
+                anyOf(equalTo("watch_id=_id&param1=value1"), equalTo("param1=value1&watch_id=_id")));
+        assertThat(webServer.requests().get(0).getBody(), is("_body"));
+        assertThat(webServer.requests().get(0).getHeader("Authorization"), is(("Basic X3VzZXJuYW1lOl9wYXNzd29yZA==")));
     }
 }

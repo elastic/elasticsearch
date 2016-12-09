@@ -5,11 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
-import com.squareup.okhttp.mockwebserver.QueueDispatcher;
-import com.squareup.okhttp.mockwebserver.RecordedRequest;
-import okio.Buffer;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -20,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -29,6 +25,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.http.MockRequest;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateMonitoringDoc;
@@ -45,8 +44,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -79,7 +77,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     @After
     public void stopWebServer() throws Exception {
-        webServer.shutdown();
+        webServer.close();
     }
 
     @Override
@@ -223,8 +221,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         assertMonitorResources(webServer, templatesExistsAlready, pipelineExistsAlready, bwcIndexesExist, bwcAliasesExist);
         assertBulk(webServer);
 
-        final MockWebServer secondWebServer = createMockWebServer();
-        try {
+        try (MockWebServer secondWebServer = createMockWebServer()) {
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
                     Settings.builder().putArray("xpack.monitoring.exporters._http.host", getFormattedAddress(secondWebServer))));
 
@@ -249,22 +246,22 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             assertMonitorVersion(secondWebServer);
 
             for (Tuple<String, String> template : monitoringTemplates()) {
-                RecordedRequest recordedRequest = secondWebServer.takeRequest();
+                MockRequest recordedRequest = secondWebServer.takeRequest();
                 assertThat(recordedRequest.getMethod(), equalTo("GET"));
-                assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.v1() + resourceQueryString()));
+                assertThat(recordedRequest.getUri().getPath(), equalTo("/_template/" + template.v1()));
+                assertThat(recordedRequest.getUri().getQuery(), equalTo(resourceQueryString()));
 
                 if (template.v1().contains(MonitoringBulkTimestampedResolver.Data.DATA) == false) {
                     recordedRequest = secondWebServer.takeRequest();
                     assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-                    assertThat(recordedRequest.getPath(), equalTo("/_template/" + template.v1() + resourceQueryString()));
-                    assertThat(recordedRequest.getBody().readUtf8(), equalTo(template.v2()));
+                    assertThat(recordedRequest.getUri().getPath(), equalTo("/_template/" + template.v1()));
+                    assertThat(recordedRequest.getUri().getQuery(), equalTo(resourceQueryString()));
+                    assertThat(recordedRequest.getBody(), equalTo(template.v2()));
                 }
             }
             assertMonitorPipelines(secondWebServer, !pipelineExistsAlready, null, null);
             assertMonitorBackwardsCompatibilityAliases(secondWebServer, false, null, null);
             assertBulk(secondWebServer);
-        } finally {
-            secondWebServer.shutdown();
         }
     }
 
@@ -282,7 +279,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         // fire off what should be an unsuccessful request
         assertNull(getExporter(agentNode).openBulk());
 
-        assertThat(webServer.getRequestCount(), equalTo(1));
+        assertThat(webServer.requests(), hasSize(1));
 
         assertMonitorVersion(webServer);
     }
@@ -307,12 +304,12 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         export(Collections.singletonList(doc));
 
         assertMonitorResources(webServer, templatesExistsAlready, pipelineExistsAlready, bwcIndexesExist, bwcAliasesExist);
-        RecordedRequest recordedRequest = assertBulk(webServer);
+        MockRequest recordedRequest = assertBulk(webServer);
 
         @SuppressWarnings("unchecked")
         String indexName = new ResolversRegistry(Settings.EMPTY).getResolver(doc).index(doc);
 
-        byte[] bytes = recordedRequest.getBody().readByteArray();
+        byte[] bytes = recordedRequest.getBody().getBytes(StandardCharsets.UTF_8);
         Map<String, Object> data = XContentHelper.convertToMap(new BytesArray(bytes), false).v2();
         @SuppressWarnings("unchecked")
         Map<String, Object> index = (Map<String, Object>) data.get("index");
@@ -335,7 +332,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         assertMonitorResources(webServer, true, true, false, false);
         recordedRequest = assertBulk(webServer);
 
-        bytes = recordedRequest.getBody().readByteArray();
+        bytes = recordedRequest.getBody().getBytes(StandardCharsets.UTF_8);
         data = XContentHelper.convertToMap(new BytesArray(bytes), false).v2();
         @SuppressWarnings("unchecked")
         final Map<String, Object> newIndex = (Map<String, Object>) data.get("index");
@@ -348,11 +345,14 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private void assertMonitorVersion(final MockWebServer webServer, @Nullable final Map<String, String[]> customHeaders,
             @Nullable final String basePath) throws Exception {
-        final String pathPrefix = basePathToAssertablePrefix(basePath);
-        final RecordedRequest request = webServer.takeRequest();
+        final MockRequest request = webServer.takeRequest();
 
         assertThat(request.getMethod(), equalTo("GET"));
-        assertThat(request.getPath(), equalTo(pathPrefix + "/?filter_path=version.number"));
+        final String pathPrefix = basePathToAssertablePrefix(basePath);
+        if (Strings.isEmpty(pathPrefix) == false) {
+            assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/"));
+        }
+        assertThat(request.getUri().getQuery(), equalTo("filter_path=version.number"));
         assertHeaders(request, customHeaders);
     }
 
@@ -373,21 +373,23 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private void assertMonitorTemplates(final MockWebServer webServer, final boolean alreadyExists,
             @Nullable final Map<String, String[]> customHeaders, @Nullable final String basePath) throws Exception {
         final String pathPrefix = basePathToAssertablePrefix(basePath);
-        RecordedRequest request;
+        MockRequest request;
 
         for (Tuple<String, String> template : monitoringTemplates()) {
             request = webServer.takeRequest();
 
             assertThat(request.getMethod(), equalTo("GET"));
-            assertThat(request.getPath(), equalTo(pathPrefix + "/_template/" + template.v1() + resourceQueryString()));
+            assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_template/" + template.v1()));
+            assertThat(request.getUri().getQuery(), equalTo(resourceQueryString()));
             assertHeaders(request, customHeaders);
 
             if (alreadyExists == false) {
                 request = webServer.takeRequest();
 
                 assertThat(request.getMethod(), equalTo("PUT"));
-                assertThat(request.getPath(), equalTo(pathPrefix + "/_template/" + template.v1() + resourceQueryString()));
-                assertThat(request.getBody().readUtf8(), equalTo(template.v2()));
+                assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_template/" + template.v1()));
+                assertThat(request.getUri().getQuery(), equalTo(resourceQueryString()));
+                assertThat(request.getBody(), equalTo(template.v2()));
                 assertHeaders(request, customHeaders);
             }
         }
@@ -396,19 +398,20 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private void assertMonitorPipelines(final MockWebServer webServer, final boolean alreadyExists,
             @Nullable final Map<String, String[]> customHeaders, @Nullable final String basePath) throws Exception {
         final String pathPrefix = basePathToAssertablePrefix(basePath);
-        RecordedRequest request = webServer.takeRequest();
+        MockRequest request = webServer.takeRequest();
 
         assertThat(request.getMethod(), equalTo("GET"));
-        assertThat(request.getPath(), equalTo(pathPrefix + "/_ingest/pipeline/" + Exporter.EXPORT_PIPELINE_NAME + resourceQueryString()));
+        assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_ingest/pipeline/" + Exporter.EXPORT_PIPELINE_NAME));
+        assertThat(request.getUri().getQuery(), equalTo(resourceQueryString()));
         assertHeaders(request, customHeaders);
 
         if (alreadyExists == false) {
             request = webServer.takeRequest();
 
             assertThat(request.getMethod(), equalTo("PUT"));
-            assertThat(request.getPath(),
-                    equalTo(pathPrefix + "/_ingest/pipeline/" + Exporter.EXPORT_PIPELINE_NAME + resourceQueryString()));
-            assertThat(request.getBody().readUtf8(), equalTo(Exporter.emptyPipeline(XContentType.JSON).string()));
+            assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_ingest/pipeline/" + Exporter.EXPORT_PIPELINE_NAME));
+            assertThat(request.getUri().getQuery(), equalTo(resourceQueryString()));
+            assertThat(request.getBody(), equalTo(Exporter.emptyPipeline(XContentType.JSON).string()));
             assertHeaders(request, customHeaders);
         }
     }
@@ -416,40 +419,42 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private void assertMonitorBackwardsCompatibilityAliases(final MockWebServer webServer, final boolean expectPost,
             @Nullable final Map<String, String[]> customHeaders, @Nullable final String basePath) throws Exception {
         final String pathPrefix = basePathToAssertablePrefix(basePath);
-        RecordedRequest request = webServer.takeRequest();
+        MockRequest request = webServer.takeRequest();
 
         assertThat(request.getMethod(), equalTo("GET"));
-        assertThat(request.getPath(), startsWith(pathPrefix + "/.marvel-es-1-*"));
-        assertThat(request.getPath(), containsString("filter_path=*.aliases"));
+        assertThat(request.getUri().getPath(), startsWith(pathPrefix + "/.marvel-es-1-*"));
+        assertThat(request.getUri().getQuery(), containsString("filter_path=*.aliases"));
         assertHeaders(request, customHeaders);
 
         if (expectPost) {
             request = webServer.takeRequest();
 
             assertThat(request.getMethod(), equalTo("POST"));
-            assertThat(request.getPath(), startsWith(pathPrefix + "/_aliases"));
-            assertThat(request.getPath(), containsString("master_timeout=30s"));
-            assertThat(request.getBody().readUtf8(), containsString("add"));
+            assertThat(request.getUri().getPath(), startsWith(pathPrefix + "/_aliases"));
+            assertThat(request.getUri().getQuery(), containsString("master_timeout=30s"));
+            assertThat(request.getBody(), containsString("add"));
             assertHeaders(request, customHeaders);
         }
 
     }
 
-    private RecordedRequest assertBulk(final MockWebServer webServer) throws Exception {
+    private MockRequest assertBulk(final MockWebServer webServer) throws Exception {
         return assertBulk(webServer, -1);
     }
 
-    private RecordedRequest assertBulk(final MockWebServer webServer, final int docs) throws Exception {
+    private MockRequest assertBulk(final MockWebServer webServer, final int docs) throws Exception {
         return assertBulk(webServer, docs, null, null);
     }
 
-    private RecordedRequest assertBulk(final MockWebServer webServer, final int docs, @Nullable final Map<String, String[]> customHeaders,
-            @Nullable final String basePath) throws Exception {
+    private MockRequest assertBulk(final MockWebServer webServer, final int docs,
+                                   @Nullable final Map<String, String[]> customHeaders, @Nullable final String basePath)
+            throws Exception {
         final String pathPrefix = basePathToAssertablePrefix(basePath);
-        final RecordedRequest request = webServer.takeRequest();
+        final MockRequest request = webServer.takeRequest();
 
         assertThat(request.getMethod(), equalTo("POST"));
-        assertThat(request.getPath(), equalTo(pathPrefix + "/_bulk" + bulkQueryString()));
+        assertThat(request.getUri().getPath(), equalTo(pathPrefix + "/_bulk"));
+        assertThat(request.getUri().getQuery(), equalTo(bulkQueryString()));
         assertHeaders(request, customHeaders);
 
         if (docs != -1) {
@@ -459,16 +464,18 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         return request;
     }
 
-    private void assertHeaders(final RecordedRequest request, final Map<String, String[]> customHeaders) {
+    private void assertHeaders(final MockRequest request, final Map<String, String[]> customHeaders) {
         if (customHeaders != null) {
             for (final Map.Entry<String, String[]> entry : customHeaders.entrySet()) {
                 final String header = entry.getKey();
                 final String[] values = entry.getValue();
 
-                final List<String> headerValues = request.getHeaders().values(header);
+                final List<String> headerValues = request.getHeaders().get(header);
 
-                assertThat(header, headerValues, hasSize(values.length));
-                assertThat(header, headerValues, containsInAnyOrder(values));
+                if (values.length > 0) {
+                    assertThat(headerValues, hasSize(values.length));
+                    assertThat(headerValues, containsInAnyOrder(values));
+                }
             }
         }
     }
@@ -514,29 +521,20 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         return docs;
     }
 
-    private String basePathToAssertablePrefix(@Nullable final String basePath) {
+    private String basePathToAssertablePrefix(@Nullable String basePath) {
         if (basePath == null) {
             return "";
         }
-
-        return basePath.startsWith("/") == false ? "/" + basePath : basePath;
+        basePath = basePath.startsWith("/")? basePath : "/" + basePath;
+        return basePath;
     }
 
     private String resourceQueryString() {
-        return "?filter_path=" + urlEncode(FILTER_PATH_NONE);
+        return "filter_path=" + FILTER_PATH_NONE;
     }
 
     private String bulkQueryString() {
-        return "?pipeline=" + urlEncode(Exporter.EXPORT_PIPELINE_NAME) + "&filter_path=" + urlEncode("errors,items.*.error");
-    }
-
-    private String urlEncode(final String value) {
-        try {
-            return URLEncoder.encode(value, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            // whelp, our JVM is broken
-            throw new RuntimeException(e);
-        }
+        return "pipeline=" + Exporter.EXPORT_PIPELINE_NAME + "&filter_path=" + "errors,items.*.error";
     }
 
     private void enqueueGetClusterVersionResponse(Version v) throws IOException {
@@ -544,8 +542,9 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private void enqueueGetClusterVersionResponse(MockWebServer mockWebServer, Version v) throws IOException {
-        mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody(jsonBuilder().startObject().startObject("version")
-                .field("number", v.toString()).endObject().endObject().bytes().utf8ToString()));
+        mockWebServer.enqueue(new MockResponse().setResponseCode(200).setBody(
+                jsonBuilder().startObject().startObject("version")
+                    .field("number", v.toString()).endObject().endObject().bytes().utf8ToString()));
     }
 
     private void enqueueSetupResponses(MockWebServer webServer, boolean templatesAlreadyExists, boolean pipelineAlreadyExists,
@@ -633,8 +632,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         mockWebServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
     }
 
-    private void assertBulkRequest(Buffer requestBody, int numberOfActions) throws Exception {
-        BulkRequest bulkRequest = Requests.bulkRequest().add(new BytesArray(requestBody.readByteArray()), null, null);
+    private void assertBulkRequest(String requestBody, int numberOfActions) throws Exception {
+        BulkRequest bulkRequest = Requests.bulkRequest().add(new BytesArray(requestBody.getBytes(StandardCharsets.UTF_8)), null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(numberOfActions));
         for (DocWriteRequest actionRequest : bulkRequest.requests()) {
             assertThat(actionRequest, instanceOf(IndexRequest.class));
@@ -648,9 +647,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private MockWebServer createMockWebServer() throws IOException {
         MockWebServer server = new MockWebServer();
         server.start();
-        final QueueDispatcher dispatcher = new QueueDispatcher();
-        dispatcher.setFailFast(true);
-        server.setDispatcher(dispatcher);
         return server;
     }
 }

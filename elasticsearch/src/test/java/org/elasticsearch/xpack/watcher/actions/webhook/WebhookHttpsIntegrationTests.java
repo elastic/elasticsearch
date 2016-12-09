@@ -5,18 +5,17 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
-import com.squareup.okhttp.mockwebserver.QueueDispatcher;
-import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.Scheme;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.text.TextTemplate;
-import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.TestsSSLService;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
@@ -34,6 +33,7 @@ import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.xContentSour
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -53,20 +53,15 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
 
     @Before
     public void startWebservice() throws Exception {
-        webServer = new MockWebServer();
-        webServer.setProtocolNegotiationEnabled(false);
-        QueueDispatcher dispatcher = new QueueDispatcher();
-        dispatcher.setFailFast(true);
-        webServer.setDispatcher(dispatcher);
-        webServer.start();
-        SSLService sslService = getInstanceFromMaster(SSLService.class);
         Settings settings = getInstanceFromMaster(Settings.class);
-        webServer.useHttps(sslService.sslSocketFactory(settings.getByPrefix("xpack.http.ssl.")), false);
+        TestsSSLService sslService = new TestsSSLService(settings, getInstanceFromMaster(Environment.class));
+        webServer = new MockWebServer(sslService.sslContext(settings.getByPrefix("xpack.http.ssl.")), false);
+        webServer.start();
     }
 
     @After
     public void stopWebservice() throws Exception {
-        webServer.shutdown();
+        webServer.close();
     }
 
     public void testHttps() throws Exception {
@@ -90,9 +85,9 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         }
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test/_id"));
-        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("{key=value}"));
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getUri().getPath(), equalTo("/test/_id"));
+        assertThat(webServer.requests().get(0).getBody(), equalTo("{key=value}"));
 
         SearchResponse response =
                 searchWatchRecords(b -> b.setQuery(QueryBuilders.termQuery(WatchRecord.Field.STATE.getPreferredName(), "executed")));
@@ -129,9 +124,9 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         }
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
-        RecordedRequest recordedRequest = webServer.takeRequest();
-        assertThat(recordedRequest.getPath(), equalTo("/test/_id"));
-        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("{key=value}"));
-        assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic X3VzZXJuYW1lOl9wYXNzd29yZA=="));
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getUri().getPath(), equalTo("/test/_id"));
+        assertThat(webServer.requests().get(0).getBody(), equalTo("{key=value}"));
+        assertThat(webServer.requests().get(0).getHeader("Authorization"), equalTo("Basic X3VzZXJuYW1lOl9wYXNzd29yZA=="));
     }
 }

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -15,12 +13,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.common.text.TextTemplateEngine;
-import org.elasticsearch.xpack.ssl.SSLService;
-import org.elasticsearch.xpack.watcher.actions.Action;
-import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
-import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
-import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpProxy;
@@ -29,8 +23,18 @@ import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.HttpResponse;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.common.text.TextTemplate;
+import org.elasticsearch.xpack.common.text.TextTemplateEngine;
+import org.elasticsearch.xpack.notification.email.Attachment;
+import org.elasticsearch.xpack.notification.email.Authentication;
+import org.elasticsearch.xpack.notification.email.Email;
+import org.elasticsearch.xpack.notification.email.Profile;
+import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.watcher.actions.Action;
+import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
+import org.elasticsearch.xpack.watcher.execution.TriggeredExecutionContext;
+import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
@@ -38,10 +42,6 @@ import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.notification.email.Attachment;
-import org.elasticsearch.xpack.notification.email.Authentication;
-import org.elasticsearch.xpack.notification.email.Email;
-import org.elasticsearch.xpack.notification.email.Profile;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.junit.Before;
@@ -58,6 +58,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.Is.is;
 import static org.joda.time.DateTimeZone.UTC;
@@ -225,8 +226,7 @@ public class WebhookActionTests extends ESTestCase {
         HttpClient httpClient = new HttpClient(Settings.EMPTY, authRegistry,
                 new SSLService(environment.settings(), environment));
 
-        MockWebServer proxyServer = new MockWebServer();
-        try {
+        try (MockWebServer proxyServer = new MockWebServer()) {
             proxyServer.start();
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
 
@@ -241,9 +241,7 @@ public class WebhookActionTests extends ESTestCase {
                     new ScheduleTriggerEvent(watchId, new DateTime(UTC), new DateTime(UTC)), timeValueSeconds(5));
             executable.execute("_id", ctx, new Payload.Simple());
 
-            assertThat(proxyServer.getRequestCount(), is(1));
-        } finally {
-            proxyServer.shutdown();
+            assertThat(proxyServer.requests(), hasSize(1));
         }
     }
 

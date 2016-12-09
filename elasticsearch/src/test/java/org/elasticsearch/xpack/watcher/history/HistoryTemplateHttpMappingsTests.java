@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.history;
 
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
-import com.squareup.okhttp.mockwebserver.QueueDispatcher;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
@@ -26,6 +26,7 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -35,20 +36,16 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegrationTestCase {
 
-    private MockWebServer webServer;
+    private MockWebServer webServer = new MockWebServer();
 
     @Before
     public void init() throws Exception {
-        QueueDispatcher dispatcher = new QueueDispatcher();
-        dispatcher.setFailFast(true);
-        webServer = new MockWebServer();
-        webServer.setDispatcher(dispatcher);
         webServer.start();
     }
 
     @After
     public void cleanup() throws Exception {
-        webServer.shutdown();
+        webServer.close();
     }
 
     @Override
@@ -61,6 +58,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         return false; // remove security noise from this test
     }
 
+    @TestLogging("org.elasticsearch.test.http:TRACE")
     public void testHttpFields() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("5s")))
@@ -72,6 +70,8 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
                 .get();
 
 
+        // one for the input, one for the webhook
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("{}"));
 
         assertThat(putWatchResponse.isCreated(), is(true));
@@ -104,5 +104,9 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
         assertThat(terms.getBuckets().size(), is(1));
         assertThat(terms.getBucketByKey("/webhook/path"), notNullValue());
         assertThat(terms.getBucketByKey("/webhook/path").getDocCount(), is(1L));
+
+        assertThat(webServer.requests(), hasSize(2));
+        assertThat(webServer.requests().get(0).getUri().getPath(), is("/input/path"));
+        assertThat(webServer.requests().get(1).getUri().getPath(), is("/webhook/path"));
     }
 }

@@ -5,12 +5,11 @@
  */
 package org.elasticsearch.xpack.watcher.test.integration;
 
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
-import com.squareup.okhttp.mockwebserver.RecordedRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.ApplicableBasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
@@ -39,7 +38,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -52,18 +51,17 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";
 
-    private MockWebServer webServer;
+    private MockWebServer webServer = new MockWebServer();;
     private static Boolean encryptSensitiveData;
 
     @Before
     public void init() throws Exception {
-        webServer = new MockWebServer();
         webServer.start();
     }
 
     @After
     public void cleanup() throws Exception {
-        webServer.shutdown();
+        webServer.close();
     }
 
     @Override
@@ -139,8 +137,9 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         assertThat(value, notNullValue());
         assertThat(value, is((Object) 200));
 
-        RecordedRequest request = webServer.takeRequest();
-        assertThat(request.getHeader("Authorization"), equalTo(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getHeader("Authorization"),
+                is(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
     }
 
     public void testWebhookAction() throws Exception {
@@ -216,7 +215,8 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
         value = contentSource.getValue("result.actions.0.webhook.request.auth.basic.password");
         assertThat(value, nullValue()); // but the auth password was filtered out
 
-        RecordedRequest request = webServer.takeRequest();
-        assertThat(request.getHeader("Authorization"), equalTo(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
+        assertThat(webServer.requests(), hasSize(1));
+        assertThat(webServer.requests().get(0).getHeader("Authorization"),
+                is(ApplicableBasicAuth.headerValue(USERNAME, PASSWORD.toCharArray())));
     }
 }

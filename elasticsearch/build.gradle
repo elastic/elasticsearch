@@ -16,10 +16,6 @@ esplugin {
 }
 archivesBaseName = 'x-pack' // for api jar
 
-ext.versions = [
-  okhttp: '2.7.5'
-]
-
 // TODO: fix this! https://github.com/elastic/x-plugins/issues/1066
 ext.compactProfile = 'full'
 
@@ -58,12 +54,6 @@ dependencies {
   testCompile 'org.elasticsearch:securemock:1.2'
   testCompile 'org.slf4j:slf4j-log4j12:1.6.2'
   testCompile 'org.slf4j:slf4j-api:1.6.2'
-
-  // mock web server
-  testCompile "com.squareup.okhttp:mockwebserver:${versions.okhttp}"
-  testCompile "com.squareup.okhttp:okhttp:${versions.okhttp}"
-  testCompile "com.squareup.okhttp:okhttp-ws:${versions.okhttp}"
-  testCompile 'com.squareup.okio:okio:1.6.0'
 }
 
 // make LicenseSigner available for testing signed licenses

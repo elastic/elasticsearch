@@ -15,6 +15,7 @@
 # language governing permissions and limitations under the License.
 
 import argparse
+import base64
 import glob
 import logging
 import os
@@ -57,15 +58,23 @@ def assert_sort(hits):
     assert x >= val, '%s >= %s' % (x, val)
     val = x
 
+def random_binary_base64():
+  return base64.b64encode(bytearray(random.getrandbits(8) for _ in range(16))).decode('ascii')
+
 # Indexes the given number of document into the given index
 # and randomly runs refresh, optimize and flush commands
-def index_documents(es, index_name, type, num_docs):
+def index_documents(es, index_name, type, num_docs, supports_compressed_binary_fields):
   logging.info('Indexing %s docs' % num_docs)
   for id in range(0, num_docs):
-    es.index(index=index_name, doc_type=type, id=id, body={'string': str(random.randint(0, 100)),
-                                                           'long_sort': random.randint(0, 100),
-                                                           'double_sort' : float(random.randint(0, 100)),
-                                                           'bool' : random.choice([True, False])})
+    body = {'string': str(random.randint(0, 100)),
+            'long_sort': random.randint(0, 100),
+            'double_sort' : float(random.randint(0, 100)),
+            'bool' : random.choice([True, False])}
+
+    body['binary'] = random_binary_base64()
+    if supports_compressed_binary_fields:
+      body['binary_compressed'] = random_binary_base64()
+    es.index(index=index_name, doc_type=type, id=id, body=body)
     if rarely():
       es.indices.refresh(index=index_name)
     if rarely():
@@ -178,6 +187,7 @@ def generate_index(client, version, index_name):
   logging.info('Create single shard test index')
 
   mappings = {}
+  mappings['doc'] = {'properties' : {}}
   if not version.startswith('2.'):
     # TODO: we need better "before/onOr/after" logic in python
 
@@ -251,6 +261,21 @@ def generate_index(client, version, index_name):
       }
     }
 
+  # test back-compat of stored binary fields
+  mappings['doc']['properties']['binary'] = {
+    'type': 'binary',
+    'store': True,
+    }
+
+  supports_compressed_binary_fields = version.startswith('0.') or version.startswith('1.')  
+
+  if supports_compressed_binary_fields:
+    mappings['doc']['properties']['binary_compressed'] = {
+      'type': 'binary',
+      'compress': True,
+      'store': True,
+      }
+    
   settings = {
     'number_of_shards': 1,
     'number_of_replicas': 0,
@@ -275,7 +300,7 @@ def generate_index(client, version, index_name):
     # lighter index for it to keep bw tests reasonable
     # see https://github.com/elastic/elasticsearch/issues/5817
     num_docs = int(num_docs / 10)
-  index_documents(client, index_name, 'doc', num_docs)
+  index_documents(client, index_name, 'doc', num_docs, supports_compressed_binary_fields)
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, index_name, 'doc', num_docs)
 

@@ -505,7 +505,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 Job jobConfig = request.config() ? jobs.results().get(0) : null;
                 DataCounts dataCounts = readDataCounts(request.dataCounts(), request.getJobId());
                 ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), request.getJobId());
-                SchedulerStatus schedulerStatus = readSchedulerState(request.schedulerStatus(), request.getJobId());
+                SchedulerStatus schedulerStatus = readSchedulerStatus(request.schedulerStatus(), request.getJobId());
                 JobStatus jobStatus = readJobStatus(request.status(), request.getJobId());
 
                 Response.JobInfo jobInfo = new Response.JobInfo(
@@ -522,7 +522,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                     Job jobConfig = request.config() ? job : null;
                     DataCounts dataCounts = readDataCounts(request.dataCounts(), job.getId());
                     ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), job.getId());
-                    SchedulerStatus schedulerStatus = readSchedulerState(request.schedulerStatus(), job.getId());
+                    SchedulerStatus schedulerStatus = readSchedulerStatus(request.schedulerStatus(), job.getId());
                     JobStatus jobStatus = readJobStatus(request.status(), job.getId());
                     Response.JobInfo jobInfo = new Response.JobInfo(job.getId(), jobConfig, dataCounts, modelSizeStats,
                             schedulerStatus, jobStatus);
@@ -557,7 +557,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
             return null;
         }
 
-        private SchedulerStatus readSchedulerState(boolean schedulerState, String jobId) {
+        private SchedulerStatus readSchedulerStatus(boolean schedulerState, String jobId) {
             return schedulerState ? jobManager.getSchedulerStatus(jobId).orElse(null) : null;
         }
 

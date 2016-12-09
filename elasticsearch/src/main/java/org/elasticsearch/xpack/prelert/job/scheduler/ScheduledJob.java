@@ -112,7 +112,7 @@ class ScheduledJob {
         return running;
     }
 
-    private void run(long start, Long end, FlushJobAction.Request flushRequest) throws IOException {
+    private void run(long start, long end, FlushJobAction.Request flushRequest) throws IOException {
         if (end <= start) {
             return;
         }

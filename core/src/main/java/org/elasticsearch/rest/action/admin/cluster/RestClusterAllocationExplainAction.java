@@ -74,6 +74,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
                     client.admin().cluster().allocationExplain(req, new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(ClusterAllocationExplainResponse response, XContentBuilder builder) throws Exception {
+                    builder.humanReadable(true);
                     response.getExplanation().toXContent(builder, ToXContent.EMPTY_PARAMS);
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }

@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.Locale;
 
 import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
 
@@ -116,7 +117,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             builder.field("index", shardRouting.getIndexName());
             builder.field("shard", shardRouting.getId());
             builder.field("primary", shardRouting.primary());
-            builder.field("assigned_to_node", this.currentNode != null);
+            builder.field("current_shard_state", shardRouting.state().toString().toLowerCase(Locale.ROOT));
             if (shardRouting.unassignedInfo() != null) {
                 unassignedInfoToXContent(shardRouting.unassignedInfo(), builder);
             }

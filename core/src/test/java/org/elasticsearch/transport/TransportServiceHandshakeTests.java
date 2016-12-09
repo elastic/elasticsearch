@@ -156,29 +156,6 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
     }
 
-    public void testIgnoreMismatchedClusterName() throws IOException {
-        Settings settings = Settings.builder().put("cluster.name", "a").build();
-
-        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
-        NetworkHandle handleB =
-                startServices(
-                        "TS_B",
-                        Settings.builder().put("cluster.name", "b").build(),
-                        VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT)
-                );
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            "",
-            handleB.discoveryNode.getAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT.minimumCompatibilityVersion());
-        DiscoveryNode connectedNode = handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout);
-        assertNotNull(connectedNode);
-        assertEquals(connectedNode.getName(), "TS_B");
-        assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
-        assertTrue(handleA.transportService.nodeConnected(discoveryNode));
-    }
-
     private static class NetworkHandle {
         private TransportService transportService;
         private DiscoveryNode discoveryNode;

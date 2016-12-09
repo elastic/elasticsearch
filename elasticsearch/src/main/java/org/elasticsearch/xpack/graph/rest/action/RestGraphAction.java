@@ -124,7 +124,7 @@ public class RestGraphAction extends XPackRestHandler {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (context.getParseFieldMatcher().match(fieldName, QUERY_FIELD)) {
-                    context.parseInnerQueryBuilder().ifPresent(currentHop::guidingQuery);
+                    currentHop.guidingQuery(context.parseInnerQueryBuilder());
                 } else if (context.getParseFieldMatcher().match(fieldName, CONNECTIONS_FIELD)) {
                     parseHop(parser, context, graphRequest.createNextHop(null), graphRequest);
                 } else if (context.getParseFieldMatcher().match(fieldName, CONTROLS_FIELD)) {

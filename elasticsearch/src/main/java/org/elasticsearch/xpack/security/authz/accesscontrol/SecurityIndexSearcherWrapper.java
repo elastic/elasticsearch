@@ -80,7 +80,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -158,13 +157,11 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                     QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
                     bytesReference = evaluateTemplate(bytesReference);
                     try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference)) {
-                        Optional<QueryBuilder> queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
-                        if (queryBuilder.isPresent()) {
-                            verifyRoleQuery(queryBuilder.get());
-                            failIfQueryUsesClient(scriptService, queryBuilder.get(), queryShardContext);
-                            ParsedQuery parsedQuery = queryShardContext.toQuery(queryBuilder.get());
-                            filter.add(parsedQuery.query(), SHOULD);
-                        }
+                        QueryBuilder queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
+                        verifyRoleQuery(queryBuilder);
+                        failIfQueryUsesClient(scriptService, queryBuilder, queryShardContext);
+                        ParsedQuery parsedQuery = queryShardContext.toQuery(queryBuilder);
+                        filter.add(parsedQuery.query(), SHOULD);
                     }
                 }
                 // at least one of the queries should match

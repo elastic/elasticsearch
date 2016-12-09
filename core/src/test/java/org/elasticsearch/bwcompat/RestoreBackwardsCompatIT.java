@@ -116,6 +116,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/22068")
     public void testRestoreUnsupportedSnapshots() throws Exception {
         String repo = "test_repo";
         String snapshot = "test_1";

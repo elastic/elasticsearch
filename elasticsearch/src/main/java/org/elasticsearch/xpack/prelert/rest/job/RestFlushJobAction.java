@@ -36,8 +36,8 @@ public class RestFlushJobAction extends BaseRestHandler {
                               FlushJobAction.TransportAction flushJobAction) {
         super(settings);
         this.flushJobAction = flushJobAction;
-        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/_flush",
-                this);
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH
+                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_flush", this);
     }
 
     @Override

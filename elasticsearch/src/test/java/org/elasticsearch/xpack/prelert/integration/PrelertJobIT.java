@@ -52,7 +52,7 @@ public class PrelertJobIT extends ESRestTestCase {
 
     public void testGetJob_GivenNoSuchJob() throws Exception {
         ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/non-existing-job/_stats"));
+                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/non-existing-job/_stats"));
 
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("Could not find requested jobs"));
@@ -61,7 +61,7 @@ public class PrelertJobIT extends ESRestTestCase {
     public void testGetJob_GivenJobExists() throws Exception {
         createFarequoteJob();
 
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/farequote/_stats");
+        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/farequote/_stats");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -71,7 +71,7 @@ public class PrelertJobIT extends ESRestTestCase {
 
     public void testGetJobs_GivenNegativeFrom() throws Exception {
         ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/_stats?from=-1"));
+                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?from=-1"));
 
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString("\"reason\":\"Parameter [from] cannot be < 0\""));
@@ -79,7 +79,7 @@ public class PrelertJobIT extends ESRestTestCase {
 
     public void testGetJobs_GivenNegativeSize() throws Exception {
         ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/_stats?size=-1"));
+                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?size=-1"));
 
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString("\"reason\":\"Parameter [size] cannot be < 0\""));
@@ -87,7 +87,7 @@ public class PrelertJobIT extends ESRestTestCase {
 
     public void testGetJobs_GivenFromAndSizeSumTo10001() throws Exception {
         ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/_stats?from=1000&size=11001"));
+                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?from=1000&size=11001"));
 
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         assertThat(e.getMessage(), containsString("\"reason\":\"The sum of parameters [from] and [size] cannot be higher than 10000."));
@@ -96,7 +96,7 @@ public class PrelertJobIT extends ESRestTestCase {
     public void testGetJobs_GivenSingleJob() throws Exception {
         createFarequoteJob();
 
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/_stats");
+        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -109,7 +109,7 @@ public class PrelertJobIT extends ESRestTestCase {
         createFarequoteJob("farequote_2");
         createFarequoteJob("farequote_3");
 
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/_stats");
+        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -124,7 +124,7 @@ public class PrelertJobIT extends ESRestTestCase {
         createFarequoteJob("farequote_2");
         createFarequoteJob("farequote_3");
 
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/_stats?from=1");
+        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?from=1");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -139,7 +139,7 @@ public class PrelertJobIT extends ESRestTestCase {
         createFarequoteJob("farequote_2");
         createFarequoteJob("farequote_3");
 
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/_stats?size=1");
+        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?size=1");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -154,7 +154,7 @@ public class PrelertJobIT extends ESRestTestCase {
         createFarequoteJob("farequote_2");
         createFarequoteJob("farequote_3");
 
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/_stats?from=1&size=1");
+        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?from=1&size=1");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -176,7 +176,7 @@ public class PrelertJobIT extends ESRestTestCase {
                 "\"time_field\":\"time\",\n"
                 + "        \"time_format\":\"yyyy-MM-dd HH:mm:ssX\"\n" + "    }\n" + "}";
 
-        return client().performRequest("put", PrelertPlugin.BASE_PATH + "jobs", Collections.emptyMap(), new StringEntity(job));
+        return client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors", Collections.emptyMap(), new StringEntity(job));
     }
 
     public void testGetBucketResults() throws Exception {
@@ -185,32 +185,34 @@ public class PrelertJobIT extends ESRestTestCase {
         params.put("end", "1400"); // exclusive
 
         ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/buckets", params));
+                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/1/results/buckets", params));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("No known job with id '1'"));
 
         addBucketResult("1", "1234", 1);
         addBucketResult("1", "1235", 1);
         addBucketResult("1", "1236", 1);
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/buckets", params);
+        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/1/results/buckets", params);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":3"));
 
         params.put("end", "1235");
-        response = client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/buckets", params);
+        response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/1/results/buckets", params);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":1"));
 
-        e = expectThrows(ResponseException.class, () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "results/2/buckets/1234"));
+        e = expectThrows(ResponseException.class, () -> client().performRequest("get", PrelertPlugin.BASE_PATH
+                + "anomaly_detectors/2/results/buckets/1234"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("No known job with id '2'"));
 
-        e = expectThrows(ResponseException.class, () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/buckets/1"));
+        e = expectThrows(ResponseException.class, () -> client().performRequest("get",
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/1/results/buckets/1"));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
-        response = client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/buckets/1234");
+        response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/1/results/buckets/1234");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, not(isEmptyString()));
@@ -222,20 +224,20 @@ public class PrelertJobIT extends ESRestTestCase {
         params.put("end", "1400"); // exclusive
 
         ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/records", params));
+                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/1/results/records", params));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
         assertThat(e.getMessage(), containsString("No known job with id '1'"));
 
         addRecordResult("1", "1234", 1, 1);
         addRecordResult("1", "1235", 1, 2);
         addRecordResult("1", "1236", 1, 3);
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/records", params);
+        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/1/results/records", params);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":3"));
 
         params.put("end", "1235");
-        response = client().performRequest("get", PrelertPlugin.BASE_PATH + "results/1/records", params);
+        response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/1/results/records", params);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         responseAsString = responseEntityToString(response);
         assertThat(responseAsString, containsString("\"count\":1"));

@@ -28,7 +28,7 @@ public class RestCloseJobAction extends BaseRestHandler {
         super(settings);
         this.closeJobAction = closeJobAction;
         controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH
-                + "jobs/{" + Job.ID.getPreferredName() + "}/_close", this);
+                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_close", this);
     }
 
     @Override

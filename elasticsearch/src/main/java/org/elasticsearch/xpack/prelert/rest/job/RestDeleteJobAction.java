@@ -26,7 +26,8 @@ public class RestDeleteJobAction extends BaseRestHandler {
     public RestDeleteJobAction(Settings settings, RestController controller, DeleteJobAction.TransportAction transportDeleteJobAction) {
         super(settings);
         this.transportDeleteJobAction = transportDeleteJobAction;
-        controller.registerHandler(RestRequest.Method.DELETE, PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.DELETE, PrelertPlugin.BASE_PATH
+                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
     }
 
     @Override

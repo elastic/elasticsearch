@@ -30,16 +30,16 @@ public class RestGetCategoriesAction extends BaseRestHandler {
         super(settings);
         this.transportAction = transportAction;
         controller.registerHandler(RestRequest.Method.GET,
-                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/categorydefinitions/{"
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categorydefinitions/{"
                 + Request.CATEGORY_ID.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.GET,
-                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/categorydefinitions", this);
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categorydefinitions", this);
 
         controller.registerHandler(RestRequest.Method.POST,
-                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/categorydefinitions/{"
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categorydefinitions/{"
                 + Request.CATEGORY_ID.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.POST,
-                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/categorydefinitions", this);
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/categorydefinitions", this);
     }
 
     @Override

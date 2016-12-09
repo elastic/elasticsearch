@@ -89,7 +89,7 @@ public class ScheduledJobIT extends ESRestTestCase {
         assertThat(responseEntityToString(startSchedulerRequest), containsString("{\"task\":\""));
         assertBusy(() -> {
             try {
-                Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/" + jobId + "/_stats",
+                Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats",
                         Collections.singletonMap("metric", "data_counts"));
                 assertThat(responseEntityToString(getJobResponse), containsString("\"input_record_count\":2"));
             } catch (Exception e) {
@@ -111,7 +111,7 @@ public class ScheduledJobIT extends ESRestTestCase {
         assertThat(responseEntityToString(response), containsString("{\"task\":\""));
         assertBusy(() -> {
             try {
-                Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "jobs/" + jobId + "/_stats",
+                Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats",
                         Collections.singletonMap("metric", "data_counts,status"));
                 String responseAsString = responseEntityToString(getJobResponse);
                 assertThat(responseAsString, containsString("\"status\":\"OPENED\""));
@@ -122,7 +122,7 @@ public class ScheduledJobIT extends ESRestTestCase {
         });
 
         ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("delete", PrelertPlugin.BASE_PATH + "jobs/" + jobId));
+                () -> client().performRequest("delete", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId));
         response = e.getResponse();
         assertThat(response.getStatusLine().getStatusCode(), equalTo(409));
         assertThat(responseEntityToString(response), containsString("Cannot delete job '" + jobId + "' while it is OPENED"));
@@ -132,8 +132,8 @@ public class ScheduledJobIT extends ESRestTestCase {
         assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
         waitForSchedulerStoppedState(client(), jobId);
 
-        client().performRequest("POST", "/_xpack/prelert/jobs/" + jobId + "/_close");
-        response = client().performRequest("delete", PrelertPlugin.BASE_PATH + "jobs/" + jobId);
+        client().performRequest("POST", "/_xpack/prelert/anomaly_detectors/" + jobId + "/_close");
+        response = client().performRequest("delete", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
     }
@@ -160,7 +160,7 @@ public class ScheduledJobIT extends ESRestTestCase {
                 "\"time_field\":\"time\",\n"
                 + "        \"time_format\":\"yyyy-MM-dd'T'HH:mm:ssX\"\n" + "    }\n" + "}";
 
-        return client().performRequest("put", PrelertPlugin.BASE_PATH + "jobs", Collections.emptyMap(), new StringEntity(job));
+        return client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors", Collections.emptyMap(), new StringEntity(job));
     }
 
     private Response createScheduledJob(String id) throws Exception {
@@ -174,7 +174,7 @@ public class ScheduledJobIT extends ESRestTestCase {
                 + "    \"scheduler_config\" : {\n" +  "        \"indexes\":[\"airline-data\"],\n"
                 + "        \"types\":[\"response\"],\n" + "        \"retrieve_whole_source\":true\n" + "    }\n" + "}";
 
-        return client().performRequest("put", PrelertPlugin.BASE_PATH + "jobs", Collections.emptyMap(), new StringEntity(job));
+        return client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors", Collections.emptyMap(), new StringEntity(job));
     }
 
     private static String responseEntityToString(Response response) throws Exception {
@@ -187,7 +187,8 @@ public class ScheduledJobIT extends ESRestTestCase {
         try {
             assertBusy(() -> {
                 try {
-                    Response getJobResponse = client.performRequest("get", PrelertPlugin.BASE_PATH + "jobs/" + jobId + "/_stats",
+                    Response getJobResponse = client.performRequest("get",
+                            PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats",
                             Collections.singletonMap("metric", "scheduler_status"));
                     assertThat(responseEntityToString(getJobResponse), containsString("\"status\":\"STOPPED\""));
                 } catch (Exception e) {
@@ -225,17 +226,17 @@ public class ScheduledJobIT extends ESRestTestCase {
                 // ignore
             }
             try {
-                Response response = client.performRequest("POST", "/_xpack/prelert/jobs/" + jobId + "/_close");
+                Response response = client.performRequest("POST", "/_xpack/prelert/anomaly_detectors/" + jobId + "/_close");
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             } catch (Exception e) {
                 // ignore
             }
-            client.performRequest("DELETE", "/_xpack/prelert/jobs/" + jobId);
+            client.performRequest("DELETE", "/_xpack/prelert/anomaly_detectors/" + jobId);
         }
     }
 
     public static void openJob(RestClient client, String jobId) throws IOException {
-        Response response = client.performRequest("post", PrelertPlugin.BASE_PATH + "jobs/" + jobId + "/_open");
+        Response response = client.performRequest("post", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
     }
 }

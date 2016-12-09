@@ -35,18 +35,18 @@ public class RestGetJobsAction extends BaseRestHandler {
         this.transportGetJobAction = transportGetJobAction;
 
         // GETs
-        controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/_stats",
-                this);
+        controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH
+                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats", this);
         controller.registerHandler(RestRequest.Method.GET,
-                PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/_stats/{metric}", this);
-        controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH + "jobs/_stats", this);
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats/{metric}", this);
+        controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats", this);
 
         // POSTs
-        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/_stats",
-                this);
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH
+                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats", this);
         controller.registerHandler(RestRequest.Method.POST,
-                PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/_stats/{metric}", this);
-        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "jobs/_stats", this);
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats/{metric}", this);
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats", this);
     }
 
     @Override

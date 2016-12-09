@@ -32,16 +32,16 @@ public class RestGetBucketsAction extends BaseRestHandler {
         super(settings);
         this.transportAction = transportAction;
         controller.registerHandler(RestRequest.Method.GET,
-                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName()
-                        + "}/buckets/{" + Bucket.TIMESTAMP.getPreferredName() + "}", this);
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                        + "}/results/buckets/{" + Bucket.TIMESTAMP.getPreferredName() + "}", this);
         controller.registerHandler(RestRequest.Method.POST,
-                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName()
-                        + "}/buckets/{" + Bucket.TIMESTAMP.getPreferredName() + "}", this);
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName()
+                        + "}/results/buckets/{" + Bucket.TIMESTAMP.getPreferredName() + "}", this);
 
         controller.registerHandler(RestRequest.Method.GET,
-                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/buckets", this);
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/buckets", this);
         controller.registerHandler(RestRequest.Method.POST,
-                PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/buckets", this);
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/results/buckets", this);
     }
 
     @Override

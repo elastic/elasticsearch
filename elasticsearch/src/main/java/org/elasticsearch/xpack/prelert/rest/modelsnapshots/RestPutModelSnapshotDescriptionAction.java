@@ -34,8 +34,8 @@ public class RestPutModelSnapshotDescriptionAction extends BaseRestHandler {
         this.transportAction = transportAction;
 
         // NORELEASE: should be a POST action
-        controller.registerHandler(RestRequest.Method.PUT, PrelertPlugin.BASE_PATH + "modelsnapshots/{"
-                + Job.ID.getPreferredName() + "}/{" + ModelSnapshot.SNAPSHOT_ID +"}/description",
+        controller.registerHandler(RestRequest.Method.PUT, PrelertPlugin.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/modelsnapshots/{" + ModelSnapshot.SNAPSHOT_ID +"}/description",
                 this);
     }
 

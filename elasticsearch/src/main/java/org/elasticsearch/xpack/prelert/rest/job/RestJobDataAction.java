@@ -30,8 +30,8 @@ public class RestJobDataAction extends BaseRestHandler {
     public RestJobDataAction(Settings settings, RestController controller, JobDataAction.TransportAction transportPostDataAction) {
         super(settings);
         this.transportPostDataAction = transportPostDataAction;
-        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/data",
-                this);
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH
+                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/data", this);
     }
 
     @Override

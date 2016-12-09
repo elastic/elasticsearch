@@ -31,10 +31,10 @@ public class RestGetRecordsAction extends BaseRestHandler {
     public RestGetRecordsAction(Settings settings, RestController controller, GetRecordsAction.TransportAction transportAction) {
         super(settings);
         this.transportAction = transportAction;
-        controller.registerHandler(
-                RestRequest.Method.GET, PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/records", this);
-        controller.registerHandler(
-                RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "results/{" + Job.ID.getPreferredName() + "}/records", this);
+        controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/results/records", this);
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/results/records", this);
     }
 
     @Override

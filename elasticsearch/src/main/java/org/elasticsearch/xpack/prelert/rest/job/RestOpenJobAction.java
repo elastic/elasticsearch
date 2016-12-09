@@ -14,6 +14,7 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
+import org.elasticsearch.xpack.prelert.action.JobDataAction;
 import org.elasticsearch.xpack.prelert.action.OpenJobAction;
 import org.elasticsearch.xpack.prelert.job.Job;
 
@@ -27,16 +28,18 @@ public class RestOpenJobAction extends BaseRestHandler {
     public RestOpenJobAction(Settings settings, RestController controller, OpenJobAction.TransportAction openJobAction) {
         super(settings);
         this.openJobAction = openJobAction;
-        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "jobs/{" + Job.ID.getPreferredName() + "}/_open",
-                this);
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH
+                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_open", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         OpenJobAction.Request request = new OpenJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
-        request.setIgnoreDowntime(restRequest.paramAsBoolean("ignore_downtime", false));
-        if (restRequest.hasParam("open_timeout")) {
-            request.setOpenTimeout(TimeValue.parseTimeValue(restRequest.param("open_timeout"), "open_timeout"));
+        request.setIgnoreDowntime(restRequest.paramAsBoolean(JobDataAction.Request.IGNORE_DOWNTIME.getPreferredName(), false));
+        if (restRequest.hasParam(OpenJobAction.Request.OPEN_TIMEOUT.getPreferredName())) {
+            request.setOpenTimeout(TimeValue.parseTimeValue(
+                    restRequest.param(OpenJobAction.Request.OPEN_TIMEOUT.getPreferredName()),
+                    OpenJobAction.Request.OPEN_TIMEOUT.getPreferredName()));
         }
         return channel -> openJobAction.execute(request, new AcknowledgedRestListener<>(channel));
     }

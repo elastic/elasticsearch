@@ -2,10 +2,10 @@
   "xpack.prelert.get_buckets": {
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/prelert/results/{job_id}/buckets/{timestamp}",
+      "path": "/_xpack/prelert/anomaly_detectors/{job_id}/results/buckets/{timestamp}",
       "paths": [
-        "/_xpack/prelert/results/{job_id}/buckets/{timestamp}",
-        "/_xpack/prelert/results/{job_id}/buckets"
+        "/_xpack/prelert/anomaly_detectors/{job_id}/results/buckets/{timestamp}",
+        "/_xpack/prelert/anomaly_detectors/{job_id}/results/buckets"
       ],
       "parts": {
         "job_id": {

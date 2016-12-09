@@ -2,8 +2,8 @@
   "xpack.prelert.delete_job": {
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_xpack/prelert/jobs/{job_id}",
-      "paths": [ "/_xpack/prelert/jobs/{job_id}" ],
+      "path": "/_xpack/prelert/anomaly_detectors/{job_id}",
+      "paths": [ "/_xpack/prelert/anomaly_detectors/{job_id}" ],
       "parts": {
         "job_id": {
           "type": "string",

@@ -2,11 +2,11 @@
   "xpack.prelert.get_jobs": {
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/prelert/jobs/{job_id}",
+      "path": "/_xpack/prelert/anomaly_detectors/{job_id}",
       "paths": [
-        "/_xpack/prelert/jobs/_stats",
-        "/_xpack/prelert/jobs/{job_id}/_stats",
-        "/_xpack/prelert/jobs/{job_id}/_stats/{metric}"
+        "/_xpack/prelert/anomaly_detectors/_stats",
+        "/_xpack/prelert/anomaly_detectors/{job_id}/_stats",
+        "/_xpack/prelert/anomaly_detectors/{job_id}/_stats/{metric}"
       ],
       "parts": {
         "job_id": {

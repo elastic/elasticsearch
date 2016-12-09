@@ -28,8 +28,8 @@ public class RestDeleteModelSnapshotAction extends BaseRestHandler {
             DeleteModelSnapshotAction.TransportAction transportAction) {
         super(settings);
         this.transportAction = transportAction;
-        controller.registerHandler(RestRequest.Method.DELETE, PrelertPlugin.BASE_PATH + "modelsnapshots/{"
-                + Job.ID.getPreferredName() + "}/{" + ModelSnapshot.SNAPSHOT_ID.getPreferredName() + "}", this);
+        controller.registerHandler(RestRequest.Method.DELETE, PrelertPlugin.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/modelsnapshots/{" + ModelSnapshot.SNAPSHOT_ID.getPreferredName() + "}", this);
     }
 
     @Override

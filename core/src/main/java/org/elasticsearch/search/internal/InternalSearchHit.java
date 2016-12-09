@@ -31,7 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -564,9 +564,7 @@ public class InternalSearchHit implements SearchHit {
         score = in.readFloat();
         id = in.readOptionalText();
         type = in.readOptionalText();
-        if (in.readBoolean()) {
-            nestedIdentity = new InternalNestedIdentity(in);
-        }
+        nestedIdentity = in.readOptionalWriteable(InternalNestedIdentity::new);
         version = in.readLong();
         source = in.readBytesReference();
         if (source.length() == 0) {
@@ -658,7 +656,7 @@ public class InternalSearchHit implements SearchHit {
         out.writeFloat(score);
         out.writeOptionalText(id);
         out.writeOptionalText(type);
-        out.writeOptionalStreamable(nestedIdentity);
+        out.writeOptionalWriteable(nestedIdentity);
         out.writeLong(version);
         out.writeBytesReference(source);
         if (explanation == null) {
@@ -744,7 +742,7 @@ public class InternalSearchHit implements SearchHit {
         }
     }
 
-    public static final class InternalNestedIdentity implements NestedIdentity, Streamable, ToXContent {
+    public static final class InternalNestedIdentity implements NestedIdentity, Writeable, ToXContent {
 
         private Text field;
         private int offset;
@@ -757,7 +755,9 @@ public class InternalSearchHit implements SearchHit {
         }
 
         InternalNestedIdentity(StreamInput in) throws IOException {
-            readFrom(in);
+            field = in.readOptionalText();
+            offset = in.readInt();
+            child = in.readOptionalWriteable(InternalNestedIdentity::new);
         }
 
         @Override
@@ -776,19 +776,10 @@ public class InternalSearchHit implements SearchHit {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            field = in.readOptionalText();
-            offset = in.readInt();
-            if (in.readBoolean()) {
-                child = new InternalNestedIdentity(in);
-            }
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalText(field);
             out.writeInt(offset);
-            out.writeOptionalStreamable(child);
+            out.writeOptionalWriteable(child);
         }
 
         @Override
@@ -816,9 +807,9 @@ public class InternalSearchHit implements SearchHit {
             return builder;
         }
 
-        private static final ConstructingObjectParser<InternalNestedIdentity, ParseFieldMatcherSupplier> PARSER
-                = new ConstructingObjectParser<>("nested_identity",
-                        a -> new InternalNestedIdentity((String) a[0], (int) a[1], (InternalNestedIdentity) a[2]));
+        private static final ConstructingObjectParser<InternalNestedIdentity, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+                "nested_identity",
+                ctorArgs -> new InternalNestedIdentity((String) ctorArgs[0], (int) ctorArgs[1], (InternalNestedIdentity) ctorArgs[2]));
         static {
             PARSER.declareString(constructorArg(), new ParseField(Fields._NESTED_FIELD));
             PARSER.declareInt(constructorArg(), new ParseField(Fields._NESTED_OFFSET));

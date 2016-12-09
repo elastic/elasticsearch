@@ -32,6 +32,12 @@ aliases with invalid names is also no longer supported.
 The Log4j dependency has been upgraded from version 2.6.2 to version 2.7. If you're using the transport client in your
 application, you should update your Log4j dependencies accordingly.
 
+[float]
+==== Local discovery has been removed
+
+Local discovery has been removed; this discovery implementation was used internally in the tribe service and for tests
+that ran multiple nodes inside the same JVM. This means that setting `discovery.type` to `local` will fail on startup.
+
 [[breaking_51_plugin_api]]
 [float]
 === Plugin API changes

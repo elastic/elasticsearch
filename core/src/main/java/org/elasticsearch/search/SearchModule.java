@@ -168,6 +168,8 @@ import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidParser;
 import org.elasticsearch.search.aggregations.metrics.geocentroid.InternalGeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.geoheatmap.GeoHeatmapAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.geoheatmap.InternalGeoHeatmap;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.max.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.MaxParser;
@@ -435,6 +437,8 @@ public class SearchModule {
                 new GeoDistanceParser()).addResultReader(InternalGeoDistance::new));
         registerAggregation(new AggregationSpec(GeoGridAggregationBuilder.NAME, GeoGridAggregationBuilder::new, new GeoHashGridParser())
                 .addResultReader(InternalGeoHashGrid::new));
+        registerAggregation(new AggregationSpec(GeoHeatmapAggregationBuilder.NAME, GeoHeatmapAggregationBuilder::new, 
+                GeoHeatmapAggregationBuilder::parse).addResultReader(InternalGeoHeatmap::new));
         registerAggregation(new AggregationSpec(NestedAggregationBuilder.NAME, NestedAggregationBuilder::new,
                 NestedAggregationBuilder::parse).addResultReader(InternalNested::new));
         registerAggregation(new AggregationSpec(ReverseNestedAggregationBuilder.NAME, ReverseNestedAggregationBuilder::new,

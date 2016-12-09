@@ -17,19 +17,14 @@
  * under the License.
  */
 
-
-package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
-
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
+package org.elasticsearch.common.xcontent;
 
 import java.io.IOException;
 
 /**
- * Parses {@link SignificanceHeuristic}s from an {@link XContentParser}.
+ * Reads an object from a parser using some context.
  */
 @FunctionalInterface
-public interface SignificanceHeuristicParser {
-    SignificanceHeuristic parse(QueryParseContext context) throws IOException, ParsingException;
+public interface ContextParser<Context, T> {
+    T parse(XContentParser p, Context c) throws IOException;
 }

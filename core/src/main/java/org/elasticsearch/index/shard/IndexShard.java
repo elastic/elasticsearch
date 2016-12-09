@@ -759,7 +759,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.SyncedFlushResult syncFlush(String syncId, Engine.CommitId expectedCommitId) {
-        verifyStartedOrRecovering();
+        verifyNotClosed();
         logger.trace("trying to sync flush. sync id [{}]. expected commit id [{}]]", syncId, expectedCommitId);
         Engine engine = getEngine();
         if (engine.isRecovering()) {
@@ -779,7 +779,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // while recovering, and we want to keep the translog at bay (up to deletes, which
         // we don't gc). Yet, we don't use flush internally to clear deletes and flush the indexwriter since
         // we use #writeIndexingBuffer for this now.
-        verifyStartedOrRecovering();
+        verifyNotClosed();
         Engine engine = getEngine();
         if (engine.isRecovering()) {
             throw new IllegalIndexShardStateException(shardId(), state, "flush is only allowed if the engine is not recovery" +
@@ -793,7 +793,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void forceMerge(ForceMergeRequest forceMerge) throws IOException {
-        verifyStarted();
+        verifyActive();
         if (logger.isTraceEnabled()) {
             logger.trace("force merge with {}", forceMerge);
         }
@@ -805,7 +805,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Upgrades the shard to the current version of Lucene and returns the minimum segment version
      */
     public org.apache.lucene.util.Version upgrade(UpgradeRequest upgrade) throws IOException {
-        verifyStarted();
+        verifyActive();
         if (logger.isTraceEnabled()) {
             logger.trace("upgrade with {}", upgrade);
         }
@@ -1148,13 +1148,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    protected final void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
-        IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
-            throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering");
-        }
-    }
-
     private void verifyNotClosed() throws IllegalIndexShardStateException {
         verifyNotClosed(null);
     }
@@ -1170,10 +1163,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    protected final void verifyStarted() throws IllegalIndexShardStateException {
+    protected final void verifyActive() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
-        if (state != IndexShardState.STARTED) {
-            throw new IndexShardNotStartedException(shardId, state);
+        if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
+            throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when shard is active");
         }
     }
 

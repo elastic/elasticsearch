@@ -21,7 +21,9 @@ package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -31,6 +33,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -38,6 +41,16 @@ import java.io.IOException;
 public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, MissingAggregationBuilder> {
     public static final String NAME = "missing";
     public static final Type TYPE = new Type(NAME);
+
+    private static final ObjectParser<MissingAggregationBuilder, QueryParseContext> PARSER;
+    static {
+        PARSER = new ObjectParser<>(MissingAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareAnyFields(PARSER, true, true);
+    }
+
+    public static MissingAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new MissingAggregationBuilder(aggregationName, null), context);
+    }
 
     public MissingAggregationBuilder(String name, ValueType targetValueType) {
         super(name, TYPE, ValuesSourceType.ANY, targetValueType);

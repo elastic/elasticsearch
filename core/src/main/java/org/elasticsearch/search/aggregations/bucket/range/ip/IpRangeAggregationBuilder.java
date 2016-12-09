@@ -20,13 +20,21 @@ package org.elasticsearch.search.aggregations.bucket.range.ip;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator;
@@ -38,6 +46,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -53,6 +62,59 @@ public final class IpRangeAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, IpRangeAggregationBuilder> {
     public static final String NAME = "ip_range";
     private static final InternalAggregation.Type TYPE = new InternalAggregation.Type(NAME);
+    private static final ParseField MASK_FIELD = new ParseField("mask");
+
+    private static final ObjectParser<IpRangeAggregationBuilder, QueryParseContext> PARSER;
+    static {
+        PARSER = new ObjectParser<>(IpRangeAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareBytesFields(PARSER, false, false);
+
+        PARSER.declareBoolean(IpRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
+
+        PARSER.declareObjectArray((agg, ranges) -> {
+            for (Range range : ranges) agg.addRange(range);
+        }, IpRangeAggregationBuilder::parseRange, RangeAggregator.RANGES_FIELD);
+    }
+
+    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new IpRangeAggregationBuilder(aggregationName), context);
+    }
+
+    private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
+        final ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
+        String key = null;
+        String from = null;
+        String to = null;
+        String mask = null;
+
+        if (parser.currentToken() != Token.START_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(), "[ranges] must contain objects, but hit a " + parser.currentToken());
+        }
+        while (parser.nextToken() != Token.END_OBJECT) {
+            if (parser.currentToken() == Token.FIELD_NAME) {
+                continue;
+            }
+            if (parseFieldMatcher.match(parser.currentName(), RangeAggregator.Range.KEY_FIELD)) {
+                key = parser.text();
+            } else if (parseFieldMatcher.match(parser.currentName(), RangeAggregator.Range.FROM_FIELD)) {
+                from = parser.textOrNull();
+            } else if (parseFieldMatcher.match(parser.currentName(), RangeAggregator.Range.TO_FIELD)) {
+                to = parser.textOrNull();
+            } else if (parseFieldMatcher.match(parser.currentName(), MASK_FIELD)) {
+                mask = parser.text();
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Unexpected ip range parameter: [" + parser.currentName() + "]");
+            }
+        }
+        if (mask != null) {
+            if (key == null) {
+                key = mask;
+            }
+            return new Range(key, mask);
+        } else {
+            return new Range(key, from, to);
+        }
+    }
 
     public static class Range implements ToXContent {
 

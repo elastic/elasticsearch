@@ -69,10 +69,10 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.missing("MISSING");
         }
         if (randomBoolean()) {
-            factory.bucketCountThresholds().setRequiredSize(randomIntBetween(1, Integer.MAX_VALUE));
+            factory.size(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            factory.bucketCountThresholds().setShardSize(randomIntBetween(1, Integer.MAX_VALUE));
+            factory.shardSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
             int minDocCount = randomInt(4);
@@ -83,12 +83,12 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             case 2:
             case 3:
             case 4:
-                minDocCount = randomInt();
+                minDocCount = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             default:
                 fail();
             }
-            factory.bucketCountThresholds().setMinDocCount(minDocCount);
+            factory.minDocCount(minDocCount);
         }
         if (randomBoolean()) {
             int shardMinDocCount = randomInt(4);
@@ -99,12 +99,12 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             case 2:
             case 3:
             case 4:
-                shardMinDocCount = randomInt();
+                shardMinDocCount = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             default:
                 fail();
             }
-            factory.bucketCountThresholds().setShardMinDocCount(shardMinDocCount);
+            factory.shardMinDocCount(shardMinDocCount);
         }
         if (randomBoolean()) {
             factory.collectMode(randomFrom(SubAggCollectionMode.values()));
@@ -117,7 +117,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         }
         if (randomBoolean()) {
             IncludeExclude incExc = null;
-            switch (randomInt(5)) {
+            switch (randomInt(6)) {
             case 0:
                 incExc = new IncludeExclude(new RegExp("foobar"), null);
                 break;
@@ -157,6 +157,11 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
                     excludeValues3.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
                 }
                 incExc = new IncludeExclude(includeValues3, excludeValues3);
+                break;
+            case 6:
+                final int numPartitions = randomIntBetween(1, 100);
+                final int partition = randomIntBetween(0, numPartitions - 1);
+                incExc = new IncludeExclude(partition, numPartitions);
                 break;
             default:
                 fail();

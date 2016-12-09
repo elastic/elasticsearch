@@ -117,7 +117,7 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
         }
         if (randomBoolean()) {
             IncludeExclude incExc = null;
-            switch (randomInt(5)) {
+            switch (randomInt(6)) {
             case 0:
                 incExc = new IncludeExclude(new RegExp("foobar"), null);
                 break;
@@ -157,6 +157,11 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
                     excludeValues3.add(new BytesRef(randomAsciiOfLengthBetween(1, 30)));
                 }
                 incExc = new IncludeExclude(includeValues3, excludeValues3);
+                break;
+            case 6:
+                final int numPartitions = randomIntBetween(1, 100);
+                final int partition = randomIntBetween(0, numPartitions - 1);
+                incExc = new IncludeExclude(partition, numPartitions);
                 break;
             default:
                 fail();

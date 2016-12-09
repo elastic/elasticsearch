@@ -181,7 +181,7 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testIsBeta() {
-        assertTrue(Version.V_2_0_0_beta1.isBeta());
+        assertTrue(Version.fromString("2.0.0-beta1").isBeta());
         assertTrue(Version.fromString("1.0.0.Beta1").isBeta());
         assertTrue(Version.fromString("0.90.0.Beta1").isBeta());
     }

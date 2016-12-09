@@ -10,13 +10,13 @@ import org.elasticsearch.test.ESTestCase;
 public class JobSchedulerStatusTests extends ESTestCase {
 
     public void testForString() {
-        assertEquals(JobSchedulerStatus.fromString("started"), JobSchedulerStatus.STARTED);
-        assertEquals(JobSchedulerStatus.fromString("stopped"), JobSchedulerStatus.STOPPED);
+        assertEquals(SchedulerStatus.fromString("started"), SchedulerStatus.STARTED);
+        assertEquals(SchedulerStatus.fromString("stopped"), SchedulerStatus.STOPPED);
     }
 
     public void testValidOrdinals() {
-        assertEquals(0, JobSchedulerStatus.STARTED.ordinal());
-        assertEquals(1, JobSchedulerStatus.STOPPED.ordinal());
+        assertEquals(0, SchedulerStatus.STARTED.ordinal());
+        assertEquals(1, SchedulerStatus.STOPPED.ordinal());
     }
 
 }

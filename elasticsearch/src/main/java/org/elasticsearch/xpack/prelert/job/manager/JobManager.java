@@ -23,10 +23,9 @@ import org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction;
 import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.prelert.job.IgnoreDowntime;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
@@ -152,7 +151,7 @@ public class JobManager extends AbstractComponent {
      * @throws org.elasticsearch.ResourceNotFoundException
      *             if there is no job with matching the given {@code jobId}
      */
-    public Job getJobOrThrowIfUnknown(ClusterState clusterState, String jobId) {
+    Job getJobOrThrowIfUnknown(ClusterState clusterState, String jobId) {
         PrelertMetadata prelertMetadata = clusterState.metaData().custom(PrelertMetadata.TYPE);
         Job job = prelertMetadata.getJobs().get(jobId);
         if (job == null) {
@@ -166,26 +165,25 @@ public class JobManager extends AbstractComponent {
      */
     public void putJob(PutJobAction.Request request, ActionListener<PutJobAction.Response> actionListener) {
         Job job = request.getJob();
-        ActionListener<Boolean> delegateListener = ActionListener.wrap(jobSaved -> {
-            jobProvider.createJobRelatedIndices(job, new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(Boolean indicesCreated) {
-                    audit(job.getId()).info(Messages.getMessage(Messages.JOB_AUDIT_CREATED));
+        ActionListener<Boolean> delegateListener = ActionListener.wrap(jobSaved ->
+                jobProvider.createJobRelatedIndices(job, new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean indicesCreated) {
+                audit(job.getId()).info(Messages.getMessage(Messages.JOB_AUDIT_CREATED));
 
-                    // Also I wonder if we need to audit log infra
-                    // structure in prelert as when we merge into xpack
-                    // we can use its audit trailing. See:
-                    // https://github.com/elastic/prelert-legacy/issues/48
-                    actionListener.onResponse(new PutJobAction.Response(jobSaved && indicesCreated, job));
-                }
+                // Also I wonder if we need to audit log infra
+                // structure in prelert as when we merge into xpack
+                // we can use its audit trailing. See:
+                // https://github.com/elastic/prelert-legacy/issues/48
+                actionListener.onResponse(new PutJobAction.Response(jobSaved && indicesCreated, job));
+            }
 
-                @Override
-                public void onFailure(Exception e) {
-                    actionListener.onFailure(e);
+            @Override
+            public void onFailure(Exception e) {
+                actionListener.onFailure(e);
 
-                }
-            });
-        }, actionListener::onFailure);
+            }
+        }), actionListener::onFailure);
         clusterService.submitStateUpdateTask("put-job-" + job.getId(),
                 new AckedClusterStateUpdateTask<Boolean>(request, delegateListener) {
 
@@ -203,12 +201,9 @@ public class JobManager extends AbstractComponent {
     }
 
     ClusterState innerPutJob(Job job, boolean overwrite, ClusterState currentState) {
-        PrelertMetadata currentPrelertMetadata = currentState.metaData().custom(PrelertMetadata.TYPE);
-        PrelertMetadata.Builder builder = new PrelertMetadata.Builder(currentPrelertMetadata);
+        PrelertMetadata.Builder builder = createPrelertMetadatBuilder(currentState);
         builder.putJob(job, overwrite);
-        ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(PrelertMetadata.TYPE, builder.build()).build());
-        return newState.build();
+        return buildNewClusterState(currentState, builder);
     }
 
     /**
@@ -254,52 +249,29 @@ public class JobManager extends AbstractComponent {
     }
 
     ClusterState removeJobFromClusterState(String jobId, ClusterState currentState) {
-        PrelertMetadata currentPrelertMetadata = currentState.metaData().custom(PrelertMetadata.TYPE);
-        PrelertMetadata.Builder builder = new PrelertMetadata.Builder(currentPrelertMetadata);
+        PrelertMetadata.Builder builder = createPrelertMetadatBuilder(currentState);
         builder.removeJob(jobId);
 
-        Allocation allocation = currentPrelertMetadata.getAllocations().get(jobId);
-        if (allocation != null) {
-            SchedulerState schedulerState = allocation.getSchedulerState();
-            if (schedulerState != null && schedulerState.getStatus() != JobSchedulerStatus.STOPPED) {
-                throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.JOB_CANNOT_DELETE_WHILE_SCHEDULER_RUNS, jobId));
-            }
-            if (!allocation.getStatus().isAnyOf(JobStatus.CLOSED, JobStatus.FAILED)) {
-                throw ExceptionsHelper.conflictStatusException(Messages.getMessage(
-                        Messages.JOB_CANNOT_DELETE_WHILE_RUNNING, jobId, allocation.getStatus()));
-            }
-        }
-        ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(PrelertMetadata.TYPE, builder.build()).build());
-        return newState.build();
+        return buildNewClusterState(currentState, builder);
     }
 
-    private void checkJobIsScheduled(Job job) {
-        if (job.getSchedulerConfig() == null) {
-            throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_SCHEDULER_NO_SUCH_SCHEDULED_JOB, job.getId()));
-        }
-    }
-
-    public Optional<SchedulerState> getSchedulerState(String jobId) {
-        Job job = getJobOrThrowIfUnknown(clusterService.state(), jobId);
-        if (job.getSchedulerConfig() == null) {
-            return Optional.empty();
-        }
-
-        Allocation allocation = getAllocation(clusterService.state(), jobId);
-        return Optional.ofNullable(allocation.getSchedulerState());
+    public Optional<SchedulerStatus> getSchedulerStatus(String jobId) {
+        PrelertMetadata prelertMetadata = clusterService.state().metaData().custom(PrelertMetadata.TYPE);
+        return Optional.ofNullable(prelertMetadata.getSchedulerStatuses().get(jobId));
     }
 
     public void updateSchedulerStatus(UpdateJobSchedulerStatusAction.Request request,
                                       ActionListener<UpdateJobSchedulerStatusAction.Response> actionListener) {
         String jobId = request.getJobId();
-        JobSchedulerStatus newStatus = request.getSchedulerStatus();
+        SchedulerStatus newStatus = request.getSchedulerStatus();
         clusterService.submitStateUpdateTask("update-scheduler-status-job-" + jobId,
                 new AckedClusterStateUpdateTask<UpdateJobSchedulerStatusAction.Response>(request, actionListener) {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return innerUpdateSchedulerState(currentState, jobId, newStatus, null, null);
+                PrelertMetadata.Builder builder = createPrelertMetadatBuilder(currentState);
+                builder.updateSchedulerStatus(jobId, newStatus);
+                return buildNewClusterState(currentState, builder);
             }
 
             @Override
@@ -309,33 +281,6 @@ public class JobManager extends AbstractComponent {
         });
     }
 
-    private ClusterState innerUpdateSchedulerState(ClusterState currentState, String jobId, JobSchedulerStatus status,
-                                                   Long startTime, Long endTime) {
-        Job job = getJobOrThrowIfUnknown(currentState, jobId);
-        checkJobIsScheduled(job);
-
-        Allocation allocation = getAllocation(currentState, jobId);
-        if (allocation.getSchedulerState() == null && status != JobSchedulerStatus.STARTED) {
-            throw new IllegalArgumentException("Can't change status to [" + status + "], because job's [" + jobId +
-                    "] scheduler never started");
-        }
-
-        SchedulerState existingState = allocation.getSchedulerState();
-        if (existingState != null) {
-            if (startTime == null) {
-                startTime = existingState.getStartTimeMillis();
-            }
-            if (endTime == null) {
-                endTime = existingState.getEndTimeMillis();
-            }
-        }
-
-        existingState = new SchedulerState(status, startTime, endTime);
-        Allocation.Builder builder = new Allocation.Builder(allocation);
-        builder.setSchedulerState(existingState);
-        return innerUpdateAllocation(builder.build(), currentState);
-    }
-
     private Allocation getAllocation(ClusterState state, String jobId) {
         PrelertMetadata prelertMetadata = state.metaData().custom(PrelertMetadata.TYPE);
         Allocation allocation = prelertMetadata.getAllocations().get(jobId);
@@ -343,15 +288,6 @@ public class JobManager extends AbstractComponent {
             throw new ResourceNotFoundException("No allocation found for job with id [" + jobId + "]");
         }
         return allocation;
-    }
-
-    private ClusterState innerUpdateAllocation(Allocation newAllocation, ClusterState currentState) {
-        PrelertMetadata currentPrelertMetadata = currentState.metaData().custom(PrelertMetadata.TYPE);
-        PrelertMetadata.Builder builder = new PrelertMetadata.Builder(currentPrelertMetadata);
-        builder.updateAllocation(newAllocation.getJobId(), newAllocation);
-        ClusterState.Builder newState = ClusterState.builder(currentState);
-        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(PrelertMetadata.TYPE, builder.build()).build());
-        return newState.build();
     }
 
     public Auditor audit(String jobId) {
@@ -461,6 +397,17 @@ public class JobManager extends AbstractComponent {
         // Commit so that when the REST API call that triggered the update
         // returns the updated document is searchable
         jobResultsPersister.commitWrites(jobId);
+    }
+
+    private static PrelertMetadata.Builder createPrelertMetadatBuilder(ClusterState currentState) {
+        PrelertMetadata currentPrelertMetadata = currentState.metaData().custom(PrelertMetadata.TYPE);
+        return new PrelertMetadata.Builder(currentPrelertMetadata);
+    }
+
+    private static ClusterState buildNewClusterState(ClusterState currentState, PrelertMetadata.Builder builder) {
+        ClusterState.Builder newState = ClusterState.builder(currentState);
+        newState.metaData(MetaData.builder(currentState.getMetaData()).putCustom(PrelertMetadata.TYPE, builder.build()).build());
+        return newState.build();
     }
 
 }

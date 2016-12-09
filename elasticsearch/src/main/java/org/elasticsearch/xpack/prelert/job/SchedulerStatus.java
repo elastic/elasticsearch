@@ -12,18 +12,18 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 import java.util.Locale;
 
-public enum JobSchedulerStatus implements Writeable {
+public enum SchedulerStatus implements Writeable {
 
     STARTED, STOPPED;
 
-    public static JobSchedulerStatus fromString(String name) {
+    public static SchedulerStatus fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public static JobSchedulerStatus fromStream(StreamInput in) throws IOException {
+    public static SchedulerStatus fromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown public enum JobSchedulerStatus {\n ordinal [" + ordinal + "]");
+            throw new IOException("Unknown public enum SchedulerStatus {\n ordinal [" + ordinal + "]");
         }
         return values()[ordinal];
     }

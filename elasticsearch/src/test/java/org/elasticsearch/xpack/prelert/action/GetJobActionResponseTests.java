@@ -13,13 +13,12 @@ import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.IgnoreDowntime;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelDebugConfig;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import org.elasticsearch.xpack.prelert.job.transform.TransformType;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
@@ -86,10 +85,9 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
                 sizeStats = new ModelSizeStats.Builder("foo").build();
             }
 
-            SchedulerState schedulerState = null;
+            SchedulerStatus schedulerStatus = null;
             if (randomBoolean()) {
-                schedulerState = new SchedulerState(randomFrom(EnumSet.allOf(JobSchedulerStatus.class)), randomPositiveLong(),
-                        randomPositiveLong());
+                schedulerStatus = randomFrom(SchedulerStatus.values());
             }
 
             JobStatus jobStatus = null;
@@ -97,7 +95,7 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
                 jobStatus = randomFrom(EnumSet.allOf(JobStatus.class));
             }
 
-            Response.JobInfo jobInfo = new Response.JobInfo(jobId, job, dataCounts, sizeStats, schedulerState, jobStatus);
+            Response.JobInfo jobInfo = new Response.JobInfo(jobId, job, dataCounts, sizeStats, schedulerStatus, jobStatus);
             jobInfoList.add(jobInfo);
         }
 

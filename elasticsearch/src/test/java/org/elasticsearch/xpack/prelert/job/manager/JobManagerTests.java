@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.prelert.job.manager;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,7 +33,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xpack.prelert.job.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -191,23 +189,6 @@ public class JobManagerTests extends ESTestCase {
         result = jobManager.getJobs(9, 10, clusterState);
         assertThat(result.count(), equalTo(10L));
         assertThat(result.results().get(0).getId(), equalTo("9"));
-    }
-
-    public void testInnerPutJob() {
-        JobManager jobManager = createJobManager();
-        ClusterState cs = createClusterState();
-
-        Job job1 = buildJobBuilder("_id").build();
-        ClusterState result1 = jobManager.innerPutJob(job1, false, cs);
-        PrelertMetadata pm = result1.getMetaData().custom(PrelertMetadata.TYPE);
-        assertThat(pm.getJobs().get("_id"), sameInstance(job1));
-
-        Job job2 = buildJobBuilder("_id").build();
-        expectThrows(ResourceAlreadyExistsException.class, () -> jobManager.innerPutJob(job2, false, result1));
-
-        ClusterState result2 = jobManager.innerPutJob(job2, true, result1);
-        pm = result2.getMetaData().custom(PrelertMetadata.TYPE);
-        assertThat(pm.getJobs().get("_id"), sameInstance(job2));
     }
 
     private JobManager createJobManager() {

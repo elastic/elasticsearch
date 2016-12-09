@@ -26,11 +26,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
-import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
-import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
+import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunner;
 
 import java.io.IOException;
@@ -39,14 +36,11 @@ public class RestStartJobSchedulerAction extends BaseRestHandler {
 
     private static final String DEFAULT_START = "0";
 
-    private final JobManager jobManager;
     private final ClusterService clusterService;
 
     @Inject
-    public RestStartJobSchedulerAction(Settings settings, RestController controller, JobManager jobManager,
-                                       ClusterService clusterService) {
+    public RestStartJobSchedulerAction(Settings settings, RestController controller, ClusterService clusterService) {
         super(settings);
-        this.jobManager = jobManager;
         this.clusterService = clusterService;
         controller.registerHandler(RestRequest.Method.POST,
                 PrelertPlugin.BASE_PATH + "schedulers/{" + Job.ID.getPreferredName() + "}/_start", this);
@@ -59,9 +53,8 @@ public class RestStartJobSchedulerAction extends BaseRestHandler {
         // This validation happens also in ScheduledJobRunner, the reason we do it here too is that if it fails there
         // we are unable to provide the user immediate feedback. We would create the task and the validation would fail
         // in the background, whereas now the validation failure is part of the response being returned.
-        Job job = jobManager.getJobOrThrowIfUnknown(jobId);
-        Allocation allocation = jobManager.getJobAllocation(jobId);
-        ScheduledJobRunner.validate(job, allocation);
+        PrelertMetadata prelertMetadata = clusterService.state().metaData().custom(PrelertMetadata.TYPE);
+        ScheduledJobRunner.validate(jobId, prelertMetadata);
 
         StartJobSchedulerAction.Request jobSchedulerRequest;
         if (RestActions.hasBodyContent(restRequest)) {
@@ -69,15 +62,15 @@ public class RestStartJobSchedulerAction extends BaseRestHandler {
             XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
             jobSchedulerRequest = StartJobSchedulerAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
         } else {
-            long startTimeMillis = parseDateOrThrow(restRequest.param(SchedulerState.START_TIME_MILLIS.getPreferredName(), DEFAULT_START),
-                    SchedulerState.START_TIME_MILLIS.getPreferredName());
+            long startTimeMillis = parseDateOrThrow(restRequest.param(StartJobSchedulerAction.START_TIME.getPreferredName(),
+                    DEFAULT_START), StartJobSchedulerAction.START_TIME.getPreferredName());
             Long endTimeMillis = null;
-            if (restRequest.hasParam(SchedulerState.END_TIME_MILLIS.getPreferredName())) {
-                endTimeMillis = parseDateOrThrow(restRequest.param(SchedulerState.END_TIME_MILLIS.getPreferredName()),
-                        SchedulerState.END_TIME_MILLIS.getPreferredName());
+            if (restRequest.hasParam(StartJobSchedulerAction.END_TIME.getPreferredName())) {
+                endTimeMillis = parseDateOrThrow(restRequest.param(StartJobSchedulerAction.END_TIME.getPreferredName()),
+                        StartJobSchedulerAction.END_TIME.getPreferredName());
             }
-            SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STARTED, startTimeMillis, endTimeMillis);
-            jobSchedulerRequest = new StartJobSchedulerAction.Request(jobId, schedulerState);
+            jobSchedulerRequest = new StartJobSchedulerAction.Request(jobId, startTimeMillis);
+            jobSchedulerRequest.setEndTime(endTimeMillis);
         }
         return sendTask(client.executeLocally(StartJobSchedulerAction.INSTANCE, jobSchedulerRequest, LoggingTaskListener.instance()));
     }

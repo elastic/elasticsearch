@@ -9,6 +9,10 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -22,16 +26,14 @@ import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractorFactory;
-import org.elasticsearch.xpack.prelert.job.manager.JobManager;
-import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
+import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
@@ -67,6 +69,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
     private Client client;
     private ActionFuture<JobDataAction.Response> jobDataFuture;
     private ActionFuture<FlushJobAction.Response> flushJobFuture;
+    private ClusterService clusterService;
     private ThreadPool threadPool;
     private DataExtractorFactory dataExtractorFactory;
     private ScheduledJobRunner scheduledJobRunner;
@@ -78,6 +81,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         client = mock(Client.class);
         jobDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
+        clusterService = mock(ClusterService.class);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<Object> actionListener = (ActionListener) invocation.getArguments()[2];
@@ -100,7 +104,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
 
         scheduledJobRunner =
-                new ScheduledJobRunner(threadPool, client, jobProvider, dataExtractorFactory, () -> currentTime);
+                new ScheduledJobRunner(threadPool, client, clusterService,jobProvider,  dataExtractorFactory, () -> currentTime);
 
         when(jobProvider.audit(anyString())).thenReturn(auditor);
         when(jobProvider.buckets(anyString(), any(BucketsQueryBuilder.BucketsQuery.class))).thenThrow(
@@ -109,11 +113,14 @@ public class ScheduledJobRunnerTests extends ESTestCase {
 
     public void testStart_GivenNewlyCreatedJobLoopBack() throws Exception {
         Job.Builder builder = createScheduledJob();
-        SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STOPPED, 0L, 60000L);
         DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
         Job job = builder.build();
-        Allocation allocation =
-                new Allocation(null, "foo", false, JobStatus.OPENED, null, new SchedulerState(JobSchedulerStatus.STOPPED, null, null));
+        PrelertMetadata prelertMetadata = new PrelertMetadata.Builder().putJob(job, false)
+                .updateStatus("foo", JobStatus.OPENED, null)
+                .build();
+        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, prelertMetadata))
+                .build());
 
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(job)).thenReturn(dataExtractor);
@@ -123,24 +130,27 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         when(jobDataFuture.get()).thenReturn(new JobDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
         StartJobSchedulerAction.SchedulerTask task = mock(StartJobSchedulerAction.SchedulerTask.class);
-        scheduledJobRunner.run(job, schedulerState, allocation, task, handler);
+        scheduledJobRunner.run("foo", 0L, 60000L, task, handler);
 
         verify(dataExtractor).newSearch(eq(0L), eq(60000L), any());
         verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client).execute(same(JobDataAction.INSTANCE), eq(new JobDataAction.Request("foo")));
         verify(client).execute(same(FlushJobAction.INSTANCE), any());
-        verify(client).execute(same(INSTANCE), eq(new Request("foo", JobSchedulerStatus.STARTED)), any());
-        verify(client).execute(same(INSTANCE), eq(new Request("foo", JobSchedulerStatus.STOPPED)), any());
+        verify(client).execute(same(INSTANCE), eq(new Request("foo", SchedulerStatus.STARTED)), any());
+        verify(client).execute(same(INSTANCE), eq(new Request("foo", SchedulerStatus.STOPPED)), any());
     }
 
     public void testStart_GivenNewlyCreatedJobLoopBackAndRealtime() throws Exception {
         Job.Builder builder = createScheduledJob();
-        SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STOPPED, 0L, null);
         DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
         Job job = builder.build();
-        Allocation allocation =
-                new Allocation(null, "foo", false, JobStatus.OPENED, null, new SchedulerState(JobSchedulerStatus.STOPPED, null, null));
+        PrelertMetadata prelertMetadata = new PrelertMetadata.Builder().putJob(job, false)
+                .updateStatus("foo", JobStatus.OPENED, null)
+                .build();
+        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, prelertMetadata))
+                .build());
 
         DataExtractor dataExtractor = mock(DataExtractor.class);
         when(dataExtractorFactory.newExtractor(job)).thenReturn(dataExtractor);
@@ -151,13 +161,13 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         Consumer<Exception> handler = mockConsumer();
         boolean cancelled = randomBoolean();
         StartJobSchedulerAction.SchedulerTask task = new StartJobSchedulerAction.SchedulerTask(1, "type", "action", null, "foo");
-        scheduledJobRunner.run(job, schedulerState, allocation, task, handler);
+        scheduledJobRunner.run("foo", 0L, null, task, handler);
 
         verify(dataExtractor).newSearch(eq(0L), eq(60000L), any());
         verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME);
         if (cancelled) {
             task.stop();
-            verify(client).execute(same(INSTANCE), eq(new Request("foo", JobSchedulerStatus.STOPPED)), any());
+            verify(client).execute(same(INSTANCE), eq(new Request("foo", SchedulerStatus.STOPPED)), any());
         } else {
             verify(client).execute(same(JobDataAction.INSTANCE), eq(new JobDataAction.Request("foo")));
             verify(client).execute(same(FlushJobAction.INSTANCE), any());
@@ -183,19 +193,21 @@ public class ScheduledJobRunnerTests extends ESTestCase {
 
     public void testValidate() {
         Job job1 = buildJobBuilder("foo").build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> ScheduledJobRunner.validate(job1, null));
+        PrelertMetadata prelertMetadata1 = new PrelertMetadata.Builder().putJob(job1, false).build();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ScheduledJobRunner.validate("foo", prelertMetadata1));
         assertThat(e.getMessage(), equalTo("job [foo] is not a scheduled job"));
 
         Job job2 = createScheduledJob().build();
-        Allocation allocation1 =
-                new Allocation("_id", "_id", false, JobStatus.CLOSED, null, new SchedulerState(JobSchedulerStatus.STOPPED, null, null));
-        e = expectThrows(ElasticsearchStatusException.class, () -> ScheduledJobRunner.validate(job2, allocation1));
+        PrelertMetadata prelertMetadata2 = new PrelertMetadata.Builder().putJob(job2, false).build();
+        e = expectThrows(ElasticsearchStatusException.class, () -> ScheduledJobRunner.validate("foo", prelertMetadata2));
         assertThat(e.getMessage(), equalTo("cannot start scheduler, expected job status [OPENED], but got [CLOSED]"));
 
         Job job3 = createScheduledJob().build();
-        Allocation allocation2 =
-                new Allocation("_id", "_id", false, JobStatus.OPENED, null, new SchedulerState(JobSchedulerStatus.STARTED, null, null));
-        e = expectThrows(ElasticsearchStatusException.class, () -> ScheduledJobRunner.validate(job3, allocation2));
+        PrelertMetadata prelertMetadata3 = new PrelertMetadata.Builder().putJob(job3, false)
+                .updateStatus("foo", JobStatus.OPENED, null)
+                .updateSchedulerStatus("foo", SchedulerStatus.STARTED)
+                .build();
+        e = expectThrows(ElasticsearchStatusException.class, () -> ScheduledJobRunner.validate("foo", prelertMetadata3));
         assertThat(e.getMessage(), equalTo("scheduler already started, expected scheduler status [STOPPED], but got [STARTED]"));
     }
 

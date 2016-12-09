@@ -125,7 +125,7 @@ public class ScheduledJobIT extends ESRestTestCase {
                 () -> client().performRequest("delete", PrelertPlugin.BASE_PATH + "jobs/" + jobId));
         response = e.getResponse();
         assertThat(response.getStatusLine().getStatusCode(), equalTo(409));
-        assertThat(responseEntityToString(response), containsString("Cannot delete job '" + jobId + "' while the scheduler is running"));
+        assertThat(responseEntityToString(response), containsString("Cannot delete job '" + jobId + "' while it is OPENED"));
 
         response = client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_stop");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

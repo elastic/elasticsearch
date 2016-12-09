@@ -39,7 +39,7 @@ public enum IgnoreDowntime implements Writeable {
     public static IgnoreDowntime fromStream(StreamInput in) throws IOException {
         int ordinal = in.readVInt();
         if (ordinal < 0 || ordinal >= values().length) {
-            throw new IOException("Unknown public enum JobSchedulerStatus {\n ordinal [" + ordinal + "]");
+            throw new IOException("Unknown public enum SchedulerStatus {\n ordinal [" + ordinal + "]");
         }
         return values()[ordinal];
     }

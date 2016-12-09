@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.prelert.job.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class PrelertMetadataTests extends ESTestCase {
 
@@ -90,20 +91,29 @@ public class PrelertMetadataTests extends ESTestCase {
     }
 
     public void testPutJob() {
+        Job job1 = buildJobBuilder("1").build();
+        Job job2 = buildJobBuilder("2").build();
+
         PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
-        builder.putJob(buildJobBuilder("1").build(), false);
-        builder.putJob(buildJobBuilder("2").build(), false);
-
-        ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class,
-                () -> builder.putJob(buildJobBuilder("2").build(), false));
-        assertEquals("The job cannot be created with the Id '2'. The Id is already used.", e.getMessage());
-
-        builder.putJob(buildJobBuilder("2").build(), true);
+        builder.putJob(job1, false);
+        builder.putJob(job2, false);
 
         PrelertMetadata result = builder.build();
+        assertThat(result.getJobs().get("1"), sameInstance(job1));
+        assertThat(result.getJobs().get("2"), sameInstance(job2));
+
+        builder = new PrelertMetadata.Builder(result);
+
+        PrelertMetadata.Builder builderReference = builder;
+        ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class, () -> builderReference.putJob(job2, false));
+        assertEquals("The job cannot be created with the Id '2'. The Id is already used.", e.getMessage());
+        Job job2Attempt2 = buildJobBuilder("2").build();
+        builder.putJob(job2Attempt2, true);
+
+        result = builder.build();
         assertThat(result.getJobs().size(), equalTo(2));
-        assertThat(result.getJobs().get("1"), notNullValue());
-        assertThat(result.getJobs().get("2"), notNullValue());
+        assertThat(result.getJobs().get("1"), sameInstance(job1));
+        assertThat(result.getJobs().get("2"), sameInstance(job2Attempt2));
     }
 
     public void testUpdateAllocation_setFinishedTime() {

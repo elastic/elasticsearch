@@ -15,11 +15,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
-import org.elasticsearch.xpack.prelert.job.messages.Messages;
-import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,9 +27,8 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
     private static final ParseField IGNORE_DOWNTIME_FIELD = new ParseField("ignore_downtime");
     public static final ParseField STATUS = new ParseField("status");
     public static final ParseField STATUS_REASON = new ParseField("status_reason");
-    public static final ParseField SCHEDULER_STATE = new ParseField("scheduler_state");
 
-    static final Allocation PROTO = new Allocation(null, null, false, null, null, null);
+    static final Allocation PROTO = new Allocation(null, null, false, null, null);
 
     static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("allocation", Builder::new);
 
@@ -43,7 +38,6 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         PARSER.declareBoolean(Builder::setIgnoreDowntime, IGNORE_DOWNTIME_FIELD);
         PARSER.declareField(Builder::setStatus, (p, c) -> JobStatus.fromString(p.text()), STATUS, ObjectParser.ValueType.STRING);
         PARSER.declareString(Builder::setStatusReason, STATUS_REASON);
-        PARSER.declareObject(Builder::setSchedulerState, SchedulerState.PARSER, SCHEDULER_STATE);
     }
 
     private final String nodeId;
@@ -51,16 +45,13 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
     private final boolean ignoreDowntime;
     private final JobStatus status;
     private final String statusReason;
-    private final SchedulerState schedulerState;
 
-    public Allocation(String nodeId, String jobId, boolean ignoreDowntime, JobStatus status, String statusReason,
-                      SchedulerState schedulerState) {
+    public Allocation(String nodeId, String jobId, boolean ignoreDowntime, JobStatus status, String statusReason) {
         this.nodeId = nodeId;
         this.jobId = jobId;
         this.ignoreDowntime = ignoreDowntime;
         this.status = status;
         this.statusReason = statusReason;
-        this.schedulerState = schedulerState;
     }
 
     public Allocation(StreamInput in) throws IOException {
@@ -69,7 +60,6 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         this.ignoreDowntime = in.readBoolean();
         this.status = JobStatus.fromStream(in);
         this.statusReason = in.readOptionalString();
-        this.schedulerState = in.readOptionalWriteable(SchedulerState::new);
     }
 
     public String getNodeId() {
@@ -97,10 +87,6 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         return statusReason;
     }
 
-    public SchedulerState getSchedulerState() {
-        return schedulerState;
-    }
-
     @Override
     public Allocation readFrom(StreamInput in) throws IOException {
         return new Allocation(in);
@@ -113,7 +99,6 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         out.writeBoolean(ignoreDowntime);
         status.writeTo(out);
         out.writeOptionalString(statusReason);
-        out.writeOptionalWriteable(schedulerState);
     }
 
     @Override
@@ -128,9 +113,6 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         if (statusReason != null) {
             builder.field(STATUS_REASON.getPreferredName(), statusReason);
         }
-        if (schedulerState != null) {
-            builder.field(SCHEDULER_STATE.getPreferredName(), schedulerState);
-        }
         builder.endObject();
         return builder;
     }
@@ -144,13 +126,12 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
                 Objects.equals(jobId, that.jobId) &&
                 Objects.equals(ignoreDowntime, that.ignoreDowntime) &&
                 Objects.equals(status, that.status) &&
-                Objects.equals(statusReason, that.statusReason) &&
-                Objects.equals(schedulerState, that.schedulerState);
+                Objects.equals(statusReason, that.statusReason);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nodeId, jobId, ignoreDowntime, status, statusReason, schedulerState);
+        return Objects.hash(nodeId, jobId, ignoreDowntime, status, statusReason);
     }
 
     // Class alreadt extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
@@ -175,16 +156,12 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
         private boolean ignoreDowntime;
         private JobStatus status;
         private String statusReason;
-        private SchedulerState schedulerState;
 
         public Builder() {
         }
 
         public Builder(Job job) {
             this.jobId = job.getId();
-            if (job.getSchedulerConfig() != null) {
-                schedulerState = new SchedulerState(JobSchedulerStatus.STOPPED, null, null);
-            }
         }
 
         public Builder(Allocation allocation) {
@@ -193,7 +170,6 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
             this.ignoreDowntime  = allocation.ignoreDowntime;
             this.status = allocation.status;
             this.statusReason = allocation.statusReason;
-            this.schedulerState = allocation.schedulerState;
         }
 
         public void setNodeId(String nodeId) {
@@ -237,34 +213,8 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
             this.statusReason = statusReason;
         }
 
-        public void setSchedulerState(SchedulerState newSchedulerState) {
-            if (this.schedulerState != null){
-                JobSchedulerStatus currentSchedulerStatus = this.schedulerState.getStatus();
-                JobSchedulerStatus newSchedulerStatus = newSchedulerState.getStatus();
-                switch (newSchedulerStatus) {
-                    case STARTED:
-                        if (currentSchedulerStatus != JobSchedulerStatus.STOPPED) {
-                            String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_START, jobId, newSchedulerStatus);
-                            throw ExceptionsHelper.conflictStatusException(msg);
-                        }
-                        break;
-                    case STOPPED:
-                        if (currentSchedulerStatus != JobSchedulerStatus.STARTED) {
-                            String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE, jobId,
-                                    newSchedulerStatus);
-                            throw ExceptionsHelper.conflictStatusException(msg);
-                        }
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Invalid requested job scheduler status: " + newSchedulerStatus);
-                }
-            }
-
-            this.schedulerState = newSchedulerState;
-        }
-
         public Allocation build() {
-            return new Allocation(nodeId, jobId, ignoreDowntime, status, statusReason, schedulerState);
+            return new Allocation(nodeId, jobId, ignoreDowntime, status, statusReason);
         }
 
     }

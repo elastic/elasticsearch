@@ -14,7 +14,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.prelert.action.FlushJobAction;
 import org.elasticsearch.xpack.prelert.action.JobDataAction;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
@@ -60,11 +59,9 @@ class ScheduledJob {
         }
     }
 
-    Long runLookBack(SchedulerState schedulerState) throws Exception {
-        long startMs = schedulerState.getStartTimeMillis();
-        lookbackStartTimeMs = (lastEndTimeMs != null && lastEndTimeMs + 1 > startMs) ? lastEndTimeMs + 1 : startMs;
-
-        Optional<Long> endMs = Optional.ofNullable(schedulerState.getEndTimeMillis());
+    Long runLookBack(long startTime, Long endTime) throws Exception {
+        lookbackStartTimeMs = (lastEndTimeMs != null && lastEndTimeMs + 1 > startTime) ? lastEndTimeMs + 1 : startTime;
+        Optional<Long> endMs = Optional.ofNullable(endTime);
         long lookbackEnd = endMs.orElse(currentTimeSupplier.get() - queryDelayMs);
         boolean isLookbackOnly = endMs.isPresent();
         if (lookbackEnd <= lookbackStartTimeMs) {
@@ -115,7 +112,7 @@ class ScheduledJob {
         return running;
     }
 
-    private void run(long start, long end, FlushJobAction.Request flushRequest) throws IOException {
+    private void run(long start, Long end, FlushJobAction.Request flushRequest) throws IOException {
         if (end <= start) {
             return;
         }

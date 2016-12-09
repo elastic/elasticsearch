@@ -7,6 +7,9 @@ package org.elasticsearch.xpack.prelert.rest.schedulers;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
@@ -14,38 +17,43 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
-import org.elasticsearch.xpack.prelert.job.manager.JobManager;
-import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
+import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunnerTests;
 
-import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
-import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RestStartJobSchedulerActionTests extends ESTestCase {
 
     public void testPrepareRequest() throws Exception {
-        JobManager jobManager = mock(JobManager.class);
+        ClusterService clusterService = mock(ClusterService.class);
         Job.Builder job = ScheduledJobRunnerTests.createScheduledJob();
-        when(jobManager.getJobOrThrowIfUnknown(anyString())).thenReturn(job.build());
-        Allocation allocation =
-                new Allocation(null, "foo", false, JobStatus.OPENED, null, new SchedulerState(JobSchedulerStatus.STOPPED, null, null));
-        when(jobManager.getJobAllocation(anyString())).thenReturn(allocation);
-        RestStartJobSchedulerAction action = new RestStartJobSchedulerAction(Settings.EMPTY, mock(RestController.class),
-                jobManager, mock(ClusterService.class));
+        PrelertMetadata prelertMetadata = new PrelertMetadata.Builder()
+                .putJob(job.build(), false)
+                .updateStatus("foo", JobStatus.OPENED, null)
+                .build();
+        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, prelertMetadata))
+                .build());
+        RestStartJobSchedulerAction action = new RestStartJobSchedulerAction(Settings.EMPTY, mock(RestController.class), clusterService);
 
-        RestRequest restRequest1 = new FakeRestRequest.Builder().withParams(Collections.singletonMap("start", "not-a-date")).build();
+        Map<String, String> params = new HashMap<>();
+        params.put("start", "not-a-date");
+        params.put("job_id", "foo");
+        RestRequest restRequest1 = new FakeRestRequest.Builder().withParams(params).build();
         ElasticsearchParseException e =  expectThrows(ElasticsearchParseException.class,
                 () -> action.prepareRequest(restRequest1, mock(NodeClient.class)));
         assertEquals("Query param 'start' with value 'not-a-date' cannot be parsed as a date or converted to a number (epoch).",
                 e.getMessage());
 
-        RestRequest restRequest2 = new FakeRestRequest.Builder().withParams(Collections.singletonMap("end", "not-a-date")).build();
+        params = new HashMap<>();
+        params.put("end", "not-a-date");
+        params.put("job_id", "foo");
+        RestRequest restRequest2 = new FakeRestRequest.Builder().withParams(params).build();
         e =  expectThrows(ElasticsearchParseException.class, () -> action.prepareRequest(restRequest2, mock(NodeClient.class)));
         assertEquals("Query param 'end' with value 'not-a-date' cannot be parsed as a date or converted to a number (epoch).",
                 e.getMessage());

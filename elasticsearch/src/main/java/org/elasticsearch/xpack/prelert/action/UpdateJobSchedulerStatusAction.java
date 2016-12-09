@@ -26,8 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
@@ -57,11 +56,11 @@ public class UpdateJobSchedulerStatusAction extends Action<UpdateJobSchedulerSta
     public static class Request extends AcknowledgedRequest<Request> {
 
         private String jobId;
-        private JobSchedulerStatus schedulerStatus;
+        private SchedulerStatus schedulerStatus;
 
-        public Request(String jobId, JobSchedulerStatus schedulerStatus) {
+        public Request(String jobId, SchedulerStatus schedulerStatus) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
-            this.schedulerStatus = ExceptionsHelper.requireNonNull(schedulerStatus, SchedulerState.STATUS.getPreferredName());
+            this.schedulerStatus = ExceptionsHelper.requireNonNull(schedulerStatus, "status");
         }
 
         Request() {}
@@ -74,11 +73,11 @@ public class UpdateJobSchedulerStatusAction extends Action<UpdateJobSchedulerSta
             this.jobId = jobId;
         }
 
-        public JobSchedulerStatus getSchedulerStatus() {
+        public SchedulerStatus getSchedulerStatus() {
             return schedulerStatus;
         }
 
-        public void setSchedulerStatus(JobSchedulerStatus schedulerStatus) {
+        public void setSchedulerStatus(SchedulerStatus schedulerStatus) {
             this.schedulerStatus = schedulerStatus;
         }
 
@@ -91,7 +90,7 @@ public class UpdateJobSchedulerStatusAction extends Action<UpdateJobSchedulerSta
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
-            schedulerStatus = JobSchedulerStatus.fromStream(in);
+            schedulerStatus = SchedulerStatus.fromStream(in);
         }
 
         @Override
@@ -122,7 +121,7 @@ public class UpdateJobSchedulerStatusAction extends Action<UpdateJobSchedulerSta
         public String toString() {
             return "Request{" +
                     Job.ID.getPreferredName() + "='" + jobId + "', " +
-                    SchedulerState.TYPE_FIELD.getPreferredName() + '=' + schedulerStatus +
+                    "status=" + schedulerStatus +
                     '}';
         }
     }

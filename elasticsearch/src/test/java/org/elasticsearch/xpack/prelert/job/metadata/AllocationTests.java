@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.prelert.job.metadata;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
 
 public class AllocationTests extends AbstractSerializingTestCase<Allocation> {
@@ -22,8 +20,7 @@ public class AllocationTests extends AbstractSerializingTestCase<Allocation> {
         boolean ignoreDowntime = randomBoolean();
         JobStatus jobStatus = randomFrom(JobStatus.values());
         String statusReason = randomBoolean() ? randomAsciiOfLength(10) : null;
-        SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STOPPED, randomPositiveLong(), randomPositiveLong());
-        return new Allocation(nodeId, jobId, ignoreDowntime, jobStatus, statusReason, schedulerState);
+        return new Allocation(nodeId, jobId, ignoreDowntime, jobStatus, statusReason);
     }
 
     @Override
@@ -37,7 +34,7 @@ public class AllocationTests extends AbstractSerializingTestCase<Allocation> {
     }
 
     public void testUnsetIgnoreDownTime() {
-        Allocation allocation = new Allocation("_node_id", "_job_id", true, JobStatus.OPENING, null, null);
+        Allocation allocation = new Allocation("_node_id", "_job_id", true, JobStatus.OPENING, null);
         assertTrue(allocation.isIgnoreDowntime());
         Allocation.Builder builder = new Allocation.Builder(allocation);
         builder.setStatus(JobStatus.OPENED);

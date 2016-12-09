@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.prelert.job.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -15,13 +16,14 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
+import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -33,6 +35,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 public class PrelertMetadata implements MetaData.Custom {
 
@@ -40,7 +43,8 @@ public class PrelertMetadata implements MetaData.Custom {
     private static final ParseField ALLOCATIONS_FIELD = new ParseField("allocations");
 
     public static final String TYPE = "prelert";
-    public static final PrelertMetadata PROTO = new PrelertMetadata(Collections.emptySortedMap(), Collections.emptySortedMap());
+    public static final PrelertMetadata PROTO = new PrelertMetadata(Collections.emptySortedMap(), Collections.emptySortedMap(),
+            Collections.emptySortedMap());
 
     private static final ObjectParser<Builder, ParseFieldMatcherSupplier> PRELERT_METADATA_PARSER = new ObjectParser<>("prelert_metadata",
             Builder::new);
@@ -54,10 +58,13 @@ public class PrelertMetadata implements MetaData.Custom {
     // performance issue will occur if we don't change that
     private final SortedMap<String, Job> jobs;
     private final SortedMap<String, Allocation> allocations;
+    private final SortedMap<String, SchedulerStatus> schedulerStatuses;
 
-    private PrelertMetadata(SortedMap<String, Job> jobs, SortedMap<String, Allocation> allocations) {
+    private PrelertMetadata(SortedMap<String, Job> jobs, SortedMap<String, Allocation> allocations,
+                            SortedMap<String, SchedulerStatus> schedulerStatuses) {
         this.jobs = Collections.unmodifiableSortedMap(jobs);
         this.allocations = Collections.unmodifiableSortedMap(allocations);
+        this.schedulerStatuses = Collections.unmodifiableSortedMap(schedulerStatuses);
     }
 
     public Map<String, Job> getJobs() {
@@ -68,6 +75,10 @@ public class PrelertMetadata implements MetaData.Custom {
 
     public SortedMap<String, Allocation> getAllocations() {
         return allocations;
+    }
+
+    public SortedMap<String, SchedulerStatus> getSchedulerStatuses() {
+        return schedulerStatuses;
     }
 
     @Override
@@ -109,7 +120,12 @@ public class PrelertMetadata implements MetaData.Custom {
         for (int i = 0; i < size; i++) {
             allocations.put(in.readString(), Allocation.PROTO.readFrom(in));
         }
-        return new PrelertMetadata(jobs, allocations);
+        size = in.readVInt();
+        TreeMap<String, SchedulerStatus> schedulerStatuses = new TreeMap<>();
+        for (int i = 0; i < size; i++) {
+            schedulerStatuses.put(in.readString(), SchedulerStatus.fromStream(in));
+        }
+        return new PrelertMetadata(jobs, allocations, schedulerStatuses);
     }
 
     @Override
@@ -121,6 +137,11 @@ public class PrelertMetadata implements MetaData.Custom {
         }
         out.writeVInt(allocations.size());
         for (Map.Entry<String, Allocation> entry : allocations.entrySet()) {
+            out.writeString(entry.getKey());
+            entry.getValue().writeTo(out);
+        }
+        out.writeVInt(schedulerStatuses.size());
+        for (Map.Entry<String, SchedulerStatus> entry : schedulerStatuses.entrySet()) {
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);
         }
@@ -145,28 +166,83 @@ public class PrelertMetadata implements MetaData.Custom {
 
         final Diff<Map<String, Job>> jobs;
         final Diff<Map<String, Allocation>> allocations;
+        final Diff<Map<String, SchedulerStatusDiff>> schedulerStatuses;
 
         PrelertMetadataDiff(PrelertMetadata before, PrelertMetadata after) {
             this.jobs = DiffableUtils.diff(before.jobs, after.jobs, DiffableUtils.getStringKeySerializer());
             this.allocations = DiffableUtils.diff(before.allocations, after.allocations, DiffableUtils.getStringKeySerializer());
+            this.schedulerStatuses = DiffableUtils.diff(
+                    toSchedulerDiff(before.schedulerStatuses),
+                    toSchedulerDiff(after.schedulerStatuses),
+                    DiffableUtils.getStringKeySerializer());
         }
 
         PrelertMetadataDiff(StreamInput in) throws IOException {
             jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job.PROTO);
             allocations = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Allocation.PROTO);
+            schedulerStatuses = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), SchedulerStatusDiff.PROTO);
         }
 
         @Override
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((PrelertMetadata) part).jobs));
             TreeMap<String, Allocation> newAllocations = new TreeMap<>(allocations.apply(((PrelertMetadata) part).allocations));
-            return new PrelertMetadata(newJobs, newAllocations);
+
+            Map<String, SchedulerStatusDiff> newSchedulerStatuses =
+                    schedulerStatuses.apply(toSchedulerDiff((((PrelertMetadata) part)).schedulerStatuses));
+            return new PrelertMetadata(newJobs, newAllocations, new TreeMap<>(toSchedulerStatusMap(newSchedulerStatuses)));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             jobs.writeTo(out);
             allocations.writeTo(out);
+            schedulerStatuses.writeTo(out);
+        }
+
+        private static Map<String, SchedulerStatusDiff> toSchedulerDiff(Map<String, SchedulerStatus> from) {
+            return from.entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, (entry) -> new SchedulerStatusDiff(entry.getValue())));
+        }
+
+        private static Map<String, SchedulerStatus> toSchedulerStatusMap(Map<String, SchedulerStatusDiff> from) {
+            return from.entrySet().stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, (entry) -> entry.getValue().status));
+        }
+
+        // SchedulerStatus is enum and that can't extend from anything
+        static class SchedulerStatusDiff extends AbstractDiffable<SchedulerStatusDiff> implements Writeable {
+
+            static SchedulerStatusDiff PROTO = new SchedulerStatusDiff(null);
+
+            private final SchedulerStatus status;
+
+            SchedulerStatusDiff(SchedulerStatus status) {
+                this.status = status;
+            }
+
+            @Override
+            public SchedulerStatusDiff readFrom(StreamInput in) throws IOException {
+                return new SchedulerStatusDiff(SchedulerStatus.fromStream(in));
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                status.writeTo(out);
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+                SchedulerStatusDiff that = (SchedulerStatusDiff) o;
+                return status == that.status;
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(status);
+            }
         }
     }
 
@@ -177,27 +253,32 @@ public class PrelertMetadata implements MetaData.Custom {
         if (o == null || getClass() != o.getClass())
             return false;
         PrelertMetadata that = (PrelertMetadata) o;
-        return Objects.equals(jobs, that.jobs) && Objects.equals(allocations, that.allocations);
+        return Objects.equals(jobs, that.jobs) &&
+                Objects.equals(allocations, that.allocations) &&
+                Objects.equals(schedulerStatuses, that.schedulerStatuses);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobs, allocations);
+        return Objects.hash(jobs, allocations, schedulerStatuses);
     }
 
     public static class Builder {
 
         private TreeMap<String, Job> jobs;
         private TreeMap<String, Allocation> allocations;
+        private TreeMap<String, SchedulerStatus> schedulerStatuses;
 
         public Builder() {
             this.jobs = new TreeMap<>();
             this.allocations = new TreeMap<>();
+            this.schedulerStatuses = new TreeMap<>();
         }
 
         public Builder(PrelertMetadata previous) {
             jobs = new TreeMap<>(previous.jobs);
             allocations = new TreeMap<>(previous.allocations);
+            schedulerStatuses = new TreeMap<>(previous.schedulerStatuses);
         }
 
         public Builder putJob(Job job, boolean overwrite) {
@@ -212,6 +293,9 @@ public class PrelertMetadata implements MetaData.Custom {
                 builder.setStatus(JobStatus.CLOSED);
                 allocations.put(job.getId(), builder.build());
             }
+            if (job.getSchedulerConfig() != null) {
+                schedulerStatuses.put(job.getId(), SchedulerStatus.STOPPED);
+            }
             return this;
         }
 
@@ -219,7 +303,20 @@ public class PrelertMetadata implements MetaData.Custom {
             if (jobs.remove(jobId) == null) {
                 throw new ResourceNotFoundException("job [" + jobId + "] does not exist");
             }
-            this.allocations.remove(jobId);
+            Allocation previousAllocation = this.allocations.remove(jobId);
+            if (previousAllocation != null) {
+                if (!previousAllocation.getStatus().isAnyOf(JobStatus.CLOSED, JobStatus.FAILED)) {
+                    throw ExceptionsHelper.conflictStatusException(Messages.getMessage(
+                            Messages.JOB_CANNOT_DELETE_WHILE_RUNNING, jobId, previousAllocation.getStatus()));
+                }
+            }
+            SchedulerStatus previousStatus = this.schedulerStatuses.remove(jobId);
+            if (previousStatus != null) {
+                if (previousStatus != SchedulerStatus.STOPPED) {
+                    String message = Messages.getMessage(Messages.JOB_CANNOT_DELETE_WHILE_SCHEDULER_RUNS, jobId);
+                    throw ExceptionsHelper.conflictStatusException(message);
+                }
+            }
             return this;
         }
 
@@ -253,7 +350,7 @@ public class PrelertMetadata implements MetaData.Custom {
         }
 
         public PrelertMetadata build() {
-            return new PrelertMetadata(jobs, allocations);
+            return new PrelertMetadata(jobs, allocations, schedulerStatuses);
         }
 
         public Builder assignToNode(String jobId, String nodeId) {
@@ -294,6 +391,32 @@ public class PrelertMetadata implements MetaData.Custom {
             Allocation.Builder builder = new Allocation.Builder(allocation);
             builder.setIgnoreDowntime(true);
             allocations.put(jobId, builder.build());
+            return this;
+        }
+
+        public Builder updateSchedulerStatus(String jobId, SchedulerStatus newStatus) {
+            SchedulerStatus currentStatus = schedulerStatuses.get(jobId);
+            if (currentStatus == null) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_SCHEDULER_NO_SUCH_SCHEDULED_JOB, jobId));
+            }
+
+            switch (newStatus) {
+                case STARTED:
+                    if (currentStatus != SchedulerStatus.STOPPED) {
+                        String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_START, jobId, newStatus);
+                        throw ExceptionsHelper.conflictStatusException(msg);
+                    }
+                    break;
+                case STOPPED:
+                    if (currentStatus != SchedulerStatus.STARTED) {
+                        String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE, jobId, newStatus);
+                        throw ExceptionsHelper.conflictStatusException(msg);
+                    }
+                    break;
+                default:
+                    throw new IllegalArgumentException("[" + jobId + "] invalid requested job scheduler status [" + newStatus + "]");
+            }
+            schedulerStatuses.put(jobId, newStatus);
             return this;
         }
     }

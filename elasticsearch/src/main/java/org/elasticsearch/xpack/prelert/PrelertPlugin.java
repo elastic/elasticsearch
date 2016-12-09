@@ -168,7 +168,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
         AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings, parseFieldMatcherSupplier);
         DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobDataCountsPersister, autodetectResultsParser, processFactory, clusterService.getClusterSettings());
-        ScheduledJobRunner scheduledJobRunner = new ScheduledJobRunner(threadPool, client, jobProvider,
+        ScheduledJobRunner scheduledJobRunner = new ScheduledJobRunner(threadPool, client, clusterService, jobProvider,
                 // norelease: we will no longer need to pass the client here after we switch to a client based data extractor
                 new HttpDataExtractorFactory(client),
                 System::currentTimeMillis);

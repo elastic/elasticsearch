@@ -146,7 +146,7 @@ setup:
   - is_false: jobs.0.config
   - is_false: jobs.0.data_counts
   - is_false: jobs.0.model_size_stats
-  - match: { jobs.0.scheduler_state.status: STOPPED }
+  - match: { jobs.0.scheduler_state: STOPPED }
 
 ---
 "Test bad metric":

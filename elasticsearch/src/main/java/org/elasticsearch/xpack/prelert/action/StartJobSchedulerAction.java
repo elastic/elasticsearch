@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,10 +31,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
-import org.elasticsearch.xpack.prelert.job.manager.JobManager;
-import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunner;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
@@ -42,6 +39,9 @@ import java.util.Objects;
 
 public class StartJobSchedulerAction
 extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response, StartJobSchedulerAction.RequestBuilder> {
+
+    public static final ParseField START_TIME = new ParseField("start");
+    public static final ParseField END_TIME = new ParseField("end");
 
     public static final StartJobSchedulerAction INSTANCE = new StartJobSchedulerAction();
     public static final String NAME = "cluster:admin/prelert/job/scheduler/run";
@@ -66,8 +66,8 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
 
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
-            PARSER.declareObject((request, schedulerState) -> request.schedulerState = schedulerState, SchedulerState.PARSER,
-                    SchedulerState.TYPE_FIELD);
+            PARSER.declareLong((request, startTime) -> request.startTime = startTime, START_TIME);
+            PARSER.declareLong(Request::setEndTime, END_TIME);
         }
 
         public static Request parseRequest(String jobId, XContentParser parser, ParseFieldMatcherSupplier parseFieldMatcherSupplier) {
@@ -79,17 +79,12 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
         }
 
         private String jobId;
-        // TODO (norelease): instead of providing a scheduler state, the user should just provide: startTimeMillis and endTimeMillis
-        // the state is useless here as it should always be STARTING
-        private SchedulerState schedulerState;
+        private long startTime;
+        private Long endTime;
 
-        public Request(String jobId, SchedulerState schedulerState) {
+        public Request(String jobId, long startTime) {
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
-            this.schedulerState = ExceptionsHelper.requireNonNull(schedulerState, SchedulerState.TYPE_FIELD.getPreferredName());
-            if (schedulerState.getStatus() != JobSchedulerStatus.STARTED) {
-                throw new IllegalStateException(
-                        "Start job scheduler action requires the scheduler status to be [" + JobSchedulerStatus.STARTED + "]");
-            }
+            this.startTime = startTime;
         }
 
         Request() {
@@ -99,8 +94,16 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
             return jobId;
         }
 
-        public SchedulerState getSchedulerState() {
-            return schedulerState;
+        public long getStartTime() {
+            return startTime;
+        }
+
+        public Long getEndTime() {
+            return endTime;
+        }
+
+        public void setEndTime(Long endTime) {
+            this.endTime = endTime;
         }
 
         @Override
@@ -117,28 +120,33 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             jobId = in.readString();
-            schedulerState = new SchedulerState(in);
+            startTime = in.readVLong();
+            endTime = in.readOptionalLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            schedulerState.writeTo(out);
+            out.writeVLong(startTime);
+            out.writeOptionalLong(endTime);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Job.ID.getPreferredName(), jobId);
-            builder.field(SchedulerState.TYPE_FIELD.getPreferredName(), schedulerState);
+            builder.field(START_TIME.getPreferredName(), startTime);
+            if (endTime != null) {
+                builder.field(END_TIME.getPreferredName(), endTime);
+            }
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, schedulerState);
+            return Objects.hash(jobId, startTime, endTime);
         }
 
         @Override
@@ -150,7 +158,9 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(schedulerState, other.schedulerState);
+            return Objects.equals(jobId, other.jobId) &&
+                    Objects.equals(startTime, other.startTime) &&
+                    Objects.equals(endTime, other.endTime);
         }
     }
 
@@ -195,25 +205,21 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final JobManager jobManager;
         private final ScheduledJobRunner scheduledJobRunner;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               JobManager jobManager, ScheduledJobRunner scheduledJobRunner) {
+                               ScheduledJobRunner scheduledJobRunner) {
             super(settings, StartJobSchedulerAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                     Request::new);
-            this.jobManager = jobManager;
             this.scheduledJobRunner = scheduledJobRunner;
         }
 
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             SchedulerTask schedulerTask = (SchedulerTask) task;
-            Job job = jobManager.getJobOrThrowIfUnknown(request.jobId);
-            Allocation allocation = jobManager.getJobAllocation(job.getId());
-            scheduledJobRunner.run(job, request.getSchedulerState(), allocation, schedulerTask, (error) -> {
+            scheduledJobRunner.run(request.getJobId(), request.getStartTime(), request.getEndTime(), schedulerTask, (error) -> {
                 if (error != null) {
                     listener.onFailure(error);
                 } else {

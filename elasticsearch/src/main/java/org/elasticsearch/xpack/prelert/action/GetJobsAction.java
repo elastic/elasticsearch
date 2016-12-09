@@ -39,9 +39,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
-import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.manager.AutodetectProcessManager;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
@@ -280,19 +280,19 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
             @Nullable
             private ModelSizeStats modelSizeStats;
             @Nullable
-            private SchedulerState schedulerState;
+            private SchedulerStatus schedulerStatus;
             @Nullable
             private JobStatus status;
 
 
 
             JobInfo(String jobId, @Nullable Job job, @Nullable DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats,
-                    @Nullable SchedulerState schedulerStatus, @Nullable JobStatus status) {
+                    @Nullable SchedulerStatus schedulerStatus, @Nullable JobStatus status) {
                 this.jobId = jobId;
                 this.jobConfig = job;
                 this.dataCounts = dataCounts;
                 this.modelSizeStats = modelSizeStats;
-                this.schedulerState = schedulerStatus;
+                this.schedulerStatus = schedulerStatus;
                 this.status = status;
             }
 
@@ -301,7 +301,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 jobConfig = in.readOptionalWriteable(Job::new);
                 dataCounts = in.readOptionalWriteable(DataCounts::new);
                 modelSizeStats = in.readOptionalWriteable(ModelSizeStats::new);
-                schedulerState = in.readOptionalWriteable(SchedulerState::new);
+                schedulerStatus = in.readOptionalWriteable(SchedulerStatus::fromStream);
                 status = in.readOptionalWriteable(JobStatus::fromStream);
             }
 
@@ -321,8 +321,8 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 return modelSizeStats;
             }
 
-            public SchedulerState getSchedulerState() {
-                return schedulerState;
+            public SchedulerStatus getSchedulerStatus() {
+                return schedulerStatus;
             }
 
             public JobStatus getStatus() {
@@ -342,8 +342,8 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 if (modelSizeStats != null) {
                     builder.field(MODEL_SIZE_STATS, modelSizeStats);
                 }
-                if (schedulerState != null) {
-                    builder.field(SCHEDULER_STATE, schedulerState);
+                if (schedulerStatus != null) {
+                    builder.field(SCHEDULER_STATE, schedulerStatus);
                 }
                 if (status != null) {
                     builder.field(STATUS, status);
@@ -359,13 +359,13 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 out.writeOptionalWriteable(jobConfig);
                 out.writeOptionalWriteable(dataCounts);
                 out.writeOptionalWriteable(modelSizeStats);
-                out.writeOptionalWriteable(schedulerState);
+                out.writeOptionalWriteable(schedulerStatus);
                 out.writeOptionalWriteable(status);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(jobId, jobConfig, dataCounts, modelSizeStats, schedulerState, status);
+                return Objects.hash(jobId, jobConfig, dataCounts, modelSizeStats, schedulerStatus, status);
             }
 
             @Override
@@ -381,7 +381,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                         && Objects.equals(jobConfig, other.jobConfig)
                         && Objects.equals(this.dataCounts, other.dataCounts)
                         && Objects.equals(this.modelSizeStats, other.modelSizeStats)
-                        && Objects.equals(this.schedulerState, other.schedulerState)
+                        && Objects.equals(this.schedulerStatus, other.schedulerStatus)
                         && Objects.equals(this.status, other.status);
             }
         }
@@ -505,7 +505,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                 Job jobConfig = request.config() ? jobs.results().get(0) : null;
                 DataCounts dataCounts = readDataCounts(request.dataCounts(), request.getJobId());
                 ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), request.getJobId());
-                SchedulerState schedulerStatus = readSchedulerState(request.schedulerStatus(), request.getJobId());
+                SchedulerStatus schedulerStatus = readSchedulerState(request.schedulerStatus(), request.getJobId());
                 JobStatus jobStatus = readJobStatus(request.status(), request.getJobId());
 
                 Response.JobInfo jobInfo = new Response.JobInfo(
@@ -522,7 +522,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
                     Job jobConfig = request.config() ? job : null;
                     DataCounts dataCounts = readDataCounts(request.dataCounts(), job.getId());
                     ModelSizeStats modelSizeStats = readModelSizeStats(request.modelSizeStats(), job.getId());
-                    SchedulerState schedulerStatus = readSchedulerState(request.schedulerStatus(), job.getId());
+                    SchedulerStatus schedulerStatus = readSchedulerState(request.schedulerStatus(), job.getId());
                     JobStatus jobStatus = readJobStatus(request.status(), job.getId());
                     Response.JobInfo jobInfo = new Response.JobInfo(job.getId(), jobConfig, dataCounts, modelSizeStats,
                             schedulerStatus, jobStatus);
@@ -557,8 +557,8 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
             return null;
         }
 
-        private SchedulerState readSchedulerState(boolean schedulerState, String jobId) {
-            return schedulerState ? jobManager.getSchedulerState(jobId).orElse(null) : null;
+        private SchedulerStatus readSchedulerState(boolean schedulerState, String jobId) {
+            return schedulerState ? jobManager.getSchedulerStatus(jobId).orElse(null) : null;
         }
 
         private JobStatus readJobStatus(boolean status, String jobId) {

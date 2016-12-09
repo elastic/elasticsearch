@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.config.DefaultFrequency;
-import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractorFactory;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
@@ -44,18 +43,16 @@ public class ScheduledJobRunner extends AbstractComponent {
 
     private final Client client;
     private final JobProvider jobProvider;
-    private final DataProcessor dataProcessor;
     private final DataExtractorFactory dataExtractorFactory;
     private final ThreadPool threadPool;
     private final Supplier<Long> currentTimeSupplier;
 
-    public ScheduledJobRunner(ThreadPool threadPool, Client client, JobProvider jobProvider, DataProcessor dataProcessor,
-                              DataExtractorFactory dataExtractorFactory, Supplier<Long> currentTimeSupplier) {
+    public ScheduledJobRunner(ThreadPool threadPool, Client client, JobProvider jobProvider, DataExtractorFactory dataExtractorFactory,
+                              Supplier<Long> currentTimeSupplier) {
         super(Settings.EMPTY);
         this.threadPool = threadPool;
         this.client = Objects.requireNonNull(client);
         this.jobProvider = Objects.requireNonNull(jobProvider);
-        this.dataProcessor = Objects.requireNonNull(dataProcessor);
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
     }
@@ -150,7 +147,7 @@ public class ScheduledJobRunner extends AbstractComponent {
         Duration queryDelay = Duration.ofSeconds(job.getSchedulerConfig().getQueryDelay());
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(job);
         ScheduledJob scheduledJob =  new ScheduledJob(job.getId(), frequency.toMillis(), queryDelay.toMillis(),
-                dataExtractor, dataProcessor, auditor, currentTimeSupplier, getLatestFinalBucketEndTimeMs(job),
+                dataExtractor, client, auditor, currentTimeSupplier, getLatestFinalBucketEndTimeMs(job),
                 getLatestRecordTimestamp(job.getId()));
         return new Holder(job, scheduledJob, new ProblemTracker(() -> auditor), handler);
     }

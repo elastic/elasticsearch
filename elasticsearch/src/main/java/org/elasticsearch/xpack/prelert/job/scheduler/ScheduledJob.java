@@ -6,18 +6,20 @@
 package org.elasticsearch.xpack.prelert.job.scheduler;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xpack.prelert.action.FlushJobAction;
+import org.elasticsearch.xpack.prelert.action.JobDataAction;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
-import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.params.TimeRange;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
@@ -25,7 +27,6 @@ import java.util.function.Supplier;
 
 class ScheduledJob {
 
-    private static final DataLoadParams DATA_LOAD_PARAMS = new DataLoadParams(TimeRange.builder().build());
     private static final int NEXT_TASK_DELAY_MS = 100;
 
     private final Logger logger;
@@ -33,8 +34,8 @@ class ScheduledJob {
     private final String jobId;
     private final long frequencyMs;
     private final long queryDelayMs;
+    private final Client client;
     private final DataExtractor dataExtractor;
-    private final DataProcessor dataProcessor;
     private final Supplier<Long> currentTimeSupplier;
 
     private volatile long lookbackStartTimeMs;
@@ -42,14 +43,14 @@ class ScheduledJob {
     private volatile boolean running = true;
 
     ScheduledJob(String jobId, long frequencyMs, long queryDelayMs, DataExtractor dataExtractor,
-                 DataProcessor dataProcessor, Auditor auditor, Supplier<Long> currentTimeSupplier,
+                 Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
                  long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
         this.logger = Loggers.getLogger(jobId);
         this.jobId = jobId;
         this.frequencyMs = frequencyMs;
         this.queryDelayMs = queryDelayMs;
         this.dataExtractor = dataExtractor;
-        this.dataProcessor = dataProcessor;
+        this.client = client;
         this.auditor = auditor;
         this.currentTimeSupplier = currentTimeSupplier;
 
@@ -80,7 +81,9 @@ class ScheduledJob {
                 DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.printer().print(lookbackEnd));
         auditor.info(msg);
 
-        run(lookbackStartTimeMs, lookbackEnd, InterimResultsParams.builder().calcInterim(true).build());
+        FlushJobAction.Request request = new FlushJobAction.Request(jobId);
+        request.setCalcInterim(true);
+        run(lookbackStartTimeMs, lookbackEnd, request);
         auditor.info(Messages.getMessage(Messages.JOB_AUDIT_SCHEDULER_LOOKBACK_COMPLETED));
         logger.info("Lookback has finished");
         if (isLookbackOnly) {
@@ -95,10 +98,10 @@ class ScheduledJob {
         long start = lastEndTimeMs == null ? lookbackStartTimeMs : lastEndTimeMs + 1;
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
-        InterimResultsParams.Builder flushParams = InterimResultsParams.builder()
-                .calcInterim(true)
-                .advanceTime(String.valueOf(lastEndTimeMs));
-        run(start, end, flushParams.build());
+        FlushJobAction.Request request = new FlushJobAction.Request(jobId);
+        request.setCalcInterim(true);
+        request.setAdvanceTime(String.valueOf(lastEndTimeMs));
+        run(start, end, request);
         return nextRealtimeTimestamp();
     }
 
@@ -112,7 +115,7 @@ class ScheduledJob {
         return running;
     }
 
-    private void run(long start, long end, InterimResultsParams flushParams) throws IOException {
+    private void run(long start, long end, FlushJobAction.Request flushRequest) throws IOException {
         if (end <= start) {
             return;
         }
@@ -132,9 +135,17 @@ class ScheduledJob {
             }
             if (extractedData.isPresent()) {
                 DataCounts counts;
-                try {
-                    counts = dataProcessor.processData(jobId, extractedData.get(), DATA_LOAD_PARAMS, () -> false);
+                try (InputStream in = extractedData.get()) {
+                    JobDataAction.Request request = new JobDataAction.Request(jobId);
+                    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+                    Streams.copy(in, outputStream);
+                    request.setContent(new BytesArray(outputStream.toByteArray()));
+                    JobDataAction.Response response = client.execute(JobDataAction.INSTANCE, request).get();
+                    counts = response.getDataCounts();
                 } catch (Exception e) {
+                    if (e instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
                     error = new AnalysisProblemException(e);
                     break;
                 }
@@ -157,7 +168,14 @@ class ScheduledJob {
             throw new EmptyDataCountException();
         }
 
-        dataProcessor.flushJob(jobId, flushParams);
+        try {
+            client.execute(FlushJobAction.INSTANCE, flushRequest).get();
+        } catch (Exception e) {
+            if (e instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new RuntimeException(e);
+        }
     }
 
     private long nextRealtimeTimestamp() {

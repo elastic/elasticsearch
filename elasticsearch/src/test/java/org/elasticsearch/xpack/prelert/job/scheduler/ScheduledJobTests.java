@@ -5,19 +5,23 @@
  */
 package org.elasticsearch.xpack.prelert.job.scheduler;
 
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.prelert.action.FlushJobAction;
+import org.elasticsearch.xpack.prelert.action.JobDataAction;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.JobSchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.SchedulerState;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
-import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -34,22 +38,28 @@ public class ScheduledJobTests extends ESTestCase {
 
     private Auditor auditor;
     private DataExtractor dataExtractor;
-    private DataProcessor dataProcessor;
+    private Client client;
+    private ActionFuture<FlushJobAction.Response> flushJobFuture;
 
     private long currentTime;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setup() throws Exception {
         auditor = mock(Auditor.class);
         dataExtractor = mock(DataExtractor.class);
-        dataProcessor = mock(DataProcessor.class);
+        client = mock(Client.class);
+        ActionFuture<JobDataAction.Response> jobDataFuture = mock(ActionFuture.class);
+        flushJobFuture = mock(ActionFuture.class);
         currentTime = 0;
 
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
-        InputStream inputStream = mock(InputStream.class);
+        InputStream inputStream = new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8));
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
         DataCounts dataCounts = new DataCounts("_job_id", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
-        when(dataProcessor.processData(eq("_job_id"), same(inputStream), any(), any())).thenReturn(dataCounts);
+        when(client.execute(same(JobDataAction.INSTANCE), eq(new JobDataAction.Request("_job_id")))).thenReturn(jobDataFuture);
+        when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
+        when(jobDataFuture.get()).thenReturn(new JobDataAction.Response(dataCounts));
     }
 
     public void testLookBackRunWithEndTime() throws Exception {
@@ -58,7 +68,9 @@ public class ScheduledJobTests extends ESTestCase {
         assertNull(scheduledJob.runLookBack(schedulerState));
 
         verify(dataExtractor).newSearch(eq(0L), eq(1000L), any());
-        verify(dataProcessor).flushJob(eq("_job_id"), any());
+        FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
+        flushRequest.setCalcInterim(true);
+        verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
     }
 
     public void testLookBackRunWithNoEndTime() throws Exception {
@@ -71,8 +83,9 @@ public class ScheduledJobTests extends ESTestCase {
         assertEquals(2000 + frequencyMs + 100, next);
 
         verify(dataExtractor).newSearch(eq(0L), eq(1500L), any());
-        InterimResultsParams expectedParams = InterimResultsParams.builder().calcInterim(true).build();
-        verify(dataProcessor).flushJob(eq("_job_id"), eq(expectedParams));
+        FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
+        flushRequest.setCalcInterim(true);
+        verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
     }
 
     public void testLookBackRunWithOverrideStartTime() throws Exception {
@@ -93,8 +106,9 @@ public class ScheduledJobTests extends ESTestCase {
         assertEquals(10000 + frequencyMs + 100, next);
 
         verify(dataExtractor).newSearch(eq(5000 + 1L), eq(currentTime - queryDelayMs), any());
-        InterimResultsParams expectedParams = InterimResultsParams.builder().calcInterim(true).build();
-        verify(dataProcessor).flushJob(eq("_job_id"), eq(expectedParams));
+        FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
+        flushRequest.setCalcInterim(true);
+        verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
     }
 
     public void testRealtimeRun() throws Exception {
@@ -106,7 +120,10 @@ public class ScheduledJobTests extends ESTestCase {
         assertEquals(currentTime + frequencyMs + 100, next);
 
         verify(dataExtractor).newSearch(eq(1000L + 1L), eq(currentTime - queryDelayMs), any());
-        verify(dataProcessor).flushJob(eq("_job_id"), any());
+        FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
+        flushRequest.setCalcInterim(true);
+        flushRequest.setAdvanceTime("1000");
+        verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
     }
 
     public void testEmptyDataCount() throws Exception {
@@ -128,7 +145,7 @@ public class ScheduledJobTests extends ESTestCase {
         expectThrows(ScheduledJob.ExtractionProblemException.class, () -> scheduledJob.runLookBack(schedulerState));
 
         currentTime = 3001;
-        expectThrows(ScheduledJob.ExtractionProblemException.class, () -> scheduledJob.runRealtime());
+        expectThrows(ScheduledJob.ExtractionProblemException.class, scheduledJob::runRealtime);
 
         ArgumentCaptor<Long> startTimeCaptor = ArgumentCaptor.forClass(Long.class);
         ArgumentCaptor<Long> endTimeCaptor = ArgumentCaptor.forClass(Long.class);
@@ -140,15 +157,16 @@ public class ScheduledJobTests extends ESTestCase {
     }
 
     public void testAnalysisProblem() throws Exception {
-        dataProcessor = mock(DataProcessor.class);
-        when(dataProcessor.processData(eq("_job_id"), any(), any(), any())).thenThrow(new RuntimeException());
+        client = mock(Client.class);
+        when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
+        when(client.execute(same(JobDataAction.INSTANCE), eq(new JobDataAction.Request("_job_id")))).thenThrow(new RuntimeException());
 
         ScheduledJob scheduledJob = createScheduledJob(1000, 500, -1, -1);
         SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STARTED, 0L, 1000L);
         expectThrows(ScheduledJob.AnalysisProblemException.class, () -> scheduledJob.runLookBack(schedulerState));
 
         currentTime = 3001;
-        expectThrows(ScheduledJob.EmptyDataCountException.class, () -> scheduledJob.runRealtime());
+        expectThrows(ScheduledJob.EmptyDataCountException.class, scheduledJob::runRealtime);
 
         ArgumentCaptor<Long> startTimeCaptor = ArgumentCaptor.forClass(Long.class);
         ArgumentCaptor<Long> endTimeCaptor = ArgumentCaptor.forClass(Long.class);
@@ -157,12 +175,13 @@ public class ScheduledJobTests extends ESTestCase {
         assertEquals(1000L, startTimeCaptor.getAllValues().get(1).longValue());
         assertEquals(1000L, endTimeCaptor.getAllValues().get(0).longValue());
         assertEquals(2000L, endTimeCaptor.getAllValues().get(1).longValue());
+        verify(client, times(0)).execute(same(FlushJobAction.INSTANCE), any());
     }
 
     private ScheduledJob createScheduledJob(long frequencyMs, long queryDelayMs, long latestFinalBucketEndTimeMs,
                                             long latestRecordTimeMs) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
-        return new ScheduledJob("_job_id", frequencyMs, queryDelayMs, dataExtractor, dataProcessor, auditor,
+        return new ScheduledJob("_job_id", frequencyMs, queryDelayMs, dataExtractor, client, auditor,
                 currentTimeSupplier, latestFinalBucketEndTimeMs, latestRecordTimeMs);
     }
 

@@ -6,12 +6,15 @@
 package org.elasticsearch.xpack.prelert.job.scheduler;
 
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
+import org.elasticsearch.xpack.prelert.action.FlushJobAction;
+import org.elasticsearch.xpack.prelert.action.JobDataAction;
 import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
@@ -62,25 +65,28 @@ import static org.mockito.Mockito.when;
 public class ScheduledJobRunnerTests extends ESTestCase {
 
     private Client client;
+    private ActionFuture<JobDataAction.Response> jobDataFuture;
+    private ActionFuture<FlushJobAction.Response> flushJobFuture;
     private ThreadPool threadPool;
-    private DataProcessor dataProcessor;
     private DataExtractorFactory dataExtractorFactory;
     private ScheduledJobRunner scheduledJobRunner;
     private long currentTime = 120000;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void setUpTests() {
         client = mock(Client.class);
+        jobDataFuture = mock(ActionFuture.class);
+        flushJobFuture = mock(ActionFuture.class);
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<Object> actionListener = (ActionListener) invocation.getArguments()[2];
             actionListener.onResponse(new UpdateJobSchedulerStatusAction.Response());
             return null;
-        }).when(client).execute(eq(UpdateJobSchedulerStatusAction.INSTANCE), any(), any());
+        }).when(client).execute(same(UpdateJobSchedulerStatusAction.INSTANCE), any(), any());
 
         JobProvider jobProvider = mock(JobProvider.class);
         when(jobProvider.dataCounts(anyString())).thenReturn(new DataCounts("foo"));
-        dataProcessor = mock(DataProcessor.class);
         dataExtractorFactory = mock(DataExtractorFactory.class);
         Auditor auditor = mock(Auditor.class);
         threadPool = mock(ThreadPool.class);
@@ -90,16 +96,18 @@ public class ScheduledJobRunnerTests extends ESTestCase {
             return null;
         }).when(executorService).submit(any(Runnable.class));
         when(threadPool.executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME)).thenReturn(executorService);
+        when(client.execute(same(JobDataAction.INSTANCE), any())).thenReturn(jobDataFuture);
+        when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
 
         scheduledJobRunner =
-                new ScheduledJobRunner(threadPool, client, jobProvider, dataProcessor, dataExtractorFactory, () -> currentTime);
+                new ScheduledJobRunner(threadPool, client, jobProvider, dataExtractorFactory, () -> currentTime);
 
         when(jobProvider.audit(anyString())).thenReturn(auditor);
         when(jobProvider.buckets(anyString(), any(BucketsQueryBuilder.BucketsQuery.class))).thenThrow(
                 QueryPage.emptyQueryPage(Job.RESULTS_FIELD));
     }
 
-    public void testStart_GivenNewlyCreatedJobLoopBack() throws IOException {
+    public void testStart_GivenNewlyCreatedJobLoopBack() throws Exception {
         Job.Builder builder = createScheduledJob();
         SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STOPPED, 0L, 60000L);
         DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
@@ -112,7 +120,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         InputStream in = new ByteArrayInputStream("".getBytes(Charset.forName("utf-8")));
         when(dataExtractor.next()).thenReturn(Optional.of(in));
-        when(dataProcessor.processData(anyString(), eq(in), any(), any())).thenReturn(dataCounts);
+        when(jobDataFuture.get()).thenReturn(new JobDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
         StartJobSchedulerAction.SchedulerTask task = mock(StartJobSchedulerAction.SchedulerTask.class);
         scheduledJobRunner.run(job, schedulerState, allocation, task, handler);
@@ -120,11 +128,13 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         verify(dataExtractor).newSearch(eq(0L), eq(60000L), any());
         verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
+        verify(client).execute(same(JobDataAction.INSTANCE), eq(new JobDataAction.Request("foo")));
+        verify(client).execute(same(FlushJobAction.INSTANCE), any());
         verify(client).execute(same(INSTANCE), eq(new Request("foo", JobSchedulerStatus.STARTED)), any());
         verify(client).execute(same(INSTANCE), eq(new Request("foo", JobSchedulerStatus.STOPPED)), any());
     }
 
-    public void testStart_GivenNewlyCreatedJobLoopBackAndRealtime() throws IOException {
+    public void testStart_GivenNewlyCreatedJobLoopBackAndRealtime() throws Exception {
         Job.Builder builder = createScheduledJob();
         SchedulerState schedulerState = new SchedulerState(JobSchedulerStatus.STOPPED, 0L, null);
         DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
@@ -137,7 +147,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         InputStream in = new ByteArrayInputStream("".getBytes(Charset.forName("utf-8")));
         when(dataExtractor.next()).thenReturn(Optional.of(in));
-        when(dataProcessor.processData(anyString(), eq(in), any(), any())).thenReturn(dataCounts);
+        when(jobDataFuture.get()).thenReturn(new JobDataAction.Response(dataCounts));
         Consumer<Exception> handler = mockConsumer();
         boolean cancelled = randomBoolean();
         StartJobSchedulerAction.SchedulerTask task = new StartJobSchedulerAction.SchedulerTask(1, "type", "action", null, "foo");
@@ -149,6 +159,8 @@ public class ScheduledJobRunnerTests extends ESTestCase {
             task.stop();
             verify(client).execute(same(INSTANCE), eq(new Request("foo", JobSchedulerStatus.STOPPED)), any());
         } else {
+            verify(client).execute(same(JobDataAction.INSTANCE), eq(new JobDataAction.Request("foo")));
+            verify(client).execute(same(FlushJobAction.INSTANCE), any());
             verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME), any());
         }
     }

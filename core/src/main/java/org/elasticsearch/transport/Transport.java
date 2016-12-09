@@ -95,7 +95,7 @@ public interface Transport extends LifecycleComponent {
 
     /**
      * Opens a new connection to the given node and returns it. In contrast to {@link #connectToNode(DiscoveryNode, ConnectionProfile)}
-     * is the returned connection not managed by the transport implementation. This connection must be closed once it's not needed anymore.
+     * the returned connection is not managed by the transport implementation. This connection must be closed once it's not needed anymore.
      * This connection type can be used to execute a handshake between two nodes before the node will be published via
      * {@link #connectToNode(DiscoveryNode, ConnectionProfile)}.
      */
@@ -111,7 +111,7 @@ public interface Transport extends LifecycleComponent {
         DiscoveryNode getNode();
 
         /**
-         * Sends the request to the node this connection is associtated with
+         * Sends the request to the node this connection is associated with
          * @throws NodeNotConnectedException if the given node is not connected
          */
         void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws

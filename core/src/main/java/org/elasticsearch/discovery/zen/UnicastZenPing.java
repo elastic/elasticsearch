@@ -470,7 +470,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                             // connect to the node, see if we manage to do it, if not, bail
                             if (!nodeFoundByAddress) {
                                 logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), finalNodeToSend);
-                                transportService.connectToNodeAndHandshake(finalNodeToSend, timeout.getMillis(), true);
+                                transportService.connectToNodeAndHandshake(finalNodeToSend, timeout.getMillis());
                             } else {
                                 logger.trace("[{}] connecting to {}", sendPingsHandler.id(), finalNodeToSend);
                                 transportService.connectToNode(finalNodeToSend);

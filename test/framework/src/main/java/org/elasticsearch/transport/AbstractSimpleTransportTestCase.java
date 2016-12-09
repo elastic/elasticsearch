@@ -1316,7 +1316,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         try {
-            serviceB.connectToNodeAndHandshake(nodeA, 100, true);
+            serviceB.connectToNodeAndHandshake(nodeA, 100);
             fail("exception should be thrown");
         } catch (IllegalStateException e) {
             // all is well
@@ -1374,7 +1374,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         try {
-            serviceB.connectToNodeAndHandshake(nodeA, 100, true);
+            serviceB.connectToNodeAndHandshake(nodeA, 100);
             fail("exception should be thrown");
         } catch (IllegalStateException e) {
             // all is well

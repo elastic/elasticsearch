@@ -321,22 +321,19 @@ public class TransportService extends AbstractLifecycleComponent {
      *
      * @param node             the node to connect to
      * @param handshakeTimeout handshake timeout
-     * @param checkClusterName whether or not to ignore cluster name
-     *                         mismatches
      * @return the connected node
      * @throws ConnectTransportException if the connection failed
      * @throws IllegalStateException if the handshake failed
      */
     public DiscoveryNode connectToNodeAndHandshake(
-            final DiscoveryNode node,
-            final long handshakeTimeout,
-            final boolean checkClusterName) throws IOException {
+        final DiscoveryNode node,
+        final long handshakeTimeout) throws IOException {
         if (node.equals(localNode)) {
             return localNode;
         }
         DiscoveryNode handshakeNode;
-        try (Transport.Connection connection = transport.openConnection(node, ConnectionProfile.LIGHT_PROFILE)){
-            handshakeNode = handshake(connection, handshakeTimeout, checkClusterName);
+        try (Transport.Connection connection = transport.openConnection(node, ConnectionProfile.LIGHT_PROFILE)) {
+            handshakeNode = handshake(connection, handshakeTimeout);
         }
         connectToNode(node, ConnectionProfile.LIGHT_PROFILE);
         return handshakeNode;
@@ -344,8 +341,7 @@ public class TransportService extends AbstractLifecycleComponent {
 
     private DiscoveryNode handshake(
             final Transport.Connection connection,
-            final long handshakeTimeout,
-            final boolean checkClusterName) throws ConnectTransportException {
+            final long handshakeTimeout) throws ConnectTransportException {
         final HandshakeResponse response;
         final DiscoveryNode node = connection.getNode();
         try {
@@ -363,7 +359,7 @@ public class TransportService extends AbstractLifecycleComponent {
             throw new IllegalStateException("handshake failed with " + node, e);
         }
 
-        if (checkClusterName && !Objects.equals(clusterName, response.clusterName)) {
+        if (!Objects.equals(clusterName, response.clusterName)) {
             throw new IllegalStateException("handshake failed, mismatched cluster name [" + response.clusterName + "] - " + node);
         } else if (response.version.isCompatible((localNode != null ? localNode.getVersion() : Version.CURRENT)) == false) {
             throw new IllegalStateException("handshake failed, incompatible version [" + response.version + "] - " + node);
@@ -440,7 +436,7 @@ public class TransportService extends AbstractLifecycleComponent {
             Transport.Connection connection = getConnection(node);
             sendRequest(connection, action, request, options, futureHandler);
         } catch (NodeNotConnectedException ex) {
-            // handle the NNCException from the getConnection - the caller might not handle it so we invoke the handler
+            // the caller might not handle this so we invoke the handler
             futureHandler.handleException(ex);
         }
         return futureHandler;
@@ -453,7 +449,7 @@ public class TransportService extends AbstractLifecycleComponent {
             Transport.Connection connection = getConnection(node);
             sendRequest(connection, action, request, TransportRequestOptions.EMPTY, handler);
         } catch (NodeNotConnectedException ex) {
-            // handle the NNCException from the getConnection - the caller might not handle it so we invoke the handler
+            // the caller might not handle this so we invoke the handler
             handler.handleException(ex);
         }
     }
@@ -466,7 +462,7 @@ public class TransportService extends AbstractLifecycleComponent {
             Transport.Connection connection = getConnection(node);
             sendRequest(connection, action, request, options, handler);
         } catch (NodeNotConnectedException ex) {
-            // handle the NNCException from the getConnection - the caller might not handle it so we invoke the handler
+            // the caller might not handle this so we invoke the handler
             handler.handleException(ex);
         }
     }
@@ -510,7 +506,7 @@ public class TransportService extends AbstractLifecycleComponent {
             // The parent task is already cancelled - just fail the request
             handler.handleException(new TransportException(ex));
         } catch (NodeNotConnectedException ex) {
-            // handle the NNCException from the getConnection - the caller might not handle it so we invoke the handler
+            // the caller might not handle this so we invoke the handler
             handler.handleException(ex);
         }
 

@@ -114,7 +114,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         DiscoveryNode connectedNode =
-                handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout, true);
+                handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout);
         assertNotNull(connectedNode);
 
         // the name and version should be updated
@@ -134,7 +134,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> handleA.transportService.connectToNodeAndHandshake(
-                discoveryNode, timeout, true));
+                discoveryNode, timeout));
         assertThat(ex.getMessage(), containsString("handshake failed, mismatched cluster name [Cluster [b]]"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
 }
@@ -151,7 +151,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> handleA.transportService.connectToNodeAndHandshake(
-            discoveryNode, timeout, true));
+            discoveryNode, timeout));
         assertThat(ex.getMessage(), containsString("handshake failed, incompatible version"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
     }
@@ -172,7 +172,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptyMap(),
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
-        DiscoveryNode connectedNode = handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout, false);
+        DiscoveryNode connectedNode = handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout);
         assertNotNull(connectedNode);
         assertEquals(connectedNode.getName(), "TS_B");
         assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());

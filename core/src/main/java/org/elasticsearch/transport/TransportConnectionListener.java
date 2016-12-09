@@ -29,7 +29,7 @@ public interface TransportConnectionListener {
     default void onNodeConnected(DiscoveryNode node) {}
 
     /**
-     * Called once a node connection closed and unregistered
+     * Called once a node connection is closed and unregistered.
      */
     default void onNodeDisconnected(DiscoveryNode node) {}
 

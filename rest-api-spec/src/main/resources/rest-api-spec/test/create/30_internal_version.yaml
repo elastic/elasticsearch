@@ -18,3 +18,18 @@
           id:     1
           body:   { foo: bar }
 
+---
+"Internal versioning with explicit version":
+
+ - do:
+      create:
+          index:          test
+          type:           test
+          id:             3
+          body:           { foo: bar }
+          version:        5
+          ignore:         400
+
+ - match: { status: 400 }
+ - match: { error.type: action_request_validation_exception }
+ - match: { error.reason: "Validation Failed: 1: create operations do not support explicit versions. use index instead;" }

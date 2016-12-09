@@ -20,6 +20,7 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.RoutingMissingException;
@@ -209,9 +210,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             validationException = addValidationError("source is missing", validationException);
         }
 
+        final long resolvedVersion = resolveVersionDefaults();
         if (opType() == OpType.CREATE) {
-            if (versionType != VersionType.INTERNAL || version != Versions.MATCH_DELETED) {
-                validationException = addValidationError("create operations do not support versioning. use index instead", validationException);
+            if (versionType != VersionType.INTERNAL) {
+                validationException = addValidationError("create operations only support internal versioning. use index instead", validationException);
+                return validationException;
+            }
+
+            if (resolvedVersion != Versions.MATCH_DELETED) {
+                validationException = addValidationError("create operations do not support explicit versions. use index instead", validationException);
                 return validationException;
             }
         }
@@ -220,8 +227,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             addValidationError("an id is required for a " + opType() + " operation", validationException);
         }
 
-        if (!versionType.validateVersionForWrites(version)) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+        if (!versionType.validateVersionForWrites(resolvedVersion)) {
+            validationException = addValidationError("illegal version value [" + resolvedVersion + "] for version type [" + versionType.name() + "]", validationException);
         }
 
         if (ttl != null) {
@@ -235,7 +242,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                             id.getBytes(StandardCharsets.UTF_8).length, validationException);
         }
 
-        if (id == null && (versionType == VersionType.INTERNAL && version == Versions.MATCH_ANY) == false) {
+        if (id == null && (versionType == VersionType.INTERNAL && resolvedVersion == Versions.MATCH_ANY) == false) {
             validationException = addValidationError("an id must be provided if version type or value are set", validationException);
         }
         if (versionType == VersionType.FORCE) {
@@ -507,10 +514,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public IndexRequest opType(OpType opType) {
         this.opType = opType;
-        if (opType == OpType.CREATE) {
-            version(Versions.MATCH_DELETED);
-            versionType(VersionType.INTERNAL);
-        }
         return this;
     }
 
@@ -550,8 +553,23 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * Returns stored version. If currently stored version is {@link Versions#MATCH_ANY} and
+     * opType is {@link OpType#CREATE}, returns {@link Versions#MATCH_DELETED}.
+     */
     public long version() {
-        return this.version;
+        return resolveVersionDefaults();
+    }
+
+    /**
+     * Resolves the version based on operation type {@link #opType()}.
+     */
+    private long resolveVersionDefaults() {
+        if (opType == OpType.CREATE && version == Versions.MATCH_ANY) {
+            return Versions.MATCH_DELETED;
+        } else {
+            return version;
+        }
     }
 
     /**
@@ -654,7 +672,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalWriteable(ttl);
         out.writeBytesReference(source);
         out.writeByte(opType.id());
-        out.writeLong(version);
+        // ES versions below 5.1.2 don't know about resolveVersionDefaults but resolve the version eagerly (which messes with validation).
+        if (out.getVersion().before(Version.V_5_1_2_UNRELEASED)) {
+            out.writeLong(resolveVersionDefaults());
+        } else {
+            out.writeLong(version);
+        }
         out.writeByte(versionType.getValue());
         out.writeOptionalString(pipeline);
         out.writeBoolean(isRetry);

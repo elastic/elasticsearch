@@ -18,8 +18,8 @@ public class FileRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "file";
 
-    final FileUserPasswdStore userPasswdStore;
-    final FileUserRolesStore userRolesStore;
+    private final FileUserPasswdStore userPasswdStore;
+    private final FileUserRolesStore userRolesStore;
 
     public FileRealm(RealmConfig config, ResourceWatcherService watcherService) {
         this(config, new FileUserPasswdStore(config, watcherService), new FileUserRolesStore(config, watcherService));
@@ -60,10 +60,5 @@ public class FileRealm extends CachingUsernamePasswordRealm {
         // here we can determine the size based on the in mem user store
         stats.put("size", userPasswdStore.usersCount());
         return stats;
-    }
-
-    @Override
-    public boolean userLookupSupported() {
-        return true;
     }
 }

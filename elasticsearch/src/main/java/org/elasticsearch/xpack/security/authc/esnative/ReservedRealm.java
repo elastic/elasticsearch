@@ -108,11 +108,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         }
     }
 
-    @Override
-    public boolean userLookupSupported() {
-        return true;
-    }
-
     public static boolean isReserved(String username, Settings settings) {
         assert username != null;
         switch (username) {

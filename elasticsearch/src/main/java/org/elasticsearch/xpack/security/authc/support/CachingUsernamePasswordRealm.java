@@ -140,9 +140,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
 
     @Override
     public final void lookupUser(String username, ActionListener<User> listener) {
-        if (!userLookupSupported()) {
-            listener.onResponse(null);
-        } else if (cache != null) {
+        if (cache != null) {
             UserWithHash withHash = cache.get(username);
             if (withHash == null) {
                 try {

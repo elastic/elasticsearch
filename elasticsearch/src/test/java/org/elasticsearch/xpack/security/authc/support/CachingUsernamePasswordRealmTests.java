@@ -58,11 +58,6 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             protected void doLookupUser(String username, ActionListener<User> listener) {
                 listener.onFailure(new UnsupportedOperationException("this method should not be called"));
             }
-
-            @Override
-            public boolean userLookupSupported() {
-                return false;
-            }
         };
 
         assertThat(realm.hasher, sameInstance(Hasher.resolve(hashAlgo)));
@@ -213,26 +208,6 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         assertThat(e.getMessage() , containsString("lookup exception"));
     }
 
-    public void testThatLookupIsNotCalledIfNotSupported() throws Exception {
-        LookupNotSupportedRealm realm = new LookupNotSupportedRealm(globalSettings);
-        assertThat(realm.userLookupSupported(), is(false));
-        PlainActionFuture<User> future = new PlainActionFuture<>();
-        realm.lookupUser("a", future);
-        User user = future.actionGet();
-        assertThat(user, is(nullValue()));
-        assertThat(realm.lookupInvocationCounter.intValue(), is(0));
-
-        // try to lookup more
-        future = new PlainActionFuture<>();
-        realm.lookupUser("b", future);
-        future.actionGet();
-        future = new PlainActionFuture<>();
-        realm.lookupUser("c", future);
-        future.actionGet();
-
-        assertThat(realm.lookupInvocationCounter.intValue(), is(0));
-    }
-
     public void testCacheConcurrency() throws Exception {
         final String username = "username";
         final SecuredString password = new SecuredString("changeme".toCharArray());
@@ -254,11 +229,6 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             @Override
             protected void doLookupUser(String username, ActionListener<User> listener) {
                 listener.onFailure(new UnsupportedOperationException("this method should not be called"));
-            }
-
-            @Override
-            public boolean userLookupSupported() {
-                return false;
             }
         };
 
@@ -317,11 +287,6 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             protected void doLookupUser(String username, ActionListener<User> listener) {
                 listener.onResponse(new User(username, new String[]{"r1", "r2", "r3"}));
             }
-
-            @Override
-            public boolean userLookupSupported() {
-                return true;
-            }
         };
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -367,11 +332,6 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         }
 
         @Override
-        public boolean userLookupSupported() {
-            return true;
-        }
-
-        @Override
         protected void doAuthenticate(UsernamePasswordToken token, ActionListener<User> listener) {
             listener.onResponse(null);
         }
@@ -397,11 +357,6 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         protected void doLookupUser(String username, ActionListener<User> listener) {
             listener.onFailure(new RuntimeException("lookup exception"));
         }
-
-        @Override
-        public boolean userLookupSupported() {
-            return true;
-        }
     }
 
     static class AlwaysAuthenticateCachingRealm extends CachingUsernamePasswordRealm {
@@ -424,11 +379,6 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
             lookupInvocationCounter.incrementAndGet();
             listener.onResponse(new User(username, new String[] { "lookupRole1", "lookupRole2" }));
         }
-
-        @Override
-        public boolean userLookupSupported() {
-            return true;
-        }
     }
 
     static class LookupNotSupportedRealm extends CachingUsernamePasswordRealm {
@@ -450,11 +400,6 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         protected void doLookupUser(String username, ActionListener<User> listener) {
             lookupInvocationCounter.incrementAndGet();
             listener.onFailure(new UnsupportedOperationException("don't call lookup if lookup isn't supported!!!"));
-        }
-
-        @Override
-        public boolean userLookupSupported() {
-            return false;
         }
     }
 }

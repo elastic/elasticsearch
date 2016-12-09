@@ -81,11 +81,6 @@ public class PkiRealm extends Realm {
     }
 
     @Override
-    public User authenticate(AuthenticationToken authToken) {
-        throw new UnsupportedOperationException("internal realms do not support blocking calls");
-    }
-
-    @Override
     public void authenticate(AuthenticationToken authToken, ActionListener<User> listener) {
         X509AuthenticationToken token = (X509AuthenticationToken)authToken;
         if (isCertificateChainTrusted(trustManager, token, logger) == false) {
@@ -97,13 +92,8 @@ public class PkiRealm extends Realm {
     }
 
     @Override
-    public User lookupUser(String username) {
-        return null;
-    }
-
-    @Override
-    public boolean userLookupSupported() {
-        return false;
+    public void lookupUser(String username, ActionListener<User> listener) {
+        listener.onResponse(null);
     }
 
     static X509AuthenticationToken token(Object pkiHeaderValue, Pattern principalPattern, Logger logger) {

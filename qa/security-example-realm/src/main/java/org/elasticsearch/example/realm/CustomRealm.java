@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.example.realm;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
@@ -46,22 +47,18 @@ public class CustomRealm extends Realm {
     }
 
     @Override
-    public User authenticate(AuthenticationToken authToken) {
+    public void authenticate(AuthenticationToken authToken, ActionListener<User> listener) {
         UsernamePasswordToken token = (UsernamePasswordToken)authToken;
         final String actualUser = token.principal();
         if (KNOWN_USER.equals(actualUser) && SecuredString.constantTimeEquals(token.credentials(), KNOWN_PW)) {
-            return new User(actualUser, ROLES);
+            listener.onResponse(new User(actualUser, ROLES));
+        } else {
+            listener.onResponse(null);
         }
-        return null;
     }
 
     @Override
-    public User lookupUser(String username) {
-        return null;
-    }
-
-    @Override
-    public boolean userLookupSupported() {
-        return false;
+    public void lookupUser(String username, ActionListener<User> listener) {
+        listener.onResponse(null);
     }
 }

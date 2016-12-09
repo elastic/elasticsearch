@@ -71,44 +71,24 @@ public abstract class Realm implements Comparable<Realm> {
     public abstract AuthenticationToken token(ThreadContext context);
 
     /**
-     * Authenticates the given token in a blocking fashion. A successful authentication will return the User associated
-     * with the given token. An unsuccessful authentication returns {@code null}. This method is deprecated in favor of
-     * {@link #authenticate(AuthenticationToken, ActionListener)}.
+     * Authenticates the given token in an asynchronous fashion. A successful authentication will call the
+     * {@link ActionListener#onResponse} with the User associated with the given token. An unsuccessful authentication calls
+     * with {@code null} on the argument.
      *
      * @param token The authentication token
-     * @return      The authenticated user or {@code null} if authentication failed.
-     *
+     * @param listener The listener to pass the authentication result to
      */
-    @Deprecated
-    public abstract User authenticate(AuthenticationToken token);
-
-    public void authenticate(AuthenticationToken token, ActionListener<User> listener) {
-        try {
-            listener.onResponse(authenticate(token));
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
+    public abstract void authenticate(AuthenticationToken token, ActionListener<User> listener);
 
     /**
-     * Looks up the user identified the String identifier. A successful lookup will return the {@link User} identified
-     * by the username. An unsuccessful lookup returns {@code null}. This method is deprecated in favor of
-     * {@link #lookupUser(String, ActionListener)}
+     * Looks up the user identified the String identifier. A successful lookup will call the {@link ActionListener#onResponse}
+     * with the {@link User} identified by the username. An unsuccessful lookup call with {@code null} as the argument. If lookup is not
+     * supported, simply return {@code null} when called.
      *
      * @param username the String identifier for the user
-     * @return         the {@link User} or {@code null} if lookup failed
+     * @param listener The listener to pass the lookup result to
      */
-    @Deprecated
-    public abstract User lookupUser(String username);
-
-    public void lookupUser(String username, ActionListener<User> listener) {
-        try {
-            User user = lookupUser(username);
-            listener.onResponse(user);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
+    public abstract void lookupUser(String username, ActionListener<User> listener);
 
     public Map<String, Object> usageStats() {
         Map<String, Object> stats = new HashMap<>();
@@ -116,14 +96,6 @@ public abstract class Realm implements Comparable<Realm> {
         stats.put("order", order());
         return stats;
     }
-
-    /**
-     * Indicates whether this realm supports user lookup. This method is deprecated. In the future if lookup is not supported, simply
-     * return null when called.
-     * @return true if the realm supports user lookup
-     */
-    @Deprecated
-    public abstract boolean userLookupSupported();
 
     @Override
     public String toString() {

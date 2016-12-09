@@ -507,7 +507,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
         if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            out.writeOptionalString(null);
+            // timestamp, at this point #proccess was called which for previous versions meant this was set
+            out.writeOptionalString(Long.toString(System.currentTimeMillis()));
             out.writeOptionalWriteable(null);
         }
         out.writeBytesReference(source);

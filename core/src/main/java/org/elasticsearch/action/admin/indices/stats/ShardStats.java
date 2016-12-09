@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -102,7 +103,9 @@ public class ShardStats implements Streamable, ToXContent {
         statePath = in.readString();
         dataPath = in.readString();
         isCustomDataPath = in.readBoolean();
-        seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
+        }
     }
 
     @Override
@@ -113,7 +116,9 @@ public class ShardStats implements Streamable, ToXContent {
         out.writeString(statePath);
         out.writeString(dataPath);
         out.writeBoolean(isCustomDataPath);
-        out.writeOptionalWriteable(seqNoStats);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeOptionalWriteable(seqNoStats);
+        }
     }
 
     @Override

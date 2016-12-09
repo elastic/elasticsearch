@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -983,16 +984,26 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            localCheckpoint = in.readZLong();
-            allocationId = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                super.readFrom(in);
+                localCheckpoint = in.readZLong();
+                allocationId = in.readString();
+            } else {
+                // we use to read empty responses
+                Empty.INSTANCE.readFrom(in);
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeZLong(localCheckpoint);
-            out.writeString(allocationId);
+            if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                super.writeTo(out);
+                out.writeZLong(localCheckpoint);
+                out.writeString(allocationId);
+            } else {
+                // we use to write empty responses
+                Empty.INSTANCE.writeTo(out);
+            }
         }
 
         @Override
@@ -1016,10 +1027,9 @@ public abstract class TransportReplicationAction<
                 listener.onFailure(new NoNodeAvailableException("unknown node [" + nodeId + "]"));
                 return;
             }
-            transportService.sendRequest(node, transportReplicaAction,
-                new ConcreteShardRequest<>(request, replica.allocationId().getId()), transportOptions,
-                // Eclipse can't handle when this is <> so we specify the type here.
-                new ActionListenerResponseHandler<ReplicaResponse>(listener, ReplicaResponse::new));
+            final ConcreteShardRequest<ReplicaRequest> concreteShardRequest =
+                new ConcreteShardRequest<>(request, replica.allocationId().getId());
+            sendReplicaRequest(concreteShardRequest, node, listener);
         }
 
         @Override
@@ -1058,6 +1068,14 @@ public abstract class TransportReplicationAction<
                 }
             };
         }
+    }
+
+    /** sends the give replica request to the supplied nodes */
+    protected void sendReplicaRequest(ConcreteShardRequest<ReplicaRequest> concreteShardRequest, DiscoveryNode node,
+                                      ActionListener<ReplicationOperation.ReplicaResponse> listener) {
+        transportService.sendRequest(node, transportReplicaAction, concreteShardRequest, transportOptions,
+            // Eclipse can't handle when this is <> so we specify the type here.
+            new ActionListenerResponseHandler<>(listener, ReplicaResponse::new));
     }
 
     /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/

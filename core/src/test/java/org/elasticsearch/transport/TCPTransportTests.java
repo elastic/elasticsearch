@@ -21,6 +21,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -270,6 +271,17 @@ public class TCPTransportTests extends ESTestCase {
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE));
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY));
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
+    }
+
+    public void testFailOnHttp() {
+        final int iters = randomIntBetween(2, 10);
+        for (int i = 0; i < iters; i++) {
+            String method = randomFrom("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS", "PATCH", "TRACE");
+            String path = randomFrom("/", "/foo/bar");
+            TcpTransport.HttpOnTransportException httpOnTransportException = expectThrows(TcpTransport.HttpOnTransportException.class, () ->
+                TcpTransport.validateMessageHeader(new BytesArray(method + " " + path).streamInput()));
+            assertEquals("This is not a HTTP port", httpOnTransportException.getMessage());
+        }
     }
 
 }

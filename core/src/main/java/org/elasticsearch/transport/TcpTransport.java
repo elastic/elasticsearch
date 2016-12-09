@@ -1083,19 +1083,19 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     public static int validateMessageHeader(StreamInput input) throws IOException {
         assert input.markSupported();
-        final int sizeHeaderLength = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
         final int available = input.available();
-        if (available < sizeHeaderLength) {
+        if (available < TcpHeader.MARKER_BYTES_SIZE ) {
             throw new IllegalStateException("message size must be >= to the header size");
         }
         int offset = 0;
         byte firstByte = input.readByte();
         byte secondByte = input.readByte();
         if (firstByte != 'E' || secondByte != 'S') {
-            byte[] b = new byte[Math.min(input.available(), 8)];
+            byte[] b = new byte[8];
             b[0] = firstByte;
             b[1] = secondByte;
-            input.readBytes(b, 2, b.length-2);
+            int size = Math.min(input.available(), 6);
+            input.readBytes(b, 2, size);
             BytesReference buffer = new BytesArray(b);
             // special handling for what is probably HTTP
             if (bufferStartsWith(buffer, offset, "GET ") ||

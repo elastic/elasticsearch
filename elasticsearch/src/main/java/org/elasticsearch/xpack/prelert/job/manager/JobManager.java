@@ -201,7 +201,7 @@ public class JobManager extends AbstractComponent {
     }
 
     ClusterState innerPutJob(Job job, boolean overwrite, ClusterState currentState) {
-        PrelertMetadata.Builder builder = createPrelertMetadatBuilder(currentState);
+        PrelertMetadata.Builder builder = createPrelertMetadataBuilder(currentState);
         builder.putJob(job, overwrite);
         return buildNewClusterState(currentState, builder);
     }
@@ -249,7 +249,7 @@ public class JobManager extends AbstractComponent {
     }
 
     ClusterState removeJobFromClusterState(String jobId, ClusterState currentState) {
-        PrelertMetadata.Builder builder = createPrelertMetadatBuilder(currentState);
+        PrelertMetadata.Builder builder = createPrelertMetadataBuilder(currentState);
         builder.removeJob(jobId);
 
         return buildNewClusterState(currentState, builder);
@@ -269,7 +269,7 @@ public class JobManager extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                PrelertMetadata.Builder builder = createPrelertMetadatBuilder(currentState);
+                PrelertMetadata.Builder builder = createPrelertMetadataBuilder(currentState);
                 builder.updateSchedulerStatus(jobId, newStatus);
                 return buildNewClusterState(currentState, builder);
             }
@@ -399,7 +399,7 @@ public class JobManager extends AbstractComponent {
         jobResultsPersister.commitWrites(jobId);
     }
 
-    private static PrelertMetadata.Builder createPrelertMetadatBuilder(ClusterState currentState) {
+    private static PrelertMetadata.Builder createPrelertMetadataBuilder(ClusterState currentState) {
         PrelertMetadata currentPrelertMetadata = currentState.metaData().custom(PrelertMetadata.TYPE);
         return new PrelertMetadata.Builder(currentPrelertMetadata);
     }

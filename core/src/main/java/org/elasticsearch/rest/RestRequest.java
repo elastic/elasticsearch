@@ -229,7 +229,9 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     /**
-     * A parser for the contents of this request.
+     * A parser for the contents of this request if there is a body, otherwise throws an {@link ElasticsearchParseException}. Use
+     * {@link #hasContent()} if you want to gracefully handle when the request doesn't have any contents. Use
+     * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
      */
     public final XContentParser contentParser() throws IOException {
         BytesReference content = content();

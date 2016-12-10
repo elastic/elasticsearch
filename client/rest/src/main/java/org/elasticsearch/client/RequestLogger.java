@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.util.StringJoiner;
 
 /**
  * Helper class that exposes static methods to unify the way requests are logged.
@@ -62,7 +63,7 @@ final class RequestLogger {
         if (logger.isWarnEnabled()) {
             Header[] warnings = httpResponse.getHeaders("Warning");
             if (warnings != null && warnings.length > 0) {
-                logger.warn(buildWarningLine(request, host, warnings));
+                logger.warn(buildWarningMessage(request, host, warnings));
             }
         }
         if (tracer.isTraceEnabled()) {
@@ -103,12 +104,16 @@ final class RequestLogger {
         }
     }
 
-    static String buildWarningLine(HttpUriRequest request, HttpHost host, Header[] warnings) {
-        String line = "request [" + request.getMethod() + " " + host + getUri(request.getRequestLine()) + "] returned warnings:";
+    static String buildWarningMessage(HttpUriRequest request, HttpHost host, Header[] warnings) {
+        StringBuilder message = new StringBuilder("request [").append(request.getMethod()).append(" ").append(host)
+                .append(getUri(request.getRequestLine())).append("] returned ").append(warnings.length).append(" warnings:");
         for (int i = 0; i < warnings.length; i++) {
-            line += " " + (i+1) + ") " + warnings[i].getValue();
+            if (i > 0) {
+                message.append(",");
+            }
+            message.append("[").append(warnings[i].getValue()).append("]");
         }
-        return line;
+        return message.toString();
     }
 
     /**

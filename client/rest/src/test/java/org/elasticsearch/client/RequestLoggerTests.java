@@ -136,16 +136,19 @@ public class RequestLoggerTests extends RestClientTestCase {
     public void testResponseWarnings() throws Exception {
         HttpHost host = new HttpHost("localhost", 9200);
         HttpUriRequest request = randomHttpRequest(new URI("/index/type/_api"));
-        String expected = "request [" + request.getMethod() + " " + host + "/index/type/_api] returned warnings:";
         int numWarnings = randomIntBetween(1, 5);
+        StringBuilder expected = new StringBuilder("request [").append(request.getMethod()).append(" ").append(host)
+                .append("/index/type/_api] returned ").append(numWarnings).append(" warnings:");
         Header[] warnings = new Header[numWarnings];
         for (int i = 0; i < numWarnings; i++) {
             String warning = "this is warning number " + i;
             warnings[i] = new BasicHeader("Warning", warning);
-            expected += " " + (i+1) + ") " + warning;
+            if (i > 0) {
+                expected.append(",");
+            }
+            expected.append("[").append(warning).append("]");
         }
-        System.out.println(expected);
-        assertEquals(expected, RequestLogger.buildWarningLine(request, host, warnings));
+        assertEquals(expected.toString(), RequestLogger.buildWarningMessage(request, host, warnings));
     }
 
     private static HttpUriRequest randomHttpRequest(URI uri) {

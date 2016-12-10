@@ -19,15 +19,16 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -68,15 +69,16 @@ public class RestCountAction extends BaseRestHandler {
         countRequest.indicesOptions(IndicesOptions.fromRequest(request, countRequest.indicesOptions()));
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
         countRequest.source(searchSourceBuilder);
-        if (RestActions.hasBodyContent(request)) {
-            BytesReference restContent = RestActions.getRestContent(request);
-            searchSourceBuilder.query(RestActions.getQueryContent(restContent, indicesQueriesRegistry, parseFieldMatcher));
-        } else {
-            QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
-            if (queryBuilder != null) {
-                searchSourceBuilder.query(queryBuilder);
+        request.withContentOrSourceParamParserOrNull(parser -> {
+            if (parser == null) {
+                QueryBuilder queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+                if (queryBuilder != null) {
+                    searchSourceBuilder.query(queryBuilder);
+                }
+            } else {
+                searchSourceBuilder.query(RestActions.getQueryContent(parser, indicesQueriesRegistry, parseFieldMatcher));
             }
-        }
+        });
         countRequest.routing(request.param("routing"));
         float minScore = request.paramAsFloat("min_score", -1f);
         if (minScore != -1f) {

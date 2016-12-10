@@ -32,7 +32,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.net.SocketAddress;
@@ -236,17 +235,6 @@ public abstract class RestRequest implements ToXContent.Params {
      */
     public final boolean hasContentOrSourceParam() {
         return hasContent() || hasParam("source");
-    }
-
-    /**
-     * The {@linkplain XContentType} of either the request body or the {@code source} param if either exists and can be guessed, otherwise
-     * {@code null}. Only use this if you need to do something different if the request is plain text. Use
-     * {@link #contentOrSourceParamParser()} if you need a parser.
-     */
-    @Nullable
-    public final XContentType contentOrSourceParamXContentType() {
-        BytesReference content = contentOrSourceParam();
-        return content == null ? null : XContentFactory.xContentType(content);
     }
 
     /**

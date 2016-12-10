@@ -54,8 +54,8 @@ public class RestClearScrollAction extends BaseRestHandler {
         ClearScrollRequest clearRequest = new ClearScrollRequest();
         clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
         BytesReference body = request.contentOrSourceParam();
-        if (body != null) {
-            if (XContentFactory.xContentType(body)  == null) {
+        if (body.length() > 0) {
+            if (XContentFactory.xContentType(body) == null) {
                 scrollIds = body.utf8ToString();
                 clearRequest.setScrollIds(Arrays.asList(splitScrollIds(scrollIds)));
             } else {

@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -61,8 +62,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
         }
 
         BytesReference body = request.contentOrSourceParam();
-        if (body != null) {
-            if (request.contentOrSourceParamXContentType() == null) {
+        if (body.length() > 0) {
+            if (XContentFactory.xContentType(body) == null) {
                 if (scrollId == null) {
                     scrollId = body.utf8ToString();
                     searchScrollRequest.scrollId(scrollId);

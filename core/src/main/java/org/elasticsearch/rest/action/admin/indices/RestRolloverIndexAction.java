@@ -20,10 +20,13 @@
 package org.elasticsearch.rest.action.admin.indices;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -40,12 +43,13 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover/{new_index}", this);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
         if (request.hasContent()) {
-            rolloverIndexRequest.source(request.content());
+            try (XContentParser parser = request.contentParser()) {
+                RolloverRequest.PARSER.parse(parser, rolloverIndexRequest, () -> ParseFieldMatcher.EMPTY);
+            }
         }
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));

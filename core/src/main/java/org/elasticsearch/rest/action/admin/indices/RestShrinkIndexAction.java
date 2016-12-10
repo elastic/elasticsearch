@@ -23,9 +23,11 @@ import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
 import org.elasticsearch.action.admin.indices.shrink.ShrinkResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -42,7 +44,6 @@ public class RestShrinkIndexAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_shrink/{target}", this);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.param("target") == null) {
@@ -53,7 +54,9 @@ public class RestShrinkIndexAction extends BaseRestHandler {
         }
         ShrinkRequest shrinkIndexRequest = new ShrinkRequest(request.param("target"), request.param("index"));
         if (request.hasContent()) {
-            shrinkIndexRequest.source(request.content());
+            try (XContentParser parser = request.contentParser()) {
+                ShrinkRequest.PARSER.parse(parser, shrinkIndexRequest, () -> ParseFieldMatcher.EMPTY);
+            }
         }
         shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
         shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));

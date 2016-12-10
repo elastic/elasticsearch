@@ -122,7 +122,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         clusterRerouteRequest.setRetryFailed(request.paramAsBoolean("retry_failed", clusterRerouteRequest.isRetryFailed()));
         clusterRerouteRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterRerouteRequest.masterNodeTimeout()));
         if (request.hasContent()) {
-            try (XContentParser parser = XContentHelper.createParser(request.content())) {
+            try (XContentParser parser = request.contentParser()) {
                 PARSER.parse(parser, clusterRerouteRequest, new ParseContext(registry, parseFieldMatcher));
             }
         }

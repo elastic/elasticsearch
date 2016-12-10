@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
@@ -230,6 +229,17 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     /**
+     * A parser for the contents of this request.
+     */
+    public final XContentParser contentParser() throws IOException {
+        BytesReference content = content();
+        if (content.length() == 0) {
+            throw new ElasticsearchParseException("Body required");
+        }
+        return XContentFactory.xContent(content).createParser(content);
+    }
+
+    /**
      * Does this request have content or a {@code source} parameter? Use this instead of {@link #hasContent()} if this
      * {@linkplain RestHandler} treats the {@code source} parameter like the body content.
      */
@@ -256,16 +266,13 @@ public abstract class RestRequest implements ToXContent.Params {
      * back to the user when there isn't request content.
      */
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
-        XContentParser parser = null;
         BytesReference content = contentOrSourceParam();
         if (content.length() > 0) {
-            parser = XContentFactory.xContent(content).createParser(content);
-        }
-
-        try {
-            withParser.accept(parser);
-        } finally {
-            IOUtils.close(parser);
+            try (XContentParser parser = XContentFactory.xContent(content).createParser(content)) {
+                withParser.accept(parser);
+            }
+        } else {
+            withParser.accept(null);
         }
     }
 

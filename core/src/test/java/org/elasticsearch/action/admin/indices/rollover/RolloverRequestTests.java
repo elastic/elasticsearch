@@ -19,9 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Set;
@@ -39,7 +41,7 @@ public class RolloverRequestTests extends ESTestCase {
                 .field("max_docs", 100)
             .endObject()
             .endObject();
-        request.source(builder.bytes());
+        RolloverRequest.PARSER.parse(XContentHelper.createParser(builder.bytes()), request, () -> ParseFieldMatcher.EMPTY);
         Set<Condition> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
         for (Condition condition : conditions) {
@@ -80,7 +82,7 @@ public class RolloverRequestTests extends ESTestCase {
                 .startObject("alias1").endObject()
             .endObject()
             .endObject();
-        request.source(builder.bytes());
+        RolloverRequest.PARSER.parse(XContentHelper.createParser(builder.bytes()), request, () -> ParseFieldMatcher.EMPTY);
         Set<Condition> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
         assertThat(request.getCreateIndexRequest().mappings().size(), equalTo(1));

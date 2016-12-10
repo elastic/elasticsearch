@@ -33,33 +33,33 @@ public class DoSectionTests extends ESTestCase {
         DoSection section = new DoSection(new XContentLocation(1, 1));
 
         // No warning headers doesn't throw an exception
-        section.checkWarningHeaders(emptyList());
+        section.assertWarningHeaders(emptyList());
 
         // Any warning headers fail
-        AssertionError e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(singletonList("test")));
+        AssertionError e = expectThrows(AssertionError.class, () -> section.assertWarningHeaders(singletonList("test")));
         assertEquals("got unexpected warning headers [\ntest\n]", e.getMessage());
-        e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(Arrays.asList("test", "another", "some more")));
+        e = expectThrows(AssertionError.class, () -> section.assertWarningHeaders(Arrays.asList("test", "another", "some more")));
         assertEquals("got unexpected warning headers [\ntest\nanother\nsome more\n]", e.getMessage());
 
         // But not when we expect them
         section.setExpectedWarningHeaders(singletonList("test"));
-        section.checkWarningHeaders(singletonList("test"));
+        section.assertWarningHeaders(singletonList("test"));
         section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
-        section.checkWarningHeaders(Arrays.asList("test", "another", "some more"));
+        section.assertWarningHeaders(Arrays.asList("test", "another", "some more"));
 
         // But if you don't get some that you did expect, that is an error
         section.setExpectedWarningHeaders(singletonList("test"));
-        e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(emptyList()));
+        e = expectThrows(AssertionError.class, () -> section.assertWarningHeaders(emptyList()));
         assertEquals("didn't get expected warning headers [\ntest\n]", e.getMessage());
         section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
-        e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(emptyList()));
+        e = expectThrows(AssertionError.class, () -> section.assertWarningHeaders(emptyList()));
         assertEquals("didn't get expected warning headers [\ntest\nanother\nsome more\n]", e.getMessage());
-        e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(Arrays.asList("test", "some more")));
+        e = expectThrows(AssertionError.class, () -> section.assertWarningHeaders(Arrays.asList("test", "some more")));
         assertEquals("didn't get expected warning headers [\nanother\n]", e.getMessage());
 
         // It is also an error if you get some warning you want and some you don't want
         section.setExpectedWarningHeaders(Arrays.asList("test", "another", "some more"));
-        e = expectThrows(AssertionError.class, () -> section.checkWarningHeaders(Arrays.asList("test", "cat")));
+        e = expectThrows(AssertionError.class, () -> section.assertWarningHeaders(Arrays.asList("test", "cat")));
         assertEquals("got unexpected warning headers [\ncat\n] didn't get expected warning headers [\nanother\nsome more\n]",
                 e.getMessage());
     }

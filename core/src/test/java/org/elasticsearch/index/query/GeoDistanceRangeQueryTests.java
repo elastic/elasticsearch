@@ -329,8 +329,9 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        parseQuery(json);
+        assertWarningHeaders("Deprecated field [optimize_bbox] used, replaced by [no replacement: `optimize_bbox` is no longer " +
+                "supported due to recent improvements]");
     }
 
     public void testFromJsonCoerceFails() throws IOException {
@@ -349,8 +350,8 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        parseQuery(json);
+        assertWarningHeaders("Deprecated field [coerce] used, replaced by [use validation_method instead]");
     }
 
     public void testFromJsonIgnoreMalformedFails() throws IOException {
@@ -369,8 +370,8 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        parseQuery(json);
+        assertWarningHeaders("Deprecated field [ignore_malformed] used, replaced by [use validation_method instead]");
     }
 
     @Override

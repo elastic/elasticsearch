@@ -194,7 +194,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
         indexSettings = Settings.builder()
-                .put(ParseFieldMatcher.PARSE_STRICT, true)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated).build();
 
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
@@ -225,18 +224,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         DeprecationLogger.setThreadContext(threadContext);
     }
 
-    /**
-     * Check that there are no unaccounted warning headers. These should be checked with {@link #checkWarningHeaders(String...)} in the
-     * appropriate test
-     */
-    @After
-    public void teardown() throws IOException {
-        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-        assertNull("unexpected warning headers", warnings);
-        DeprecationLogger.removeThreadContext(this.threadContext);
-        this.threadContext.close();
-    }
-
     private static SearchContext getSearchContext(String[] types, QueryShardContext context) {
         TestSearchContext testSearchContext = new TestSearchContext(context) {
             @Override
@@ -254,7 +241,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     @After
-    public void afterTest() {
+    public void afterTest() throws IOException {
+        //Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarningHeaders(String...)} in the
+        //appropriate test
+        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
+        assertNull("unexpected warning headers", warnings);
+        DeprecationLogger.removeThreadContext(this.threadContext);
+        this.threadContext.close();
+
         serviceHolder.clientInvocationHandler.delegate = null;
     }
 
@@ -1034,11 +1028,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return query;
     }
 
-    protected void checkWarningHeaders(String... messages) {
-        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-        assertThat(warnings, hasSize(messages.length));
-        for (String msg : messages) {
-            assertThat(warnings, hasItem(equalTo(msg)));
+    protected void assertWarningHeaders(String... expectedWarnings) {
+        final List<String> actualWarnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
+        assertThat(actualWarnings, hasSize(expectedWarnings.length));
+        for (String msg : expectedWarnings) {
+            assertThat(actualWarnings, hasItem(equalTo(msg)));
         }
         // "clear" current warning headers by setting a new ThreadContext
         DeprecationLogger.removeThreadContext(this.threadContext);

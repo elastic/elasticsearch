@@ -236,13 +236,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         XContentParser parser = createParser(JsonXContent.jsonXContent, query);
         QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
-        assertTrue(innerQueryBuilder.isPresent() == false);
-
-        parser = createParser(JsonXContent.jsonXContent, query);
-        QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
-        assertThat(ex.getMessage(), equalTo("query malformed, empty clause found at [3:17]"));
-        checkWarningHeaders("query malformed, empty clause found at [3:17]");
+        assertFalse(innerQueryBuilder.isPresent());
+        assertWarningHeaders("query malformed, empty clause found at [3:17]");
     }
 
     public void testToQueryInnerQueryType() throws IOException {

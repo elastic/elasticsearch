@@ -122,7 +122,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     public void testExceptionOnMissingTypes() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length == 0);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> super.testToQuery());
+        QueryShardException e = expectThrows(QueryShardException.class, super::testToQuery);
         assertEquals("failed to find geo_point field [mapped_geo_point]", e.getMessage());
     }
 
@@ -479,14 +479,12 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                         "    \"boost\" : 1.0\n" +
                         "  }\n" +
                         "}";
-        QueryBuilder parsedGeoBboxShortcut = parseQuery(json, ParseFieldMatcher.EMPTY);
+        QueryBuilder parsedGeoBboxShortcut = parseQuery(deprecatedJson, ParseFieldMatcher.EMPTY);
         assertThat(parsedGeoBboxShortcut, equalTo(parsed));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
-        assertEquals("Deprecated field [geo_bbox] used, expected [geo_bounding_box] instead", e.getMessage());
+        assertWarningHeaders("Deprecated field [geo_bbox] used, expected [geo_bounding_box] instead");
     }
 
-    public void testFromJsonCoerceFails() throws IOException {
+    public void testFromJsonCoerceIsDeprecated() throws IOException {
         String json =
                 "{\n" +
                 "  \"geo_bounding_box\" : {\n" +
@@ -500,11 +498,12 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+
+        parseQuery(json);
+        assertWarningHeaders("Deprecated field [coerce] used, replaced by [validation_method]");
     }
 
-    public void testFromJsonIgnoreMalformedFails() throws IOException {
+    public void testFromJsonIgnoreMalformedIsDeprecated() throws IOException {
         String json =
                 "{\n" +
                 "  \"geo_bounding_box\" : {\n" +
@@ -518,8 +517,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        parseQuery(json);
+        assertWarningHeaders("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     @Override

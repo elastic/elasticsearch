@@ -62,8 +62,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
      * All tests create deprecation warnings when an new {@link TemplateQueryBuilder} is created.
      * Instead of having to check them once in every single test, this is done here after each test is run
      */
-    @After void checkWarningHeaders() throws IOException {
-        checkWarningHeaders("[template] query is deprecated, use search template api instead");
+    @After void assertWarningHeaders() throws IOException {
+        assertWarningHeaders("[template] query is deprecated, use search template api instead");
     }
 
     @Override

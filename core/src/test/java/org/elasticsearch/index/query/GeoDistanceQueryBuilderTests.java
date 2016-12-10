@@ -378,7 +378,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assertEquals(json, 12000.0, parsed.distance(), 0.0001);
     }
 
-    public void testOptimizeBboxFails() throws IOException {
+    public void testOptimizeBboxIsDeprecated() throws IOException {
         String json =
             "{\n" +
                 "  \"geo_distance\" : {\n" +
@@ -391,11 +391,12 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        parseQuery(json);
+        assertWarningHeaders("Deprecated field [optimize_bbox] used, replaced by [no replacement: " +
+                "`optimize_bbox` is no longer supported due to recent improvements]");
     }
 
-    public void testFromCoerceFails() throws IOException {
+    public void testFromCoerceIsDeprecated() throws IOException {
         String json =
                 "{\n" +
                 "  \"geo_distance\" : {\n" +
@@ -407,11 +408,11 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        parseQuery(json);
+        assertWarningHeaders("Deprecated field [coerce] used, replaced by [validation_method]");
     }
 
-    public void testFromJsonIgnoreMalformedFails() throws IOException {
+    public void testFromJsonIgnoreMalformedIsDeprecated() throws IOException {
         String json =
                 "{\n" +
                 "  \"geo_distance\" : {\n" +
@@ -423,8 +424,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        parseQuery(json);
+        assertWarningHeaders("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     @Override

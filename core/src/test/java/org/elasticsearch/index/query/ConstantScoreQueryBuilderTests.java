@@ -31,7 +31,6 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.Optional;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
@@ -133,13 +132,7 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
-        checkWarningHeaders("query malformed, empty clause found at [1:40]");
-
-        parser = createParser(JsonXContent.jsonXContent, query);
-        QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
-        assertThat(ex.getMessage(), equalTo("query malformed, empty clause found at [1:40]"));
-        checkWarningHeaders("query malformed, empty clause found at [1:40]");
+        assertWarningHeaders("query malformed, empty clause found at [1:40]");
     }
 
 }

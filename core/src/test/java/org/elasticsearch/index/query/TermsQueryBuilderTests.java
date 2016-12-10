@@ -266,11 +266,9 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                         "    \"boost\" : 1.0\n" +
                         "  }\n" +
                         "}";
-        QueryBuilder inShortcutParsed = parseQuery(json, ParseFieldMatcher.EMPTY);
+        QueryBuilder inShortcutParsed = parseQuery(deprecatedJson, ParseFieldMatcher.EMPTY);
         assertThat(inShortcutParsed, equalTo(parsed));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
-        assertEquals("Deprecated field [in] used, expected [terms] instead", e.getMessage());
+        assertWarningHeaders("Deprecated field [in] used, expected [terms] instead");
     }
 
     @Override

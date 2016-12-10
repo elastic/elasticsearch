@@ -149,6 +149,6 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
 
         parseQuery(json, ParseFieldMatcher.EMPTY);
         // we should get warning headers
-        checkWarningHeaders("Deprecated field [collect_payloads] used, replaced by [no longer supported]");
+        assertWarningHeaders("Deprecated field [collect_payloads] used, replaced by [no longer supported]");
     }
 }

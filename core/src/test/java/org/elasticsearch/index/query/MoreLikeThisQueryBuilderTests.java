@@ -370,10 +370,6 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
         MoreLikeThisQueryBuilder parsedQueryMltShortcut = (MoreLikeThisQueryBuilder) parseQuery(deprecatedJson, ParseFieldMatcher.EMPTY);
         assertThat(parsedQueryMltShortcut, equalTo(parsed));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
-        assertEquals("Deprecated field [mlt] used, expected [more_like_this] instead", e.getMessage());
-
-        checkWarningHeaders("Deprecated field [mlt] used, expected [more_like_this] instead");
+        assertWarningHeaders("Deprecated field [mlt] used, expected [more_like_this] instead");
     }
 }

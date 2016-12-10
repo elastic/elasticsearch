@@ -102,9 +102,6 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
             // we encountered '{}' for a query clause
             String msg = "query malformed, empty clause found at [" + parser.getTokenLocation() +"]";
             DEPRECATION_LOGGER.deprecated(msg);
-            if (parseFieldMatcher.isStrict()) {
-                throw new IllegalArgumentException(msg);
-            }
             return Optional.empty();
         }
         if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {

@@ -30,9 +30,10 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import java.io.IOException;
 import java.util.Optional;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.nullValue;;
+import static org.hamcrest.CoreMatchers.nullValue;
+
+;
 
 public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQueryBuilder> {
 
@@ -110,7 +111,7 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
 
-        checkWarningHeaders("query malformed, empty clause found at [1:36]");
+        assertWarningHeaders("query malformed, empty clause found at [1:36]");
 
         query =
                 "{ \"boosting\" : {\n" +
@@ -123,14 +124,7 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         context = createParseContext(parser, ParseFieldMatcher.EMPTY);
         innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
-
-        checkWarningHeaders("query malformed, empty clause found at [3:20]");
-
-        parser = createParser(JsonXContent.jsonXContent, query);
-        QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
-        assertThat(ex.getMessage(), equalTo("query malformed, empty clause found at [3:20]"));
-        checkWarningHeaders("query malformed, empty clause found at [3:20]");
+        assertWarningHeaders("query malformed, empty clause found at [3:20]");
     }
 
     public void testRewrite() throws IOException {

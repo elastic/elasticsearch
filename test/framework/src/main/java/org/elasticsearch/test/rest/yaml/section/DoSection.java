@@ -138,7 +138,7 @@ public class DoSection implements ExecutableSection {
                 }
                 fail(formatStatusCodeMessage(response, catchStatusCode));
             }
-            checkWarningHeaders(response.getWarningHeaders());
+            assertWarningHeaders(response.getWarningHeaders());
         } catch(ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
             if (!Strings.hasLength(catchParam)) {
@@ -164,7 +164,7 @@ public class DoSection implements ExecutableSection {
     /**
      * Check that the response contains only the warning headers that we expect.
      */
-    void checkWarningHeaders(List<String> warningHeaders) {
+    void assertWarningHeaders(List<String> warningHeaders) {
         StringBuilder failureMessage = null;
         // LinkedHashSet so that missing expected warnings come back in a predictable order which is nice for testing
         Set<String> expected = new LinkedHashSet<>(expectedWarningHeaders);

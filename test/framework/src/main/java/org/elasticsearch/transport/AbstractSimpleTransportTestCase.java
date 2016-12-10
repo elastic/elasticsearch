@@ -141,7 +141,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.removeConnectionListener(waitForConnection);
     }
 
-    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings, Settings settings) {
+    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
+                                              Settings settings) {
         MockTransportService service = build(
             Settings.builder()
                 .put(settings)

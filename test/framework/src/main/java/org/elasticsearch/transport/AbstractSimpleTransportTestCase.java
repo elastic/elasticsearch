@@ -142,7 +142,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
-                                              Settings settings) {
+                                              Settings settings, boolean acceptRequests) {
         MockTransportService service = build(
             Settings.builder()
                 .put(settings)
@@ -152,12 +152,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .build(),
             version,
             clusterSettings);
-        service.acceptIncomingRequests();
+        if (acceptRequests) {
+            service.acceptIncomingRequests();
+        }
         return service;
     }
 
     private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
-        return buildService(name, version, clusterSettings, Settings.EMPTY);
+        return buildService(name, version, clusterSettings, Settings.EMPTY, true);
     }
 
     @Override
@@ -1459,8 +1461,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testBlockingIncomingRequests() throws Exception {
         try (TransportService service = buildService("TS_TEST", version0, null,
-            Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build())) {
-            AtomicBoolean requestProcessed = new AtomicBoolean();
+            Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), false)) {
+            AtomicBoolean requestProcessed = new AtomicBoolean(false);
             service.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
                 (request, channel) -> {
                     requestProcessed.set(true);
@@ -1471,7 +1473,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 new DiscoveryNode("TS_TEST", "TS_TEST", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             serviceA.close();
             serviceA = buildService("TS_A", version0, null,
-                Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build());
+                Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), true);
             serviceA.connectToNode(node);
 
             CountDownLatch latch = new CountDownLatch(1);
@@ -1782,7 +1784,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.STATE);
             // connection with one connection and a large timeout -- should consume the one spot in the backlog queue
             try (TransportService service = buildService("TS_TPC", Version.CURRENT, null,
-                Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build())) {
+                Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), true)) {
                 service.connectToNode(first, builder.build());
                 builder.setConnectTimeout(TimeValue.timeValueMillis(1));
                 final ConnectionProfile profile = builder.build();
@@ -1801,7 +1803,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testTcpHandshake() throws IOException, InterruptedException {
         assumeTrue("only tcp transport has a handshake method", serviceA.getDelegateTransport() instanceof TcpTransport);
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, null,
-            Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build())) {
+            Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), true)) {
             // this acts like a node that doesn't have support for handshakes
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);

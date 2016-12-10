@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -121,5 +122,12 @@ public interface Transport extends LifecycleComponent {
          */
         void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
             IOException, TransportException;
+
+        /**
+         * Returns the version of the node this connection was established with.
+         */
+        default Version getVersion() {
+            return getNode().getVersion();
+        }
     }
 }

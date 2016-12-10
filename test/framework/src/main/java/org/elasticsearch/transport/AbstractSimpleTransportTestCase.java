@@ -1807,8 +1807,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             serviceA.connectToNode(node);
             if (serviceA.transport instanceof TcpTransport) {
-                Version version = ((TcpTransport) serviceA.transport).executeHandshake(node);
-                assertEquals(version, Version.CURRENT.minimumCompatibilityVersion());
+                Version version = ((TcpTransport) serviceA.transport).executeHandshake(node, TimeValue.timeValueSeconds(10));
+                assertNull(version);
             }
             serviceA.disconnectFromNode(node);
         }
@@ -1818,7 +1818,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             serviceA.connectToNode(node);
             if (serviceA.transport instanceof TcpTransport) {
-                Version version = ((TcpTransport) serviceA.transport).executeHandshake(node);
+                Version version = ((TcpTransport) serviceA.transport).executeHandshake(node, TimeValue.timeValueSeconds(10));
+                assertEquals(version, Version.CURRENT);
             }
 
         }

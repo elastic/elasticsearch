@@ -233,15 +233,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     @Override
     public void transportServiceAdapter(TransportServiceAdapter service) {
+        if (service.getRequestHandler(HANDSHAKE_ACTION_NAME) != null) {
+            throw new IllegalStateException(HANDSHAKE_ACTION_NAME + " is a reserved request handler and must not be registered");
+        }
         this.transportServiceAdapter = service;
-    }
-
-    public Settings settings() {
-        return this.settings;
-    }
-
-    public boolean isCompressed() {
-        return compress;
     }
 
     public class ScheduledPing extends AbstractLifecycleRunnable {
@@ -321,23 +316,36 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     public final class NodeChannels implements Connection {
-        private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping
-            = new EnumMap<>(TransportRequestOptions.Type.class);
+        private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping;
         private final Channel[] channels;
         private final DiscoveryNode node;
         private final AtomicBoolean closed = new AtomicBoolean(false);
+        private final Version version;
 
         public NodeChannels(DiscoveryNode node, Channel[] channels, ConnectionProfile connectionProfile) {
             this.node = node;
             this.channels = channels;
             assert channels.length == connectionProfile.getNumConnections() : "expected channels size to be == "
                 + connectionProfile.getNumConnections() + " but was: [" + channels.length + "]";
+            typeMapping = new EnumMap<>(TransportRequestOptions.Type.class);
             for (ConnectionProfile.ConnectionTypeHandle handle : connectionProfile.getHandles()) {
                 for (TransportRequestOptions.Type type : handle.getTypes())
                 typeMapping.put(type, handle);
             }
+            version = node.getVersion();
         }
 
+        NodeChannels(NodeChannels channels, Version handshakeVersion) {
+            this.node = channels.node;
+            this.channels = channels.channels;
+            this.typeMapping = channels.typeMapping;
+            this.version = handshakeVersion;
+        }
+
+        @Override
+        public Version getVersion() {
+            return version;
+        }
 
         public boolean hasChannel(Channel channel) {
             for (Channel channel1 : channels) {
@@ -378,8 +386,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             if (closed.get()) {
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
-            Channel channel = channel(options.type());
-            sendRequestToChannel(this.node, channel, requestId, action, request, options);
+            sendRequestToChannel(this.node, this, requestId, action, request, options);
         }
     }
 
@@ -419,7 +426,16 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     }
                     if (doHandshakes) { // some tests need to disable this
                         Channel channel = nodeChannels.channel(TransportRequestOptions.Type.PING);
-                        executeHandshake(channel);
+                        // TODO use a dedicated timeout maybe it's over-designed?
+                        Version version = executeHandshake(node, channel, connectionProfile.getConnectTimeout());
+                        if (version != null) {
+                            // this is a BWC layer, if we talk to a pre 5.2 node then the handshake is not supported
+                            // this will go away in master once it's all ported to 5.2 but for now we keep this to make
+                            // the backport straight forward
+                            nodeChannels = new NodeChannels(nodeChannels, version);
+                        }
+
+
                     }
                     // we acquire a connection lock, so no way there is an existing connection
                     connectedNodes.put(node, nodeChannels);
@@ -535,7 +551,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     protected Map<String, Settings> buildProfileSettings() {
         // extract default profile first and create standard bootstrap
-        Map<String, Settings> profiles = TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings()).getAsGroups(true);
+        Map<String, Settings> profiles = TransportSettings.TRANSPORT_PROFILES_SETTING.get(settings).getAsGroups(true);
         if (!profiles.containsKey(TransportSettings.DEFAULT_PROFILE)) {
             profiles = new HashMap<>(profiles);
             profiles.put(TransportSettings.DEFAULT_PROFILE, Settings.EMPTY);
@@ -908,9 +924,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         return compress && (!(request instanceof BytesTransportRequest));
     }
 
-    protected void sendRequestToChannel(DiscoveryNode node, Channel targetChannel, final long requestId, final String action,
+    protected void sendRequestToChannel(DiscoveryNode node, NodeChannels channels, final long requestId, final String action,
                                         final TransportRequest request, TransportRequestOptions options) throws IOException,
         TransportException {
+        final Channel targetChannel = channels.channel(options.type());
         if (compress) {
             options = TransportRequestOptions.builder(options).withCompress(true).build();
         }
@@ -933,7 +950,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             // we pick the smallest of the 2, to support both backward and forward compatibility
             // note, this is the only place we need to do this, since from here on, we use the serialized version
             // as the version to use also when the node receiving this request will send the response with
-            Version version = Version.min(getCurrentVersion(), node.getVersion());
+            Version version = Version.min(getCurrentVersion(), channels.getVersion());
 
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
@@ -1477,15 +1494,17 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    final Version executeHandshake(DiscoveryNode discoveryNode) throws IOException, InterruptedException {
+    final Version executeHandshake(DiscoveryNode discoveryNode, TimeValue timeout) throws IOException, InterruptedException {
         Channel targetChannel = getConnection(discoveryNode).channel(TransportRequestOptions.Type.PING);
-        return executeHandshake(targetChannel);
+        return executeHandshake(discoveryNode, targetChannel, timeout);
     }
 
-    private final Version executeHandshake(Channel channel) throws IOException, InterruptedException {
+    private final Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException,
+        InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Version> versionRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        AtomicBoolean handshakeNotSupported = new AtomicBoolean(false);
         numHandshakes.inc();
         final long requestId = newRequestId();
         pendingHandshakes.put(requestId, new TransportResponseHandler<VersionHandshakeResponse>() {
@@ -1521,7 +1540,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         });
         try {
             sendHandshakeRequest(channel, requestId);
-            latch.await();
+            if (latch.await(timeout.millis(), TimeUnit.MILLISECONDS) == false) {
+                throw new ConnectTransportException(node, "handshake_timeout[" + timeout + "]");
+            }
+            if (handshakeNotSupported.get()) {
+                // this is a BWC layer, if we talk to a pre 5.2 node then the handshake is not supported
+                // this will go away in master once it's all ported to 5.2 but for now we keep this to make
+                // the backport straight forward
+                return null;
+            }
             if (exceptionRef.get() != null) {
                 throw new IllegalStateException("handshake failed", exceptionRef.get());
             } else {

@@ -504,7 +504,7 @@ public final class MockTransportService extends TransportService {
         public long newRequestId() {
             return transport.newRequestId();
         }
-        
+
         @Override
         public Connection getConnection(DiscoveryNode node) {
             return new FilteredConnection(transport.getConnection(node)) {

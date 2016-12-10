@@ -426,8 +426,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     }
                     if (doHandshakes) { // some tests need to disable this
                         Channel channel = nodeChannels.channel(TransportRequestOptions.Type.PING);
-                        // TODO use a dedicated timeout maybe it's over-designed?
-                        Version version = executeHandshake(node, channel, connectionProfile.getConnectTimeout());
+                        final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
+                            defaultConnectionProfile.getConnectTimeout():
+                            connectionProfile.getConnectTimeout();
+                        final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
+                            connectTimeout: connectionProfile.getHandshakeTimeout();
+                        Version version = executeHandshake(node, channel, handshakeTimeout);
                         if (version != null) {
                             // this is a BWC layer, if we talk to a pre 5.2 node then the handshake is not supported
                             // this will go away in master once it's all ported to 5.2 but for now we keep this to make
@@ -1443,7 +1447,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
 
     protected void handleHandshakeRequest(Channel c, long requestId, Version version) throws IOException {
-        VersionHandshakeResponse response = new VersionHandshakeResponse(Version.CURRENT);
+        VersionHandshakeResponse response = new VersionHandshakeResponse(getCurrentVersion());
         try (BytesStreamOutput stream = new BytesStreamOutput()) {
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
@@ -1456,12 +1460,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     protected void sendHandshakeRequest(Channel c, long requestId) throws IOException {
         try (BytesStreamOutput stream = new BytesStreamOutput()) {
-            stream.setVersion(Version.CURRENT.minimumCompatibilityVersion());
+            stream.setVersion(getCurrentVersion().minimumCompatibilityVersion());
             threadPool.getThreadContext().writeTo(stream);
             stream.writeString(HANDSHAKE_ACTION_NAME);
             BytesReference bytes = stream.bytes();
             sendMessage(c, new CompositeBytesReference(buildHandshakeMessage(true, requestId,
-                Version.CURRENT.minimumCompatibilityVersion(), bytes.length()), bytes) , () -> {});
+                getCurrentVersion().minimumCompatibilityVersion(), bytes.length()), bytes) , () -> {});
         }
     }
 
@@ -1472,7 +1476,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     private static final class VersionHandshakeResponse extends TransportResponse {
-        Version version;
+        private Version version;
 
         private VersionHandshakeResponse(Version version) {
             this.version = version;

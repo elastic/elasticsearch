@@ -127,14 +127,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             logger.info("--> actively connecting to local node");
             serviceA.connectToNode(nodeA);
             serviceB.connectToNode(nodeB);
-            assertNumHandshakes(numHandshakes, serviceA.transport);
-            assertNumHandshakes(numHandshakes, serviceB.transport);
+            assertNumHandshakes(numHandshakes, serviceA.getDelegateTransport());
+            assertNumHandshakes(numHandshakes, serviceB.getDelegateTransport());
             numHandshakes++;
         }
         serviceA.connectToNode(nodeB);
         serviceB.connectToNode(nodeA);
-        assertNumHandshakes(numHandshakes, serviceA.transport);
-        assertNumHandshakes(numHandshakes, serviceB.transport);
+        assertNumHandshakes(numHandshakes, serviceA.getDelegateTransport());
+        assertNumHandshakes(numHandshakes, serviceB.getDelegateTransport());
 
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
         serviceA.removeConnectionListener(waitForConnection);
@@ -164,8 +164,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         try {
-            assertNoPendingHandshakes(serviceA.transport);
-            assertNoPendingHandshakes(serviceB.transport);
+            assertNoPendingHandshakes(serviceA.getDelegateTransport());
+            assertNoPendingHandshakes(serviceB.getDelegateTransport());
         } finally {
             IOUtils.close(serviceA, serviceB, () -> {
                 try {
@@ -1787,9 +1787,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 final ConnectionProfile profile = builder.build();
                 // now with the 1ms timeout we got and test that is it's applied
                 long startTime = System.nanoTime();
-                ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> {
-                    service.connectToNode(second, profile);
-                });
+                ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> service.connectToNode(second, profile));
                 final long now = System.nanoTime();
                 final long timeTaken = TimeValue.nsecToMSec(now - startTime);
                 assertTrue("test didn't timeout quick enough, time taken: [" + timeTaken + "]",
@@ -1822,6 +1820,27 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 assertEquals(version, Version.CURRENT);
             }
 
+        }
+    }
+
+    public void testTcpHandshakeTimeout() throws IOException {
+        try (ServerSocket socket = new ServerSocket()) {
+            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+            socket.setReuseAddress(true);
+            DiscoveryNode dummy = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),
+                socket.getLocalPort()), emptyMap(),
+                emptySet(), version0);
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(1,
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE);
+            builder.setHandshakeTimeout(TimeValue.timeValueMillis(1));
+            ConnectTransportException ex = expectThrows(ConnectTransportException.class,
+                () -> serviceA.connectToNode(dummy, builder.build()));
+            assertEquals("[][" + dummy.getAddress() +"] handshake_timeout[1ms]", ex.getMessage());
         }
     }
 }

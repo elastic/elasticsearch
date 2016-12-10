@@ -693,4 +693,12 @@ public final class MockTransportService extends TransportService {
             connection.close();
         }
     }
+
+    public Transport getDelegateTransport() {
+        Transport transport = transport();
+        while(transport instanceof DelegateTransport) {
+            transport = ((DelegateTransport) transport).transport;
+        }
+        return transport;
+    }
 }

@@ -267,17 +267,15 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
                 "  \"distance_type\" : \"sloppy_arc\",\n" +
-                "  \"mode\" : \"SUM\",\n" +
+                "  \"mode\" : \"MAX\",\n" +
                 "  \"coerce\" : true\n" +
                 "}";
         XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortBuilder.fromXContent(context, ""));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
-        
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.EMPTY);
+        GeoDistanceSortBuilder.fromXContent(context, "");
+        assertWarningHeaders("Deprecated field [coerce] used, replaced by [validation_method]");
     }
 
     public void testIgnoreMalformedIsDeprecated() throws IOException {
@@ -288,17 +286,15 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
                 "  \"distance_type\" : \"sloppy_arc\",\n" +
-                "  \"mode\" : \"SUM\",\n" +
+                "  \"mode\" : \"MAX\",\n" +
                 "  \"ignore_malformed\" : true\n" +
                 "}";
         XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortBuilder.fromXContent(context, ""));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
-        
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.EMPTY);
+        GeoDistanceSortBuilder.fromXContent(context, "");
+        assertWarningHeaders("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     public void testSortModeSumIsRejectedInJSON() throws IOException {
@@ -455,8 +451,8 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         sortBuilder.field("unit", "km");
         sortBuilder.field("sort_mode", "max");
         sortBuilder.endObject();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parse(sortBuilder));
-        assertEquals("Deprecated field [sort_mode] used, expected [mode] instead", ex.getMessage());
+        parse(sortBuilder);
+        assertWarningHeaders("Deprecated field [sort_mode] used, expected [mode] instead");
     }
 
     private GeoDistanceSortBuilder parse(XContentBuilder sortBuilder) throws Exception {

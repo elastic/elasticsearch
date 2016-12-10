@@ -62,9 +62,9 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     private static final ParseField TYPE_FIELD = new ParseField("type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField COERCE_FIELD =new ParseField("coerce", "normalize")
-            .withAllDeprecated("use field validation_method instead");
+            .withAllDeprecated("validation_method");
     private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
-            .withAllDeprecated("use field validation_method instead");
+            .withAllDeprecated("validation_method");
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField TOP_FIELD = new ParseField("top");
     private static final ParseField BOTTOM_FIELD = new ParseField("bottom");

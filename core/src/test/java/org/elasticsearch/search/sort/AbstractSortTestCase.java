@@ -25,8 +25,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -66,16 +67,22 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
 
@@ -84,6 +91,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     static IndicesQueriesRegistry indicesQueriesRegistry;
     private static ScriptService scriptService;
+    private ThreadContext threadContext;
 
     @BeforeClass
     public static void init() throws IOException {
@@ -113,6 +121,39 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
         indicesQueriesRegistry = null;
+    }
+
+    @Before
+    public void beforeTest() {
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        DeprecationLogger.setThreadContext(threadContext);
+    }
+
+    @After
+    public void afterTest() throws IOException {
+        //Check that there are no unaccounted warning headers. These should be checked with assertWarningHeaders(String...) in the
+        //appropriate test
+        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
+        assertNull("unexpected warning headers", warnings);
+        DeprecationLogger.removeThreadContext(this.threadContext);
+        this.threadContext.close();
+    }
+
+    protected void assertWarningHeaders(String... expectedWarnings) {
+        final List<String> actualWarnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
+        assertThat(actualWarnings, hasSize(expectedWarnings.length));
+        for (String msg : expectedWarnings) {
+            assertThat(actualWarnings, hasItem(equalTo(msg)));
+        }
+        // "clear" current warning headers by setting a new ThreadContext
+        DeprecationLogger.removeThreadContext(this.threadContext);
+        try {
+            this.threadContext.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        DeprecationLogger.setThreadContext(this.threadContext);
     }
 
     /** Returns random sort that is put under test */
@@ -251,6 +292,6 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     @SuppressWarnings("unchecked")
     private T copy(T original) throws IOException {
         return copyWriteable(original, namedWriteableRegistry,
-                (Writeable.Reader<T>) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
+                namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
     }
 }

@@ -597,17 +597,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
                         final String info = sender + "_" + iter;
                         final DiscoveryNode node = nodeB; // capture now
-                        serviceA.sendRequest(node, "test", new TestRequest(info),
-                            new ActionListenerResponseHandler<>(listener, TestResponse::new));
                         try {
-                            listener.actionGet();
-                        } catch (ConnectTransportException e) {
-                            // ok!
-                        } catch (Exception e) {
-                            logger.error(
-                                (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node), e);
-                            sendingErrors.add(e);
+                            serviceA.sendRequest(node, "test", new TestRequest(info),
+                                new ActionListenerResponseHandler<>(listener, TestResponse::new));
+                            try {
+                                listener.actionGet();
+                            } catch (ConnectTransportException e) {
+                                // ok!
+                            } catch (Exception e) {
+                                logger.error(
+                                    (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node), e);
+                                sendingErrors.add(e);
+                            }
+                        } catch (NodeNotConnectedException ex) {
+                            // ok
                         }
+
                     }
                 }
 
@@ -1213,16 +1218,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testVersionFrom1to1() throws Exception {
         serviceB.registerRequestHandler("/version", Version1Request::new, ThreadPool.Names.SAME,
-            new TransportRequestHandler<Version1Request>() {
-                @Override
-                public void messageReceived(Version1Request request, TransportChannel channel) throws Exception {
-                    assertThat(request.value1, equalTo(1));
-                    assertThat(request.value2, equalTo(2));
-                    Version1Response response = new Version1Response();
-                    response.value1 = 1;
-                    response.value2 = 2;
-                    channel.sendResponse(response);
-                }
+            (request, channel) -> {
+                assertThat(request.value1, equalTo(1));
+                assertThat(request.value2, equalTo(2));
+                Version1Response response = new Version1Response();
+                response.value1 = 1;
+                response.value2 = 2;
+                channel.sendResponse(response);
             });
 
         Version1Request version1Request = new Version1Request();
@@ -1295,7 +1297,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version0Response.value1, equalTo(1));
     }
 
-    public void testMockFailToSendNoConnectRule() {
+    public void testMockFailToSendNoConnectRule() throws IOException {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
             new TransportRequestHandler<StringMessageRequest>() {
                 @Override
@@ -1347,12 +1349,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try {
             serviceB.connectToNodeAndHandshake(nodeA, 100);
             fail("exception should be thrown");
-        } catch (ConnectTransportException e) {
+        } catch (IllegalStateException e) {
             // all is well
         }
     }
 
-    public void testMockUnresponsiveRule() {
+    public void testMockUnresponsiveRule() throws IOException {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
             new TransportRequestHandler<StringMessageRequest>() {
                 @Override
@@ -1405,7 +1407,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try {
             serviceB.connectToNodeAndHandshake(nodeA, 100);
             fail("exception should be thrown");
-        } catch (ConnectTransportException e) {
+        } catch (IllegalStateException e) {
             // all is well
         }
     }

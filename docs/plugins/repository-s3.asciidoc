@@ -240,7 +240,7 @@ The following settings are supported:
 
     Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
 
-`read_only`::
+`readonly`::
 
     Makes repository read-only. Defaults to `false`.
 

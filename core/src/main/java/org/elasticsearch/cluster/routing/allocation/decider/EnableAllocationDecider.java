@@ -157,19 +157,19 @@ public class EnableAllocationDecider extends AllocationDecider {
             case ALL:
                 return allocation.decision(Decision.YES, NAME, "all rebalancing is allowed");
             case NONE:
-                return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to {}", setting(enable, usedIndexSetting));
+                return allocation.decision(Decision.NO, NAME, "no rebalancing is allowed due to %s", setting(enable, usedIndexSetting));
             case PRIMARIES:
                 if (shardRouting.primary()) {
                     return allocation.decision(Decision.YES, NAME, "primary rebalancing is allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "replica rebalancing is forbidden due to {}",
+                    return allocation.decision(Decision.NO, NAME, "replica rebalancing is forbidden due to %s",
                                                 setting(enable, usedIndexSetting));
                 }
             case REPLICAS:
                 if (shardRouting.primary() == false) {
                     return allocation.decision(Decision.YES, NAME, "replica rebalancing is allowed");
                 } else {
-                    return allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden due to {}",
+                    return allocation.decision(Decision.NO, NAME, "primary rebalancing is forbidden due to %s",
                                                 setting(enable, usedIndexSetting));
                 }
             default:

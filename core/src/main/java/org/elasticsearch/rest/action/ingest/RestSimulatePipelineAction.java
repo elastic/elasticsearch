@@ -44,7 +44,7 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        SimulatePipelineRequest request = new SimulatePipelineRequest(RestActions.getRestContent(restRequest));
+        SimulatePipelineRequest request = new SimulatePipelineRequest(restRequest.contentOrSourceParam());
         request.setId(restRequest.param("id"));
         request.setVerbose(restRequest.paramAsBoolean("verbose", false));
         return channel -> client.admin().cluster().simulatePipeline(request, new RestToXContentListener<>(channel));

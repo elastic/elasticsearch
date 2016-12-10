@@ -184,7 +184,7 @@ POST test/type1/1/_update
     "doc" : {
         "name" : "new_name"
     },
-    "detect_noop": true
+    "detect_noop": false
 }
 --------------------------------------------------
 // CONSOLE

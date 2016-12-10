@@ -106,7 +106,7 @@ final class RequestLogger {
 
     static String buildWarningMessage(HttpUriRequest request, HttpHost host, Header[] warnings) {
         StringBuilder message = new StringBuilder("request [").append(request.getMethod()).append(" ").append(host)
-                .append(getUri(request.getRequestLine())).append("] returned ").append(warnings.length).append(" warnings:");
+                .append(getUri(request.getRequestLine())).append("] returned ").append(warnings.length).append(" warnings: ");
         for (int i = 0; i < warnings.length; i++) {
             if (i > 0) {
                 message.append(",");

@@ -138,7 +138,7 @@ public class RequestLoggerTests extends RestClientTestCase {
         HttpUriRequest request = randomHttpRequest(new URI("/index/type/_api"));
         int numWarnings = randomIntBetween(1, 5);
         StringBuilder expected = new StringBuilder("request [").append(request.getMethod()).append(" ").append(host)
-                .append("/index/type/_api] returned ").append(numWarnings).append(" warnings:");
+                .append("/index/type/_api] returned ").append(numWarnings).append(" warnings: ");
         Header[] warnings = new Header[numWarnings];
         for (int i = 0; i < numWarnings; i++) {
             String warning = "this is warning number " + i;

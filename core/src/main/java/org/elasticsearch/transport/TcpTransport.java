@@ -1530,7 +1530,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 if (cause != null
                     && cause instanceof ActionNotFoundTransportException
                     && cause.getMessage().equals("No handler for action [internal:tcp/handshake]")) {
-                        versionRef.set(Version.CURRENT.minimumCompatibilityVersion());
+                        handshakeNotSupported.set(true);
                 } else {
                     exceptionRef.set(exp);
                 }
@@ -1557,7 +1557,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 throw new IllegalStateException("handshake failed", exceptionRef.get());
             } else {
                 Version version = versionRef.get();
-                if (Version.CURRENT.isCompatible(version) == false) {
+                if (getCurrentVersion().isCompatible(version) == false) {
                     throw new IllegalStateException("Received message from unsupported version: [" + version
                         + "] minimal compatible version is: [" + getCurrentVersion().minimumCompatibilityVersion() + "]");
                 }

@@ -1344,8 +1344,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         });
     }
 
-    protected String handleRequest(Channel channel, String profileName, final StreamInput stream, long requestId,
-                                   int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status) throws IOException {
+    protected String handleRequest(Channel channel, String profileName, final StreamInput stream, long requestId, int messageLengthBytes,
+                                   Version version, InetSocketAddress remoteAddress, byte status) throws IOException {
         final String action = stream.readString();
         transportServiceAdapter.onRequestReceived(requestId, action);
         TransportChannel transportChannel = null;
@@ -1499,7 +1499,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         return executeHandshake(discoveryNode, targetChannel, timeout);
     }
 
-    private final Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException,
+    private Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException,
         InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Version> versionRef = new AtomicReference<>();

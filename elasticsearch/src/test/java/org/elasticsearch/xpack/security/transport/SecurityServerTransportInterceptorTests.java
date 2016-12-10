@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -14,6 +13,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor.AsyncSender;
 import org.elasticsearch.transport.TransportRequest;
@@ -77,7 +77,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
         AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
                     fail("sender called more than once!");
@@ -104,7 +104,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         AtomicReference<User> sendingUser = new AtomicReference<>();
         AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
                     fail("sender called more than once!");
@@ -136,7 +136,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         AtomicReference<User> sendingUser = new AtomicReference<>();
         AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (calledWrappedSender.compareAndSet(false, true) == false) {
                     fail("sender called more than once!");
@@ -163,7 +163,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         assertNull(securityContext.getUser());
         AsyncSender sender = interceptor.interceptSender(new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 fail("sender should not be called!");
             }

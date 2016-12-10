@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -79,25 +80,25 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     public AsyncSender interceptSender(AsyncSender sender) {
         return new AsyncSender() {
             @Override
-            public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
+            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
                                                                   TransportRequestOptions options, TransportResponseHandler<T> handler) {
                 if (licenseState.isAuthAllowed()) {
                     // Sometimes a system action gets executed like a internal create index request or update mappings request
                     // which means that the user is copied over to system actions so we need to change the user
                     if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
-                        securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(node, action, request, options,
+                        securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
                                 new ContextRestoreResponseHandler<>(threadPool.getThreadContext(), original, handler), sender));
                     } else {
-                        sendWithUser(node, action, request, options, handler, sender);
+                        sendWithUser(connection, action, request, options, handler, sender);
                     }
                 } else {
-                    sender.sendRequest(node, action, request, options, handler);
+                    sender.sendRequest(connection, action, request, options, handler);
                 }
             }
         };
     }
 
-    private <T extends TransportResponse> void sendWithUser(DiscoveryNode node, String action, TransportRequest request,
+    private <T extends TransportResponse> void sendWithUser(Transport.Connection connection, String action, TransportRequest request,
                                                             TransportRequestOptions options, TransportResponseHandler<T> handler,
                                                             AsyncSender sender) {
         // There cannot be a request outgoing from this node that is not associated with a user.
@@ -106,7 +107,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         }
 
         try {
-            sender.sendRequest(node, action, request, options, handler);
+            sender.sendRequest(connection, action, request, options, handler);
         } catch (Exception e) {
             handler.handleException(new TransportException("failed sending request", e));
         }

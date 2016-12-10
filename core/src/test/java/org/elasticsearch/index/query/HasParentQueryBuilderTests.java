@@ -149,12 +149,9 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         builder.field("type", "foo"); // deprecated
         builder.endObject();
         builder.endObject();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(builder.string()));
-        assertEquals("Deprecated field [type] used, expected [parent_type] instead", e.getMessage());
-
-        HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
+        HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string());
         assertEquals("foo", queryBuilder.type());
-        checkWarningHeaders("Deprecated field [type] used, expected [parent_type] instead");
+        assertWarningHeaders("Deprecated field [type] used, expected [parent_type] instead");
     }
 
     public void testToQueryInnerQueryType() throws IOException {

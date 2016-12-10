@@ -164,11 +164,8 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(contentString, ParseFieldMatcher.EMPTY);
         assertEquals(testQuery, parsed);
 
-        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(contentString));
-        checkWarningHeaders("Deprecated field [_type] used, expected [type] instead");
-        assertEquals("Deprecated field [_type] used, expected [type] instead", e.getMessage());
-        assertEquals(3, e.getLineNumber());
-        assertEquals(19, e.getColumnNumber());
+        parseQuery(contentString);
+        assertWarningHeaders("Deprecated field [_type] used, expected [type] instead");
 
         //array of types can also be called types rather than type
         final String contentString2 = "{\n" +
@@ -180,10 +177,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         parsed = (IdsQueryBuilder) parseQuery(contentString2, ParseFieldMatcher.EMPTY);
         assertEquals(testQuery, parsed);
 
-        e = expectThrows(ParsingException.class, () -> parseQuery(contentString2));
-        checkWarningHeaders("Deprecated field [types] used, expected [type] instead");
-        assertEquals("Deprecated field [types] used, expected [type] instead", e.getMessage());
-        assertEquals(3, e.getLineNumber());
-        assertEquals(19, e.getColumnNumber());
+        parseQuery(contentString2);
+        assertWarningHeaders("Deprecated field [types] used, expected [type] instead");
     }
 }

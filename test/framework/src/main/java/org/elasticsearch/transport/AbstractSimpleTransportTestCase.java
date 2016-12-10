@@ -1799,16 +1799,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testTcpHandshake() throws IOException, InterruptedException {
+        assumeTrue("only tcp transport has a handshake method", serviceA.getDelegateTransport() instanceof TcpTransport);
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, null,
             Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build())) {
             // this acts like a node that doesn't have support for handshakes
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             serviceA.connectToNode(node);
-            if (serviceA.getDelegateTransport() instanceof TcpTransport) {
-                Version version = ((TcpTransport) serviceA.getDelegateTransport()).executeHandshake(node, TimeValue.timeValueSeconds(10));
-                assertNull(version);
-            }
+            Version version = ((TcpTransport) serviceA.getDelegateTransport()).executeHandshake(node, TimeValue.timeValueSeconds(10));
+            assertNull(version);
             serviceA.disconnectFromNode(node);
         }
 

@@ -178,7 +178,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
                 throw new ConnectTransportException(node, "Failed to connect");
             }
             connectedNodes.put(node, targetTransport);
-            transportServiceAdapter.raiseNodeConnected(node);
+            transportServiceAdapter.onNodeConnected(node);
         }
     }
 
@@ -187,7 +187,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
         synchronized (this) {
             LocalTransport removed = connectedNodes.remove(node);
             if (removed != null) {
-                transportServiceAdapter.raiseNodeDisconnected(node);
+                transportServiceAdapter.onNodeDisconnected(node);
             }
         }
     }
@@ -198,7 +198,54 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
     }
 
     @Override
-    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
+    public Connection getConnection(DiscoveryNode node) {
+        final LocalTransport targetTransport = connectedNodes.get(node);
+        if (targetTransport == null) {
+            throw new NodeNotConnectedException(node, "Node not connected");
+        }
+        return new Connection() {
+            @Override
+            public DiscoveryNode getNode() {
+                return node;
+            }
+
+            @Override
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                throws IOException, TransportException {
+                LocalTransport.this.sendRequest(targetTransport, node, requestId, action, request, options);
+            }
+
+            @Override
+            public void close() throws IOException {}
+        };
+    }
+
+    @Override
+    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+        final LocalTransport targetTransport = transports.get(node.getAddress());
+        if (targetTransport == null) {
+            throw new ConnectTransportException(node, "Failed to connect");
+        }
+        return new Connection() {
+            @Override
+            public DiscoveryNode getNode() {
+                return node;
+            }
+
+            @Override
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                throws IOException, TransportException {
+                LocalTransport.this.sendRequest(targetTransport, node, requestId, action, request, options);
+            }
+
+            @Override
+            public void close() throws IOException {}
+        };
+
+    }
+
+    protected void sendRequest(LocalTransport targetTransport, final DiscoveryNode node, final long requestId, final String action,
+                             final TransportRequest request,
             TransportRequestOptions options) throws IOException, TransportException {
         final Version version = Version.min(node.getVersion(), getVersion());
 
@@ -215,11 +262,6 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
             request.writeTo(stream);
 
             stream.close();
-
-            final LocalTransport targetTransport = connectedNodes.get(node);
-            if (targetTransport == null) {
-                throw new NodeNotConnectedException(node, "Node not connected");
-            }
 
             final byte[] data = BytesReference.toBytes(stream.bytes());
             transportServiceAdapter.addBytesSent(data.length);

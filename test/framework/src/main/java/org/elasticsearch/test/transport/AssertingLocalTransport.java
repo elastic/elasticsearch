@@ -101,10 +101,10 @@ public class AssertingLocalTransport extends LocalTransport {
     }
 
     @Override
-    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
-                            TransportRequestOptions options) throws IOException, TransportException {
+    public void sendRequest(LocalTransport targetTransport, final DiscoveryNode node, final long requestId, final String action,
+                            final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
         ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersionBetween(random, minVersion, maxVersion), request,
                 namedWriteableRegistry);
-        super.sendRequest(node, requestId, action, request, options);
+        super.sendRequest(targetTransport, node, requestId, action, request, options);
     }
 }

@@ -69,7 +69,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.StreamCorruptedException;
 import java.net.BindException;
@@ -82,7 +81,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -314,13 +312,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    public final class NodeChannels implements Closeable {
+    public final class NodeChannels implements Connection {
         private final Map<TransportRequestOptions.Type, ConnectionProfile.ConnectionTypeHandle> typeMapping
             = new EnumMap<>(TransportRequestOptions.Type.class);
         private final Channel[] channels;
-        private final AtomicBoolean establishedAllConnections = new AtomicBoolean(false);
+        private final DiscoveryNode node;
+        private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        public NodeChannels(Channel[] channels, ConnectionProfile connectionProfile) {
+        public NodeChannels(DiscoveryNode node, Channel[] channels, ConnectionProfile connectionProfile) {
+            this.node = node;
             this.channels = channels;
             assert channels.length == connectionProfile.getNumConnections() : "expected channels size to be == "
                 + connectionProfile.getNumConnections() + " but was: [" + channels.length + "]";
@@ -330,12 +330,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             }
         }
 
-        public void connectionsEstablished() {
-            if (establishedAllConnections.compareAndSet(false, true) == false) {
-                throw new AssertionError("connected more than once");
-            }
-
-        }
 
         public boolean hasChannel(Channel channel) {
             for (Channel channel1 : channels) {
@@ -347,15 +341,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
 
         public List<Channel> getChannels() {
-            if (establishedAllConnections.get()) { // don't expose the channels until we are connected
-                return Arrays.asList(channels);
-            } else {
-                return Collections.emptyList();
-            }
+            return Arrays.asList(channels);
         }
 
         public Channel channel(TransportRequestOptions.Type type) {
-            assert establishedAllConnections.get();
             ConnectionProfile.ConnectionTypeHandle connectionTypeHandle = typeMapping.get(type);
             if (connectionTypeHandle == null) {
                 throw new IllegalArgumentException("no type channel for [" + type + "]");
@@ -365,7 +354,24 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
         @Override
         public synchronized void close() throws IOException {
-            closeChannels(Arrays.asList(channels).stream().filter(Objects::nonNull).collect(Collectors.toList()));
+            if (closed.compareAndSet(false, true)) {
+                closeChannels(Arrays.stream(channels).filter(Objects::nonNull).collect(Collectors.toList()));
+            }
+        }
+
+        @Override
+        public DiscoveryNode getNode() {
+            return this.node;
+        }
+
+        @Override
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException, TransportException {
+            if (closed.get()) {
+                throw new NodeNotConnectedException(node, "connection already closed");
+            }
+            Channel channel = channel(options.type());
+            sendRequestToChannel(this.node, channel, requestId, action, request, options);
         }
     }
 
@@ -396,20 +402,18 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 }
                 try {
                     try {
-                        nodeChannels = connectToChannels(node, connectionProfile);
+                        nodeChannels = openConnection(node, connectionProfile);
                     } catch (Exception e) {
                         logger.trace(
                             (Supplier<?>) () -> new ParameterizedMessage(
                                 "failed to connect to [{}], cleaning dangling connections", node), e);
                         throw e;
                     }
-                    // we acquire a connection lock, so no way there is an existing connection
-                    nodeChannels.connectionsEstablished();
                     connectedNodes.put(node, nodeChannels);
                     if (logger.isDebugEnabled()) {
                         logger.debug("connected to node [{}]", node);
                     }
-                    transportServiceAdapter.raiseNodeConnected(node);
+                    transportServiceAdapter.onNodeConnected(node);
                 } catch (ConnectTransportException e) {
                     throw e;
                 } catch (Exception e) {
@@ -420,6 +424,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             globalLock.readLock().unlock();
         }
     }
+
+    @Override
+    public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+        NodeChannels nodeChannels = connectToChannels(node, profile);
+        transportServiceAdapter.onConnectionOpened(node);
+        return nodeChannels;
+    }
+
     /**
      * Disconnects from a node, only if the relevant channel is found to be part of the node channels.
      */
@@ -433,18 +445,22 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 // check again within the connection lock, if its still applicable to remove it
                 if (nodeChannels != null && nodeChannels.hasChannel(channel)) {
                     connectedNodes.remove(node);
-                    try {
-                        logger.debug("disconnecting from [{}], {}", node, reason);
-                        IOUtils.closeWhileHandlingException(nodeChannels);
-                    } finally {
-                        logger.trace("disconnected from [{}], {}", node, reason);
-                        transportServiceAdapter.raiseNodeDisconnected(node);
-                    }
+                    closeAndNotify(node, nodeChannels, reason);
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    private void closeAndNotify(DiscoveryNode node, NodeChannels nodeChannels, String reason) {
+        try {
+            logger.debug("disconnecting from [{}], {}", node, reason);
+            IOUtils.closeWhileHandlingException(nodeChannels);
+        } finally {
+            logger.trace("disconnected from [{}], {}", node, reason);
+            transportServiceAdapter.onNodeDisconnected(node);
+        }
     }
 
     /**
@@ -470,12 +486,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         });
     }
 
-    protected Channel nodeChannel(DiscoveryNode node, TransportRequestOptions options) throws ConnectTransportException {
+    @Override
+    public Connection getConnection(DiscoveryNode node) {
         NodeChannels nodeChannels = connectedNodes.get(node);
         if (nodeChannels == null) {
             throw new NodeNotConnectedException(node, "Node not connected");
         }
-        return nodeChannels.channel(options.type());
+        return nodeChannels;
     }
 
     @Override
@@ -483,13 +500,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         try (Releasable ignored = connectionLock.acquire(node.getId())) {
             NodeChannels nodeChannels = connectedNodes.remove(node);
             if (nodeChannels != null) {
-                try {
-                    logger.debug("disconnecting from [{}] due to explicit disconnect call", node);
-                    IOUtils.closeWhileHandlingException(nodeChannels);
-                } finally {
-                    logger.trace("disconnected from [{}] due to explicit disconnect call", node);
-                    transportServiceAdapter.raiseNodeDisconnected(node);
-                }
+                closeAndNotify(node, nodeChannels, "due to explicit disconnect call");
             }
         }
     }
@@ -889,10 +900,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         return compress && (!(request instanceof BytesTransportRequest));
     }
 
-    @Override
-    public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request,
-                            TransportRequestOptions options) throws IOException, TransportException {
-        Channel targetChannel = nodeChannel(node, options);
+
+    protected void sendRequestToChannel(DiscoveryNode node, Channel targetChannel, final long requestId, final String action,
+                                        final TransportRequest request, TransportRequestOptions options) throws IOException,
+        TransportException {
         if (compress) {
             options = TransportRequestOptions.builder(options).withCompress(true).build();
         }

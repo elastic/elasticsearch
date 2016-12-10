@@ -740,12 +740,12 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         expectParsingException(json, "[query] is already defined.");
     }
 
-    private static void expectParsingException(String json, Matcher<String> messageMatcher) {
+    private void expectParsingException(String json, Matcher<String> messageMatcher) {
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), messageMatcher);
     }
 
-    private static void expectParsingException(String json, String message) {
+    private void expectParsingException(String json, String message) {
         expectParsingException(json, equalTo("failed to parse [function_score] query. " + message));
     }
 

@@ -47,6 +47,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -63,6 +64,7 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -876,6 +878,20 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         sb.append("]");
         assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(BytesReference data) throws IOException {
+        return XContentFactory.xContent(data).createParser(data);
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(String string) throws IOException {
+        return createParser(new BytesArray(string));
     }
 
     /** Returns the suite failure marker: internal use only! */

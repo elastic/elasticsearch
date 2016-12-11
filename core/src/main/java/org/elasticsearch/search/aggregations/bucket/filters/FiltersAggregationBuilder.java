@@ -173,7 +173,12 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
-        return new FiltersAggregatorFactory(name, type, filters, keyed, otherBucket, otherBucketKey, context, parent,
+        List<KeyedFilter> rewrittenFilters = new ArrayList<>();
+        for(KeyedFilter kf : filters) {
+            rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(), 
+                    context.searchContext().getQueryShardContext())));
+        }
+        return new FiltersAggregatorFactory(name, type, rewrittenFilters, keyed, otherBucket, otherBucketKey, context, parent,
                 subFactoriesBuilder, metaData);
     }
 

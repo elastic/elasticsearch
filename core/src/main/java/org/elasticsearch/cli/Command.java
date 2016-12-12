@@ -55,7 +55,7 @@ public abstract class Command implements Closeable {
         this.description = description;
     }
 
-    SetOnce<Thread> shutdownHookThread = new SetOnce<>();
+    final SetOnce<Thread> shutdownHookThread = new SetOnce<>();
 
     /** Parses options for this command from args and executes it. */
     public final int main(String[] args, Terminal terminal) throws Exception {

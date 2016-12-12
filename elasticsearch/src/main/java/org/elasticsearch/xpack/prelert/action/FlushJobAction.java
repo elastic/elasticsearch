@@ -30,6 +30,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.manager.AutodetectProcessManager;
+import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
@@ -226,20 +227,24 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
 
         // NORELEASE This should be a master node operation that updates the job's state
         private final AutodetectProcessManager processManager;
+        private final JobManager jobManager;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver, AutodetectProcessManager processManager) {
+                IndexNameExpressionResolver indexNameExpressionResolver, AutodetectProcessManager processManager, JobManager jobManager) {
             super(settings, FlushJobAction.NAME, false, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, FlushJobAction.Request::new);
 
             this.processManager = processManager;
+            this.jobManager = jobManager;
         }
 
         @Override
         protected final void doExecute(FlushJobAction.Request request, ActionListener<FlushJobAction.Response> listener) {
             threadPool.executor(PrelertPlugin.THREAD_POOL_NAME).execute(() -> {
                 try {
+                    jobManager.getJobOrThrowIfUnknown(request.getJobId());
+
                     InterimResultsParams.Builder paramsBuilder = InterimResultsParams.builder();
                     paramsBuilder.calcInterim(request.getCalcInterim());
                     if (request.getAdvanceTime() != null) {

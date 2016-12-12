@@ -182,6 +182,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private final String transportName;
     protected final ConnectionProfile defaultConnectionProfile;
 
+    private final LongObjectMap<TransportResponseHandler<?>> pendingHandshakes = new LongObjectHashMap<>();
+    private final AtomicLong requestIdGenerator = new AtomicLong();
+    private final CounterMetric numHandshakes = new CounterMetric();
+    private static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
+
     public TcpTransport(String transportName, Settings settings, ThreadPool threadPool, BigArrays bigArrays,
                         CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
                         NetworkService networkService) {
@@ -386,7 +391,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             if (closed.get()) {
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
-            sendRequestToChannel(this.node, this, requestId, action, request, options);
+            Channel channel = channel(options.type());
+            sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion (), (byte)0);
         }
     }
 
@@ -928,14 +934,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         return compress && (!(request instanceof BytesTransportRequest));
     }
 
-    protected void sendRequestToChannel(DiscoveryNode node, NodeChannels channels, final long requestId, final String action,
-                                        final TransportRequest request, TransportRequestOptions options) throws IOException,
+    private void sendRequestToChannel(DiscoveryNode node, final Channel targetChannel, final long requestId, final String action,
+                                        final TransportRequest request, TransportRequestOptions options, Version channelVersion,
+                                      byte status) throws IOException,
         TransportException {
-        final Channel targetChannel = channels.channel(options.type());
         if (compress) {
             options = TransportRequestOptions.builder(options).withCompress(true).build();
         }
-        byte status = 0;
         status = TransportStatus.setRequest(status);
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         // we wrap this in a release once since if the onRequestSent callback throws an exception
@@ -954,7 +959,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             // we pick the smallest of the 2, to support both backward and forward compatibility
             // note, this is the only place we need to do this, since from here on, we use the serialized version
             // as the version to use also when the node receiving this request will send the response with
-            Version version = Version.min(getCurrentVersion(), channels.getVersion());
+            Version version = Version.min(getCurrentVersion(), channelVersion);
 
             stream.setVersion(version);
             threadPool.getThreadContext().writeTo(stream);
@@ -1029,10 +1034,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      */
     public void sendResponse(Version nodeVersion, Channel channel, final TransportResponse response, final long requestId,
                              final String action, TransportResponseOptions options) throws IOException {
+        sendResponse(nodeVersion, channel, response, requestId, action, options, (byte)0);
+    }
+
+    private void sendResponse(Version nodeVersion, Channel channel, final TransportResponse response, final long requestId,
+        final String action, TransportResponseOptions options, byte status) throws IOException {
         if (compress) {
             options = TransportResponseOptions.builder(options).withCompress(true).build();
         }
-        byte status = 0;
         status = TransportStatus.setResponse(status); // TODO share some code with sendRequest
         ReleasableBytesStreamOutput bStream = new ReleasableBytesStreamOutput(bigArrays);
         // we wrap this in a release once since if the onRequestSent callback throws an exception
@@ -1355,7 +1364,9 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         TransportChannel transportChannel = null;
         try {
             if (TransportStatus.isHandshake(status) && doHandshakes) {
-                handleHandshakeRequest(channel, requestId, version);
+                final VersionHandshakeResponse response = new VersionHandshakeResponse(getCurrentVersion());
+                sendResponse(version, channel, response, requestId, HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY,
+                    TransportStatus.setHandshake((byte)0));
             } else {
                 final RequestHandlerRegistry reg = transportServiceAdapter.getRequestHandler(action);
                 if (reg == null) {
@@ -1440,41 +1451,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    private final LongObjectMap<TransportResponseHandler<?>> pendingHandshakes = new LongObjectHashMap<>();
-    private final AtomicLong requestIdGenerator = new AtomicLong();
-    private final CounterMetric numHandshakes = new CounterMetric();
-    private static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
-
-
-    protected void handleHandshakeRequest(Channel c, long requestId, Version version) throws IOException {
-        VersionHandshakeResponse response = new VersionHandshakeResponse(getCurrentVersion());
-        try (BytesStreamOutput stream = new BytesStreamOutput()) {
-            stream.setVersion(version);
-            threadPool.getThreadContext().writeTo(stream);
-            response.writeTo(stream);
-            BytesReference bytes = stream.bytes();
-            sendMessage(c, new CompositeBytesReference(buildHandshakeMessage(false, requestId,
-                version, bytes.length()), bytes) , () -> {});
-        }
-    }
-
-    protected void sendHandshakeRequest(Channel c, long requestId) throws IOException {
-        try (BytesStreamOutput stream = new BytesStreamOutput()) {
-            stream.setVersion(getCurrentVersion().minimumCompatibilityVersion());
-            threadPool.getThreadContext().writeTo(stream);
-            stream.writeString(HANDSHAKE_ACTION_NAME);
-            BytesReference bytes = stream.bytes();
-            sendMessage(c, new CompositeBytesReference(buildHandshakeMessage(true, requestId,
-                getCurrentVersion().minimumCompatibilityVersion(), bytes.length()), bytes) , () -> {});
-        }
-    }
-
-    protected BytesReference buildHandshakeMessage(boolean req, long requestId, Version version, int length) throws IOException {
-        byte status = req ? TransportStatus.setRequest(TransportStatus.setHandshake((byte)0))
-            : TransportStatus.setResponse(TransportStatus.setHandshake((byte)0));
-        return buildHeader(requestId, status, version, length);
-    }
-
     private static final class VersionHandshakeResponse extends TransportResponse {
         private Version version;
 
@@ -1498,13 +1474,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    final Version executeHandshake(DiscoveryNode discoveryNode, TimeValue timeout) throws IOException, InterruptedException {
-        Channel targetChannel = getConnection(discoveryNode).channel(TransportRequestOptions.Type.PING);
-        return executeHandshake(discoveryNode, targetChannel, timeout);
-    }
-
-    private Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException,
-        InterruptedException {
+    // pkg private for testing
+    final Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException, InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Version> versionRef = new AtomicReference<>();
         AtomicReference<Exception> exceptionRef = new AtomicReference<>();
@@ -1529,6 +1500,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 Throwable cause = exp.getCause();
                 if (cause != null
                     && cause instanceof ActionNotFoundTransportException
+                    // this will happen if we talk to a node (pre 5.2) that doesn't haven a handshake handler
+                    // we will just treat the node as a 5.0.0 node unless the discovery node that is used to connect has a higher version.
                     && cause.getMessage().equals("No handler for action [internal:tcp/handshake]")) {
                         handshakeNotSupported.set(true);
                 } else {
@@ -1543,7 +1516,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             }
         });
         try {
-            sendHandshakeRequest(channel, requestId);
+            // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
+            // we also have no payload on the request but the response will contain the actual version of the node we talk
+            // to as the payload.
+            final Version minCompatVersion = getCurrentVersion().minimumCompatibilityVersion();
+            sendRequestToChannel(node, channel, requestId, HANDSHAKE_ACTION_NAME, TransportRequest.Empty.INSTANCE,
+                TransportRequestOptions.EMPTY, minCompatVersion, TransportStatus.setHandshake((byte)0));
             if (latch.await(timeout.millis(), TimeUnit.MILLISECONDS) == false) {
                 throw new ConnectTransportException(node, "handshake_timeout[" + timeout + "]");
             }

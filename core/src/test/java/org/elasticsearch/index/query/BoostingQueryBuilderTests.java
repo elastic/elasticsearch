@@ -29,8 +29,6 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 
-;
-
 public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQueryBuilder> {
 
     @Override

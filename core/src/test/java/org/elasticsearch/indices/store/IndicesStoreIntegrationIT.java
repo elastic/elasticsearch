@@ -56,6 +56,7 @@ import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -198,13 +199,13 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);
         transportServiceNode_1.addDelegate(transportServiceNode_2, new MockTransportService.DelegateTransport(transportServiceNode_1.original()) {
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
                 if (action.equals("internal:index/shard/exists") && shardActiveRequestSent.getCount() > 0) {
                     shardActiveRequestSent.countDown();
                     logger.info("prevent shard active request from being sent");
-                    throw new ConnectTransportException(node, "DISCONNECT: simulated");
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
                 }
-                super.sendRequest(node, requestId, action, request, options);
+                super.sendRequest(connection, requestId, action, request, options);
             }
         });
 
@@ -292,17 +293,14 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     }
 
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
-        InternalTestCluster.Async<String> masterFuture = internalCluster().startNodeAsync(
-                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), true, Node.NODE_DATA_SETTING.getKey(), false).build());
-        InternalTestCluster.Async<List<String>> nodesFutures = internalCluster().startNodesAsync(4,
-                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false, Node.NODE_DATA_SETTING.getKey(), true).build());
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        final List<String> nodes = internalCluster().startDataOnlyNodes(4);
 
-        final String masterNode = masterFuture.get();
-        final String node1 = nodesFutures.get().get(0);
-        final String node2 = nodesFutures.get().get(1);
-        final String node3 = nodesFutures.get().get(2);
+        final String node1 = nodes.get(0);
+        final String node2 = nodes.get(1);
+        final String node3 = nodes.get(2);
         // we will use this later on, handy to start now to make sure it has a different data folder that node 1,2 &3
-        final String node4 = nodesFutures.get().get(3);
+        final String node4 = nodes.get(3);
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put(indexSettings())
@@ -356,8 +354,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         logger.debug("--> starting the two old nodes back");
 
-        internalCluster().startNodesAsync(2,
-                Settings.builder().put(Node.NODE_MASTER_SETTING.getKey(), false, Node.NODE_DATA_SETTING.getKey(), true).build());
+        internalCluster().startDataOnlyNodes(2);
 
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("5").get().isTimedOut());
 
@@ -372,7 +369,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
     }
 
     public void testShardActiveElseWhere() throws Exception {
-        List<String> nodes = internalCluster().startNodesAsync(2).get();
+        List<String> nodes = internalCluster().startNodes(2);
 
         final String masterNode = internalCluster().getMasterName();
         final String nonMasterNode = nodes.get(0).equals(masterNode) ? nodes.get(1) : nodes.get(0);

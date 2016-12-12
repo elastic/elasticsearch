@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
@@ -113,14 +112,18 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (false == request.hasContent()) {
-            throw new ElasticsearchException("_reindex requires a request body");
-        }
         return doPrepareRequest(request, client, true, true);
     }
 
     @Override
     protected ReindexRequest buildRequest(RestRequest request) throws IOException {
+        if (false == request.hasContent()) {
+            throw new IllegalArgumentException("_reindex requires a request body");
+        }
+        if (request.hasParam("pipeline")) {
+            throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parmaeter. "
+                    + "Specify it in the [dest] object instead.");
+        }
         ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
             PARSER.parse(xcontent, internal, new ReindexParseContext(searchRequestParsers, parseFieldMatcher));
@@ -145,11 +148,13 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         String host = hostMatcher.group("host");
         int port = Integer.parseInt(hostMatcher.group("port"));
         Map<String, String> headers = extractStringStringMap(remote, "headers");
+        TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
+        TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         if (false == remote.isEmpty()) {
             throw new IllegalArgumentException(
                     "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
         }
-        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password, headers);
+        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password, headers, socketTimeout, connectTimeout);
     }
 
     /**
@@ -200,6 +205,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         @SuppressWarnings("unchecked") // We just checked....
         Map<String, String> safe = (Map<String, String>) map;
         return safe;
+    }
+
+    private static TimeValue extractTimeValue(Map<String, Object> source, String name, TimeValue defaultValue) {
+        String string = extractString(source, name);
+        return string == null ? defaultValue : parseTimeValue(string, name);
     }
 
     private static BytesReference queryForRemote(Map<String, Object> source) throws IOException {

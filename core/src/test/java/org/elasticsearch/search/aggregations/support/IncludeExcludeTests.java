@@ -125,4 +125,13 @@ public class IncludeExcludeTests extends ESTestCase {
         assertFalse(acceptedOrds.get(0));
     }
 
+    public void testEquals() {
+        assertEquals(new IncludeExclude(3, 20), new IncludeExclude(3, 20));
+        assertEquals(new IncludeExclude(3, 20).hashCode(), new IncludeExclude(3, 20).hashCode());
+        assertFalse(new IncludeExclude(3, 20).equals(new IncludeExclude(4, 20)));
+        assertTrue(new IncludeExclude(3, 20).hashCode() != new IncludeExclude(4, 20).hashCode());
+        assertFalse(new IncludeExclude(3, 20).equals(new IncludeExclude(3, 21)));
+        assertTrue(new IncludeExclude(3, 20).hashCode() != new IncludeExclude(3, 21).hashCode());
+    }
+
 }

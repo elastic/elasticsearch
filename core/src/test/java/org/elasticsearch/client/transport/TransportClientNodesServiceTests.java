@@ -43,6 +43,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -129,12 +130,15 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                 public AsyncSender interceptSender(AsyncSender sender) {
                     return new AsyncSender() {
                         @Override
-                        public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
-                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                        public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+                                                                              TransportRequest request,
+                                                                              TransportRequestOptions options,
+                                                                              TransportResponseHandler<T> handler) {
                             if (TransportLivenessAction.NAME.equals(action)) {
-                                sender.sendRequest(node, action, request, options, wrapLivenessResponseHandler(handler, node, clusterName));
+                                sender.sendRequest(connection, action, request, options, wrapLivenessResponseHandler(handler,
+                                    connection.getNode(), clusterName));
                             } else {
-                                sender.sendRequest(node, action, request, options, handler);
+                                sender.sendRequest(connection, action, request, options, handler);
                             }
                         }
                     };

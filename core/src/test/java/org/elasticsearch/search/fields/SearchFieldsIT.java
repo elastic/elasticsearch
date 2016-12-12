@@ -766,6 +766,9 @@ public class SearchFieldsIT extends ESIntegTestCase {
                             .startObject("binary_field")
                                 .field("type", "binary")
                             .endObject()
+                            .startObject("ip_field")
+                                .field("type", "ip")
+                            .endObject()
                         .endObject()
                     .endObject()
                 .endObject()
@@ -784,6 +787,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .field("double_field", 6.0d)
                 .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC)))
                 .field("boolean_field", true)
+                .field("ip_field", "::1")
                 .endObject()).execute().actionGet();
 
         client().admin().indices().prepareRefresh().execute().actionGet();
@@ -798,14 +802,16 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .addDocValueField("float_field")
                 .addDocValueField("double_field")
                 .addDocValueField("date_field")
-                .addDocValueField("boolean_field");
+                .addDocValueField("boolean_field")
+                .addDocValueField("ip_field");
         SearchResponse searchResponse = builder.execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
         Set<String> fields = new HashSet<>(searchResponse.getHits().getAt(0).fields().keySet());
         assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
-                "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field")));
+                "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field",
+                "ip_field")));
 
         assertThat(searchResponse.getHits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("short_field").value().toString(), equalTo("2"));
@@ -817,6 +823,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).fields().get("text_field").value(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("keyword_field").value(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("ip_field").value(), equalTo("::1"));
     }
 
     public void testScriptFields() throws Exception {

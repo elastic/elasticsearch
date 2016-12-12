@@ -640,16 +640,17 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+        protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                   TransportRequestOptions options) throws IOException {
             if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
                 logger.info("--> preventing {} request", action);
                 requestBlocked.countDown();
                 if (dropRequests) {
                     return;
                 }
-                throw new ConnectTransportException(node, "DISCONNECT: prevented " + action + " request");
+                throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
             }
-            transport.sendRequest(node, requestId, action, request, options);
+            super.sendRequest(connection, requestId, action, request, options);
         }
     }
 }

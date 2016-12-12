@@ -23,6 +23,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.List;
 
@@ -35,7 +36,7 @@ public class ParsedDocument {
 
     private final String id, type;
     private final BytesRef uid;
-    private final Field seqNo;
+    private final SeqNoFieldMapper.SequenceID seqID;
 
     private final String routing;
 
@@ -47,17 +48,16 @@ public class ParsedDocument {
 
     private String parent;
 
-    public ParsedDocument(
-        Field version,
-        Field seqNo,
-        String id,
-        String type,
-        String routing,
-        List<Document> documents,
-        BytesReference source,
-        Mapping dynamicMappingsUpdate) {
+    public ParsedDocument(Field version,
+                          SeqNoFieldMapper.SequenceID seqID,
+                          String id,
+                          String type,
+                          String routing,
+                          List<Document> documents,
+                          BytesReference source,
+                          Mapping dynamicMappingsUpdate) {
         this.version = version;
-        this.seqNo = seqNo;
+        this.seqID = seqID;
         this.id = id;
         this.type = type;
         this.uid = Uid.createUidAsBytes(type, id);
@@ -83,8 +83,10 @@ public class ParsedDocument {
         return version;
     }
 
-    public Field seqNo() {
-        return seqNo;
+    public void updateSeqID(long sequenceNumber, long primaryTerm) {
+        this.seqID.seqNo.setLongValue(sequenceNumber);
+        this.seqID.seqNoDocValue.setLongValue(sequenceNumber);
+        this.seqID.primaryTerm.setLongValue(primaryTerm);
     }
 
     public String routing() {

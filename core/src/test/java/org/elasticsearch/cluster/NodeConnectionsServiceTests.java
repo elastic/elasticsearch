@@ -214,9 +214,29 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException, TransportException {
+        public Connection getConnection(DiscoveryNode node) {
+            return new Connection() {
+                @Override
+                public DiscoveryNode getNode() {
+                    return node;
+                }
 
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    throws IOException, TransportException {
+
+                }
+
+                @Override
+                public void close() throws IOException {
+
+                }
+            };
+        }
+
+        @Override
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            return getConnection(node);
         }
 
         @Override

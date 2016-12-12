@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -56,7 +57,7 @@ public class RestFieldStatsAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request,
                                               final NodeClient client) throws IOException {
-        if (RestActions.hasBodyContent(request) && request.hasParam("fields")) {
+        if (request.hasContentOrSourceParam() && request.hasParam("fields")) {
             throw new IllegalArgumentException("can't specify a request body and [fields] request parameter, " +
                 "either specify a request body or the [fields] request parameter");
         }
@@ -65,8 +66,10 @@ public class RestFieldStatsAction extends BaseRestHandler {
         fieldStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         fieldStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, fieldStatsRequest.indicesOptions()));
         fieldStatsRequest.level(request.param("level", FieldStatsRequest.DEFAULT_LEVEL));
-        if (RestActions.hasBodyContent(request)) {
-            fieldStatsRequest.source(RestActions.getRestContent(request));
+        if (request.hasContentOrSourceParam()) {
+            try (XContentParser parser = request.contentOrSourceParamParser()) {
+                fieldStatsRequest.source(parser);
+            }
         } else {
             fieldStatsRequest.setFields(Strings.splitStringByCommaToArray(request.param("fields")));
         }

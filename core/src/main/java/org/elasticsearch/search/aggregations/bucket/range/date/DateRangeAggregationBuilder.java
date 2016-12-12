@@ -20,7 +20,11 @@
 package org.elasticsearch.search.aggregations.bucket.range.date;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
@@ -29,6 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -36,6 +41,27 @@ import java.io.IOException;
 public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeAggregationBuilder, RangeAggregator.Range> {
     public static final String NAME = "date_range";
     static final Type TYPE = new Type(NAME);
+
+    private static final ObjectParser<DateRangeAggregationBuilder, QueryParseContext> PARSER;
+    static {
+        PARSER = new ObjectParser<>(DateRangeAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
+        PARSER.declareBoolean(DateRangeAggregationBuilder::keyed, RangeAggregator.KEYED_FIELD);
+
+        PARSER.declareObjectArray((agg, ranges) -> {
+            for (Range range : ranges) {
+                agg.addRange(range);
+            }
+        }, DateRangeAggregationBuilder::parseRange, RangeAggregator.RANGES_FIELD);
+    }
+
+    public static AggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new DateRangeAggregationBuilder(aggregationName), context);
+    }
+
+    private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
+        return Range.fromXContent(parser, context.getParseFieldMatcher());
+    }
 
     public DateRangeAggregationBuilder(String name) {
         super(name, InternalDateRange.FACTORY);

@@ -204,5 +204,10 @@ public class GatewayAllocator extends AbstractComponent {
             }
             return shardStores;
         }
+
+        @Override
+        protected boolean hasInitiatedFetching(ShardRouting shard) {
+            return asyncFetchStore.get(shard.shardId()) != null;
+        }
     }
 }

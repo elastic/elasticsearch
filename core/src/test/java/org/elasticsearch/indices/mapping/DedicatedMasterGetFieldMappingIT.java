@@ -34,7 +34,7 @@ public class DedicatedMasterGetFieldMappingIT extends SimpleGetFieldMappingsIT {
         Settings settings = Settings.builder()
                 .put(Node.NODE_DATA_SETTING.getKey(), false)
                 .build();
-        internalCluster().startNodesAsync(settings, Settings.EMPTY).get();
+        internalCluster().startNodes(settings, Settings.EMPTY);
     }
 
 }

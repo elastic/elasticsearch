@@ -173,7 +173,12 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     @Override
     protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
-        return new FiltersAggregatorFactory(name, type, filters, keyed, otherBucket, otherBucketKey, context, parent,
+        List<KeyedFilter> rewrittenFilters = new ArrayList<>();
+        for(KeyedFilter kf : filters) {
+            rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(), 
+                    context.searchContext().getQueryShardContext())));
+        }
+        return new FiltersAggregatorFactory(name, type, rewrittenFilters, keyed, otherBucket, otherBucketKey, context, parent,
                 subFactoriesBuilder, metaData);
     }
 
@@ -209,7 +214,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         XContentParser.Token token = null;
         String currentFieldName = null;
         String otherBucketKey = null;
-        Boolean otherBucket = false;
+        Boolean otherBucket = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -260,8 +265,9 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             }
         }
 
-        if (otherBucket && otherBucketKey == null) {
-            otherBucketKey = "_other_";
+        if (otherBucket == null && otherBucketKey != null) {
+            // automatically enable the other bucket if a key is set, as per the doc
+            otherBucket = true;
         }
 
         FiltersAggregationBuilder factory;

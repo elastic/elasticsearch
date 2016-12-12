@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -95,7 +96,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         searchRequest.indices("_all");
         String query = "{" + "  \"inline\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
                 + "  \"params\":{" + "    \"size\": 1" + "  }" + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(new BytesArray(query));
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(XContentHelper.createParser(new BytesArray(query)));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));
@@ -111,7 +112,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         String templateString = "{"
                 + "  \"inline\" : \"{ {{#use_size}} \\\"size\\\": \\\"{{size}}\\\", {{/use_size}} \\\"query\\\":{\\\"match_all\\\":{}}}\","
                 + "  \"params\":{" + "    \"size\": 1," + "    \"use_size\": true" + "  }" + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(new BytesArray(templateString));
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(XContentHelper.createParser(new BytesArray(templateString)));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));
@@ -127,7 +128,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         String templateString = "{"
                 + "  \"inline\" : \"{ \\\"query\\\":{\\\"match_all\\\":{}} {{#use_size}}, \\\"size\\\": \\\"{{size}}\\\" {{/use_size}} }\","
                 + "  \"params\":{" + "    \"size\": 1," + "    \"use_size\": true" + "  }" + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(new BytesArray(templateString));
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(XContentHelper.createParser(new BytesArray(templateString)));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));

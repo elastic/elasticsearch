@@ -15,6 +15,7 @@
 # language governing permissions and limitations under the License.
 
 import argparse
+import base64
 import glob
 import logging
 import os
@@ -72,6 +73,8 @@ def index(es, index_name, type, num_docs, supports_dots_in_field_names, flush=Fa
             'bool' : random.choice([True, False])}
     if supports_dots_in_field_names:
       body['field.with.dots'] = str(random.randint(0, 100))
+
+    body['binary'] = base64.b64encode(bytearray(random.getrandbits(8) for _ in range(16))).decode('ascii')
 
     es.index(index=index_name, doc_type=type, id=id, body=body)
 
@@ -333,6 +336,12 @@ def generate_index(client, version, index_name):
           'boost': 4
         }
     })
+
+  # test back-compat of stored binary fields
+  mappings['doc']['properties']['binary'] = {
+    'type': 'binary',
+    'store': True,
+    }
 
   settings = {
     'number_of_shards': 1,

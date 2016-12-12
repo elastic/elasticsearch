@@ -31,10 +31,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.RandomQueryBuilder;
 import org.elasticsearch.search.AbstractSearchTestCase;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -44,6 +46,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -287,6 +290,29 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                             () -> SearchSourceBuilder.fromXContent(createParseContext(parser),
                                 searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers));
             assertThat(e, hasToString(containsString("unit is missing or unrecognized")));
+        }
+    }
+
+    public void testToXContent() throws  IOException {
+        //verify that only what is set gets printed out through toXContent
+        XContentType xContentType = randomFrom(XContentType.values());
+        {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+            searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            BytesReference source = builder.bytes();
+            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false).v2();
+            assertEquals(0, sourceAsMap.size());
+        }
+        {
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.query(RandomQueryBuilder.createQuery(random()));
+            XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
+            searchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            BytesReference source = builder.bytes();
+            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false).v2();
+            assertEquals(1, sourceAsMap.size());
+            assertEquals("query", sourceAsMap.keySet().iterator().next());
         }
     }
 

@@ -20,13 +20,13 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.internal.InternalSearchHit.Fields;
 
@@ -34,8 +34,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class SearchSortValues extends ToXContentToBytes implements ToXContent, Writeable {
+public class SearchSortValues implements ToXContent, Writeable {
 
+    static final SearchSortValues EMPTY = new SearchSortValues(new Object[0]);
     private final Object[] sortValues;
 
     SearchSortValues(Object[] sortValues) {
@@ -43,6 +44,8 @@ public class SearchSortValues extends ToXContentToBytes implements ToXContent, W
     }
 
     public SearchSortValues(Object[] sortValues, DocValueFormat[] sortValueFormats) {
+        Objects.requireNonNull(sortValues);
+        Objects.requireNonNull(sortValueFormats);
         this.sortValues = Arrays.copyOf(sortValues, sortValues.length);
         for (int i = 0; i < sortValues.length; ++i) {
             if (this.sortValues[i] instanceof BytesRef) {
@@ -85,6 +88,45 @@ public class SearchSortValues extends ToXContentToBytes implements ToXContent, W
     }
 
     @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(sortValues.length);
+        for (Object sortValue : sortValues) {
+            if (sortValue == null) {
+                out.writeByte((byte) 0);
+            } else {
+                Class type = sortValue.getClass();
+                if (type == String.class) {
+                    out.writeByte((byte) 1);
+                    out.writeString((String) sortValue);
+                } else if (type == Integer.class) {
+                    out.writeByte((byte) 2);
+                    out.writeInt((Integer) sortValue);
+                } else if (type == Long.class) {
+                    out.writeByte((byte) 3);
+                    out.writeLong((Long) sortValue);
+                } else if (type == Float.class) {
+                    out.writeByte((byte) 4);
+                    out.writeFloat((Float) sortValue);
+                } else if (type == Double.class) {
+                    out.writeByte((byte) 5);
+                    out.writeDouble((Double) sortValue);
+                } else if (type == Byte.class) {
+                    out.writeByte((byte) 6);
+                    out.writeByte((Byte) sortValue);
+                } else if (type == Short.class) {
+                    out.writeByte((byte) 7);
+                    out.writeShort((Short) sortValue);
+                } else if (type == Boolean.class) {
+                    out.writeByte((byte) 8);
+                    out.writeBoolean((Boolean) sortValue);
+                } else {
+                    throw new IOException("Can't handle sort field value of type [" + type + "]");
+                }
+            }
+        }
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (sortValues.length > 0) {
             builder.startArray(Fields.SORT);
@@ -97,60 +139,14 @@ public class SearchSortValues extends ToXContentToBytes implements ToXContent, W
     }
 
     public static SearchSortValues fromXContent(XContentParser parser) throws IOException {
-        assert parser.currentToken() == XContentParser.Token.FIELD_NAME;
-        assert parser.currentName().equals(Fields.SORT);
-        XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.START_ARRAY;
+        XContentParserUtils.ensureFieldName(parser, parser.currentToken(), Fields.SORT);
+        parser.nextToken();
+        XContentParserUtils.ensureType(XContentParser.Token.START_ARRAY, parser.currentToken(), () -> parser.getTokenLocation());
         return new SearchSortValues(parser.list().toArray());
     }
 
     public Object[] sortValues() {
         return sortValues;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(sortValues.length);
-        if (sortValues.length > 0) {
-            for (Object sortValue : sortValues) {
-                if (sortValue == null) {
-                    out.writeByte((byte) 0);
-                } else {
-                    Class type = sortValue.getClass();
-                    if (type == String.class) {
-                        out.writeByte((byte) 1);
-                        out.writeString((String) sortValue);
-                    } else if (type == Integer.class) {
-                        out.writeByte((byte) 2);
-                        out.writeInt((Integer) sortValue);
-                    } else if (type == Long.class) {
-                        out.writeByte((byte) 3);
-                        out.writeLong((Long) sortValue);
-                    } else if (type == Float.class) {
-                        out.writeByte((byte) 4);
-                        out.writeFloat((Float) sortValue);
-                    } else if (type == Double.class) {
-                        out.writeByte((byte) 5);
-                        out.writeDouble((Double) sortValue);
-                    } else if (type == Byte.class) {
-                        out.writeByte((byte) 6);
-                        out.writeByte((Byte) sortValue);
-                    } else if (type == Short.class) {
-                        out.writeByte((byte) 7);
-                        out.writeShort((Short) sortValue);
-                    } else if (type == Boolean.class) {
-                        out.writeByte((byte) 8);
-                        out.writeBoolean((Boolean) sortValue);
-                    } else {
-                        throw new IOException("Can't handle sort field value of type [" + type + "]");
-                    }
-                }
-            }
-        }
-    }
-
-    public boolean xContentEquals(ToXContentToBytes other) {
-        return this.toString().equals(other.toString());
     }
 
     @Override

@@ -82,7 +82,7 @@ public class InternalSearchHit implements SearchHit {
 
     private Map<String, HighlightField> highlightFields = null;
 
-    private SearchSortValues sortValues = new SearchSortValues(new Object[0]);
+    private SearchSortValues sortValues = SearchSortValues.EMPTY;
 
     private String[] matchedQueries = Strings.EMPTY_ARRAY;
 

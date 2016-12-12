@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -195,6 +194,10 @@ public class ArrayCompareConditionTests extends ESTestCase {
     }
 
     public void testParseContainsDuplicateOperator() throws IOException {
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+            return;
+        }
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
@@ -216,8 +219,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        expectedException.expect(JsonParseException.class);
-        expectedException.expectMessage("Duplicate field '" + op.id() + "'");
+        expectedException.expect(ElasticsearchParseException.class);
+        expectedException.expectMessage("duplicate comparison operator");
 
         ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }
@@ -246,6 +249,10 @@ public class ArrayCompareConditionTests extends ESTestCase {
     }
 
     public void testParseContainsDuplicateValue() throws IOException {
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+            return;
+        }
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
@@ -264,13 +271,17 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        expectedException.expect(JsonParseException.class);
-        expectedException.expectMessage("Duplicate field 'value'");
+        expectedException.expect(ElasticsearchParseException.class);
+        expectedException.expectMessage("duplicate field \"value\"");
 
         ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }
 
     public void testParseContainsDuplicateQuantifier() throws IOException {
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+            return;
+        }
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
@@ -289,8 +300,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
         parser.nextToken();
 
-        expectedException.expect(JsonParseException.class);
-        expectedException.expectMessage("Duplicate field 'quantifier'");
+        expectedException.expect(ElasticsearchParseException.class);
+        expectedException.expectMessage("duplicate field \"quantifier\"");
 
         ArrayCompareCondition.parse(ClockMock.frozen(), "_id", parser);
     }

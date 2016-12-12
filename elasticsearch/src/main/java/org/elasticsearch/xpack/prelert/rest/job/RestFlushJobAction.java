@@ -6,16 +6,13 @@
 package org.elasticsearch.xpack.prelert.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.AcknowledgedRestListener;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.FlushJobAction;
 import org.elasticsearch.xpack.prelert.job.Job;
@@ -43,10 +40,9 @@ public class RestFlushJobAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
-        BytesReference bodyBytes = RestActions.getRestContent(restRequest);
         final FlushJobAction.Request request;
-        if (RestActions.hasBodyContent(restRequest)) {
-            XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
+        if (restRequest.hasContentOrSourceParam()) {
+            XContentParser parser = restRequest.contentOrSourceParamParser();
             request = FlushJobAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
         } else {
             request = new FlushJobAction.Request(restRequest.param(Job.ID.getPreferredName()));

@@ -20,7 +20,6 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
@@ -57,8 +56,8 @@ public class RestStartJobSchedulerAction extends BaseRestHandler {
         ScheduledJobRunner.validate(jobId, prelertMetadata);
 
         StartJobSchedulerAction.Request jobSchedulerRequest;
-        if (RestActions.hasBodyContent(restRequest)) {
-            BytesReference bodyBytes = RestActions.getRestContent(restRequest);
+        if (restRequest.hasContentOrSourceParam()) {
+            BytesReference bodyBytes = restRequest.contentOrSourceParam();
             XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
             jobSchedulerRequest = StartJobSchedulerAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
         } else {

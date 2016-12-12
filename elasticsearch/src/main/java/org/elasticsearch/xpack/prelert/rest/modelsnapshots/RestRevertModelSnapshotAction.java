@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.RevertModelSnapshotAction;
@@ -45,8 +44,8 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         RevertModelSnapshotAction.Request request;
-        if (RestActions.hasBodyContent(restRequest)) {
-            BytesReference bodyBytes = RestActions.getRestContent(restRequest);
+        if (restRequest.hasContentOrSourceParam()) {
+            BytesReference bodyBytes = restRequest.contentOrSourceParam();
             XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
             request = RevertModelSnapshotAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
         } else {

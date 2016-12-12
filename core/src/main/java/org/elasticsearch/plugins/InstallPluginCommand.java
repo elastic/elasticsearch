@@ -42,6 +42,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLDecoder;
@@ -172,6 +174,8 @@ class InstallPluginCommand extends SettingCommand {
         PLUGIN_FILES_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rw-r--r--"));
     }
 
+    private final List<Path> pathsToDeleteOnShutdown = new ArrayList<>();
+
     InstallPluginCommand() {
         super("Install a plugin");
         this.batchOption = parser.acceptsAll(Arrays.asList("b", "batch"),
@@ -206,6 +210,24 @@ class InstallPluginCommand extends SettingCommand {
             terminal.println("Plugins directory [" + env.pluginsFile() + "] does not exist. Creating...");
             Files.createDirectory(env.pluginsFile());
         }
+
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            for (final Path pathToDeleteOnShutdown : pathsToDeleteOnShutdown) {
+                try {
+                    IOUtils.rm(pathToDeleteOnShutdown);
+                } catch (final IOException e) {
+                    try (
+                        final StringWriter sw = new StringWriter();
+                        final PrintWriter pw = new PrintWriter(sw)) {
+                        e.printStackTrace(pw);
+                        terminal.println(sw.toString());
+                    } catch (final IOException impossible) {
+                        // StringWriter#close declared a checked IOException from the Closeable interface but the Javadocs for StringWriter
+                        // say that an exception here is impossible
+                    }
+                }
+            }
+        }));
 
         Path pluginZip = download(terminal, pluginId, env.tmpFile());
         Path extractedZip = unzip(pluginZip, env.pluginsFile());
@@ -320,7 +342,7 @@ class InstallPluginCommand extends SettingCommand {
     /** Downloads a zip from the url, as well as a SHA1 checksum, and checks the checksum. */
     private Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir) throws Exception {
         Path zip = downloadZip(terminal, urlString, tmpDir);
-
+        pathsToDeleteOnShutdown.add(zip);
         URL checksumUrl = new URL(urlString + ".sha1");
         final String expectedChecksum;
         try (InputStream in = checksumUrl.openStream()) {
@@ -344,6 +366,7 @@ class InstallPluginCommand extends SettingCommand {
         // unzip plugin to a staging temp dir
 
         final Path target = stagingDirectory(pluginsDir);
+        pathsToDeleteOnShutdown.add(target);
 
         boolean hasEsDir = false;
         // TODO: we should wrap this in a try/catch and try deleting the target dir on failure?

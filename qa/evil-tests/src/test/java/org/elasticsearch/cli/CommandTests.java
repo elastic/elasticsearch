@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.isEmptyString;
 
 public class CommandTests extends ESTestCase {
 
@@ -174,12 +175,14 @@ public class CommandTests extends ESTestCase {
         command.shutdownHookThread.get().run();
         command.shutdownHookThread.get().join();
         assertTrue(closed.get());
+        final String output = terminal.getOutput();
         if (shouldThrow) {
-            final String output = terminal.getOutput();
             // ensure that we dump the exception
             assertThat(output, containsString("java.io.IOException: fail"));
             // ensure that we dump the stack trace too
             assertThat(output, containsString("\tat org.elasticsearch.cli.CommandTests$1.close"));
+        } else {
+            assertThat(output, isEmptyString());
         }
     }
 

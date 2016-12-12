@@ -259,10 +259,10 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     final class Node {
-        final private String id;
-        final private String nodeName;
-        final private Version version;
-        final private HttpHost publishAddress;
+        private final String id;
+        private final String nodeName;
+        private final Version version;
+        private final HttpHost publishAddress;
 
         Node(String id, String nodeName, Version version, HttpHost publishAddress) {
             this.id = id;
@@ -298,9 +298,9 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     final class Shard {
-        final private Node node;
-        final private boolean Primary;
-        final private SeqNoStats seqNoStats;
+        private final Node node;
+        private final boolean Primary;
+        private final SeqNoStats seqNoStats;
 
         Shard(Node node, boolean primary, SeqNoStats seqNoStats) {
             this.node = node;

@@ -280,13 +280,13 @@ public class JobProvider {
     public QueryPage<Bucket> buckets(String jobId, BucketsQuery query)
             throws ResourceNotFoundException {
         QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(ElasticsearchMappings.ES_TIMESTAMP, query.getStart(), query.getEnd())
+                .timeRange(Bucket.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                 .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
                 .score(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(), query.getNormalizedProbability())
                 .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
                 .build();
 
-        SortBuilder<?> sortBuilder = new FieldSortBuilder(esSortField(query.getSortField()))
+        SortBuilder<?> sortBuilder = new FieldSortBuilder(query.getSortField())
                 .order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
 
         QueryPage<Bucket> buckets = buckets(jobId, query.isIncludeInterim(), query.getFrom(), query.getSize(), fb, sortBuilder);
@@ -388,7 +388,7 @@ public class JobProvider {
         SearchHits hits;
         try {
             LOGGER.trace("ES API CALL: get Bucket with timestamp {} from index {}", query.getTimestamp(), indexName);
-            QueryBuilder matchQuery = QueryBuilders.matchQuery(ElasticsearchMappings.ES_TIMESTAMP, query.getTimestamp());
+            QueryBuilder matchQuery = QueryBuilders.matchQuery(Bucket.TIMESTAMP.getPreferredName(), query.getTimestamp());
 
             QueryBuilder boolQuery = new BoolQueryBuilder()
                     .filter(matchQuery)
@@ -458,7 +458,7 @@ public class JobProvider {
                                                                                    String partitionFieldValue)
                     throws ResourceNotFoundException {
         QueryBuilder timeRangeQuery = new ResultsFilterBuilder()
-                .timeRange(ElasticsearchMappings.ES_TIMESTAMP, epochStart, epochEnd)
+                .timeRange(Bucket.TIMESTAMP.getPreferredName(), epochStart, epochEnd)
                 .build();
 
         QueryBuilder boolQuery = new BoolQueryBuilder()
@@ -466,7 +466,7 @@ public class JobProvider {
                 .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), PerPartitionMaxProbabilities.RESULT_TYPE_VALUE))
                 .filter(new TermsQueryBuilder(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue));
 
-        FieldSortBuilder sb = new FieldSortBuilder(ElasticsearchMappings.ES_TIMESTAMP).order(SortOrder.ASC);
+        FieldSortBuilder sb = new FieldSortBuilder(Bucket.TIMESTAMP.getPreferredName()).order(SortOrder.ASC);
         String indexName = JobResultsPersister.getJobIndexName(jobId);
         SearchRequestBuilder searchBuilder = client
                 .prepareSearch(indexName)
@@ -566,7 +566,7 @@ public class JobProvider {
         // the scenes, and Elasticsearch documentation claims it's significantly
         // slower.  Here we rely on the record timestamps being identical to the
         // bucket timestamp.
-        QueryBuilder recordFilter = QueryBuilders.termQuery(ElasticsearchMappings.ES_TIMESTAMP, bucket.getTimestamp().getTime());
+        QueryBuilder recordFilter = QueryBuilders.termQuery(Bucket.TIMESTAMP.getPreferredName(), bucket.getTimestamp().getTime());
 
         recordFilter = new ResultsFilterBuilder(recordFilter)
                 .interim(AnomalyRecord.IS_INTERIM.getPreferredName(), includeInterim)
@@ -575,7 +575,7 @@ public class JobProvider {
 
         FieldSortBuilder sb = null;
         if (sortField != null) {
-            sb = new FieldSortBuilder(esSortField(sortField))
+            sb = new FieldSortBuilder(sortField)
                     .missing("_last")
                     .order(descending ? SortOrder.DESC : SortOrder.ASC);
         }
@@ -669,7 +669,7 @@ public class JobProvider {
     public QueryPage<AnomalyRecord> records(String jobId, RecordsQueryBuilder.RecordsQuery query)
             throws ResourceNotFoundException {
         QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(ElasticsearchMappings.ES_TIMESTAMP, query.getStart(), query.getEnd())
+                .timeRange(Bucket.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                 .score(AnomalyRecord.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreThreshold())
                 .score(AnomalyRecord.NORMALIZED_PROBABILITY.getPreferredName(), query.getNormalizedProbabilityThreshold())
                 .interim(AnomalyRecord.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
@@ -685,7 +685,7 @@ public class JobProvider {
             throws ResourceNotFoundException {
         FieldSortBuilder sb = null;
         if (sortField != null) {
-            sb = new FieldSortBuilder(esSortField(sortField))
+            sb = new FieldSortBuilder(sortField)
                     .missing("_last")
                     .order(descending ? SortOrder.DESC : SortOrder.ASC);
         }
@@ -714,7 +714,7 @@ public class JobProvider {
                 .setFetchSource(true);  // the field option turns off source so request it explicitly
 
         for (String sortField : secondarySort) {
-            searchBuilder.addSort(esSortField(sortField), descending ? SortOrder.DESC : SortOrder.ASC);
+            searchBuilder.addSort(sortField, descending ? SortOrder.DESC : SortOrder.ASC);
         }
 
         SearchResponse searchResponse;
@@ -756,7 +756,7 @@ public class JobProvider {
      */
     public QueryPage<Influencer> influencers(String jobId, InfluencersQuery query) throws ResourceNotFoundException {
         QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(ElasticsearchMappings.ES_TIMESTAMP, query.getStart(), query.getEnd())
+                .timeRange(Bucket.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                 .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
                 .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
                 .build();
@@ -771,7 +771,7 @@ public class JobProvider {
         LOGGER.trace("ES API CALL: search all of result type {} from index {}{}  with filter from {} size {}",
                 () -> Influencer.RESULT_TYPE_VALUE, () -> indexName,
                 () -> (sortField != null) ?
-                        " with sort " + (sortDescending ? "descending" : "ascending") + " on field " + esSortField(sortField) : "",
+                        " with sort " + (sortDescending ? "descending" : "ascending") + " on field " + sortField : "",
                 () -> from, () -> size);
 
         filterBuilder = new BoolQueryBuilder()
@@ -784,7 +784,7 @@ public class JobProvider {
                 .setFrom(from).setSize(size);
 
         FieldSortBuilder sb = sortField == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)
-                : new FieldSortBuilder(esSortField(sortField)).order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
+                : new FieldSortBuilder(sortField).order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
         searchRequestBuilder.addSort(sb);
 
         SearchResponse response;
@@ -913,12 +913,12 @@ public class JobProvider {
         return modelSnapshots(jobId, from, size,
                 (sortField == null || sortField.isEmpty()) ? ModelSnapshot.RESTORE_PRIORITY.getPreferredName() : sortField,
                 sortDescending, fb.timeRange(
-                        ElasticsearchMappings.ES_TIMESTAMP, startEpochMs, endEpochMs).build());
+                        Bucket.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs).build());
     }
 
     private QueryPage<ModelSnapshot> modelSnapshots(String jobId, int from, int size,
                                                     String sortField, boolean sortDescending, QueryBuilder fb) {
-        FieldSortBuilder sb = new FieldSortBuilder(esSortField(sortField))
+        FieldSortBuilder sb = new FieldSortBuilder(sortField)
                 .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
 
         // Wrap in a constant_score because we always want to
@@ -928,9 +928,9 @@ public class JobProvider {
         SearchResponse searchResponse;
         try {
             String indexName = JobResultsPersister.getJobIndexName(jobId);
-            LOGGER.trace("ES API CALL: search all of type " + ModelSnapshot.TYPE +
-                    " from index " + indexName + " sort ascending " + esSortField(sortField) +
-                    " with filter after sort from " + from + " size " + size);
+            LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} with filter after sort from {} size {}",
+                ModelSnapshot.TYPE, indexName, sortField, from, size);
+
             searchResponse = client.prepareSearch(indexName)
                     .setTypes(ModelSnapshot.TYPE.getPreferredName())
                     .addSort(sb)
@@ -945,19 +945,6 @@ public class JobProvider {
         List<ModelSnapshot> results = new ArrayList<>();
 
         for (SearchHit hit : searchResponse.getHits().getHits()) {
-            // Remove the Kibana/Logstash '@timestamp' entry as stored in Elasticsearch,
-            // and replace using the API 'timestamp' key.
-            Object timestamp = hit.getSource().remove(ElasticsearchMappings.ES_TIMESTAMP);
-            hit.getSource().put(ModelSnapshot.TIMESTAMP.getPreferredName(), timestamp);
-
-            Object o = hit.getSource().get(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
-            if (o instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> map = (Map<String, Object>) o;
-                Object ts = map.remove(ElasticsearchMappings.ES_TIMESTAMP);
-                map.put(ModelSizeStats.TIMESTAMP_FIELD.getPreferredName(), ts);
-            }
-
             BytesReference source = hit.getSourceRef();
             XContentParser parser;
             try {
@@ -1115,12 +1102,5 @@ public class JobProvider {
      */
     public Auditor audit(String jobId) {
          return new Auditor(client, JobResultsPersister.getJobIndexName(jobId), jobId);
-    }
-
-    private String esSortField(String sortField) {
-        // Beware: There's an assumption here that Bucket.TIMESTAMP,
-        // AnomalyRecord.TIMESTAMP, Influencer.TIMESTAMP and
-        // ModelSnapshot.TIMESTAMP are all the same
-        return sortField.equals(Bucket.TIMESTAMP.getPreferredName()) ? ElasticsearchMappings.ES_TIMESTAMP : sortField;
     }
 }

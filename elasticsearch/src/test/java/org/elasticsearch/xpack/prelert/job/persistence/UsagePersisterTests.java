@@ -77,7 +77,7 @@ public class UsagePersisterTests extends ESTestCase {
 
         List<Map> capturedUpserts = upsertsCaptor.getAllValues();
         assertEquals(2, capturedUpserts.size());
-        assertEquals(timestamp, capturedUpserts.get(0).get(ElasticsearchMappings.ES_TIMESTAMP).toString());
+        assertEquals(timestamp, capturedUpserts.get(0).get(Usage.TIMESTAMP).toString());
         assertEquals(10L, capturedUpserts.get(0).get(Usage.INPUT_BYTES));
         assertEquals(30L, capturedUpserts.get(0).get(Usage.INPUT_FIELD_COUNT));
         assertEquals(1L, capturedUpserts.get(0).get(Usage.INPUT_RECORD_COUNT));

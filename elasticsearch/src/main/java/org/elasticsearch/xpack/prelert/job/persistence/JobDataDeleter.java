@@ -71,7 +71,7 @@ public class JobDataDeleter {
     public void deleteResultsFromTime(long cutoffEpochMs, ActionListener<Boolean> listener) {
         String index = JobResultsPersister.getJobIndexName(jobId);
 
-        RangeQueryBuilder timeRange = QueryBuilders.rangeQuery(ElasticsearchMappings.ES_TIMESTAMP);
+        RangeQueryBuilder timeRange = QueryBuilders.rangeQuery(Bucket.TIMESTAMP.getPreferredName());
         timeRange.gte(cutoffEpochMs);
         timeRange.lt(new Date().getTime());
 

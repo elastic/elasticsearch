@@ -20,6 +20,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 
+import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.usage.Usage;
 
 public class UsagePersister extends AbstractComponent {
@@ -35,7 +36,7 @@ public class UsagePersister extends AbstractComponent {
         dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssXX", Locale.ROOT);
         upsertMap = new HashMap<>();
 
-        upsertMap.put(ElasticsearchMappings.ES_TIMESTAMP, "");
+        upsertMap.put(Bucket.TIMESTAMP.getPreferredName(), "");
         upsertMap.put(Usage.INPUT_BYTES, null);
     }
 
@@ -43,7 +44,7 @@ public class UsagePersister extends AbstractComponent {
         ZonedDateTime nowTruncatedToHour = ZonedDateTime.now().truncatedTo(ChronoUnit.HOURS);
         String formattedNowTruncatedToHour = nowTruncatedToHour.format(dateTimeFormatter);
         String docId = USAGE_DOC_ID_PREFIX + formattedNowTruncatedToHour;
-        upsertMap.put(ElasticsearchMappings.ES_TIMESTAMP, formattedNowTruncatedToHour);
+        upsertMap.put(Usage.TIMESTAMP, formattedNowTruncatedToHour);
 
         // update global count
         updateDocument(jobId, PRELERT_USAGE_INDEX, docId, bytesRead, fieldsRead, recordsRead);

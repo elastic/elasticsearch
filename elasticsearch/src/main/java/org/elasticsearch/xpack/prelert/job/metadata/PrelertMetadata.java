@@ -46,7 +46,7 @@ public class PrelertMetadata implements MetaData.Custom {
     public static final PrelertMetadata PROTO = new PrelertMetadata(Collections.emptySortedMap(), Collections.emptySortedMap(),
             Collections.emptySortedMap());
 
-    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> PRELERT_METADATA_PARSER = new ObjectParser<>("prelert_metadata",
+    static final ObjectParser<Builder, ParseFieldMatcherSupplier> PRELERT_METADATA_PARSER = new ObjectParser<>("prelert_metadata",
             Builder::new);
 
     static {
@@ -54,8 +54,6 @@ public class PrelertMetadata implements MetaData.Custom {
         PRELERT_METADATA_PARSER.declareObjectArray(Builder::putAllocations, Allocation.PARSER, ALLOCATIONS_FIELD);
     }
 
-    // NORELEASE: A few fields of job details change frequently and this needs to be stored elsewhere
-    // performance issue will occur if we don't change that
     private final SortedMap<String, Job> jobs;
     private final SortedMap<String, Allocation> allocations;
     private final SortedMap<String, SchedulerStatus> schedulerStatuses;
@@ -68,8 +66,6 @@ public class PrelertMetadata implements MetaData.Custom {
     }
 
     public Map<String, Job> getJobs() {
-        // NORELEASE jobs should be immutable or a job can be modified in the
-        // cluster state of a single node without a cluster state update
         return jobs;
     }
 

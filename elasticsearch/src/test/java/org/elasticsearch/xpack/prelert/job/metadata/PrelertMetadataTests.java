@@ -8,23 +8,20 @@ package org.elasticsearch.xpack.prelert.job.metadata;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.JobTests;
 import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
+import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.prelert.job.JobTests.buildJobBuilder;
@@ -34,65 +31,54 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class PrelertMetadataTests extends ESTestCase {
+public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMetadata> {
 
-    public void testSerialization() throws Exception {
+    @Override
+    protected PrelertMetadata createTestInstance() {
         PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
-
-        Job job1 = JobTests.createRandomizedJob();
-        Job job2 = JobTests.createRandomizedJob();
-        Job job3 = JobTests.createRandomizedJob();
-
-        builder.putJob(job1, false);
-        builder.putJob(job2, false);
-        builder.putJob(job3, false);
-
-        builder.updateStatus(job1.getId(), JobStatus.OPENING, null);
-        builder.assignToNode(job2.getId(), "node1");
-        builder.updateStatus(job2.getId(), JobStatus.OPENING, null);
-        builder.assignToNode(job3.getId(), "node1");
-        builder.updateStatus(job3.getId(), JobStatus.OPENING, null);
-
-        PrelertMetadata expected = builder.build();
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        expected.writeTo(new OutputStreamStreamOutput(out));
-
-        PrelertMetadata result = (PrelertMetadata)
-                PrelertMetadata.PROTO.readFrom(new InputStreamStreamInput(new ByteArrayInputStream(out.toByteArray())));
-        assertThat(result, equalTo(expected));
+        int numJobs = randomIntBetween(0, 4);
+        for (int i = 0; i < numJobs; i++) {
+            Job job = JobTests.createRandomizedJob();
+            builder.putJob(job, false);
+            if (randomBoolean()) {
+                builder.updateStatus(job.getId(), JobStatus.OPENING, randomBoolean() ? "first reason" : null);
+                if (randomBoolean()) {
+                    builder.updateStatus(job.getId(), JobStatus.OPENED, randomBoolean() ? "second reason" : null);
+                    if (randomBoolean()) {
+                        builder.updateStatus(job.getId(), JobStatus.CLOSING, randomBoolean() ? "third reason" : null);
+                    }
+                }
+            }
+            // NORELEASE TODO: randomize scheduler status:
+//            if (randomBoolean()) {
+//                builder.updateSchedulerStatus(job.getId(), SchedulerStatus.STARTED);
+//            }
+        }
+        return builder.build();
     }
 
-    public void testFromXContent() throws IOException {
-        PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
+    @Override
+    protected Writeable.Reader<PrelertMetadata> instanceReader() {
+        return in -> (PrelertMetadata) PrelertMetadata.PROTO.readFrom(in);
+    }
 
-        Job job1 = JobTests.createRandomizedJob();
-        Job job2 = JobTests.createRandomizedJob();
-        Job job3 = JobTests.createRandomizedJob();
+    @Override
+    protected PrelertMetadata parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
+        return PrelertMetadata.PRELERT_METADATA_PARSER.apply(parser, () -> matcher).build();
+    }
 
-        builder.putJob(job1, false);
-        builder.putJob(job2, false);
-        builder.putJob(job3, false);
-
-        builder.updateStatus(job1.getId(), JobStatus.OPENING, null);
-        builder.assignToNode(job1.getId(), "node1");
-        builder.updateStatus(job2.getId(), JobStatus.OPENING, null);
-        builder.assignToNode(job2.getId(), "node1");
-        builder.updateStatus(job3.getId(), JobStatus.OPENING, null);
-        builder.assignToNode(job3.getId(), "node1");
-
-        PrelertMetadata expected = builder.build();
-
-        XContentBuilder xBuilder = XContentFactory.contentBuilder(XContentType.SMILE);
-        xBuilder.prettyPrint();
-        xBuilder.startObject();
-        expected.toXContent(xBuilder, ToXContent.EMPTY_PARAMS);
-        xBuilder.endObject();
-        XContentBuilder shuffled = shuffleXContent(xBuilder);
-        final XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
-        MetaData.Custom custom = expected.fromXContent(parser);
-        assertTrue(custom instanceof PrelertMetadata);
-        PrelertMetadata result = (PrelertMetadata) custom;
-        assertThat(result, equalTo(expected));
+    @Override
+    protected <T extends ToXContent & Writeable> XContentBuilder toXContent(T instance, XContentType contentType) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        // In Metadata.Builder#toXContent(...) custom metadata always gets wrapped in an start and end object,
+        // so we simulate that here. The PrelertMetadata depends on that as it direct starts to write a start array.
+        builder.startObject();
+        instance.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        return builder;
     }
 
     public void testPutJob() {

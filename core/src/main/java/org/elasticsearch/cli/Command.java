@@ -69,7 +69,7 @@ public abstract class Command implements Closeable {
                     e.printStackTrace(pw);
                     terminal.println(sw.toString());
                 } catch (final IOException impossible) {
-                    // StringWriter#close declared a checked IOException from the Closeable interface but the Javadocs for StringWriter say
+                    // StringWriter#close declares a checked IOException from the Closeable interface but the Javadocs for StringWriter say
                     // that an exception here is impossible
                     throw new AssertionError(impossible);
                 }

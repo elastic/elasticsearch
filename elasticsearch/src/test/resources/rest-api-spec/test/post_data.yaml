@@ -76,7 +76,7 @@ setup:
   - do:
       catch: /parse_exception/
       xpack.prelert.job_data:
-        job_id: foo
+        job_id: farequote
         reset_start: not_a_date
         body:  >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
@@ -85,7 +85,7 @@ setup:
   - do:
       catch: /parse_exception/
       xpack.prelert.job_data:
-        job_id: foo
+        job_id: farequote
         reset_end: end_not_a_date
         body:  >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
@@ -96,17 +96,17 @@ setup:
   - do:
       catch: /parse_exception/
       xpack.prelert.flush_job:
-        job_id: foo
+        job_id: farequote
         start: not_a_date
 
   - do:
       catch: /parse_exception/
       xpack.prelert.flush_job:
-        job_id: foo
+        job_id: farequote
         end: end_not_a_date
 
   - do:
       catch: /parse_exception/
       xpack.prelert.flush_job:
-        job_id: foo
+        job_id: farequote
         advance_time: advance_time_not_a_date

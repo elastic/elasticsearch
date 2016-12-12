@@ -65,12 +65,11 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         }
         final ByteBuf buffer = (ByteBuf) msg;
         final int remainingMessageSize = buffer.getInt(buffer.readerIndex() - TcpHeader.MESSAGE_LENGTH_SIZE);
-        int expectedReaderIndex = buffer.readerIndex();
+        final int expectedReaderIndex = buffer.readerIndex() + remainingMessageSize;
         try {
-            expectedReaderIndex = buffer.readerIndex() + remainingMessageSize;
             InetSocketAddress remoteAddress = (InetSocketAddress) ctx.channel().remoteAddress();
             // netty always copies a buffer, either in NioWorker in its read handler, where it copies to a fresh
-            // buffer, or in the cumulation buffer, which is cleaned each time so it could be bigger than the actual size
+            // buffer, or in the cumulative buffer, which is cleaned each time so it could be bigger than the actual size
             BytesReference reference = Netty4Utils.toBytesReference(buffer, remainingMessageSize);
             transport.messageReceived(reference, ctx.channel(), profileName, remoteAddress, remainingMessageSize);
         } finally {

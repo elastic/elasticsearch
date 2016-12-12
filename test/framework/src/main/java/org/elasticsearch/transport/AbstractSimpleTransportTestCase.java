@@ -127,14 +127,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             logger.info("--> actively connecting to local node");
             serviceA.connectToNode(nodeA);
             serviceB.connectToNode(nodeB);
-            assertNumHandshakes(numHandshakes, serviceA.getDelegateTransport());
-            assertNumHandshakes(numHandshakes, serviceB.getDelegateTransport());
+            assertNumHandshakes(numHandshakes, serviceA.getOriginalTransport());
+            assertNumHandshakes(numHandshakes, serviceB.getOriginalTransport());
             numHandshakes++;
         }
         serviceA.connectToNode(nodeB);
         serviceB.connectToNode(nodeA);
-        assertNumHandshakes(numHandshakes, serviceA.getDelegateTransport());
-        assertNumHandshakes(numHandshakes, serviceB.getDelegateTransport());
+        assertNumHandshakes(numHandshakes, serviceA.getOriginalTransport());
+        assertNumHandshakes(numHandshakes, serviceB.getOriginalTransport());
 
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
         serviceA.removeConnectionListener(waitForConnection);
@@ -167,8 +167,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         try {
-            assertNoPendingHandshakes(serviceA.getDelegateTransport());
-            assertNoPendingHandshakes(serviceB.getDelegateTransport());
+            assertNoPendingHandshakes(serviceA.getOriginalTransport());
+            assertNoPendingHandshakes(serviceB.getOriginalTransport());
         } finally {
             IOUtils.close(serviceA, serviceB, () -> {
                 try {
@@ -1801,14 +1801,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testTcpHandshake() throws IOException, InterruptedException {
-        assumeTrue("only tcp transport has a handshake method", serviceA.getDelegateTransport() instanceof TcpTransport);
+        assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, null,
             Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), true)) {
             // this acts like a node that doesn't have support for handshakes
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             serviceA.connectToNode(node);
-            Version version = ((TcpTransport) serviceA.getDelegateTransport()).executeHandshake(node, TimeValue.timeValueSeconds(10));
+            Version version = ((TcpTransport) serviceA.getOriginalTransport()).executeHandshake(node, TimeValue.timeValueSeconds(10));
             assertNull(version);
             serviceA.disconnectFromNode(node);
         }
@@ -1817,8 +1817,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             serviceA.connectToNode(node);
-            if (serviceA.getDelegateTransport() instanceof TcpTransport) {
-                Version version = ((TcpTransport) serviceA.getDelegateTransport()).executeHandshake(node, TimeValue.timeValueSeconds(10));
+            if (serviceA.getOriginalTransport() instanceof TcpTransport) {
+                Version version = ((TcpTransport) serviceA.getOriginalTransport()).executeHandshake(node, TimeValue.timeValueSeconds(10));
                 assertEquals(version, Version.CURRENT);
             }
 

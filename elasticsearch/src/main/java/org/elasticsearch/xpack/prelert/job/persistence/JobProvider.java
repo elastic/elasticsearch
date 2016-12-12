@@ -1044,7 +1044,7 @@ public class JobProvider {
         SearchResponse searchResponse;
         try {
             String indexName = JobResultsPersister.getJobIndexName(jobId);
-            LOGGER.trace("ES API CALL: search result type {} from index {} from {}, size {]",
+            LOGGER.trace("ES API CALL: search result type {} from index {} from {}, size {}",
                     ModelDebugOutput.RESULT_TYPE_VALUE, indexName, from, size);
 
             searchResponse = client.prepareSearch(indexName)

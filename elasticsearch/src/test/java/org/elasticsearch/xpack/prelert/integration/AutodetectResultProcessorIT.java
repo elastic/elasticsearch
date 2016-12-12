@@ -107,7 +107,6 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
             try {
                 writeResults(resultBuilder.build(), outputStream);
             } catch (IOException e) {
-                e.printStackTrace();
             }
         }).start();
 
@@ -172,7 +171,6 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
             try {
                 writeResults(resultBuilder.build(), outputStream);
             } catch (IOException e) {
-                e.printStackTrace();
             }
         }).start();
 
@@ -219,7 +217,6 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
             try {
                 writeResults(resultBuilder.build(), outputStream);
             } catch (IOException e) {
-                e.printStackTrace();
             }
         }).start();
 

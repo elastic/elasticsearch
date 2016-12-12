@@ -17,24 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.elasticsearch.common;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import java.util.function.Consumer;
 
-public interface TransportConnectionListener {
-
-    /**
-     * Called once a node connection is opened and registered.
-     */
-    default void onNodeConnected(DiscoveryNode node) {}
-
-    /**
-     * Called once a node connection is closed and unregistered.
-     */
-    default void onNodeDisconnected(DiscoveryNode node) {}
-
-    /**
-     * Called once a node connection is opened.
-     */
-    default void onConnectionOpened(DiscoveryNode node) {}
+/**
+ * A {@link Consumer}-like interface which allows throwing checked exceptions.
+ */
+@FunctionalInterface
+public interface CheckedConsumer<T, E extends Exception> {
+    void accept(T t) throws E;
 }

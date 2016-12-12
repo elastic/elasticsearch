@@ -36,7 +36,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -89,10 +88,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
 
-        parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, bytes) -> {
-            try (XContentParser requestParser = XContentFactory.xContent(bytes).createParser(bytes)) {
-                final QueryParseContext queryParseContext = new QueryParseContext(searchRequestParsers.queryParsers,
-                    requestParser, parseFieldMatcher);
+        parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
+            try {
+                final QueryParseContext queryParseContext = new QueryParseContext(searchRequestParsers.queryParsers, parser,
+                        parseFieldMatcher);
                 searchRequest.source(SearchSourceBuilder.fromXContent(queryParseContext,
                     searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers));
                 multiRequest.add(searchRequest);
@@ -108,14 +107,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
      * Parses a multi-line {@link RestRequest} body, instanciating a {@link SearchRequest} for each line and applying the given consumer.
      */
     public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
-                                             BiConsumer<SearchRequest, BytesReference> consumer) throws IOException {
+                                             BiConsumer<SearchRequest, XContentParser> consumer) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         String searchType = request.param("search_type");
         String routing = request.param("routing");
 
-        final BytesReference data = RestActions.getRestContent(request);
+        final BytesReference data = request.contentOrSourceParam();
 
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
@@ -187,7 +186,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
             if (nextMarker == -1) {
                 break;
             }
-            consumer.accept(searchRequest, data.slice(from, nextMarker - from));
+            BytesReference bytes = data.slice(from, nextMarker - from);
+            try (XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes)) {
+                consumer.accept(searchRequest, parser);
+            }
             // move pointers
             from = nextMarker + 1;
         }

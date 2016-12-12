@@ -579,6 +579,10 @@ public class UnicastZenPingTests extends ESTestCase {
 
             @Override
             public void onNodeConnected(DiscoveryNode node) {
+            }
+
+            @Override
+            public void onConnectionOpened(DiscoveryNode node) {
                 counters.computeIfAbsent(node.getAddress(), k -> new AtomicInteger());
                 counters.get(node.getAddress()).incrementAndGet();
             }

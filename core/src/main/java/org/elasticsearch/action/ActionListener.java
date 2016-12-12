@@ -19,20 +19,14 @@
 
 package org.elasticsearch.action;
 
-import java.io.IOException;
+import org.elasticsearch.common.CheckedConsumer;
+
 import java.util.function.Consumer;
 
 /**
  * A listener for action responses or failures.
  */
 public interface ActionListener<Response> {
-
-    /** A consumer interface which allows throwing checked exceptions. */
-    @FunctionalInterface
-    interface CheckedConsumer<T> {
-        void accept(T t) throws Exception;
-    }
-
     /**
      * Handle action response. This response may constitute a failure or a
      * success but it is up to the listener to make that decision.
@@ -53,7 +47,8 @@ public interface ActionListener<Response> {
      * @param <Response> the type of the response
      * @return a listener that listens for responses and invokes the consumer when received
      */
-    static <Response> ActionListener<Response> wrap(CheckedConsumer<Response> onResponse, Consumer<Exception> onFailure) {
+    static <Response> ActionListener<Response> wrap(CheckedConsumer<Response, ? extends Exception> onResponse,
+            Consumer<Exception> onFailure) {
         return new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {

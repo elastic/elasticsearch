@@ -204,7 +204,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             // timestamp
             out.writeBoolean(false); // enabled
             out.writeString(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format());
-            out.writeOptionalString(null);
+            out.writeOptionalString("now"); // old default
             out.writeOptionalBoolean(null);
         }
         out.writeBoolean(hasParentField());

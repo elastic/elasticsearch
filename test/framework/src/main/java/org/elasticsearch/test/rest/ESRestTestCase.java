@@ -111,8 +111,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             clusterHosts = unmodifiableList(hosts);
             logger.info("initializing REST clients against {}", clusterHosts);
-            client = buildClient(restClientSettings());
-            adminClient = buildClient(restAdminSettings());
+            client = buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+            adminClient = buildClient(restAdminSettings(), clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
         }
         assert client != null;
         assert adminClient != null;
@@ -272,8 +272,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         return "http";
     }
 
-    private RestClient buildClient(Settings settings) throws IOException {
-        RestClientBuilder builder = RestClient.builder(clusterHosts.toArray(new HttpHost[clusterHosts.size()]));
+    protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
+        RestClientBuilder builder = RestClient.builder(hosts);
         String keystorePath = settings.get(TRUSTSTORE_PATH);
         if (keystorePath != null) {
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);

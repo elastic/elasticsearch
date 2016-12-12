@@ -11,13 +11,13 @@ apply plugin: 'elasticsearch.rest-test'
  * now you can run the bwc tests with:
  *   gradle check -Drepos.mavenlocal=true
  *
- * (-Drepos.mavenlocal=true will force gradle to look for the zip distribuiton in the local .m2 repository)
+ * (-Drepos.mavenlocal=true will force gradle to look for the zip distribution in the local .m2 repository)
  */
 integTest {
   includePackaged = true
   cluster {
-    numNodes = 2
-    numBwcNodes = 1
+    numNodes = 4
+    numBwcNodes = 2
     bwcVersion = "5.2.0-SNAPSHOT"
     setting 'logger.org.elasticsearch', 'DEBUG'
   }

@@ -430,7 +430,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                             defaultConnectionProfile.getConnectTimeout():
                             connectionProfile.getConnectTimeout();
                         final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
-                            connectTimeout: connectionProfile.getHandshakeTimeout();
+                            connectTimeout : connectionProfile.getHandshakeTimeout();
                         Version version = executeHandshake(node, channel, handshakeTimeout);
                         if (version != null) {
                             // this is a BWC layer, if we talk to a pre 5.2 node then the handshake is not supported
@@ -1482,8 +1482,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             this.version = version;
         }
 
-        private VersionHandshakeResponse() {
-        }
+        private VersionHandshakeResponse() {}
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
@@ -1494,6 +1493,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            assert version != null;
             Version.writeVersion(version, out);
         }
     }

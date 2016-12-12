@@ -207,17 +207,45 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      */
     public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
-        if (script == null) {
-            throw new IllegalArgumentException("The parameter script (Script) must not be null.");
-        }
-        if (scriptContext == null) {
-            throw new IllegalArgumentException("The parameter scriptContext (ScriptContext) must not be null.");
-        }
+        Objects.requireNonNull(script);
+        Objects.requireNonNull(scriptContext);
 
+        ScriptType type = script.getType();
         String lang = script.getLang();
-        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-        if (canExecuteScript(lang, script.getType(), scriptContext) == false) {
-            throw new IllegalStateException("scripts of type [" + script.getType() + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
+        String idOrCode = script.getIdOrCode();
+        Map<String, String> options = script.getOptions();
+
+        String id = Script.DEFAULT_INLINE_SCRIPT_ID;
+
+        // lang may be null when looking up a stored script, so we must get the
+        // source to retrieve the lang before checking if the context is supported
+        if (type == ScriptType.STORED) {
+            id = idOrCode;
+
+            // search template requests can possibly pass in the entire path instead
+            // of just an id for looking up a stored script, so we parse the path and
+            // check for appropriate errors
+            String[] path = id.split("/");
+
+            if (path.length == 3) {
+                if (lang != null && lang.equals(path[1]) == false) {
+                    throw new IllegalStateException("conflicting script languages, found [" + path[1] + "] but expected [" + lang + "]");
+                }
+
+                id = path[2];
+
+                deprecationLogger.deprecated("use of </lang/id> [" + idOrCode + "] for looking up" +
+                    " stored scripts/templates has been deprecated, use only <id> [" + id + "] instead");
+            } else if (path.length != 1) {
+                throw new IllegalArgumentException("illegal stored script format [" + id + "] use only <id>");
+            }
+
+            // a stored script must be pulled from the cluster state every time in case
+            // the script has been updated since the last compilation
+            StoredScriptSource source = getScriptFromClusterState(id, lang);
+            lang = source.getLang();
+            idOrCode = source.getCode();
+            options = source.getOptions();
         }
 
         // TODO: fix this through some API or something, that's wrong
@@ -226,10 +254,72 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         boolean notSupported = scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey());
         if (expression && notSupported) {
             throw new UnsupportedOperationException("scripts of type [" + script.getType() + "]," +
-                    " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
+                " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are not supported");
         }
 
-        return compileInternal(script, params);
+        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
+
+        if (canExecuteScript(lang, type, scriptContext) == false) {
+            throw new IllegalStateException("scripts of type [" + script.getType() + "]," +
+                " operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
+        }
+
+        if (logger.isTraceEnabled()) {
+            logger.trace("compiling lang: [{}] type: [{}] script: {}", lang, type, idOrCode);
+        }
+
+        if (type == ScriptType.FILE) {
+            CacheKey cacheKey = new CacheKey(lang, idOrCode, options);
+            CompiledScript compiledScript = staticCache.get(cacheKey);
+
+            if (compiledScript == null) {
+                throw new IllegalArgumentException("unable to find file script [" + idOrCode + "] using lang [" + lang + "]");
+            }
+
+            return compiledScript;
+        }
+
+        CacheKey cacheKey = new CacheKey(lang, idOrCode, options);
+        CompiledScript compiledScript = cache.get(cacheKey);
+
+        if (compiledScript != null) {
+            return compiledScript;
+        }
+
+        // Synchronize so we don't compile scripts many times during multiple shards all compiling a script
+        synchronized (this) {
+            // Retrieve it again in case it has been put by a different thread
+            compiledScript = cache.get(cacheKey);
+
+            if (compiledScript == null) {
+                try {
+                    // Either an un-cached inline script or indexed script
+                    // If the script type is inline the name will be the same as the code for identification in exceptions
+
+                    // but give the script engine the chance to be better, give it separate name + source code
+                    // for the inline case, then its anonymous: null.
+                    String actualName = (type == ScriptType.INLINE) ? null : id;
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("compiling script, type: [{}], lang: [{}], options: [{}]", type, lang, options);
+                    }
+                    // Check whether too many compilations have happened
+                    checkCompilationLimit();
+                    compiledScript = new CompiledScript(type, id, lang, scriptEngineService.compile(id, idOrCode, options));
+                } catch (ScriptException good) {
+                    // TODO: remove this try-catch completely, when all script engines have good exceptions!
+                    throw good; // its already good
+                } catch (Exception exception) {
+                    throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", exception);
+                }
+
+                // Since the cache key is the script content itself we don't need to
+                // invalidate/check the cache if an indexed script changes.
+                scriptMetrics.onCompilation();
+                cache.put(cacheKey, compiledScript);
+            }
+
+            return compiledScript;
+        }
     }
 
     /**
@@ -261,93 +351,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
             throw new CircuitBreakingException("[script] Too many dynamic script compilations within one minute, max: [" +
                             totalCompilesPerMinute + "/min]; please use on-disk, indexed, or scripts with parameters instead; " +
                             "this limit can be changed by the [" + SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey() + "] setting");
-        }
-    }
-
-    /**
-     * Compiles a script straight-away, or returns the previously compiled and cached script,
-     * without checking if it can be executed based on settings.
-     */
-    CompiledScript compileInternal(Script script, Map<String, String> params) {
-        if (script == null) {
-            throw new IllegalArgumentException("The parameter script (Script) must not be null.");
-        }
-
-        String lang = script.getLang();
-        ScriptType type = script.getType();
-        //script.getIdOrCode() could return either a name or code for a script,
-        //but we check for a file script name first and an indexed script name second
-        String name = script.getIdOrCode();
-
-        if (logger.isTraceEnabled()) {
-            logger.trace("Compiling lang: [{}] type: [{}] script: {}", lang, type, name);
-        }
-
-        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
-
-        if (type == ScriptType.FILE) {
-            CacheKey cacheKey = new CacheKey(scriptEngineService, name, null, params);
-            //On disk scripts will be loaded into the staticCache by the listener
-            CompiledScript compiledScript = staticCache.get(cacheKey);
-
-            if (compiledScript == null) {
-                throw new IllegalArgumentException("Unable to find on disk file script [" + name + "] using lang [" + lang + "]");
-            }
-
-            return compiledScript;
-        }
-
-        //script.getIdOrCode() will be code if the script type is inline
-        String code = script.getIdOrCode();
-
-        if (type == ScriptType.STORED) {
-            //The look up for an indexed script must be done every time in case
-            //the script has been updated in the index since the last look up.
-            final IndexedScript indexedScript = new IndexedScript(lang, name);
-            name = indexedScript.id;
-            code = getScriptFromClusterState(indexedScript.id, indexedScript.lang).getCode();
-        }
-
-        CacheKey cacheKey = new CacheKey(scriptEngineService, type == ScriptType.INLINE ? null : name, code, params);
-        CompiledScript compiledScript = cache.get(cacheKey);
-
-        if (compiledScript != null) {
-            return compiledScript;
-        }
-
-        // Synchronize so we don't compile scripts many times during multiple shards all compiling a script
-        synchronized (this) {
-            // Retrieve it again in case it has been put by a different thread
-            compiledScript = cache.get(cacheKey);
-
-            if (compiledScript == null) {
-                try {
-                    // Either an un-cached inline script or indexed script
-                    // If the script type is inline the name will be the same as the code for identification in exceptions
-
-                    // but give the script engine the chance to be better, give it separate name + source code
-                    // for the inline case, then its anonymous: null.
-                    String actualName = (type == ScriptType.INLINE) ? null : name;
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("compiling script, type: [{}], lang: [{}], params: [{}]", type, lang, params);
-                    }
-                    // Check whether too many compilations have happened
-                    checkCompilationLimit();
-                    compiledScript = new CompiledScript(type, name, lang, scriptEngineService.compile(actualName, code, params));
-                } catch (ScriptException good) {
-                    // TODO: remove this try-catch completely, when all script engines have good exceptions!
-                    throw good; // its already good
-                } catch (Exception exception) {
-                    throw new GeneralScriptException("Failed to compile " + type + " script [" + name + "] using lang [" + lang + "]", exception);
-                }
-
-                // Since the cache key is the script content itself we don't need to
-                // invalidate/check the cache if an indexed script changes.
-                scriptMetrics.onCompilation();
-                cache.put(cacheKey, compiledScript);
-            }
-
-            return compiledScript;
         }
     }
 
@@ -571,11 +574,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                         logger.info("compiling script file [{}]", file.toAbsolutePath());
                         try (InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), StandardCharsets.UTF_8)) {
                             String script = Streams.copyToString(reader);
-                            String name = scriptNameExt.v1();
-                            CacheKey cacheKey = new CacheKey(engineService, name, null, Collections.emptyMap());
+                            String id = scriptNameExt.v1();
+                            CacheKey cacheKey = new CacheKey(engineService.getType(), id, null);
                             // pass the actual file name to the compiler (for script engines that care about this)
                             Object executable = engineService.compile(file.getFileName().toString(), script, Collections.emptyMap());
-                            CompiledScript compiledScript = new CompiledScript(ScriptType.FILE, name, engineService.getType(), executable);
+                            CompiledScript compiledScript = new CompiledScript(ScriptType.FILE, id, engineService.getType(), executable);
                             staticCache.put(cacheKey, compiledScript);
                             scriptMetrics.onCompilation();
                         }
@@ -616,7 +619,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
                 ScriptEngineService engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
                 assert engineService != null;
                 logger.info("removing script file [{}]", file.toAbsolutePath());
-                staticCache.remove(new CacheKey(engineService, scriptNameExt.v1(), null, Collections.emptyMap()));
+                staticCache.remove(new CacheKey(engineService.getType(), scriptNameExt.v1(), null));
             }
         }
 
@@ -629,15 +632,13 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
     private static final class CacheKey {
         final String lang;
-        final String name;
-        final String code;
-        final Map<String, String> params;
+        final String idOrCode;
+        final Map<String, String> options;
 
-        private CacheKey(final ScriptEngineService service, final String name, final String code, final Map<String, String> params) {
-            this.lang = service.getType();
-            this.name = name;
-            this.code = code;
-            this.params = params;
+        private CacheKey(String lang, String idOrCode, Map<String, String> options) {
+            this.lang = lang;
+            this.idOrCode = idOrCode;
+            this.options = options;
         }
 
         @Override
@@ -647,44 +648,18 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             CacheKey cacheKey = (CacheKey)o;
 
-            if (!lang.equals(cacheKey.lang)) return false;
-            if (name != null ? !name.equals(cacheKey.name) : cacheKey.name != null) return false;
-            if (code != null ? !code.equals(cacheKey.code) : cacheKey.code != null) return false;
-            return params.equals(cacheKey.params);
+            if (lang != null ? !lang.equals(cacheKey.lang) : cacheKey.lang != null) return false;
+            if (!idOrCode.equals(cacheKey.idOrCode)) return false;
+            return options != null ? options.equals(cacheKey.options) : cacheKey.options == null;
 
         }
 
         @Override
         public int hashCode() {
-            int result = lang.hashCode();
-            result = 31 * result + (name != null ? name.hashCode() : 0);
-            result = 31 * result + (code != null ? code.hashCode() : 0);
-            result = 31 * result + params.hashCode();
+            int result = lang != null ? lang.hashCode() : 0;
+            result = 31 * result + idOrCode.hashCode();
+            result = 31 * result + (options != null ? options.hashCode() : 0);
             return result;
-        }
-    }
-
-
-    private static class IndexedScript {
-        private final String lang;
-        private final String id;
-
-        IndexedScript(String lang, String script) {
-            this.lang = lang;
-            final String[] parts = script.split("/");
-            if (parts.length == 1) {
-                this.id = script;
-            } else {
-                if (parts.length != 3) {
-                    throw new IllegalArgumentException("Illegal index script format [" + script + "]" +
-                            " should be /lang/id");
-                } else {
-                    if (!parts[1].equals(this.lang)) {
-                        throw new IllegalStateException("Conflicting script language, found [" + parts[1] + "] expected + ["+ this.lang + "]");
-                    }
-                    this.id = parts[2];
-                }
-            }
         }
     }
 }

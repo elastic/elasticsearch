@@ -80,6 +80,11 @@ public final class Script implements ToXContent, Writeable {
     public static final ScriptType DEFAULT_SCRIPT_TYPE = ScriptType.INLINE;
 
     /**
+     * The default id for inline scripts.
+     */
+    public static final String DEFAULT_INLINE_SCRIPT_ID = "<inline>";
+
+    /**
      * Compiler option for {@link XContentType} used for templates.
      */
     public static final String CONTENT_TYPE_OPTION = "content_type";
@@ -212,22 +217,55 @@ public final class Script implements ToXContent, Writeable {
                         "or [" + ScriptType.FILE.getParseField().getPreferredName() + "] script");
             }
 
-            if (type == ScriptType.STORED) {
+            if (type == ScriptType.INLINE) {
+                if (lang == null) {
+                    lang = defaultLang;
+                }
+
+                if (idOrCode == null) {
+                    throw new IllegalArgumentException(
+                        "must specify <id> for an [" + ScriptType.INLINE.getParseField().getPreferredName() + "] script");
+                }
+
+                if (options.size() > 1 || options.size() == 1 && options.get(CONTENT_TYPE_OPTION) == null) {
+                    options.remove(CONTENT_TYPE_OPTION);
+
+                    throw new IllegalArgumentException("illegal compiler options [" + options + "] specified");
+                }
+            } else if (type == ScriptType.STORED) {
                 if (lang != null) {
                     DEPRECATION_LOGGER.deprecated("specifying the field [" + LANG_PARSE_FIELD.getPreferredName() + "] " +
                         "for executing " + ScriptType.STORED + " scripts is deprecated; use only the field " +
                         "[" + ScriptType.STORED.getParseField().getPreferredName() + "] to specify an <id>");
                 }
-            } else if (lang == null) {
-                lang = defaultLang;
-            }
 
-            if (idOrCode == null) {
-                throw new IllegalArgumentException("must specify an id or code for a script");
-            }
+                if (idOrCode == null) {
+                    throw new IllegalArgumentException(
+                        "must specify <code> for an [" + ScriptType.STORED.getParseField().getPreferredName() + "] script");
+                }
 
-            if (options.size() > 1 || options.size() == 1 && options.get(CONTENT_TYPE_OPTION) == null) {
-                throw new IllegalArgumentException("illegal compiler options [" + options + "] specified");
+                if (options.isEmpty()) {
+                    options = null;
+                } else {
+                    throw new IllegalArgumentException("field [" + OPTIONS_PARSE_FIELD.getPreferredName() + "] " +
+                        "cannot be specified using a [" + ScriptType.STORED.getParseField().getPreferredName() + "] script");
+                }
+            } else if (type == ScriptType.FILE) {
+                if (lang == null) {
+                    lang = defaultLang;
+                }
+
+                if (idOrCode == null) {
+                    throw new IllegalArgumentException(
+                        "must specify <code> for an [" + ScriptType.FILE.getParseField().getPreferredName() + "] script");
+                }
+
+                if (options.isEmpty()) {
+                    options = null;
+                } else {
+                    throw new IllegalArgumentException("field [" + OPTIONS_PARSE_FIELD.getPreferredName() + "] " +
+                        "cannot be specified using a [" + ScriptType.FILE.getParseField().getPreferredName() + "] script");
+                }
             }
 
             return new Script(type, lang, idOrCode, options, params);
@@ -369,7 +407,7 @@ public final class Script implements ToXContent, Writeable {
      * @param params   The user-defined params to be bound for script execution.
      */
     public Script(ScriptType type, String lang, String idOrCode, Map<String, Object> params) {
-        this(type, lang, idOrCode, Collections.emptyMap(), params);
+        this(type, lang, idOrCode, type == ScriptType.INLINE ? Collections.emptyMap() : null, params);
     }
 
     /**
@@ -382,21 +420,33 @@ public final class Script implements ToXContent, Writeable {
      * @param params   The user-defined params to be bound for script execution.
      */
     public Script(ScriptType type, String lang, String idOrCode, Map<String, String> options, Map<String, Object> params) {
-        this.idOrCode = Objects.requireNonNull(idOrCode);
         this.type = Objects.requireNonNull(type);
-
-        if (type == ScriptType.STORED) {
-            this.lang = lang;
-        } else {
-            this.lang = Objects.requireNonNull(lang);
-        }
-
-        this.options = Collections.unmodifiableMap(Objects.requireNonNull(options));
+        this.idOrCode = Objects.requireNonNull(idOrCode);
         this.params = Collections.unmodifiableMap(Objects.requireNonNull(params));
 
-        if (type != ScriptType.INLINE && !options.isEmpty()) {
-            throw new IllegalArgumentException(
-                "compiler options [" + options + "] cannot be specified at runtime for [" + type + "] scripts");
+        if (type == ScriptType.INLINE) {
+            this.lang = Objects.requireNonNull(lang);
+            this.options = Collections.unmodifiableMap(Objects.requireNonNull(options));
+        } else if (type == ScriptType.STORED) {
+            this.lang = lang;
+
+            if (options != null) {
+                throw new IllegalStateException(
+                    "options must be null for [" + ScriptType.STORED.getParseField().getPreferredName() + "] scripts");
+            }
+
+            this.options = null;
+        } else if (type == ScriptType.FILE) {
+            this.lang = Objects.requireNonNull(lang);
+
+            if (options != null) {
+                throw new IllegalStateException(
+                    "options must be null for [" + ScriptType.FILE.getParseField().getPreferredName() + "] scripts");
+            }
+
+            this.options = null;
+        } else {
+            throw new IllegalStateException("unknown script type [" + type.getName() + "]");
         }
     }
 
@@ -404,19 +454,27 @@ public final class Script implements ToXContent, Writeable {
      * Creates a {@link Script} read from an input stream.
      */
     public Script(StreamInput in) throws IOException {
-        // Version 5.1+ requires all Script members to be non-null and supports the potential
+        // Version 5.1 requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the read in contents to be in
         // same order as the constructor.
         if (in.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             this.type = ScriptType.readFrom(in);
-            this.lang = in.readString();
+
+            // The lang parameter will be optional for stored scripts as of 5.2.
+            if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+                this.lang = in.readOptionalString();
+            } else {
+                this.lang = in.readString();
+            }
+
             this.idOrCode = in.readString();
             @SuppressWarnings("unchecked")
             Map<String, String> options = (Map<String, String>)(Map)in.readMap();
+            // The options parameter is expected to be null for stored and file scripts as of 5.2.
             this.options = options;
             this.params = in.readMap();
-            // Prior to version 5.1 the script members are read in certain cases as optional and given
-            // default values when necessary.  Also the only option supported is for XContentType.
+        // Prior to version 5.1 the script members are read in certain cases as optional and given
+        // default values when necessary.  Also the only option supported is for XContentType.
         } else {
             String idOrCode = in.readString();
             ScriptType type;
@@ -456,30 +514,37 @@ public final class Script implements ToXContent, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // Version 5.1+ requires all Script members to be non-null and supports the potential
+        // Version 5.1 requires all Script members to be non-null and supports the potential
         // for more options than just XContentType.  Reorders the written out contents to be in
         // same order as the constructor.
         if (out.getVersion().onOrAfter(Version.V_5_1_1_UNRELEASED)) {
             type.writeTo(out);
-            out.writeString(lang);
+
+            // The lang parameter will be optional for stored scripts as of 5.2.
+            if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+                out.writeOptionalString(lang);
+            } else {
+                out.writeString(lang == null ? "" : lang);
+            }
+
             out.writeString(idOrCode);
             @SuppressWarnings("unchecked")
             Map<String, Object> options = (Map<String, Object>)(Map)this.options;
+            // The options parameter is expected to be null for stored and file scripts as of 5.2.
             out.writeMap(options);
             out.writeMap(params);
-            // Prior to version 5.1 the Script members were possibly written as optional or null, though this is no longer
-            // necessary since Script members cannot be null anymore, and there is no case where a null value wasn't equivalent
-            // to it's default value when actually compiling/executing a script.  Meaning, there are no backwards compatibility issues,
-            // and now there's enforced consistency.  Also the only supported compiler option was XContentType.
+        // Prior to version 5.1 the Script members were possibly written as optional or null, though this is no longer
+        // necessary since Script members cannot be null anymore, and there is no case where a null value wasn't equivalent
+        // to it's default value when actually compiling/executing a script.  Meaning, there are no backwards compatibility issues,
+        // and now there's enforced consistency.  Also the only supported compiler option was XContentType.
         } else {
             out.writeString(idOrCode);
             out.writeBoolean(true);
             type.writeTo(out);
-            out.writeBoolean(true);
-            out.writeString(lang);
+            out.writeOptionalString(lang);
             out.writeMap(params.isEmpty() ? null : params);
 
-            if (options.containsKey(CONTENT_TYPE_OPTION)) {
+            if (options != null && options.containsKey(CONTENT_TYPE_OPTION)) {
                 XContentType contentType = XContentType.fromMediaTypeOrFormat(options.get(CONTENT_TYPE_OPTION));
                 out.writeBoolean(true);
                 contentType.writeTo(out);
@@ -520,7 +585,7 @@ public final class Script implements ToXContent, Writeable {
      * }
      * }
      *
-     * Note that options and params will only be included if there have been any specified.
+     * Note that lang, options, and params will only be included if there have been any specified.
      *
      * This also handles templates in a special way.  If the {@link Script#CONTENT_TYPE_OPTION} option
      * is provided and the {@link ScriptType#INLINE} is specified then the template will be preserved as a raw field.
@@ -546,7 +611,7 @@ public final class Script implements ToXContent, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject();
 
-        String contentType = options.get(CONTENT_TYPE_OPTION);
+        String contentType = options == null ? null : options.get(CONTENT_TYPE_OPTION);
 
         if (type == ScriptType.INLINE && contentType != null && builder.contentType().mediaType().equals(contentType)) {
             builder.rawField(type.getParseField().getPreferredName(), new BytesArray(idOrCode));
@@ -554,9 +619,11 @@ public final class Script implements ToXContent, Writeable {
             builder.field(type.getParseField().getPreferredName(), idOrCode);
         }
 
-        builder.field(LANG_PARSE_FIELD.getPreferredName(), lang);
+        if (lang != null) {
+            builder.field(LANG_PARSE_FIELD.getPreferredName(), lang);
+        }
 
-        if (!options.isEmpty()) {
+        if (options != null && !options.isEmpty()) {
             builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
         }
 
@@ -613,9 +680,9 @@ public final class Script implements ToXContent, Writeable {
         Script script = (Script)o;
 
         if (type != script.type) return false;
-        if (!lang.equals(script.lang)) return false;
+        if (lang != null ? !lang.equals(script.lang) : script.lang != null) return false;
         if (!idOrCode.equals(script.idOrCode)) return false;
-        if (!options.equals(script.options)) return false;
+        if (options != null ? !options.equals(script.options) : script.options != null) return false;
         return params.equals(script.params);
 
     }
@@ -623,9 +690,9 @@ public final class Script implements ToXContent, Writeable {
     @Override
     public int hashCode() {
         int result = type.hashCode();
-        result = 31 * result + lang.hashCode();
+        result = 31 * result + (lang != null ? lang.hashCode() : 0);
         result = 31 * result + idOrCode.hashCode();
-        result = 31 * result + options.hashCode();
+        result = 31 * result + (options != null ? options.hashCode() : 0);
         result = 31 * result + params.hashCode();
         return result;
     }

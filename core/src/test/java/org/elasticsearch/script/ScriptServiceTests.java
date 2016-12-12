@@ -119,9 +119,9 @@ public class ScriptServiceTests extends ESTestCase {
         // TODO:
         scriptService = new ScriptService(finalSettings, environment, resourceWatcherService, scriptEngineRegistry, scriptContextRegistry, scriptSettings) {
             @Override
-            StoredScriptSource getScriptFromClusterState(String scriptLang, String id) {
+            StoredScriptSource getScriptFromClusterState(String id, String lang) {
                 //mock the script that gets retrieved from an index
-                return new StoredScriptSource(scriptLang, "100", Collections.emptyMap());
+                return new StoredScriptSource(lang, "100", Collections.emptyMap());
             }
         };
     }
@@ -180,7 +180,7 @@ public class ScriptServiceTests extends ESTestCase {
                     Collections.emptyMap());
             fail("the script test_script should no longer exist");
         } catch (IllegalArgumentException ex) {
-            assertThat(ex.getMessage(), containsString("Unable to find on disk file script [test_script] using lang [test]"));
+            assertThat(ex.getMessage(), containsString("unable to find file script [test_script] using lang [test]"));
         }
     }
 

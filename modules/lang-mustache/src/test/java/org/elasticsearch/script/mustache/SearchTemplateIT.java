@@ -206,7 +206,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .setRequest(new SearchRequest("test").types("type"))
                 .setScript("/template_index/mustache/1000").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                 .get());
-        assertThat(e.getMessage(), containsString("Illegal index script format [/template_index/mustache/1000] should be /lang/id"));
+        assertThat(e.getMessage(), containsString("illegal stored script format [/template_index/mustache/1000] use only <id>"));
     }
 
     public void testIndexedTemplate() throws Exception {

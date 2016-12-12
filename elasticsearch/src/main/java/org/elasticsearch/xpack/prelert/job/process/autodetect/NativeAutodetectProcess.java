@@ -45,7 +45,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
     private final ZonedDateTime startTime;
     private final int numberOfAnalysisFields;
     private final List<Path> filesToDelete;
-    private Future<?> logTailThread;
+    private Future<?> logTailFuture;
 
     NativeAutodetectProcess(String jobId, InputStream logStream, OutputStream processInStream, InputStream processOutStream,
                             InputStream persistStream, int numberOfAnalysisFields, List<Path> filesToDelete,
@@ -59,7 +59,7 @@ class NativeAutodetectProcess implements AutodetectProcess {
         startTime = ZonedDateTime.now();
         this.numberOfAnalysisFields = numberOfAnalysisFields;
         this.filesToDelete = filesToDelete;
-        logTailThread = executorService.submit(() -> {
+        logTailFuture = executorService.submit(() -> {
             try (CppLogMessageHandler h = cppLogHandler) {
                 h.tailStream();
             } catch (IOException e) {
@@ -104,15 +104,16 @@ class NativeAutodetectProcess implements AutodetectProcess {
             processInStream.close();
             // wait for the process to exit by waiting for end-of-file on the named pipe connected to its logger
             // this may take a long time as it persists the model state
-            logTailThread.get(30, TimeUnit.MINUTES);
+            logTailFuture.get(30, TimeUnit.MINUTES);
             if (cppLogHandler.seenFatalError()) {
                 throw ExceptionsHelper.serverError(cppLogHandler.getErrors());
             }
-            LOGGER.info("[{}] Process exited", jobId);
+            LOGGER.info("[{}] Autodetect process exited", jobId);
         } catch (ExecutionException | TimeoutException e) {
-            LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running native process", new Object[] { jobId }, e));
+            LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running autodetect process",
+                    new Object[] { jobId }, e));
         } catch (InterruptedException e) {
-            LOGGER.warn("[{}] Exception closing the running native process", jobId);
+            LOGGER.warn("[{}] Exception closing the running autodetect process", jobId);
             Thread.currentThread().interrupt();
         } finally {
             deleteAssociatedFiles();

@@ -79,7 +79,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
     private double probability;
     private double initialAnomalyScore;
     private double anomalyScore;
-    private boolean hadBigNormalisedUpdate;
+    private boolean hadBigNormalizedUpdate;
     private boolean isInterim;
 
     public Influencer(String jobId, String fieldName, String fieldValue, Date timestamp, long bucketSpan, int sequenceNum) {
@@ -99,7 +99,6 @@ public class Influencer extends ToXContentToBytes implements Writeable {
         probability = in.readDouble();
         initialAnomalyScore = in.readDouble();
         anomalyScore = in.readDouble();
-        hadBigNormalisedUpdate = in.readBoolean();
         isInterim = in.readBoolean();
         bucketSpan = in.readLong();
         sequenceNum = in.readInt();
@@ -114,7 +113,6 @@ public class Influencer extends ToXContentToBytes implements Writeable {
         out.writeDouble(probability);
         out.writeDouble(initialAnomalyScore);
         out.writeDouble(anomalyScore);
-        out.writeBoolean(hadBigNormalisedUpdate);
         out.writeBoolean(isInterim);
         out.writeLong(bucketSpan);
         out.writeInt(sequenceNum);
@@ -190,22 +188,22 @@ public class Influencer extends ToXContentToBytes implements Writeable {
         isInterim = value;
     }
 
-    public boolean hadBigNormalisedUpdate() {
-        return this.hadBigNormalisedUpdate;
+    public boolean hadBigNormalizedUpdate() {
+        return this.hadBigNormalizedUpdate;
     }
 
-    public void resetBigNormalisedUpdateFlag() {
-        hadBigNormalisedUpdate = false;
+    public void resetBigNormalizedUpdateFlag() {
+        hadBigNormalizedUpdate = false;
     }
 
-    public void raiseBigNormalisedUpdateFlag() {
-        hadBigNormalisedUpdate = true;
+    public void raiseBigNormalizedUpdateFlag() {
+        hadBigNormalizedUpdate = true;
     }
 
     @Override
     public int hashCode() {
 
-        // hadBigNormalisedUpdate is  deliberately excluded from the hash
+        // hadBigNormalizedUpdate is deliberately excluded from the hash
 
         return Objects.hash(jobId, timestamp, influenceField, influenceValue, initialAnomalyScore, anomalyScore, probability, isInterim,
                 bucketSpan, sequenceNum);
@@ -227,7 +225,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
 
         Influencer other = (Influencer) obj;
 
-        // hadBigNormalisedUpdate is deliberately excluded from the test
+        // hadBigNormalizedUpdate is deliberately excluded from the test
         return Objects.equals(jobId, other.jobId) && Objects.equals(timestamp, other.timestamp)
                 && Objects.equals(influenceField, other.influenceField)
                 && Objects.equals(influenceValue, other.influenceValue)

@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectR
 import org.elasticsearch.xpack.prelert.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
-import org.elasticsearch.xpack.prelert.job.process.normalizer.noop.NoOpRenormaliser;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.noop.NoOpRenormalizer;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
@@ -175,7 +175,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         UsageReporter usageReporter = new UsageReporter(settings, job.getId(), usagePersister);
         try (StatusReporter statusReporter = new StatusReporter(threadPool, settings, job.getId(), jobProvider.dataCounts(jobId),
                 usageReporter, jobDataCountsPersister)) {
-            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(new NoOpRenormaliser(), jobResultsPersister, parser);
+            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(new NoOpRenormalizer(), jobResultsPersister, parser);
 
             AutodetectProcess process = null;
             try {

@@ -92,7 +92,7 @@ public class AutodetectBuilder {
     }
 
     /**
-     * Set quantiles to restore the normaliser state if any.
+     * Set quantiles to restore the normalizer state if any.
      *
      * @param quantiles the non-null quantiles
      */
@@ -161,10 +161,10 @@ public class AutodetectBuilder {
             Quantiles quantiles = this.quantiles.get();
             logger.info("Restoring quantiles for job '" + job.getId() + "'");
 
-            Path normalisersStateFilePath = ProcessCtrl.writeNormaliserInitState(
+            Path normalizersStateFilePath = ProcessCtrl.writeNormalizerInitState(
                     job.getId(), quantiles.getQuantileState(), env);
 
-            String quantilesStateFileArg = ProcessCtrl.QUANTILES_STATE_PATH_ARG + normalisersStateFilePath;
+            String quantilesStateFileArg = ProcessCtrl.QUANTILES_STATE_PATH_ARG + normalizersStateFilePath;
             command.add(quantilesStateFileArg);
             command.add(ProcessCtrl.DELETE_STATE_FILES_ARG);
         }

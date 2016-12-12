@@ -25,8 +25,8 @@ import java.util.Objects;
  * <li>end- The end influencer timestamp. Influencers up to but NOT including this
  * timestamp are returned. If 0 all influencers from <code>start</code> are
  * returned. Default = -1</li>
- * <li>partitionValue Set the bucket's max normalised probability to this
- * partition field value's max normalised probability. Default = null</li>
+ * <li>partitionValue Set the bucket's max normalized probability to this
+ * partition field value's max normalized probability. Default = null</li>
  * </ul>
  */
 public final class InfluencersQueryBuilder {

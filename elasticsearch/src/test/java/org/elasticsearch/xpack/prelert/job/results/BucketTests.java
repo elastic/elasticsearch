@@ -255,56 +255,56 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         assertEquals(bucket1.hashCode(), bucket2.hashCode());
     }
 
-    public void testIsNormalisable_GivenNullBucketInfluencers() {
+    public void testIsNormalizable_GivenNullBucketInfluencers() {
         Bucket bucket = new Bucket("foo", new Date(123), 123);
         bucket.setBucketInfluencers(null);
         bucket.setAnomalyScore(90.0);
 
-        assertFalse(bucket.isNormalisable());
+        assertFalse(bucket.isNormalizable());
     }
 
-    public void testIsNormalisable_GivenEmptyBucketInfluencers() {
+    public void testIsNormalizable_GivenEmptyBucketInfluencers() {
         Bucket bucket = new Bucket("foo", new Date(123), 123);
         bucket.setBucketInfluencers(Collections.emptyList());
         bucket.setAnomalyScore(90.0);
 
-        assertFalse(bucket.isNormalisable());
+        assertFalse(bucket.isNormalizable());
     }
 
-    public void testIsNormalisable_GivenAnomalyScoreIsZeroAndRecordCountIsZero() {
+    public void testIsNormalizable_GivenAnomalyScoreIsZeroAndRecordCountIsZero() {
         Bucket bucket = new Bucket("foo", new Date(123), 123);
         bucket.addBucketInfluencer(new BucketInfluencer("foo", new Date(123), 123, 1));
         bucket.setAnomalyScore(0.0);
         bucket.setRecordCount(0);
 
-        assertFalse(bucket.isNormalisable());
+        assertFalse(bucket.isNormalizable());
     }
 
-    public void testIsNormalisable_GivenAnomalyScoreIsZeroAndRecordCountIsNonZero() {
+    public void testIsNormalizable_GivenAnomalyScoreIsZeroAndRecordCountIsNonZero() {
         Bucket bucket = new Bucket("foo", new Date(123), 123);
         bucket.addBucketInfluencer(new BucketInfluencer("foo", new Date(123), 123, 1));
         bucket.setAnomalyScore(0.0);
         bucket.setRecordCount(1);
 
-        assertTrue(bucket.isNormalisable());
+        assertTrue(bucket.isNormalizable());
     }
 
-    public void testIsNormalisable_GivenAnomalyScoreIsNonZeroAndRecordCountIsZero() {
+    public void testIsNormalizable_GivenAnomalyScoreIsNonZeroAndRecordCountIsZero() {
         Bucket bucket = new Bucket("foo", new Date(123), 123);
         bucket.addBucketInfluencer(new BucketInfluencer("foo", new Date(123), 123, 1));
         bucket.setAnomalyScore(1.0);
         bucket.setRecordCount(0);
 
-        assertTrue(bucket.isNormalisable());
+        assertTrue(bucket.isNormalizable());
     }
 
-    public void testIsNormalisable_GivenAnomalyScoreIsNonZeroAndRecordCountIsNonZero() {
+    public void testIsNormalizable_GivenAnomalyScoreIsNonZeroAndRecordCountIsNonZero() {
         Bucket bucket = new Bucket("foo", new Date(123), 123);
         bucket.addBucketInfluencer(new BucketInfluencer("foo", new Date(123), 123, 1));
         bucket.setAnomalyScore(1.0);
         bucket.setRecordCount(1);
 
-        assertTrue(bucket.isNormalisable());
+        assertTrue(bucket.isNormalizable());
     }
 
     public void testPartitionAnomalyScore() {

@@ -34,7 +34,7 @@ public class AutodetectResultsParserTests extends ESTestCase {
             + "\"max_normalized_probability\":0, \"anomaly_score\":0,\"record_count\":0,\"event_count\":806,\"bucket_influencers\":["
             + "{\"sequence_num\":1,\"timestamp\":1359450000000,\"bucket_span\":22,\"job_id\":\"foo\",\"anomaly_score\":0,"
             + "\"probability\":0.0, \"influencer_field_name\":\"bucket_time\","
-            + "\"initial_anomaly_score\":0.0}]}},{\"quantiles\": {\"job_id\":\"foo\", \"quantile_state\":\"[normaliser 1.1, normaliser 2" +
+            + "\"initial_anomaly_score\":0.0}]}},{\"quantiles\": {\"job_id\":\"foo\", \"quantile_state\":\"[normalizer 1.1, normalizer 2" +
             ".1]\"}}"
             + ",{\"bucket\": {\"job_id\":\"foo\",\"timestamp\":1359453600000,\"bucket_span\":22,\"records\":"
             + "[{\"timestamp\":1359453600000,\"bucket_span\":22,\"sequence_num\":1,\"job_id\":\"foo\",\"probability\":0.0637541,"
@@ -58,8 +58,8 @@ public class AutodetectResultsParserTests extends ESTestCase {
             + "\"sequence_num\":6,\"job_id\":\"foo\",\"raw_anomaly_score\":0.005, \"probability\":0.03,"
             + "\"influencer_field_name\":\"foo\",\"initial_anomaly_score\":10.5,\"anomaly_score\":10.5}]}},{\"quantiles\": "
             + "{\"job_id\":\"foo\","
-            + "\"quantile_state\":\"[normaliser 1.2, normaliser 2.2]\"}} ,{\"flush\": {\"id\":\"testing1\"}} ,"
-            + "{\"quantiles\": {\"job_id\":\"foo\", \"quantile_state\":\"[normaliser 1.3, normaliser 2.3]\"}} ]";
+            + "\"quantile_state\":\"[normalizer 1.2, normalizer 2.2]\"}} ,{\"flush\": {\"id\":\"testing1\"}} ,"
+            + "{\"quantiles\": {\"job_id\":\"foo\", \"quantile_state\":\"[normalizer 1.3, normalizer 2.3]\"}} ]";
 
     public static final String POPULATION_OUTPUT_SAMPLE = "[{\"timestamp\":1379590200,\"records\":[{\"probability\":1.38951e-08,"
             + "\"field_name\":\"sum_cs_bytes_\",\"over_field_name\":\"cs_host\",\"over_field_value\":\"mail.google.com\","
@@ -315,13 +315,13 @@ public class AutodetectResultsParserTests extends ESTestCase {
         assertEquals(3, quantiles.size());
         assertEquals("foo", quantiles.get(0).getJobId());
         assertNull(quantiles.get(0).getTimestamp());
-        assertEquals("[normaliser 1.1, normaliser 2.1]", quantiles.get(0).getQuantileState());
+        assertEquals("[normalizer 1.1, normalizer 2.1]", quantiles.get(0).getQuantileState());
         assertEquals("foo", quantiles.get(1).getJobId());
         assertNull(quantiles.get(1).getTimestamp());
-        assertEquals("[normaliser 1.2, normaliser 2.2]", quantiles.get(1).getQuantileState());
+        assertEquals("[normalizer 1.2, normalizer 2.2]", quantiles.get(1).getQuantileState());
         assertEquals("foo", quantiles.get(2).getJobId());
         assertNull(quantiles.get(2).getTimestamp());
-        assertEquals("[normaliser 1.3, normaliser 2.3]", quantiles.get(2).getQuantileState());
+        assertEquals("[normalizer 1.3, normalizer 2.3]", quantiles.get(2).getQuantileState());
     }
 
     @AwaitsFix(bugUrl = "rewrite this test so it doesn't use ~200 lines of json")

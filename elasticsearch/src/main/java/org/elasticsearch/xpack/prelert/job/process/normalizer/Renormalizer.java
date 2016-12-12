@@ -7,28 +7,28 @@ package org.elasticsearch.xpack.prelert.job.process.normalizer;
 
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 
-public interface Renormaliser {
+public interface Renormalizer {
     /**
      * Update the anomaly score field on all previously persisted buckets
      * and all contained records
      */
-    void renormalise(Quantiles quantiles);
+    void renormalize(Quantiles quantiles);
 
     /**
      * Update the anomaly score field on all previously persisted buckets
      * and all contained records and aggregate records to the partition
      * level
      */
-    void renormaliseWithPartition(Quantiles quantiles);
+    void renormalizeWithPartition(Quantiles quantiles);
 
 
     /**
-     * Blocks until the renormaliser is idle and no further normalisation tasks are pending.
+     * Blocks until the renormalizer is idle and no further normalization tasks are pending.
      */
     void waitUntilIdle();
 
     /**
-     * Shut down the renormaliser
+     * Shut down the renormalizer
      */
     boolean shutdown();
 }

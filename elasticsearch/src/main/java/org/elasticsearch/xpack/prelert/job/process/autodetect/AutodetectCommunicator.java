@@ -120,9 +120,9 @@ public class AutodetectCommunicator implements Closeable {
                 throw ExceptionsHelper.serverError(msg);
             }
 
-            // We also have to wait for the normaliser to become idle so that we block
-            // clients from querying results in the middle of normalisation.
-            autoDetectResultProcessor.waitUntilRenormaliserIsIdle();
+            // We also have to wait for the normalizer to become idle so that we block
+            // clients from querying results in the middle of normalization.
+            autoDetectResultProcessor.waitUntilRenormalizerIsIdle();
             return null;
         }, false);
     }

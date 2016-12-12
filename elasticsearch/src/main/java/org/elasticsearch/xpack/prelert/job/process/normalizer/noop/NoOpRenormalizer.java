@@ -5,22 +5,22 @@
  */
 package org.elasticsearch.xpack.prelert.job.process.normalizer.noop;
 
-import org.elasticsearch.xpack.prelert.job.process.normalizer.Renormaliser;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.Renormalizer;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 
 /**
- * A {@link Renormaliser} implementation that does absolutely nothing
- * This should be removed when the normaliser code is ported
+ * A {@link Renormalizer} implementation that does absolutely nothing
+ * This should be removed when the normalizer code is ported
  */
-public class NoOpRenormaliser implements Renormaliser {
-    // NORELEASE Remove once the normaliser code is ported
+public class NoOpRenormalizer implements Renormalizer {
+    // NORELEASE Remove once the normalizer code is ported
     @Override
-    public void renormalise(Quantiles quantiles) {
+    public void renormalize(Quantiles quantiles) {
 
     }
 
     @Override
-    public void renormaliseWithPartition(Quantiles quantiles) {
+    public void renormalizeWithPartition(Quantiles quantiles) {
 
     }
 

@@ -130,12 +130,12 @@ public class ProcessCtrlTests extends ESTestCase {
         assertTrue(command.contains("--ignoreDowntime"));
     }
 
-    public void testBuildNormaliserCommand() throws IOException {
+    public void testBuildNormalizerCommand() throws IOException {
         Environment env = new Environment(
                 Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build());
         String jobId = "unit-test-job";
 
-        List<String> command = ProcessCtrl.buildNormaliserCommand(env, jobId, null, 300, true, pid);
+        List<String> command = ProcessCtrl.buildNormalizerCommand(env, jobId, null, 300, true, pid);
         assertEquals(5, command.size());
         assertTrue(command.contains(ProcessCtrl.NORMALIZE_PATH));
         assertTrue(command.contains(ProcessCtrl.BUCKET_SPAN_ARG + "300"));

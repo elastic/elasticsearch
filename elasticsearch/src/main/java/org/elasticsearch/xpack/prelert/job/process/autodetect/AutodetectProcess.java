@@ -26,7 +26,7 @@ public interface AutodetectProcess extends Closeable {
      *               encode the record appropriately
      * @throws IOException If the write failed
      */
-    void writeRecord(String [] record) throws IOException;
+    void writeRecord(String[] record) throws IOException;
 
     /**
      * Write the reset buckets control message

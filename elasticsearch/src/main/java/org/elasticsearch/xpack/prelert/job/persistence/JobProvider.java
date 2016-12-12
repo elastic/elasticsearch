@@ -299,7 +299,7 @@ public class JobProvider {
             }
         } else {
             List<PerPartitionMaxProbabilities> scores =
-                    partitionMaxNormalisedProbabilities(jobId, query.getStart(), query.getEnd(), query.getPartitionValue());
+                    partitionMaxNormalizedProbabilities(jobId, query.getStart(), query.getEnd(), query.getPartitionValue());
 
             mergePartitionScoresIntoBucket(scores, buckets.results(), query.getPartitionValue());
 
@@ -432,7 +432,7 @@ public class JobProvider {
             }
         } else {
             List<PerPartitionMaxProbabilities> partitionProbs =
-                    partitionMaxNormalisedProbabilities(jobId, query.getTimestamp(), query.getTimestamp() + 1, query.getPartitionValue());
+                    partitionMaxNormalizedProbabilities(jobId, query.getTimestamp(), query.getTimestamp() + 1, query.getPartitionValue());
 
             if (partitionProbs.size() > 1) {
                 LOGGER.error("Found more than one PerPartitionMaxProbabilities with timestamp [" + query.getTimestamp() + "]" +
@@ -454,7 +454,7 @@ public class JobProvider {
     }
 
 
-    private List<PerPartitionMaxProbabilities> partitionMaxNormalisedProbabilities(String jobId, Object epochStart, Object epochEnd,
+    private List<PerPartitionMaxProbabilities> partitionMaxNormalizedProbabilities(String jobId, Object epochStart, Object epochEnd,
                                                                                    String partitionFieldValue)
                     throws ResourceNotFoundException {
         QueryBuilder timeRangeQuery = new ResultsFilterBuilder()

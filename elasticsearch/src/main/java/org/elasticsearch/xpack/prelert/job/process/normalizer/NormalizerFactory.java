@@ -6,6 +6,15 @@
 package org.elasticsearch.xpack.prelert.job.process.normalizer;
 
 
-public interface RenormaliserFactory {
-    Renormaliser create(String jobId);
+/**
+ * Factory interface for creating implementations of {@link Normalizer}
+ */
+public interface NormalizerFactory {
+    /**
+     *  Create an implementation of {@link Normalizer}
+     *
+     * @param jobId The job ID
+     * @return The normalizer
+     */
+    Normalizer create(String jobId);
 }

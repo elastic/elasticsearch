@@ -17,24 +17,24 @@ import java.util.List;
 
 /**
  * Interface for classes that update {@linkplain Bucket Buckets}
- * for a particular job with new normalised anomaly scores and
+ * for a particular job with new normalized anomaly scores and
  * unusual scores.
  *
- * Renormalised results already have an ID having been indexed at least
+ * Renormalized results already have an ID having been indexed at least
  * once before that same ID should be used on persistence
  */
-public class JobRenormaliser extends AbstractComponent {
+public class JobRenormalizer extends AbstractComponent {
 
     private final JobResultsPersister jobResultsPersister;
 
-    public JobRenormaliser(Settings settings, JobResultsPersister jobResultsPersister) {
+    public JobRenormalizer(Settings settings, JobResultsPersister jobResultsPersister) {
         super(settings);
         this.jobResultsPersister = jobResultsPersister;
     }
 
     /**
      * Update the bucket with the changes that may result
-     * due to renormalisation.
+     * due to renormalization.
      *
      * @param bucket the bucket to update
      */
@@ -59,10 +59,9 @@ public class JobRenormaliser extends AbstractComponent {
      * with the given ID.
      *
      * @param jobId Id of the job to update
-     * @param documentId The ID the {@link PerPartitionMaxProbabilities} document should be persisted with
      * @param records Source of the new {@link PerPartitionMaxProbabilities} object
      */
-    public void updatePerPartitionMaxProbabilities(String jobId, String documentId, List<AnomalyRecord> records) {
+    public void updatePerPartitionMaxProbabilities(String jobId, List<AnomalyRecord> records) {
         PerPartitionMaxProbabilities ppMaxProbs = new PerPartitionMaxProbabilities(records);
         jobResultsPersister.bulkPersisterBuilder(jobId).persistPerPartitionMaxProbabilities(ppMaxProbs).executeRequest();
     }

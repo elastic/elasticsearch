@@ -69,6 +69,9 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.BlackHoleAutodetec
 import org.elasticsearch.xpack.prelert.job.process.autodetect.NativeAutodetectProcessFactory;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunner;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.NativeNormalizerProcessFactory;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.MultiplyingNormalizerProcess;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.prelert.job.scheduler.http.HttpDataExtractorFactory;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
@@ -153,21 +156,27 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
 
         JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService);
-        AutodetectProcessFactory processFactory;
+        AutodetectProcessFactory autodetectProcessFactory;
+        NormalizerProcessFactory normalizerProcessFactory;
         if (USE_NATIVE_PROCESS_OPTION.get(settings)) {
             try {
                 NativeController nativeController = new NativeController(env, new NamedPipeHelper());
                 nativeController.tailLogsInThread();
-                processFactory = new NativeAutodetectProcessFactory(jobProvider, env, settings, nativeController);
+                autodetectProcessFactory = new NativeAutodetectProcessFactory(jobProvider, env, settings, nativeController);
+                normalizerProcessFactory = new NativeNormalizerProcessFactory(env, settings, nativeController);
             } catch (IOException e) {
-                throw new ElasticsearchException("Failed to create native process factory", e);
+                throw new ElasticsearchException("Failed to create native process factories", e);
             }
         } else {
-            processFactory = (JobDetails, ignoreDowntime, executorService) -> new BlackHoleAutodetectProcess();
+            autodetectProcessFactory = (jobDetails, ignoreDowntime, executorService) -> new BlackHoleAutodetectProcess();
+            // factor of 1.0 makes renormalization a no-op
+            normalizerProcessFactory = (jobId, quantilesState, bucketSpan, perPartitionNormalization,
+                                        executorService) -> new MultiplyingNormalizerProcess(settings, 1.0);
         }
         AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings, parseFieldMatcherSupplier);
         DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, autodetectResultsParser, processFactory, clusterService.getClusterSettings());
+                jobResultsPersister, jobDataCountsPersister, autodetectResultsParser, autodetectProcessFactory,
+                clusterService.getClusterSettings());
         ScheduledJobRunner scheduledJobRunner = new ScheduledJobRunner(threadPool, client, clusterService, jobProvider,
                 // norelease: we will no longer need to pass the client here after we switch to a client based data extractor
                 new HttpDataExtractorFactory(client),

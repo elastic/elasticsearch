@@ -53,10 +53,9 @@ public class PerPartitionMaxProbabilitiesTests extends AbstractSerializingTestCa
         assertEquals(2, pProbs.size());
         for (PerPartitionMaxProbabilities.PartitionProbability pProb : pProbs) {
             if (pProb.getPartitionValue().equals("A")) {
-                assertEquals(40.0, pProb.getMaxNormalisedProbability(), 0.0001);
-            }
-            else {
-                assertEquals(90.0, pProb.getMaxNormalisedProbability(), 0.0001);
+                assertEquals(40.0, pProb.getMaxNormalizedProbability(), 0.0001);
+            } else {
+                assertEquals(90.0, pProb.getMaxNormalizedProbability(), 0.0001);
             }
         }
     }

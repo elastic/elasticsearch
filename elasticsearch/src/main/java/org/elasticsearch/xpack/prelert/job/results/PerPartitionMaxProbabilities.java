@@ -29,7 +29,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 /**
- * When per-partition normalisation is enabled this class represents
+ * When per-partition normalization is enabled this class represents
  * the max anomalous probabilities of each partition per bucket. These values
  * calculated from the bucket's anomaly records.
  */
@@ -124,7 +124,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
         Optional<PartitionProbability> first =
                 perPartitionMaxProbabilities.stream().filter(pp -> partitionValue.equals(pp.getPartitionValue())).findFirst();
 
-        return first.isPresent() ? first.get().getMaxNormalisedProbability() : 0.0;
+        return first.isPresent() ? first.get().getMaxNormalizedProbability() : 0.0;
     }
 
     /**
@@ -201,7 +201,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
     }
 
     /**
-     * Class for partitionValue, maxNormalisedProb pairs
+     * Class for partitionValue, maxNormalizedProb pairs
      */
     public static class PartitionProbability extends ToXContentToBytes implements Writeable  {
 
@@ -215,44 +215,44 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
         }
 
         private final String partitionValue;
-        private final double maxNormalisedProbability;
+        private final double maxNormalizedProbability;
 
-        PartitionProbability(String partitionName, double maxNormalisedProbability) {
+        PartitionProbability(String partitionName, double maxNormalizedProbability) {
             this.partitionValue = partitionName;
-            this.maxNormalisedProbability = maxNormalisedProbability;
+            this.maxNormalizedProbability = maxNormalizedProbability;
         }
 
         public PartitionProbability(StreamInput in) throws IOException {
             partitionValue = in.readString();
-            maxNormalisedProbability = in.readDouble();
+            maxNormalizedProbability = in.readDouble();
         }
 
         public String getPartitionValue() {
             return partitionValue;
         }
 
-        public double getMaxNormalisedProbability() {
-            return maxNormalisedProbability;
+        public double getMaxNormalizedProbability() {
+            return maxNormalizedProbability;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(partitionValue);
-            out.writeDouble(maxNormalisedProbability);
+            out.writeDouble(maxNormalizedProbability);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject()
                     .field(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), partitionValue)
-                    .field(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(), maxNormalisedProbability)
+                    .field(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(), maxNormalizedProbability)
                     .endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(partitionValue, maxNormalisedProbability);
+            return Objects.hash(partitionValue, maxNormalizedProbability);
         }
 
         @Override
@@ -268,7 +268,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
             PartitionProbability that = (PartitionProbability) other;
 
             return Objects.equals(this.partitionValue, that.partitionValue)
-                    && this.maxNormalisedProbability == that.maxNormalisedProbability;
+                    && this.maxNormalizedProbability == that.maxNormalizedProbability;
         }
     }
 }

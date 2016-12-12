@@ -30,7 +30,7 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
     public static final String RESULT_TYPE_VALUE = "bucketInfluencer";
     public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
-    /*
+    /**
      * Field names
      */
     public static final ParseField INFLUENCER_FIELD_NAME = new ParseField("influencer_field_name");
@@ -42,6 +42,11 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
     public static final ParseField SEQUENCE_NUM = new ParseField("sequence_num");
+
+    /**
+     * The influencer field name used for time influencers
+     */
+    public static final String BUCKET_TIME = "bucket_time";
 
     public static final ConstructingObjectParser<BucketInfluencer, ParseFieldMatcherSupplier> PARSER =
             new ConstructingObjectParser<>(RESULT_TYPE_FIELD.getPreferredName(), a -> new BucketInfluencer((String) a[0],

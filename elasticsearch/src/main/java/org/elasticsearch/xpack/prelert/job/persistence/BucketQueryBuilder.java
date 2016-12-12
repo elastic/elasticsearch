@@ -15,8 +15,8 @@ import java.util.Objects;
  * <li>Timestamp (Required) - Timestamp of the bucket</li>
  * <li>Expand- Include anomaly records. Default= false</li>
  * <li>IncludeInterim- Include interim results. Default = false</li>
- * <li>partitionValue Set the bucket's max normalised probabiltiy to this
- * partiton field value's max normalised probability. Default = null</li>
+ * <li>partitionValue Set the bucket's max normalized probabiltiy to this
+ * partiton field value's max normalized probability. Default = null</li>
  * </ul>
  */
 public final class BucketQueryBuilder {

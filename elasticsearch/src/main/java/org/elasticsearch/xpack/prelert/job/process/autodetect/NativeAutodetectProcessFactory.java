@@ -111,7 +111,7 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
             autodetectBuilder.build();
             processPipes.connectStreams(PROCESS_STARTUP_TIMEOUT);
         } catch (IOException | TimeoutException e) {
-            String msg = "Failed to launch process for job " + job.getId();
+            String msg = "Failed to launch autodetect for job " + job.getId();
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

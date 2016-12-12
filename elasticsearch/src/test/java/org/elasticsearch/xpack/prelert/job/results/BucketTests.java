@@ -21,11 +21,12 @@ import java.util.Map;
 public class BucketTests extends AbstractSerializingTestCase<Bucket> {
 
     @Override
-    protected Bucket createTestInstance() {
-        int sequenceNum = 1;
-        String jobId = "foo";
-        Bucket bucket = new Bucket(jobId, new Date(randomLong()), randomPositiveLong());
+    public Bucket createTestInstance() {
+        return createTestInstance("foo");
+    }
 
+    public Bucket createTestInstance(String jobId) {
+        Bucket bucket = new Bucket(jobId, new Date(randomPositiveLong()), randomPositiveLong());
         if (randomBoolean()) {
             bucket.setAnomalyScore(randomDouble());
         }
@@ -80,14 +81,10 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         }
         if (randomBoolean()) {
             int size = randomInt(10);
+            int sequenceNum = 1;
             List<AnomalyRecord> records = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                AnomalyRecord anomalyRecord = new AnomalyRecord(jobId, bucket.getTimestamp(), bucket.getBucketSpan(), sequenceNum++);
-                anomalyRecord.setAnomalyScore(randomDouble());
-                anomalyRecord.setActual(Collections.singletonList(randomDouble()));
-                anomalyRecord.setTypical(Collections.singletonList(randomDouble()));
-                anomalyRecord.setProbability(randomDouble());
-                anomalyRecord.setInterim(randomBoolean());
+                AnomalyRecord anomalyRecord = new AnomalyRecordTests().createTestInstance(jobId, sequenceNum++);
                 records.add(anomalyRecord);
             }
             bucket.setRecords(records);

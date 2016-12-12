@@ -14,15 +14,19 @@ import java.util.Arrays;
 
 public class CategoryDefinitionTests extends AbstractSerializingTestCase<CategoryDefinition> {
 
-    @Override
-    protected CategoryDefinition createTestInstance() {
-        CategoryDefinition categoryDefinition = new CategoryDefinition(randomAsciiOfLength(10));
+    public CategoryDefinition createTestInstance(String jobId) {
+        CategoryDefinition categoryDefinition = new CategoryDefinition(jobId);
         categoryDefinition.setCategoryId(randomLong());
         categoryDefinition.setTerms(randomAsciiOfLength(10));
         categoryDefinition.setRegex(randomAsciiOfLength(10));
         categoryDefinition.setMaxMatchingLength(randomLong());
         categoryDefinition.setExamples(Arrays.asList(generateRandomStringArray(10, 10, false)));
         return categoryDefinition;
+    }
+
+    @Override
+    protected CategoryDefinition createTestInstance() {
+        return createTestInstance(randomAsciiOfLength(10));
     }
 
     @Override

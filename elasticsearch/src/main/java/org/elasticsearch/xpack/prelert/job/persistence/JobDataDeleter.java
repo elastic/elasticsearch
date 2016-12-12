@@ -16,6 +16,7 @@ import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -133,10 +134,9 @@ public class JobDataDeleter {
         QueryBuilder qb = QueryBuilders.termQuery(Bucket.IS_INTERIM.getPreferredName(), true);
 
         SearchResponse searchResponse = client.prepareSearch(index)
-                .setTypes(Result.RESULT_TYPE.getPreferredName())
-                .setQuery(qb)
+                .setTypes(Result.TYPE.getPreferredName())
+                .setQuery(new ConstantScoreQueryBuilder(qb))
                 .setFetchSource(false)
-                .addSort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC))
                 .setScroll(SCROLL_CONTEXT_DURATION)
                 .setSize(SCROLL_SIZE)
                 .get();

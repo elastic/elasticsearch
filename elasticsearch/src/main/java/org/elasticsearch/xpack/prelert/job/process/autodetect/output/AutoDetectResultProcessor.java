@@ -85,7 +85,7 @@ public class AutoDetectResultProcessor {
                     LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
                 }
             }
-            LOGGER.info("[{}] {} buckets parsed from autodetect output - about to refresh indexes", jobId, bucketCount);
+            LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
             LOGGER.info("[{}] Parse results Complete", jobId);
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", new Object[] {jobId}), e);
@@ -110,9 +110,7 @@ public class AutoDetectResultProcessor {
             // persist after deleting interim results in case the new
             // results are also interim
             context.bulkResultsPersister.persistBucket(bucket).executeRequest();
-
             context.bulkResultsPersister = persister.bulkPersisterBuilder(context.jobId);
-
         }
         List<AnomalyRecord> records = result.getRecords();
         if (records != null && !records.isEmpty()) {
@@ -208,7 +206,7 @@ public class AutoDetectResultProcessor {
         Context(String jobId, boolean isPerPartitionNormalization, JobResultsPersister.Builder bulkResultsPersister) {
             this.jobId = jobId;
             this.isPerPartitionNormalization = isPerPartitionNormalization;
-            this.deleteInterimRequired = true;
+            this.deleteInterimRequired = false;
             this.bulkResultsPersister = bulkResultsPersister;
         }
     }

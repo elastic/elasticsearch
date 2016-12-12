@@ -320,19 +320,6 @@ public class PrelertMetadata implements MetaData.Custom {
             return this;
         }
 
-        public Builder updateAllocation(String jobId, Allocation updated) {
-            Allocation previous = this.allocations.put(jobId, updated);
-            if (previous == null) {
-                throw new IllegalStateException("Expected that job [" + jobId + "] was already allocated");
-            }
-            if (previous.getStatus() != updated.getStatus() && updated.getStatus() == JobStatus.CLOSED) {
-                Job.Builder job = new Job.Builder(this.jobs.get(jobId));
-                job.setFinishedTime(new Date());
-                this.jobs.put(job.getId(), job.build());
-            }
-            return this;
-        }
-
         // only for parsing
         private Builder putAllocations(Collection<Allocation.Builder> allocations) {
             for (Allocation.Builder allocationBuilder : allocations) {

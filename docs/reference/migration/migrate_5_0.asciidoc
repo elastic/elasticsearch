@@ -24,7 +24,7 @@ version of Elasticsearch before 2.0.
 =========================================
 
 Indices created in Elasticsearch 1.x or before will need to be reindexed with
-Elasticsearch 2.x in order to be readable by Elasticsearch 5.x. It is not
+Elasticsearch 2.x or 5.x in order to be readable by Elasticsearch 5.x. It is not
 sufficient to use the `upgrade` API.  See <<reindex-upgrade>> for more details.
 
 =========================================

@@ -215,13 +215,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         String idOrCode = script.getIdOrCode();
         Map<String, String> options = script.getOptions();
 
-        String id = Script.DEFAULT_INLINE_SCRIPT_ID;
+        String id = idOrCode;
 
         // lang may be null when looking up a stored script, so we must get the
         // source to retrieve the lang before checking if the context is supported
         if (type == ScriptType.STORED) {
-            id = idOrCode;
-
             // search template requests can possibly pass in the entire path instead
             // of just an id for looking up a stored script, so we parse the path and
             // check for appropriate errors

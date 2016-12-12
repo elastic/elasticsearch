@@ -80,11 +80,6 @@ public final class Script implements ToXContent, Writeable {
     public static final ScriptType DEFAULT_SCRIPT_TYPE = ScriptType.INLINE;
 
     /**
-     * The default id for inline scripts.
-     */
-    public static final String DEFAULT_INLINE_SCRIPT_ID = "<inline>";
-
-    /**
      * Compiler option for {@link XContentType} used for templates.
      */
     public static final String CONTENT_TYPE_OPTION = "content_type";
@@ -497,9 +492,10 @@ public final class Script implements ToXContent, Writeable {
                 params = new HashMap<>();
             }
 
-            Map<String, String> options = new HashMap<>();
+            Map<String, String> options = null;
 
             if (in.readBoolean()) {
+                options = new HashMap<>();
                 XContentType contentType = XContentType.readFrom(in);
                 options.put(CONTENT_TYPE_OPTION, contentType.mediaType());
             }

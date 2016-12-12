@@ -150,7 +150,7 @@
   - match: { hits.total: 1 }
 
   - do:
-      catch: /Unable.to.find.on.disk.file.script.\[simple1\].using.lang.\[mustache\]/
+      catch: /unable.to.find.file.script.\[simple1\].using.lang.\[mustache\]/
       search_template:
         body: { "file" : "simple1"}
 

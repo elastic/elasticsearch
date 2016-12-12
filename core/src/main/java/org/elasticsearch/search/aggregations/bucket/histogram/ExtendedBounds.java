@@ -153,11 +153,11 @@ public class ExtendedBounds implements ToXContent, Writeable {
         Long max = this.max;
         assert format != null;
         if (minAsStr != null) {
-            min = format.parseLong(minAsStr, false, context::nowInMillis);
+            min = format.parseLong(minAsStr, false, context.getQueryShardContext()::nowInMillis);
         }
         if (maxAsStr != null) {
             // TODO: Should we rather pass roundUp=true?
-            max = format.parseLong(maxAsStr, false, context::nowInMillis);
+            max = format.parseLong(maxAsStr, false, context.getQueryShardContext()::nowInMillis);
         }
         if (min != null && max != null && min.compareTo(max) > 0) {
             throw new SearchParseException(context, "[extended_bounds.min][" + min + "] cannot be greater than " +

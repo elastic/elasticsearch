@@ -25,6 +25,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -72,7 +73,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     @Override
-    protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(FuzzyQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, instanceOf(FuzzyQuery.class));
     }
 
@@ -156,7 +157,16 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n" +
+        String json1 = "{\n" +
+                "  \"fuzzy\" : {\n" +
+                "    \"message1\" : {\n" +
+                "      \"value\" : \"this is a test\"\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+        parseQuery(json1); // should be all good
+
+        String json2 = "{\n" +
                 "  \"fuzzy\" : {\n" +
                 "    \"message1\" : {\n" +
                 "      \"value\" : \"this is a test\"\n" +
@@ -167,7 +177,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "  }\n" +
                 "}";
 
-        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json2));
         assertEquals("[fuzzy] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
         String shortJson = "{\n" +

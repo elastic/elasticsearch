@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +34,9 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
 
 import java.util.HashSet;
 import java.util.List;
@@ -154,15 +158,20 @@ public class TransportRolloverActionTests extends ESTestCase {
 
     public void testGenerateRolloverIndexName() throws Exception {
         String invalidIndexName = randomAsciiOfLength(10) + "A";
+        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(Settings.EMPTY);
         expectThrows(IllegalArgumentException.class, () ->
-            TransportRolloverAction.generateRolloverIndexName(invalidIndexName));
+            TransportRolloverAction.generateRolloverIndexName(invalidIndexName, indexNameExpressionResolver));
         int num = randomIntBetween(0, 100);
         final String indexPrefix = randomAsciiOfLength(10);
         String indexEndingInNumbers = indexPrefix + "-" + num;
-        assertThat(TransportRolloverAction.generateRolloverIndexName(indexEndingInNumbers),
+        assertThat(TransportRolloverAction.generateRolloverIndexName(indexEndingInNumbers, indexNameExpressionResolver),
             equalTo(indexPrefix + "-" + String.format(Locale.ROOT, "%06d", num + 1)));
-        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-1"), equalTo("index-name-000002"));
-        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-2"), equalTo("index-name-000003"));
+        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-1", indexNameExpressionResolver),
+            equalTo("index-name-000002"));
+        assertThat(TransportRolloverAction.generateRolloverIndexName("index-name-2", indexNameExpressionResolver),
+            equalTo("index-name-000003"));
+        assertEquals( "<index-name-{now/d}-000002>", TransportRolloverAction.generateRolloverIndexName("<index-name-{now/d}-1>",
+            indexNameExpressionResolver));
     }
 
     public void testCreateIndexRequest() throws Exception {
@@ -179,7 +188,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .build();
         rolloverRequest.getCreateIndexRequest().settings(settings);
         final CreateIndexClusterStateUpdateRequest createIndexRequest =
-            TransportRolloverAction.prepareCreateIndexRequest(rolloverIndex, rolloverRequest);
+            TransportRolloverAction.prepareCreateIndexRequest(rolloverIndex, rolloverIndex, rolloverRequest);
         assertThat(createIndexRequest.settings(), equalTo(settings));
         assertThat(createIndexRequest.index(), equalTo(rolloverIndex));
         assertThat(createIndexRequest.cause(), equalTo("rollover_index"));

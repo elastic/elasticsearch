@@ -32,9 +32,6 @@ import java.util.Random;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-/**
- *
- */
 public class DeflateCompressedXContentTests extends ESTestCase {
 
     private final Compressor compressor = new DeflateCompressor();

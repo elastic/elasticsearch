@@ -1,5 +1,5 @@
 [[java-aggs-metrics-geobounds]]
-==== Cardinality Aggregation
+==== Geo Bounds Aggregation
 
 Here is how you can use
 {ref}/search-aggregations-metrics-geobounds-aggregation.html[Geo Bounds Aggregation]
@@ -13,7 +13,7 @@ Here is an example on how to create the aggregation request:
 [source,java]
 --------------------------------------------------
 GeoBoundsBuilder aggregation =
-        AggregationBuilders
+        GeoBoundsAggregationBuilder
                 .geoBounds("agg")
                 .field("address.location")
                 .wrapLongitude(true);

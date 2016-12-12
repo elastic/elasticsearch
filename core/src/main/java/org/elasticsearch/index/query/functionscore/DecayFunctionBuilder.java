@@ -44,8 +44,6 @@ import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.LegacyDateFieldMapper;
-import org.elasticsearch.index.mapper.LegacyNumberFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -204,13 +202,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
 
         // dates and time and geo need special handling
         parser.nextToken();
-        if (fieldType instanceof LegacyDateFieldMapper.DateFieldType
-                || fieldType instanceof DateFieldMapper.DateFieldType) {
+        if (fieldType instanceof DateFieldMapper.DateFieldType) {
             return parseDateVariable(parser, context, fieldType, mode);
         } else if (fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType) {
             return parseGeoVariable(parser, context, fieldType, mode);
-        } else if (fieldType instanceof LegacyNumberFieldMapper.NumberFieldType
-                || fieldType instanceof NumberFieldMapper.NumberFieldType) {
+        } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(parser, context, fieldType, mode);
         } else {
             throw new ParsingException(parser.getTokenLocation(), "field [{}] is of type [{}], but only numeric types are supported.",
@@ -314,11 +310,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         if (originString == null) {
             origin = context.nowInMillis();
         } else {
-            if (dateFieldType instanceof LegacyDateFieldMapper.DateFieldType) {
-                origin = ((LegacyDateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null);
-            } else {
-                origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null);
-            }
+            origin = ((DateFieldMapper.DateFieldType) dateFieldType).parseToMilliseconds(originString, false, null, null, context);
         }
 
         if (scaleString == null) {

@@ -24,9 +24,6 @@ import org.elasticsearch.script.SearchScript;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- *
- */
 public class ScriptFieldsContext {
 
     public static class ScriptField {

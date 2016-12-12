@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport;
 
-/**
- */
 public abstract class TransportResponse extends TransportMessage {
 
     public static class Empty extends TransportResponse {

@@ -312,6 +312,19 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
+     * Add this setting to the builder if it doesn't exists in the source settings.
+     * The value added to the builder is taken from the given default settings object.
+     * @param builder the settings builder to fill the diff into
+     * @param source the source settings object to diff
+     * @param defaultSettings the default settings object to diff against
+     */
+    public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+        if (exists(source) == false) {
+            builder.put(getKey(), getRaw(defaultSettings));
+        }
+    }
+
+    /**
      * Returns the raw (string) settings value. If the setting is not present in the given settings object the default value is returned
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
@@ -584,10 +597,10 @@ public class Setting<T> extends ToXContentToBytes {
 
     public static ByteSizeValue parseByteSize(String s, ByteSizeValue minValue, ByteSizeValue maxValue, String key) {
         ByteSizeValue value = ByteSizeValue.parseBytesSizeValue(s, key);
-        if (value.bytes() < minValue.bytes()) {
+        if (value.getBytes() < minValue.getBytes()) {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
         }
-        if (value.bytes() > maxValue.bytes()) {
+        if (value.getBytes() > maxValue.getBytes()) {
             throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be <= " + maxValue);
         }
         return value;
@@ -636,10 +649,6 @@ public class Setting<T> extends ToXContentToBytes {
         return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
-    public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
-        return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
-    }
-
     public static <T> Setting<List<T>> listSetting(String key, List<String> defaultStringValue, Function<String, T> singleValueParser,
                                                    Property... properties) {
         return listSetting(key, (s) -> defaultStringValue, singleValueParser, properties);
@@ -653,6 +662,9 @@ public class Setting<T> extends ToXContentToBytes {
 
     public static <T> Setting<List<T>> listSetting(String key, Function<Settings, List<String>> defaultStringValue,
                                                    Function<String, T> singleValueParser, Property... properties) {
+        if (defaultStringValue.apply(Settings.EMPTY) == null) {
+            throw new IllegalArgumentException("default value function must not return null");
+        }
         Function<String, List<T>> parser = (s) ->
                 parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
 
@@ -673,6 +685,18 @@ public class Setting<T> extends ToXContentToBytes {
             public boolean exists(Settings settings) {
                 boolean exists = super.exists(settings);
                 return exists || settings.get(getKey() + ".0") != null;
+            }
+
+            @Override
+            public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+                if (exists(source) == false) {
+                    String[] asArray = defaultSettings.getAsArray(getKey(), null);
+                    if (asArray == null) {
+                        builder.putArray(getKey(), defaultStringValue.apply(defaultSettings));
+                    } else {
+                        builder.putArray(getKey(), asArray);
+                    }
+                }
             }
         };
     }
@@ -752,6 +776,17 @@ public class Setting<T> extends ToXContentToBytes {
             }
 
             @Override
+            public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+                Map<String, String> leftGroup = get(source).getAsMap();
+                Settings defaultGroup = get(defaultSettings);
+                for (Map.Entry<String, String> entry : defaultGroup.getAsMap().entrySet()) {
+                    if (leftGroup.containsKey(entry.getKey()) == false) {
+                        builder.put(getKey() + entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+
+            @Override
             public AbstractScopedSettings.SettingUpdater<Settings> newUpdater(Consumer<Settings> consumer, Logger logger,
                     Consumer<Settings> validator) {
                 if (isDynamic() == false) {
@@ -795,9 +830,9 @@ public class Setting<T> extends ToXContentToBytes {
         };
     }
 
-    public static Setting<TimeValue> timeSetting(String key, Function<Settings, String> defaultValue, TimeValue minValue,
+    public static Setting<TimeValue> timeSetting(String key, Function<Settings, TimeValue> defaultValue, TimeValue minValue,
                                                  Property... properties) {
-        return new Setting<>(key, defaultValue, (s) -> {
+        return new Setting<>(key, (s) -> defaultValue.apply(s).getStringRep(), (s) -> {
             TimeValue timeValue = TimeValue.parseTimeValue(s, null, key);
             if (timeValue.millis() < minValue.millis()) {
                 throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
@@ -807,15 +842,19 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, TimeValue minValue, Property... properties) {
-        return timeSetting(key, (s) -> defaultValue.getStringRep(), minValue, properties);
+        return timeSetting(key, (s) -> defaultValue, minValue, properties);
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> defaultValue.toString(), (s) -> TimeValue.parseTimeValue(s, key), properties);
+        return new Setting<>(key, (s) -> defaultValue.getStringRep(), (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
     public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, Property... properties) {
         return new Setting<>(key, fallbackSetting, (s) -> TimeValue.parseTimeValue(s, key), properties);
+    }
+
+    public static Setting<TimeValue> positiveTimeSetting(String key, TimeValue defaultValue, Property... properties) {
+        return timeSetting(key, defaultValue, TimeValue.timeValueMillis(0), properties);
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, Property... properties) {
@@ -856,14 +895,14 @@ public class Setting<T> extends ToXContentToBytes {
      * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, adfix key settings don't support updaters
      * out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, Function<Settings, String> defaultValue,
+    public static <T> Setting<T> affixKeySetting(String prefix, String suffix, Function<Settings, String> defaultValue,
                                                  Function<String, T> parser, Property... properties) {
-        return affixKeySetting(AffixKey.withAdfix(prefix, suffix), defaultValue, parser, properties);
+        return affixKeySetting(AffixKey.withAffix(prefix, suffix), defaultValue, parser, properties);
     }
 
-    public static <T> Setting<T> adfixKeySetting(String prefix, String suffix, String defaultValue, Function<String, T> parser,
+    public static <T> Setting<T> affixKeySetting(String prefix, String suffix, String defaultValue, Function<String, T> parser,
                                                  Property... properties) {
-        return adfixKeySetting(prefix, suffix, (s) -> defaultValue, parser, properties);
+        return affixKeySetting(prefix, suffix, (s) -> defaultValue, parser, properties);
     }
 
     public static <T> Setting<T> affixKeySetting(AffixKey key, Function<Settings, String> defaultValue, Function<String, T> parser,
@@ -886,6 +925,15 @@ public class Setting<T> extends ToXContentToBytes {
                     return new Setting<>(key, defaultValue, parser, properties);
                 } else {
                     throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
+                }
+            }
+
+            @Override
+            public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+                for (Map.Entry<String, String> entry : defaultSettings.getAsMap().entrySet()) {
+                    if (match(entry.getKey())) {
+                        getConcreteSetting(entry.getKey()).diff(builder, source, defaultSettings);
+                    }
                 }
             }
         };
@@ -960,7 +1008,7 @@ public class Setting<T> extends ToXContentToBytes {
             return new AffixKey(prefix, null);
         }
 
-        public static AffixKey withAdfix(String prefix, String suffix) {
+        public static AffixKey withAffix(String prefix, String suffix) {
             return new AffixKey(prefix, suffix);
         }
 
@@ -970,6 +1018,9 @@ public class Setting<T> extends ToXContentToBytes {
         public AffixKey(String prefix, String suffix) {
             assert prefix != null || suffix != null: "Either prefix or suffix must be non-null";
             this.prefix = prefix;
+            if (prefix.endsWith(".") == false) {
+                throw new IllegalArgumentException("prefix must end with a '.'");
+            }
             this.suffix = suffix;
         }
 
@@ -1005,9 +1056,9 @@ public class Setting<T> extends ToXContentToBytes {
                 sb.append(prefix);
             }
             if (suffix != null) {
-                sb.append("*");
+                sb.append('*');
+                sb.append('.');
                 sb.append(suffix);
-                sb.append(".");
             }
             return sb.toString();
         }

@@ -29,9 +29,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class StartRecoveryRequest extends TransportRequest {
 
     private long recoveryId;

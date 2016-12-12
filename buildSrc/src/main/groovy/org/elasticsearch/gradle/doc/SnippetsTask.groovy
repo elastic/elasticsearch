@@ -39,6 +39,7 @@ public class SnippetsTask extends DefaultTask {
     private static final String SKIP = /skip:([^\]]+)/
     private static final String SETUP = /setup:([^ \]]+)/
     private static final String WARNING = /warning:(.+)/
+    private static final String CAT = /(_cat)/
     private static final String TEST_SYNTAX =
         /(?:$CATCH|$SUBSTITUTION|$SKIP|(continued)|$SETUP|$WARNING) ?/
 
@@ -221,8 +222,17 @@ public class SnippetsTask extends DefaultTask {
                             substitutions = []
                         }
                         String loc = "$file:$lineNumber"
-                        parse(loc, matcher.group(2), /$SUBSTITUTION ?/) {
-                            substitutions.add([it.group(1), it.group(2)])
+                        parse(loc, matcher.group(2), /(?:$SUBSTITUTION|$CAT) ?/) {
+                            if (it.group(1) != null) {
+                                // TESTRESPONSE[s/adsf/jkl/]
+                                substitutions.add([it.group(1), it.group(2)])
+                            } else if (it.group(3) != null) {
+                                // TESTRESPONSE[_cat]
+                                substitutions.add(['^', '/'])
+                                substitutions.add(['\n$', '\\\\s*/'])
+                                substitutions.add(['( +)', '$1\\\\s+'])
+                                substitutions.add(['\n', '\\\\s*\n '])
+                            }
                         }
                     }
                     return

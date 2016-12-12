@@ -58,6 +58,7 @@ import org.elasticsearch.painless.antlr.PainlessParser.DelimiterContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DoContext;
 import org.elasticsearch.painless.antlr.PainlessParser.DynamicContext;
 import org.elasticsearch.painless.antlr.PainlessParser.EachContext;
+import org.elasticsearch.painless.antlr.PainlessParser.ElvisContext;
 import org.elasticsearch.painless.antlr.PainlessParser.EmptyContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ExprContext;
 import org.elasticsearch.painless.antlr.PainlessParser.ExpressionContext;
@@ -117,6 +118,7 @@ import org.elasticsearch.painless.node.ECapturingFunctionRef;
 import org.elasticsearch.painless.node.EComp;
 import org.elasticsearch.painless.node.EConditional;
 import org.elasticsearch.painless.node.EDecimal;
+import org.elasticsearch.painless.node.EElvis;
 import org.elasticsearch.painless.node.EExplicit;
 import org.elasticsearch.painless.node.EFunctionRef;
 import org.elasticsearch.painless.node.EInstanceof;
@@ -617,6 +619,14 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     }
 
     @Override
+    public ANode visitElvis(ElvisContext ctx) {
+        AExpression left = (AExpression)visit(ctx.expression(0));
+        AExpression right = (AExpression)visit(ctx.expression(1));
+
+        return new EElvis(location(ctx), left, right);
+    }
+
+    @Override
     public ANode visitAssignment(AssignmentContext ctx) {
         AExpression lhs = (AExpression)visit(ctx.expression(0));
         AExpression rhs = (AExpression)visit(ctx.expression(1));
@@ -796,6 +806,11 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitRegex(RegexContext ctx) {
+        if (false == settings.areRegexesEnabled()) {
+            throw location(ctx).createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
+                    + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
+                    + "recursion and long loops."));
+        }
         String text = ctx.REGEX().getText();
         int lastSlash = text.lastIndexOf('/');
         String pattern = text.substring(1, lastSlash);
@@ -893,7 +908,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         String name = ctx.DOTID().getText();
         List<AExpression> arguments = collectArguments(ctx.arguments());
 
-        return new PCallInvoke(location(ctx), prefix, name, arguments);
+        return new PCallInvoke(location(ctx), prefix, name, ctx.NSDOT() != null, arguments);
     }
 
     @Override
@@ -912,7 +927,7 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
             throw location(ctx).createError(new IllegalStateException("Illegal tree structure."));
         }
 
-        return new PField(location(ctx), prefix, value);
+        return new PField(location(ctx), prefix, ctx.NSDOT() != null, value);
     }
 
     @Override

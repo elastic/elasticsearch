@@ -71,11 +71,10 @@ PUT test
     }
   }
 }
-POST test/test
+POST test/test?refresh=true
 {"title": "noble warriors"}
-POST test/test
+POST test/test?refresh=true
 {"title": "nobel prize"}
-POST _refresh
 --------------------------------------------------
 // CONSOLE
 // TESTSETUP
@@ -109,12 +108,7 @@ POST test/_search
 --------------------------------------------------
 // CONSOLE
 
-The response contains suggestions scored by the most likely spell
-correction first. In this case we received the expected correction
-`xorr the god jewel` first while the second correction is less
-conservative where only one of the errors is corrected. Note, the
-request is executed with `max_errors` set to `0.5` so 50% of the terms
-can contain misspellings (See parameter descriptions below).
+The response contains suggestions scored by the most likely spell correction first. In this case we received the expected correction "nobel prize".
 
 [source,js]
 --------------------------------------------------
@@ -132,7 +126,7 @@ can contain misspellings (See parameter descriptions below).
         "options" : [ {
           "text" : "nobel prize",
           "highlighted": "<em>nobel</em> prize",
-          "score" : 0.40765354
+          "score" : 0.5962314
         }]
       }
     ]
@@ -332,7 +326,7 @@ The direct generators support the following parameters:
     filtered out using `confidence`. Three possible values can be specified:
     ** `missing`: Only generate suggestions for terms that are not in the
                  shard. This is the default.
-    ** `popular`: Only suggest terms that occur in more docs on the shard then
+    ** `popular`: Only suggest terms that occur in more docs on the shard than
                  the original term.
     ** `always`: Suggest any matching suggestions based on terms in the
                  suggest text.

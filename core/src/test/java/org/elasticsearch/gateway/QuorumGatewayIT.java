@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -37,10 +36,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
-/**
- *
- */
-@ClusterScope(numDataNodes =0, scope= Scope.TEST)
+@ClusterScope(numDataNodes = 0, scope = Scope.TEST)
 public class QuorumGatewayIT extends ESIntegTestCase {
     @Override
     protected int numberOfReplicas() {
@@ -50,9 +46,7 @@ public class QuorumGatewayIT extends ESIntegTestCase {
     public void testQuorumRecovery() throws Exception {
         logger.info("--> starting 3 nodes");
         // we are shutting down nodes - make sure we don't have 2 clusters if we test network
-        internalCluster().startNodesAsync(3,
-                Settings.builder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2).build()).get();
-
+        internalCluster().startNodes(3);
 
         createIndex("test");
         ensureGreen();

@@ -68,8 +68,11 @@ public class PlainHighlighterTests extends LuceneTestCase {
         String fragment = highlighter.getBestFragment(fieldNameAnalyzer.tokenStream("text", "Arbitrary text field which should not cause " +
             "a failure"), "Arbitrary text field which should not cause a failure");
         assertThat(fragment, equalTo("Arbitrary text field which should not cause a <B>failure</B>"));
-        // TODO: This test will fail if we pass in an instance of GeoPointInBBoxQueryImpl too. Should we also find a way to work around that
-        // or can the query not be rewritten before it is passed into the highlighter?
+        Query rewritten = boolQuery.rewrite(null);
+        highlighter = new org.apache.lucene.search.highlight.Highlighter(new CustomQueryScorer(rewritten));
+        fragment = highlighter.getBestFragment(fieldNameAnalyzer.tokenStream("text", "Arbitrary text field which should not cause " +
+            "a failure"), "Arbitrary text field which should not cause a failure");
+        assertThat(fragment, equalTo("Arbitrary text field which should not cause a <B>failure</B>"));
     }
 
     public void testGeoPointInBBoxQueryHighlighting() throws IOException, InvalidTokenOffsetsException {

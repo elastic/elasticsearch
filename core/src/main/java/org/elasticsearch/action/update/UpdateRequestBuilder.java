@@ -25,17 +25,21 @@ import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.rest.action.document.RestUpdateAction;
 import org.elasticsearch.script.Script;
 
 import java.util.Map;
 
 public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<UpdateRequest, UpdateResponse, UpdateRequestBuilder>
         implements WriteRequestBuilder<UpdateRequestBuilder> {
+    private static final DeprecationLogger DEPRECATION_LOGGER =
+        new DeprecationLogger(Loggers.getLogger(RestUpdateAction.class));
 
     public UpdateRequestBuilder(ElasticsearchClient client, UpdateAction action) {
         super(client, action, new UpdateRequest());
@@ -90,9 +94,54 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
 
     /**
      * Explicitly specify the fields that will be returned. By default, nothing is returned.
+     * @deprecated Use {@link UpdateRequestBuilder#setFetchSource(String[], String[])} instead
      */
+    @Deprecated
     public UpdateRequestBuilder setFields(String... fields) {
+        DEPRECATION_LOGGER.deprecated("Deprecated field [fields] used, expected [_source] instead");
         request.fields(fields);
+        return this;
+    }
+
+    /**
+     * Indicate that _source should be returned with every hit, with an
+     * "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param include
+     *            An optional include (optionally wildcarded) pattern to filter
+     *            the returned _source
+     * @param exclude
+     *            An optional exclude (optionally wildcarded) pattern to filter
+     *            the returned _source
+     */
+    public UpdateRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
+        request.fetchSource(include, exclude);
+        return this;
+    }
+
+    /**
+     * Indicate that _source should be returned, with an
+     * "include" and/or "exclude" set which can include simple wildcard
+     * elements.
+     *
+     * @param includes
+     *            An optional list of include (optionally wildcarded) pattern to
+     *            filter the returned _source
+     * @param excludes
+     *            An optional list of exclude (optionally wildcarded) pattern to
+     *            filter the returned _source
+     */
+    public UpdateRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
+        request.fetchSource(includes, excludes);
+        return this;
+    }
+
+    /**
+     * Indicates whether the response should contain the updated _source.
+     */
+    public UpdateRequestBuilder setFetchSource(boolean fetchSource) {
+        request.fetchSource(fetchSource);
         return this;
     }
 
@@ -279,26 +328,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
-    public UpdateRequestBuilder setSource(XContentBuilder source) throws Exception {
-        request.source(source);
-        return this;
-    }
-
-    public UpdateRequestBuilder setSource(byte[] source) throws Exception {
-        request.source(source);
-        return this;
-    }
-
-    public UpdateRequestBuilder setSource(byte[] source, int offset, int length) throws Exception {
-        request.source(source, offset, length);
-        return this;
-    }
-
-    public UpdateRequestBuilder setSource(BytesReference source) throws Exception {
-        request.source(source);
-        return this;
-    }
-
     /**
      * Sets whether the specified doc parameter should be used as upsert document.
      */
@@ -325,33 +354,4 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
-    /**
-     * Set the new ttl of the document as a long. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(Long ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
-
-    /**
-     * Set the new ttl of the document as a time value expression. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(String ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
-
-    /**
-     * Set the new ttl of the document as a {@link TimeValue} instance. Note that if detectNoop is true (the default)
-     * and the source of the document isn't changed then the ttl update won't take
-     * effect.
-     */
-    public UpdateRequestBuilder setTtl(TimeValue ttl) {
-        request.doc().ttl(ttl);
-        return this;
-    }
 }

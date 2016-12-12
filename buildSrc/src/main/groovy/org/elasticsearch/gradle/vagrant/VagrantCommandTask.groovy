@@ -34,11 +34,18 @@ public class VagrantCommandTask extends LoggedExec {
     @Input
     String boxName
 
+    @Input
+    Map<String, String> environmentVars
+
     public VagrantCommandTask() {
         executable = 'vagrant'
+
         project.afterEvaluate {
             // It'd be nice if --machine-readable were, well, nice
             standardOutput = new TeeOutputStream(standardOutput, createLoggerOutputStream())
+            if (environmentVars != null) {
+                environment environmentVars
+            }
         }
     }
 

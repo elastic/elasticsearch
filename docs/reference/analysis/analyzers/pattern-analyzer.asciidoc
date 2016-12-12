@@ -169,11 +169,6 @@ The `pattern` analyzer accepts the following parameters:
 
     Should terms be lowercased or not. Defaults to `true`.
 
-`max_token_length`::
-
-    The maximum token length. If a token is seen that exceeds this length then
-    it is split at `max_token_length` intervals. Defaults to `255`.
-
 `stopwords`::
 
     A pre-defined stop words list like `_english_` or an array  containing a

@@ -2,19 +2,30 @@
 == cat indices
 
 The `indices` command provides a cross-section of each index.  This
-information *spans nodes*.
+information *spans nodes*. For example:
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/indices/twi*?v'
-health status index    pri rep docs.count docs.deleted store.size pri.store.size
-green  open   twitter    5   1      11434            0       64mb           32mb
-green  open   twitter2   2   0       2030            0      5.8mb          5.8mb
+GET /_cat/indices/twi*?v&s=index
 --------------------------------------------------
+// CONSOLE
+// TEST[setup:huge_twitter]
+// TEST[s/^/PUT twitter2\n{"settings": {"number_of_replicas": 0}}\n/]
+
+Might respond with:
+
+[source,txt]
+--------------------------------------------------
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
+green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   5   0          0            0       260b           260b
+--------------------------------------------------
+// TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ _cat]
 
 We can tell quickly how many shards make up an index, the number of
-docs at the Lucene level, including hidden docs (e.g., from nested types), 
-deleted docs, primary store size, and total store size (all shards including replicas). 
+docs at the Lucene level, including hidden docs (e.g., from nested types),
+deleted docs, primary store size, and total store size (all shards including replicas).
 All these exposed metrics come directly from Lucene APIs.
 
 [float]
@@ -31,39 +42,77 @@ the view of relevant stats in the context of only the primaries.
 
 Which indices are yellow?
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl localhost:9200/_cat/indices | grep ^yell
-yellow open  wiki     2 1  6401 1115 151.4mb 151.4mb
-yellow open  twitter  5 1 11434    0    32mb    32mb
+GET /_cat/indices?v&health=yellow
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-What's my largest index by disk usage not including replicas?
+Which looks like:
 
-[source,sh]
+[source,txt]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/indices?bytes=b' | sort -rnk8
-green open  wiki     2 0  6401 1115 158843725 158843725
-green open  twitter  5 1 11434    0  67155614  33577857
-green open  twitter2 2 0  2030    0   6125085   6125085
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
 --------------------------------------------------
+// TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ/.+/ _cat]
 
-How many merge operations have the shards for the `wiki` completed?
+Which index has the largest number of documents?
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/indices/wiki?pri&v&h=health,index,prirep,docs.count,mt'
-health index docs.count mt pri.mt
-green  wiki        9646 16     16
+GET /_cat/indices?v&s=docs.count:desc
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which looks like:
+
+[source,txt]
+--------------------------------------------------
+health status index    uuid                   pri rep docs.count docs.deleted store.size pri.store.size
+yellow open   twitter  u8FNjxh8Rfy_awN11oDKYQ   1   1       1200            0     88.1kb         88.1kb
+green  open   twitter2 nYFWZEO7TUiOjLQXBaYJpA   5   0          0            0       260b           260b
+--------------------------------------------------
+// TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[s/u8FNjxh8Rfy_awN11oDKYQ|nYFWZEO7TUiOjLQXBaYJpA/.+/ _cat]
+
+How many merge operations have the shards for the `twitter` completed?
+
+[source,js]
+--------------------------------------------------
+GET /_cat/indices/twitter?pri&v&h=health,index,pri,rep,docs.count,mt
+--------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Might look like:
+
+[source,js]
+--------------------------------------------------
+health index   pri rep docs.count mt pri.mt
+yellow twitter   1   1 1200       16     16
+--------------------------------------------------
+// TESTRESPONSE[s/16/\\d+/ _cat]
 
 How much memory is used per index?
 
-[source,sh]
+[source,js]
 --------------------------------------------------
-% curl 'localhost:9200/_cat/indices?v&h=i,tm'
-i     tm
-wiki  8.1gb
-test  30.5kb
-user  1.9mb
+GET /_cat/indices?v&h=i,tm&s=tm:desc
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Might look like:
+
+[source,js]
+--------------------------------------------------
+i         tm
+twitter   8.1gb
+twitter2  30.5kb
+--------------------------------------------------
+// TESTRESPONSE[s/\d+(\.\d+)?[tgmk]?b/\\d+(\\.\\d+)?[tgmk]?b/]
+// TESTRESPONSE[_cat]

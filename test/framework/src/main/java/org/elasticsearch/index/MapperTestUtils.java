@@ -21,11 +21,9 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
@@ -36,7 +34,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
 
-import static org.elasticsearch.test.ESTestCase.createAnalysisService;
+import static org.elasticsearch.test.ESTestCase.createTestAnalysis;
 
 
 public class MapperTestUtils {
@@ -56,10 +54,10 @@ public class MapperTestUtils {
         Settings finalSettings = settingsBuilder.build();
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", finalSettings);
-        AnalysisService analysisService = createAnalysisService(indexSettings, finalSettings);
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(indexSettings, finalSettings).indexAnalyzers;
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
         return new MapperService(indexSettings,
-            analysisService,
+            indexAnalyzers,
             similarityService,
             mapperRegistry,
             () -> null);

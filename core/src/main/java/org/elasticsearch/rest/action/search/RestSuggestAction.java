@@ -19,33 +19,29 @@
 
 package org.elasticsearch.rest.action.search;
 
-import java.io.IOException;
-
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -67,22 +63,17 @@ public class RestSuggestAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final SearchRequest searchRequest = new SearchRequest(
                 Strings.splitStringByCommaToArray(request.param("index")), new SearchSourceBuilder());
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-        if (RestActions.hasBodyContent(request)) {
-            final BytesReference sourceBytes = RestActions.getRestContent(request);
-            try (XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes)) {
-                final QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
-                searchRequest.source().suggest(SuggestBuilder.fromXContent(context, searchRequestParsers.suggesters));
-            }
-        } else {
-            throw new IllegalArgumentException("no content or source provided to execute suggestion");
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
+            final QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
+            searchRequest.source().suggest(SuggestBuilder.fromXContent(context, searchRequestParsers.suggesters));
         }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
-        client.search(searchRequest, new RestBuilderListener<SearchResponse>(channel) {
+        return channel -> client.search(searchRequest, new RestBuilderListener<SearchResponse>(channel) {
             @Override
             public RestResponse buildResponse(SearchResponse response, XContentBuilder builder) throws Exception {
                 RestStatus restStatus = RestStatus.status(response.getSuccessfulShards(),

@@ -33,7 +33,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.HttpServerTransport;
@@ -89,8 +89,7 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             .build();
         try (final HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
             httpServerTransport.start();
-            final InetSocketTransportAddress transportAddress =
-                (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
+            final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
             final int numberOfRequests = randomIntBetween(4, 16);
             final List<String> requests = new ArrayList<>(numberOfRequests);
@@ -117,18 +116,15 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             .build();
         try (final HttpServerTransport httpServerTransport = new CustomNettyHttpServerTransport(settings)) {
             httpServerTransport.start();
-            final InetSocketTransportAddress transportAddress =
-                (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
+            final TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
             final int numberOfRequests = randomIntBetween(4, 16);
             final Set<Integer> slowIds = new HashSet<>();
             final List<String> requests = new ArrayList<>(numberOfRequests);
-            int numberOfSlowRequests = 0;
             for (int i = 0; i < numberOfRequests; i++) {
                 if (rarely()) {
                     requests.add("/slow/" + i);
                     slowIds.add(i);
-                    numberOfSlowRequests++;
                 } else {
                     requests.add("/" + i);
                 }
@@ -137,16 +133,15 @@ public class Netty4HttpServerPipeliningTests extends ESTestCase {
             try (Netty4HttpClient nettyHttpClient = new Netty4HttpClient()) {
                 Collection<FullHttpResponse> responses = nettyHttpClient.get(transportAddress.address(), requests.toArray(new String[]{}));
                 List<String> responseBodies = new ArrayList<>(Netty4HttpClient.returnHttpResponseBodies(responses));
-                // we can not be sure about the order of the responses, but the slow ones should
-                // come last
+                // we can not be sure about the order of the responses, but the slow ones should come last
                 assertThat(responseBodies, hasSize(numberOfRequests));
-                for (int i = 0; i < numberOfRequests - numberOfSlowRequests; i++) {
+                for (int i = 0; i < numberOfRequests - slowIds.size(); i++) {
                     assertThat(responseBodies.get(i), matches("/\\d+"));
                 }
 
                 final Set<Integer> ids = new HashSet<>();
-                for (int i = 0; i < numberOfSlowRequests; i++) {
-                    final String response = responseBodies.get(numberOfRequests - numberOfSlowRequests + i);
+                for (int i = 0; i < slowIds.size(); i++) {
+                    final String response = responseBodies.get(numberOfRequests - slowIds.size() + i);
                     assertThat(response, matches("/slow/\\d+" ));
                     assertTrue(ids.add(Integer.parseInt(response.split("/")[2])));
                 }

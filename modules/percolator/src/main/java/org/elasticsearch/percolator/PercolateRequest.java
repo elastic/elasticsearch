@@ -44,7 +44,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @deprecated Instead use search API with {@link PercolateQueryBuilder}
  */
 @Deprecated
-public class PercolateRequest extends ActionRequest<PercolateRequest> implements IndicesRequest.Replaceable {
+public class PercolateRequest extends ActionRequest implements IndicesRequest.Replaceable {
 
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -242,8 +242,8 @@ public class PercolateRequest extends ActionRequest<PercolateRequest> implements
         if (source == null && getRequest == null) {
             validationException = addValidationError("source or get is missing", validationException);
         }
-        if (getRequest != null && getRequest.fields() != null) {
-            validationException = addValidationError("get fields option isn't supported via percolate request", validationException);
+        if (getRequest != null && getRequest.storedFields() != null) {
+            validationException = addValidationError("get stored fields option isn't supported via percolate request", validationException);
         }
         return validationException;
     }

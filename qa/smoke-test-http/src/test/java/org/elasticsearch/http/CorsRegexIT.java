@@ -23,10 +23,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
 
 import java.io.IOException;
 
@@ -53,11 +51,6 @@ public class CorsRegexIT extends HttpSmokeTestCase {
                 .put(SETTING_CORS_ENABLED.getKey(), true)
                 .put(NetworkModule.HTTP_ENABLED.getKey(), true)
                 .build();
-    }
-
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     public void testThatRegularExpressionWorksOnMatch() throws IOException {
@@ -102,7 +95,7 @@ public class CorsRegexIT extends HttpSmokeTestCase {
         String corsValue = "http://localhost:9200";
         Response response = getRestClient().performRequest("OPTIONS", "/",
                 new BasicHeader("User-Agent", "Mozilla Bar"), new BasicHeader("Origin", corsValue),
-                new BasicHeader(HttpHeaders.Names.ACCESS_CONTROL_REQUEST_METHOD, "GET"));
+                new BasicHeader("Access-Control-Request-Method", "GET"));
         assertResponseWithOriginheader(response, corsValue);
         assertNotNull(response.getHeader("Access-Control-Allow-Methods"));
     }

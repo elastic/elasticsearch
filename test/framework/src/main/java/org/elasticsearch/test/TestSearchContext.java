@@ -22,12 +22,12 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -38,7 +38,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -54,7 +53,6 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
@@ -78,11 +76,11 @@ public class TestSearchContext extends SearchContext {
     final Counter timeEstimateCounter = Counter.newCounter();
     final QuerySearchResult queryResult = new QuerySearchResult();
     final QueryShardContext queryShardContext;
-    ScriptService scriptService;
     ParsedQuery originalQuery;
     ParsedQuery postFilter;
     Query query;
     Float minScore;
+    SearchTask task;
 
     ContextIndexSearcher searcher;
     int size;
@@ -92,7 +90,7 @@ public class TestSearchContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
-    public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, ScriptService scriptService, IndexService indexService) {
+    public TestSearchContext(ThreadPool threadPool, BigArrays bigArrays, IndexService indexService) {
         super(ParseFieldMatcher.STRICT);
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
@@ -100,8 +98,7 @@ public class TestSearchContext extends SearchContext {
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
-        this.scriptService = scriptService;
-        queryShardContext = indexService.newQueryShardContext();
+        queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {
@@ -112,12 +109,11 @@ public class TestSearchContext extends SearchContext {
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = null;
-        scriptService = null;
         this.queryShardContext = queryShardContext;
     }
 
     @Override
-    public void preProcess() {
+    public void preProcess(boolean rewrite) {
     }
 
     @Override
@@ -168,11 +164,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public long getOriginNanoTime() {
         return originNanoTime;
-    }
-
-    @Override
-    protected long nowInMillisImpl() {
-        return 0;
     }
 
     @Override
@@ -296,16 +287,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public AnalysisService analysisService() { return indexService.analysisService();}
-
-    @Override
     public SimilarityService similarityService() {
         return null;
-    }
-
-    @Override
-    public ScriptService scriptService() {
-        return scriptService;
     }
 
     @Override
@@ -340,6 +323,11 @@ public class TestSearchContext extends SearchContext {
     @Override
     public void terminateAfter(int terminateAfter) {
         this.terminateAfter = terminateAfter;
+    }
+
+    @Override
+    public boolean lowLevelCancellation() {
+        return false;
     }
 
     @Override
@@ -532,11 +520,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchLookup lookup() {
-        return new SearchLookup(mapperService(), fieldData(), null);
-    }
-
-    @Override
     public DfsSearchResult dfsResult() {
         return null;
     }
@@ -594,4 +577,18 @@ public class TestSearchContext extends SearchContext {
         return queryShardContext;
     }
 
+    @Override
+    public void setTask(SearchTask task) {
+        this.task = task;
+    }
+
+    @Override
+    public SearchTask getTask() {
+        return task;
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return task.isCancelled();
+    }
 }

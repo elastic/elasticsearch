@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
@@ -190,7 +190,7 @@ public class BulkProcessor implements Closeable {
 
     BulkProcessor(Client client, BackoffPolicy backoffPolicy, Listener listener, @Nullable String name, int concurrentRequests, int bulkActions, ByteSizeValue bulkSize, @Nullable TimeValue flushInterval) {
         this.bulkActions = bulkActions;
-        this.bulkSize = bulkSize.bytes();
+        this.bulkSize = bulkSize.getBytes();
 
         this.bulkRequest = new BulkRequest();
         this.bulkRequestHandler = (concurrentRequests == 0) ? BulkRequestHandler.syncHandler(client, backoffPolicy, listener) : BulkRequestHandler.asyncHandler(client, backoffPolicy, listener, concurrentRequests);
@@ -250,24 +250,24 @@ public class BulkProcessor implements Closeable {
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkProcessor add(IndexRequest request) {
-        return add((ActionRequest<?>) request);
+        return add((DocWriteRequest) request);
     }
 
     /**
      * Adds an {@link DeleteRequest} to the list of actions to execute.
      */
     public BulkProcessor add(DeleteRequest request) {
-        return add((ActionRequest<?>) request);
+        return add((DocWriteRequest) request);
     }
 
     /**
      * Adds either a delete or an index request.
      */
-    public BulkProcessor add(ActionRequest<?> request) {
+    public BulkProcessor add(DocWriteRequest request) {
         return add(request, null);
     }
 
-    public BulkProcessor add(ActionRequest<?> request, @Nullable Object payload) {
+    public BulkProcessor add(DocWriteRequest request, @Nullable Object payload) {
         internalAdd(request, payload);
         return this;
     }
@@ -282,7 +282,7 @@ public class BulkProcessor implements Closeable {
         }
     }
 
-    private synchronized void internalAdd(ActionRequest<?> request, @Nullable Object payload) {
+    private synchronized void internalAdd(DocWriteRequest request, @Nullable Object payload) {
         ensureOpen();
         bulkRequest.add(request, payload);
         executeIfNeeded();
@@ -293,7 +293,7 @@ public class BulkProcessor implements Closeable {
     }
 
     public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultPipeline, @Nullable Object payload) throws Exception {
-        bulkRequest.add(data, defaultIndex, defaultType, null, null, defaultPipeline, payload, true);
+        bulkRequest.add(data, defaultIndex, defaultType, null, null, null, defaultPipeline, payload, true);
         executeIfNeeded();
         return this;
     }

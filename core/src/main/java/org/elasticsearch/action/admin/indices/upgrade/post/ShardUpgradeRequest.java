@@ -27,9 +27,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-/**
- *
- */
 public final class ShardUpgradeRequest extends BroadcastShardRequest {
 
     private UpgradeRequest request = new UpgradeRequest();

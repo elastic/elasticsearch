@@ -15,12 +15,13 @@ are no shards in transit from one node to another:
 [source,sh]
 ----------------------------------------------------------------------------
 > curl -XGET 'localhost:9200/_cat/recovery?v'
-index shard time type  stage source_host source_node target_host target_node repository snapshot files files_percent bytes bytes_percent total_files total_bytes translog translog_percent total_translog
-index 0     87ms store done  127.0.0.1        Athena      127.0.0.1        Athena      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
-index 1     97ms store done  127.0.0.1        Athena      127.0.0.1        Athena      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
-index 2     93ms store done  127.0.0.1        Athena      127.0.0.1        Athena      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
-index 3     90ms store done  127.0.0.1        Athena      127.0.0.1        Athena      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
-index 4     9ms  store done  127.0.0.1        Athena      127.0.0.1        Athena      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
+index shard time type  stage source_host  source_node target_host target_node repository snapshot files files_percent bytes bytes_percent
+ total_files total_bytes translog translog_percent total_translog
+index 0     87ms store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
+index 1     97ms store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
+index 2     93ms store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
+index 3     90ms store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
+index 4     9ms  store done  127.0.0.1        I8hydUG      127.0.0.1        I8hydUG      n/a        n/a      0     0.0%          0     0.0%          0           0           0        100.0%           0
 ---------------------------------------------------------------------------
 
 In the above case, the source and target nodes are the same because the recovery

@@ -21,9 +21,6 @@ package org.elasticsearch.search.fetch;
 
 import org.elasticsearch.search.SearchPhaseResult;
 
-/**
- *
- */
 public interface FetchSearchResultProvider extends SearchPhaseResult {
 
     FetchSearchResult fetchResult();

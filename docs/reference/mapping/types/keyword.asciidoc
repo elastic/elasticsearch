@@ -6,7 +6,7 @@ codes, zip codes or tags.
 
 They are typically used for filtering (_Find me all blog posts where
 ++status++ is ++published++_), for sorting, and for aggregations. Keyword
-fields are ony searchable by their exact value.
+fields are only searchable by their exact value.
 
 If you need to index full text content such as email bodies or product
 descriptions, it is likely that you should rather use a <<text,`text`>> field.

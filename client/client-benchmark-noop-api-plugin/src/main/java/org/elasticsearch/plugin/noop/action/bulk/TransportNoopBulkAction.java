@@ -20,6 +20,7 @@ package org.elasticsearch.plugin.noop.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -34,7 +35,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
-    private static final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(1, "update",
+    private static final BulkItemResponse ITEM_RESPONSE = new BulkItemResponse(1, DocWriteRequest.OpType.UPDATE,
         new UpdateResponse(new ShardId("mock", "", 1), "mock_type", "1", 1L, DocWriteResponse.Result.CREATED));
 
     @Inject
@@ -45,7 +46,7 @@ public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest,
 
     @Override
     protected void doExecute(BulkRequest request, ActionListener<BulkResponse> listener) {
-        final int itemCount = request.subRequests().size();
+        final int itemCount = request.requests().size();
         // simulate at least a realistic amount of data that gets serialized
         BulkItemResponse[] bulkItemResponses = new BulkItemResponse[itemCount];
         for (int idx = 0; idx < itemCount; idx++) {

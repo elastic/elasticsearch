@@ -38,9 +38,6 @@ import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class DynamicTemplatesTests extends ESSingleNodeTestCase {
     public void testMatchTypeOnly() throws Exception {
         XContentBuilder builder = JsonXContent.contentBuilder();

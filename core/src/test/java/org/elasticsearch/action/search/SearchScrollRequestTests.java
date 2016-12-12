@@ -21,10 +21,13 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public class SearchScrollRequestTests extends ESTestCase {
 
@@ -58,54 +61,9 @@ public class SearchScrollRequestTests extends ESTestCase {
     }
 
     public void testEqualsAndHashcode() {
-        SearchScrollRequest firstSearchScrollRequest = createSearchScrollRequest();
-        assertNotNull("search scroll request is equal to null", firstSearchScrollRequest);
-        assertNotEquals("search scroll request  is equal to incompatible type", firstSearchScrollRequest, "");
-        assertEquals("search scroll request is not equal to self", firstSearchScrollRequest, firstSearchScrollRequest);
-        assertEquals("same source builder's hashcode returns different values if called multiple times",
-                firstSearchScrollRequest.hashCode(), firstSearchScrollRequest.hashCode());
-
-        SearchScrollRequest secondSearchScrollRequest = copyRequest(firstSearchScrollRequest);
-        assertEquals("search scroll request  is not equal to self", secondSearchScrollRequest, secondSearchScrollRequest);
-        assertEquals("search scroll request is not equal to its copy", firstSearchScrollRequest, secondSearchScrollRequest);
-        assertEquals("search scroll request is not symmetric", secondSearchScrollRequest, firstSearchScrollRequest);
-        assertEquals("search scroll request copy's hashcode is different from original hashcode",
-                firstSearchScrollRequest.hashCode(), secondSearchScrollRequest.hashCode());
-
-        SearchScrollRequest thirdSearchScrollRequest = copyRequest(secondSearchScrollRequest);
-        assertEquals("search scroll request is not equal to self", thirdSearchScrollRequest, thirdSearchScrollRequest);
-        assertEquals("search scroll request is not equal to its copy", secondSearchScrollRequest, thirdSearchScrollRequest);
-        assertEquals("search scroll request copy's hashcode is different from original hashcode",
-                secondSearchScrollRequest.hashCode(), thirdSearchScrollRequest.hashCode());
-        assertEquals("equals is not transitive", firstSearchScrollRequest, thirdSearchScrollRequest);
-        assertEquals("search scroll request copy's hashcode is different from original hashcode",
-                firstSearchScrollRequest.hashCode(), thirdSearchScrollRequest.hashCode());
-        assertEquals("equals is not symmetric", thirdSearchScrollRequest, secondSearchScrollRequest);
-        assertEquals("equals is not symmetric", thirdSearchScrollRequest, firstSearchScrollRequest);
-
-        boolean changed = false;
-        if (randomBoolean()) {
-            secondSearchScrollRequest.scrollId(randomAsciiOfLengthBetween(3, 10));
-            if (secondSearchScrollRequest.scrollId().equals(firstSearchScrollRequest.scrollId()) == false) {
-                changed = true;
-            }
-        }
-        if (randomBoolean()) {
-            secondSearchScrollRequest.scroll(randomPositiveTimeValue());
-            if (secondSearchScrollRequest.scroll().equals(firstSearchScrollRequest.scroll()) == false) {
-                changed = true;
-            }
-        }
-        
-        if (changed) {
-            assertNotEquals(firstSearchScrollRequest, secondSearchScrollRequest);
-            assertNotEquals(firstSearchScrollRequest.hashCode(), secondSearchScrollRequest.hashCode());
-        } else {
-            assertEquals(firstSearchScrollRequest, secondSearchScrollRequest);
-            assertEquals(firstSearchScrollRequest.hashCode(), secondSearchScrollRequest.hashCode());
-        }
+        checkEqualsAndHashCode(createSearchScrollRequest(), SearchScrollRequestTests::copyRequest, SearchScrollRequestTests::mutate);
     }
-    
+
     public static SearchScrollRequest createSearchScrollRequest() {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest(randomAsciiOfLengthBetween(3, 10));
         searchScrollRequest.scroll(randomPositiveTimeValue());
@@ -117,5 +75,14 @@ public class SearchScrollRequestTests extends ESTestCase {
         result.scrollId(searchScrollRequest.scrollId());
         result.scroll(searchScrollRequest.scroll());
         return result;
+    }
+
+    private static SearchScrollRequest mutate(SearchScrollRequest original) {
+        SearchScrollRequest copy = copyRequest(original);
+        if (randomBoolean()) {
+            return copy.scrollId(original.scrollId() + "xyz");
+        } else {
+            return copy.scroll(new TimeValue(original.scroll().keepAlive().getMillis() + 1));
+        }
     }
 }

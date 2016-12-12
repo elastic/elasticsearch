@@ -28,7 +28,6 @@ import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NativeFSLockFactory;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -47,7 +46,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
-import org.elasticsearch.index.translog.TruncateTranslogCommand;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -85,7 +83,7 @@ public class TruncateTranslogIT extends ESIntegTestCase {
     }
 
     public void testCorruptTranslogTruncation() throws Exception {
-        internalCluster().startNodesAsync(1, Settings.EMPTY).get();
+        internalCluster().startNodes(1, Settings.EMPTY);
 
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
                         .put("index.number_of_shards", 1)

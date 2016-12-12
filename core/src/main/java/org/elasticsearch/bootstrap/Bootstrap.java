@@ -19,15 +19,19 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.ConsoleAppender;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
@@ -51,6 +55,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -63,6 +68,7 @@ final class Bootstrap {
     private volatile Node node;
     private final CountDownLatch keepAliveLatch = new CountDownLatch(1);
     private final Thread keepAliveThread;
+    private final Spawner spawner = new Spawner();
 
     /** creates a new instance */
     Bootstrap() {
@@ -151,6 +157,23 @@ final class Bootstrap {
 
     private void setup(boolean addShutdownHook, Environment environment) throws BootstrapException {
         Settings settings = environment.settings();
+
+        try {
+            spawner.spawnNativePluginControllers(environment);
+            Runtime.getRuntime().addShutdownHook(new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        spawner.close();
+                    } catch (IOException e) {
+                        throw new ElasticsearchException("Failed to destroy spawned controllers", e);
+                    }
+                }
+            });
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
+
         initializeNatives(
                 environment.tmpFile(),
                 BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
@@ -166,6 +189,8 @@ final class Bootstrap {
                 public void run() {
                     try {
                         IOUtils.close(node);
+                        LoggerContext context = (LoggerContext) LogManager.getContext(false);
+                        Configurator.shutdown(context);
                     } catch (IOException ex) {
                         throw new ElasticsearchException("failed to stop node", ex);
                     }
@@ -191,8 +216,8 @@ final class Bootstrap {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final Settings settings,
-                final BoundTransportAddress boundTransportAddress) throws NodeValidationException {
-                BootstrapCheck.check(settings, boundTransportAddress);
+                final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
+                BootstrapChecks.check(settings, boundTransportAddress, checks);
             }
         };
     }
@@ -227,13 +252,13 @@ final class Bootstrap {
     }
 
     /**
-     * This method is invoked by {@link Elasticsearch#main(String[])}
-     * to startup elasticsearch.
+     * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
     static void init(
             final boolean foreground,
             final Path pidFile,
-            final Map<String, String> esSettings) throws BootstrapException, NodeValidationException {
+            final boolean quiet,
+            final Map<String, String> esSettings) throws BootstrapException, NodeValidationException, UserException {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
@@ -245,7 +270,7 @@ final class Bootstrap {
 
         Environment environment = initialEnvironment(foreground, pidFile, esSettings);
         try {
-            LogConfigurator.configure(environment, true);
+            LogConfigurator.configure(environment);
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -259,8 +284,9 @@ final class Bootstrap {
             }
         }
 
+        final boolean closeStandardStreams = (foreground == false) || quiet;
         try {
-            if (!foreground) {
+            if (closeStandardStreams) {
                 final Logger rootLogger = ESLoggerFactory.getRootLogger();
                 final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
                 if (maybeConsoleAppender != null) {
@@ -268,9 +294,6 @@ final class Bootstrap {
                 }
                 closeSystOut();
             }
-
-            // fail if using broken version
-            JVMCheck.check();
 
             // fail if somebody replaced the lucene jars
             checkLucene();
@@ -285,7 +308,7 @@ final class Bootstrap {
 
             INSTANCE.start();
 
-            if (!foreground) {
+            if (closeStandardStreams) {
                 closeSysError();
             }
         } catch (NodeValidationException | RuntimeException e) {

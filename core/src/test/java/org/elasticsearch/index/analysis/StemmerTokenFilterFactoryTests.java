@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -36,9 +37,6 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntB
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_VERSION_CREATED;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- *
- */
 public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
     public void testEnglishFilterFactory() throws IOException {
         int iters = scaledRandomIntBetween(20, 100);
@@ -53,13 +51,14 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
 
-            AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
-            TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_english");
+            ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+            TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_english");
             assertThat(tokenFilter, instanceOf(StemmerTokenFilterFactory.class));
             Tokenizer tokenizer = new WhitespaceTokenizer();
             tokenizer.setReader(new StringReader("foo bar"));
             TokenStream create = tokenFilter.create(tokenizer);
-            NamedAnalyzer analyzer = analysisService.analyzer("my_english");
+            IndexAnalyzers indexAnalyzers = analysis.indexAnalyzers;
+            NamedAnalyzer analyzer = indexAnalyzers.get("my_english");
             assertThat(create, instanceOf(PorterStemFilter.class));
             assertAnalyzesTo(analyzer, "consolingly", new String[]{"consolingli"});
         }
@@ -80,13 +79,14 @@ public class StemmerTokenFilterFactoryTests extends ESTokenStreamTestCase {
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                     .build();
 
-            AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
-            TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_porter2");
+            ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
+            TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_porter2");
             assertThat(tokenFilter, instanceOf(StemmerTokenFilterFactory.class));
             Tokenizer tokenizer = new WhitespaceTokenizer();
             tokenizer.setReader(new StringReader("foo bar"));
             TokenStream create = tokenFilter.create(tokenizer);
-            NamedAnalyzer analyzer = analysisService.analyzer("my_porter2");
+            IndexAnalyzers indexAnalyzers = analysis.indexAnalyzers;
+            NamedAnalyzer analyzer = indexAnalyzers.get("my_porter2");
             assertThat(create, instanceOf(SnowballFilter.class));
             assertAnalyzesTo(analyzer, "possibly", new String[]{"possibl"});
         }

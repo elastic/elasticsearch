@@ -21,7 +21,6 @@ package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TopDocs;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,9 +41,6 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
 
-/**
- *
- */
 public class QuerySearchResult extends QuerySearchResultProvider {
 
     private long id;
@@ -209,7 +205,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
 
     public void readFromWithId(long id, StreamInput in) throws IOException {
         this.id = id;
-//        shardTarget = readSearchShardTarget(in);
         from = in.readVInt();
         size = in.readVInt();
         int numSortFieldsPlus1 = in.readVInt();
@@ -232,10 +227,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         }
         searchTimedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
-
-        if (in.getVersion().onOrAfter(Version.V_2_2_0) && in.readBoolean()) {
-            profileShardResults = new ProfileShardResult(in);
-        }
+        profileShardResults = in.readOptionalWriteable(ProfileShardResult::new);
     }
 
     @Override
@@ -246,7 +238,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     public void writeToNoId(StreamOutput out) throws IOException {
-//        shardTarget.writeTo(out);
         out.writeVInt(from);
         out.writeVInt(size);
         if (sortValueFormats == null) {
@@ -273,14 +264,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         }
         out.writeBoolean(searchTimedOut);
         out.writeOptionalBoolean(terminatedEarly);
-
-        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
-            if (profileShardResults == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                profileShardResults.writeTo(out);
-            }
-        }
+        out.writeOptionalWriteable(profileShardResults);
     }
 }

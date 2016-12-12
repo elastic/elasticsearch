@@ -27,7 +27,10 @@ Integrations are not plugins, but are external tools or modules that make it eas
   Tiki has native support for Elasticsearch. This provides faster & better
   search (facets, etc), along with some Natural Language Processing features
   (ex.: More like this)
-
+  
+* http://extensions.xwiki.org/xwiki/bin/view/Extension/Elastic+Search+Macro/[XWiki Next Generation Wiki]:
+  XWiki has an Elasticsearch and Kibana macro allowing to run Elasticsearch queries and display the results in XWiki pages using XWiki's scripting language as well as include Kibana Widgets in XWiki pages
+ 
 [float]
 [[data-integrations]]
 === Data import/export and validation
@@ -201,4 +204,3 @@ These projects appear to have been abandoned:
   D3.
 * https://github.com/OlegKunitsyn/eslogd[eslogd]:
   Linux daemon that replicates events to a central Elasticsearch server in realtime
->>>>>>> 02602a3... Update integrations.asciidoc (#18915)

@@ -122,11 +122,11 @@ public class FieldSortIT extends ESIntegTestCase {
         }
     }
 
-    @LuceneTestCase.BadApple(bugUrl = "simon is working on this")
     public void testIssue6614() throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         boolean strictTimeBasedIndices = randomBoolean();
         final int numIndices = randomIntBetween(2, 25); // at most 25 days in the month
+        int docs = 0;
         for (int i = 0; i < numIndices; i++) {
           final String indexId = strictTimeBasedIndices ? "idx_" + i : "idx";
           if (strictTimeBasedIndices || i == 0) {
@@ -142,9 +142,10 @@ public class FieldSortIT extends ESIntegTestCase {
                                     String.format(Locale.ROOT, "%02d", j+1) +
                                     ":00:00"));
           }
+            indexRandom(true, builders);
+            docs += builders.size();
+            builders.clear();
         }
-        int docs = builders.size();
-        indexRandom(true, builders);
         SearchResponse allDocsResponse = client().prepareSearch().setQuery(
                 QueryBuilders.boolQuery().must(QueryBuilders.termQuery("foo", "bar")).must(
                         QueryBuilders.rangeQuery("timeUpdated").gte("2014/0" + randomIntBetween(1, 7) + "/01")))

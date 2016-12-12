@@ -22,7 +22,6 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,7 +32,7 @@ import java.util.List;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class MultiSearchTemplateRequest extends ActionRequest<MultiSearchTemplateRequest> implements CompositeIndicesRequest {
+public class MultiSearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest {
 
     private List<SearchTemplateRequest> requests = new ArrayList<>();
 
@@ -59,11 +58,6 @@ public class MultiSearchTemplateRequest extends ActionRequest<MultiSearchTemplat
 
     public List<SearchTemplateRequest> requests() {
         return this.requests;
-    }
-
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        return requests;
     }
 
     @Override

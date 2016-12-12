@@ -105,7 +105,15 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         DiscoveryNode node = clusterService.state().nodes().get(request.getTaskId().getNodeId());
         if (node == null) {
             // Node is no longer part of the cluster! Try and look the task up from the results index.
-            getFinishedTaskFromIndex(thisTask, request, listener);
+            getFinishedTaskFromIndex(thisTask, request, ActionListener.wrap(listener::onResponse, e -> {
+                if (e instanceof ResourceNotFoundException) {
+                    e = new ResourceNotFoundException(
+                            "task [" + request.getTaskId() + "] belongs to the node [" + request.getTaskId().getNodeId()
+                                    + "] which isn't part of the cluster and there is no record of the task",
+                            e);
+                }
+                listener.onFailure(e);
+            }));
             return;
         }
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
@@ -150,7 +158,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     @Override
                     protected void doRun() throws Exception {
                         taskManager.waitForTaskCompletion(runningTask, waitForCompletionTimeout(request.getTimeout()));
-                        waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode(), true), listener);
+                        waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), listener);
                     }
 
                     @Override
@@ -159,7 +167,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     }
                 });
             } else {
-                TaskInfo info = runningTask.taskInfo(clusterService.localNode(), true);
+                TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
                 listener.onResponse(new GetTaskResponse(new TaskResult(false, info)));
             }
         }
@@ -216,7 +224,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             public void onFailure(Exception e) {
                 if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
                     // We haven't yet created the index for the task results so it can't be found.
-                    listener.onFailure(new ResourceNotFoundException("task [{}] isn't running or stored its results", e,
+                    listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e,
                         request.getTaskId()));
                 } else {
                     listener.onFailure(e);
@@ -231,7 +239,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      */
     void onGetFinishedTaskFromIndex(GetResponse response, ActionListener<GetTaskResponse> listener) throws IOException {
         if (false == response.isExists()) {
-            listener.onFailure(new ResourceNotFoundException("task [{}] isn't running or stored its results", response.getId()));
+            listener.onFailure(new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", response.getId()));
             return;
         }
         if (response.isSourceEmpty()) {

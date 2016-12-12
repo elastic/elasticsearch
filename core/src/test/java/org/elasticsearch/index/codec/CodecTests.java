@@ -37,7 +37,7 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -95,9 +95,9 @@ public class CodecTests extends ESTestCase {
                 .build();
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_na", nodeSettings);
         SimilarityService similarityService = new SimilarityService(settings, Collections.emptyMap());
-        AnalysisService analysisService = createAnalysisService(settings, nodeSettings);
+        IndexAnalyzers indexAnalyzers = createTestAnalysis(settings, nodeSettings).indexAnalyzers;
         MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap());
-        MapperService service = new MapperService(settings, analysisService, similarityService, mapperRegistry, () -> null);
+        MapperService service = new MapperService(settings, indexAnalyzers, similarityService, mapperRegistry, () -> null);
         return new CodecService(service, ESLoggerFactory.getLogger("test"));
     }
 

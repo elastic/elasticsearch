@@ -57,7 +57,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
      * @param oldBreaker the previous circuit breaker to inherit the used value from (starting offset)
      */
     public MemoryCircuitBreaker(ByteSizeValue limit, double overheadConstant, MemoryCircuitBreaker oldBreaker, Logger logger) {
-        this.memoryBytesLimit = limit.bytes();
+        this.memoryBytesLimit = limit.getBytes();
         this.overheadConstant = overheadConstant;
         if (oldBreaker == null) {
             this.used = new AtomicLong(0);

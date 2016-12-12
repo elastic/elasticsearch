@@ -24,10 +24,11 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.TaskId;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
@@ -45,7 +46,7 @@ public class RestRethrottleAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RethrottleRequest internalRequest = new RethrottleRequest();
         internalRequest.setTaskId(new TaskId(request.param("taskId")));
         Float requestsPerSecond = AbstractBaseReindexRestHandler.parseRequestsPerSecond(request);
@@ -53,6 +54,8 @@ public class RestRethrottleAction extends BaseRestHandler {
             throw new IllegalArgumentException("requests_per_second is a required parameter");
         }
         internalRequest.setRequestsPerSecond(requestsPerSecond);
-        client.execute(RethrottleAction.INSTANCE, internalRequest, listTasksResponseListener(clusterService, channel));
+        final String groupBy = request.param("group_by", "nodes");
+        return channel ->
+            client.execute(RethrottleAction.INSTANCE, internalRequest, listTasksResponseListener(clusterService, groupBy, channel));
     }
 }

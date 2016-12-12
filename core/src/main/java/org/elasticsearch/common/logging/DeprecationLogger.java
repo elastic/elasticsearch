@@ -102,7 +102,7 @@ public class DeprecationLogger {
         } else {
             name = "deprecation." + name;
         }
-        this.logger = LogManager.getLogger(name, parentLogger.getMessageFactory());
+        this.logger = LogManager.getLogger(name);
     }
 
     /**

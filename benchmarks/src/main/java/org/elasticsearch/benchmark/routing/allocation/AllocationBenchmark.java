@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.Settings;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -59,57 +58,57 @@ public class AllocationBenchmark {
     // support to constrain the combinations of benchmark parameters and we do not want to rely on OptionsBuilder as each benchmark would
     // need its own main method and we cannot execute more than one class with a main method per JAR.
     @Param({
-        // indices, shards, replicas, nodes
-        "       10,      1,        0,     1",
-        "       10,      3,        0,     1",
-        "       10,     10,        0,     1",
-        "      100,      1,        0,     1",
-        "      100,      3,        0,     1",
-        "      100,     10,        0,     1",
+        // indices| shards| replicas| nodes
+        "       10|      1|        0|     1",
+        "       10|      3|        0|     1",
+        "       10|     10|        0|     1",
+        "      100|      1|        0|     1",
+        "      100|      3|        0|     1",
+        "      100|     10|        0|     1",
 
-        "       10,      1,        0,    10",
-        "       10,      3,        0,    10",
-        "       10,     10,        0,    10",
-        "      100,      1,        0,    10",
-        "      100,      3,        0,    10",
-        "      100,     10,        0,    10",
+        "       10|      1|        0|    10",
+        "       10|      3|        0|    10",
+        "       10|     10|        0|    10",
+        "      100|      1|        0|    10",
+        "      100|      3|        0|    10",
+        "      100|     10|        0|    10",
 
-        "       10,      1,        1,    10",
-        "       10,      3,        1,    10",
-        "       10,     10,        1,    10",
-        "      100,      1,        1,    10",
-        "      100,      3,        1,    10",
-        "      100,     10,        1,    10",
+        "       10|      1|        1|    10",
+        "       10|      3|        1|    10",
+        "       10|     10|        1|    10",
+        "      100|      1|        1|    10",
+        "      100|      3|        1|    10",
+        "      100|     10|        1|    10",
 
-        "       10,      1,        2,    10",
-        "       10,      3,        2,    10",
-        "       10,     10,        2,    10",
-        "      100,      1,        2,    10",
-        "      100,      3,        2,    10",
-        "      100,     10,        2,    10",
+        "       10|      1|        2|    10",
+        "       10|      3|        2|    10",
+        "       10|     10|        2|    10",
+        "      100|      1|        2|    10",
+        "      100|      3|        2|    10",
+        "      100|     10|        2|    10",
 
-        "       10,      1,        0,    50",
-        "       10,      3,        0,    50",
-        "       10,     10,        0,    50",
-        "      100,      1,        0,    50",
-        "      100,      3,        0,    50",
-        "      100,     10,        0,    50",
+        "       10|      1|        0|    50",
+        "       10|      3|        0|    50",
+        "       10|     10|        0|    50",
+        "      100|      1|        0|    50",
+        "      100|      3|        0|    50",
+        "      100|     10|        0|    50",
 
-        "       10,      1,        1,    50",
-        "       10,      3,        1,    50",
-        "       10,     10,        1,    50",
-        "      100,      1,        1,    50",
-        "      100,      3,        1,    50",
-        "      100,     10,        1,    50",
+        "       10|      1|        1|    50",
+        "       10|      3|        1|    50",
+        "       10|     10|        1|    50",
+        "      100|      1|        1|    50",
+        "      100|      3|        1|    50",
+        "      100|     10|        1|    50",
 
-        "       10,      1,        2,    50",
-        "       10,      3,        2,    50",
-        "       10,     10,        2,    50",
-        "      100,      1,        2,    50",
-        "      100,      3,        2,    50",
-        "      100,     10,        2,    50"
+        "       10|      1|        2|    50",
+        "       10|      3|        2|    50",
+        "       10|     10|        2|    50",
+        "      100|      1|        2|    50",
+        "      100|      3|        2|    50",
+        "      100|     10|        2|    50"
     })
-    public String indicesShardsReplicasNodes = "10,1,0,1";
+    public String indicesShardsReplicasNodes = "10|1|0|1";
 
     public int numTags = 2;
 
@@ -118,7 +117,7 @@ public class AllocationBenchmark {
 
     @Setup
     public void setUp() throws Exception {
-        final String[] params = indicesShardsReplicasNodes.split(",");
+        final String[] params = indicesShardsReplicasNodes.split("\\|");
 
         int numIndices = toInt(params[0]);
         int numShards = toInt(params[1]);
@@ -160,11 +159,9 @@ public class AllocationBenchmark {
     public ClusterState measureAllocation() {
         ClusterState clusterState = initialClusterState;
         while (clusterState.getRoutingNodes().hasUnassignedShards()) {
-            RoutingAllocation.Result result = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes()
+            clusterState = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes()
                     .shardsWithState(ShardRoutingState.INITIALIZING));
-            clusterState = ClusterState.builder(clusterState).routingResult(result).build();
-            result = strategy.reroute(clusterState, "reroute");
-            clusterState = ClusterState.builder(clusterState).routingResult(result).build();
+            clusterState = strategy.reroute(clusterState, "reroute");
         }
         return clusterState;
     }

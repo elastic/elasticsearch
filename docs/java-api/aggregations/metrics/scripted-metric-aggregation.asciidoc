@@ -5,42 +5,26 @@ Here is how you can use
 {ref}/search-aggregations-metrics-scripted-metric-aggregation.html[Scripted Metric Aggregation]
 with Java API.
 
-Don't forget to add Groovy in your classpath if you want to run Groovy scripts in an embedded data node
-(for unit tests for example).
-For example, with Maven, add this dependency to your `pom.xml` file:
-
-[source,xml]
---------------------------------------------------
-<dependency>
-    <groupId>org.codehaus.groovy</groupId>
-    <artifactId>groovy-all</artifactId>
-    <version>2.3.2</version>
-    <classifier>indy</classifier>
-</dependency>
---------------------------------------------------
-
-
 ===== Prepare aggregation request
 
 Here is an example on how to create the aggregation request:
 
 [source,java]
 --------------------------------------------------
-MetricsAggregationBuilder aggregation =
-        AggregationBuilders
-                .scriptedMetric("agg")
-                .initScript("_agg['heights'] = []")
-                .mapScript(new Script("if (doc['gender'].value == \"male\") " +
-                        "{ _agg.heights.add(doc['height'].value) } " +
-                        "else " +
-                        "{ _agg.heights.add(-1 * doc['height'].value) }"));
+ScriptedMetricAggregationBuilder aggregation = AggregationBuilders
+        .scriptedMetric("agg")
+        .initScript(new Script("_agg['heights'] = []"))
+        .mapScript(new Script("if (doc['gender'].value == \"male\") " +
+                "{ _agg.heights.add(doc['height'].value) } " +
+                "else " +
+                "{ _agg.heights.add(-1 * doc['height'].value) }"));
 --------------------------------------------------
 
 You can also specify a `combine` script which will be executed on each shard:
 
 [source,java]
 --------------------------------------------------
-MetricsAggregationBuilder aggregation =
+ScriptedMetricAggregationBuilder aggregation =
         AggregationBuilders
                 .scriptedMetric("agg")
                 .initScript(new Script("_agg['heights'] = []"))
@@ -55,7 +39,7 @@ You can also specify a `reduce` script which will be executed on the node which 
 
 [source,java]
 --------------------------------------------------
-MetricsAggregationBuilder aggregation =
+ScriptedMetricAggregationBuilder aggregation =
         AggregationBuilders
                 .scriptedMetric("agg")
                 .initScript(new Script("_agg['heights'] = []"))

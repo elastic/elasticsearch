@@ -23,11 +23,11 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
+import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -100,8 +100,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void preProcess() {
-        in.preProcess();
+    public void preProcess(boolean rewrite) {
+        in.preProcess(rewrite);
     }
 
     @Override
@@ -152,11 +152,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public long getOriginNanoTime() {
         return in.getOriginNanoTime();
-    }
-
-    @Override
-    protected long nowInMillisImpl() {
-        return in.nowInMillisImpl();
     }
 
     @Override
@@ -260,18 +255,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public AnalysisService analysisService() {
-        return in.analysisService();
-    }
-
-    @Override
     public SimilarityService similarityService() {
         return in.similarityService();
-    }
-
-    @Override
-    public ScriptService scriptService() {
-        return in.scriptService();
     }
 
     @Override
@@ -307,6 +292,11 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public void terminateAfter(int terminateAfter) {
         in.terminateAfter(terminateAfter);
+    }
+
+    @Override
+    public boolean lowLevelCancellation() {
+        return in.lowLevelCancellation();
     }
 
     @Override
@@ -531,5 +521,20 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public QueryShardContext getQueryShardContext() {
         return in.getQueryShardContext();
+    }
+
+    @Override
+    public void setTask(SearchTask task) {
+        in.setTask(task);
+    }
+
+    @Override
+    public SearchTask getTask() {
+        return in.getTask();
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return in.isCancelled();
     }
 }

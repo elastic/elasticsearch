@@ -48,7 +48,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.script.ScriptService.ScriptType;
+
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -683,7 +683,7 @@ public class IndexLookupIT extends ESIntegTestCase {
     }
 
     private Script createScript(String script) {
-        return new Script(script, ScriptType.INLINE, CustomScriptPlugin.NAME, null);
+        return new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, script, Collections.emptyMap());
     }
 
     public void testFlags() throws Exception {

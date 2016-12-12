@@ -24,9 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class DocumentSourceMissingException extends EngineException {
 
     public DocumentSourceMissingException(ShardId shardId, String type, String id) {

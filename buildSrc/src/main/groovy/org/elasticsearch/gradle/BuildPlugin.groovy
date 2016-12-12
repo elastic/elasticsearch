@@ -32,7 +32,7 @@ import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.artifacts.dsl.RepositoryHandler
-import org.gradle.api.artifacts.maven.MavenPom
+import org.gradle.api.plugins.JavaPlugin
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin
 import org.gradle.api.publish.maven.tasks.GenerateMavenPom
@@ -63,7 +63,6 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-java')
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
-        project.pluginManager.apply('com.bmuschko.nexus')
         project.pluginManager.apply(ProvidedBasePlugin)
 
         globalBuildInfo(project)
@@ -71,6 +70,8 @@ class BuildPlugin implements Plugin<Project> {
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
+        configureJavadocJar(project)
+        configureSourcesJar(project)
         configurePomGeneration(project)
 
         configureTest(project)
@@ -157,7 +158,7 @@ class BuildPlugin implements Plugin<Project> {
     private static String findJavaHome() {
         String javaHome = System.getenv('JAVA_HOME')
         if (javaHome == null) {
-            if (System.getProperty("idea.active") != null) {
+            if (System.getProperty("idea.active") != null || System.getProperty("eclipse.launcher") != null) {
                 // intellij doesn't set JAVA_HOME, so we use the jdk gradle was run with
                 javaHome = Jvm.current().javaHome
             } else {
@@ -267,11 +268,6 @@ class BuildPlugin implements Plugin<Project> {
         project.configurations.compile.dependencies.all(disableTransitiveDeps)
         project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
         project.configurations.provided.dependencies.all(disableTransitiveDeps)
-
-        // add exclusions to the pom directly, for each of the transitive deps of this project's deps
-        project.modifyPom { MavenPom pom ->
-            pom.withXml(fixupDependencies(project))
-        }
     }
 
     /** Adds repositores used by ES dependencies */
@@ -284,10 +280,6 @@ class BuildPlugin implements Plugin<Project> {
             repos.mavenLocal()
         }
         repos.mavenCentral()
-        repos.maven {
-            name 'sonatype-snapshots'
-            url 'http://oss.sonatype.org/content/repositories/snapshots/'
-        }
         String luceneVersion = VersionProperties.lucene
         if (luceneVersion.contains('-snapshot')) {
             // extract the revision number from the version with a regex matcher
@@ -303,12 +295,15 @@ class BuildPlugin implements Plugin<Project> {
      * Returns a closure which can be used with a MavenPom for fixing problems with gradle generated poms.
      *
      * <ul>
-     *     <li>Remove transitive dependencies (using wildcard exclusions, fixed in gradle 2.14)</li>
-     *     <li>Set compile time deps back to compile from runtime (known issue with maven-publish plugin)
+     *     <li>Remove transitive dependencies. We currently exclude all artifacts explicitly instead of using wildcards
+     *         as Ivy incorrectly translates POMs with * excludes to Ivy XML with * excludes which results in the main artifact
+     *         being excluded as well (see https://issues.apache.org/jira/browse/IVY-1531). Note that Gradle 2.14+ automatically
+     *         translates non-transitive dependencies to * excludes. We should revisit this when upgrading Gradle.</li>
+     *     <li>Set compile time deps back to compile from runtime (known issue with maven-publish plugin)</li>
      * </ul>
      */
     private static Closure fixupDependencies(Project project) {
-        // TODO: remove this when enforcing gradle 2.14+, it now properly handles exclusions
+        // TODO: revisit this when upgrading to Gradle 2.14+, see Javadoc comment above
         return { XmlProvider xml ->
             // first find if we have dependencies at all, and grab the node
             NodeList depsNodes = xml.asNode().get('dependencies')
@@ -343,10 +338,19 @@ class BuildPlugin implements Plugin<Project> {
                     continue
                 }
 
-                // we now know we have something to exclude, so add a wildcard exclusion element
-                Node exclusion = depNode.appendNode('exclusions').appendNode('exclusion')
-                exclusion.appendNode('groupId', '*')
-                exclusion.appendNode('artifactId', '*')
+                // we now know we have something to exclude, so add exclusions for all artifacts except the main one
+                Node exclusions = depNode.appendNode('exclusions')
+                for (ResolvedArtifact artifact : artifacts) {
+                    ModuleVersionIdentifier moduleVersionIdentifier = artifact.moduleVersion.id;
+                    String depGroupId = moduleVersionIdentifier.group
+                    String depArtifactId = moduleVersionIdentifier.name
+                    // add exclusions for all artifacts except the main one
+                    if (depGroupId != groupId || depArtifactId != artifactId) {
+                        Node exclusion = exclusions.appendNode('exclusion')
+                        exclusion.appendNode('groupId', depGroupId)
+                        exclusion.appendNode('artifactId', depArtifactId)
+                    }
+                }
             }
         }
     }
@@ -402,7 +406,7 @@ class BuildPlugin implements Plugin<Project> {
                 }
 
                 options.encoding = 'UTF-8'
-                //options.incremental = true
+                options.incremental = true
 
                 if (project.javaVersion == JavaVersion.VERSION_1_9) {
                     // hack until gradle supports java 9's new "--release" arg
@@ -413,6 +417,25 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
         }
+    }
+
+    /** Adds a javadocJar task to generate a jar containing javadocs. */
+    static void configureJavadocJar(Project project) {
+        Jar javadocJarTask = project.task('javadocJar', type: Jar)
+        javadocJarTask.classifier = 'javadoc'
+        javadocJarTask.group = 'build'
+        javadocJarTask.description = 'Assembles a jar containing javadocs.'
+        javadocJarTask.from(project.tasks.getByName(JavaPlugin.JAVADOC_TASK_NAME))
+        project.assemble.dependsOn(javadocJarTask)
+    }
+
+    static void configureSourcesJar(Project project) {
+        Jar sourcesJarTask = project.task('sourcesJar', type: Jar)
+        sourcesJarTask.classifier = 'sources'
+        sourcesJarTask.group = 'build'
+        sourcesJarTask.description = 'Assembles a jar containing source files.'
+        sourcesJarTask.from(project.sourceSets.main.allSource)
+        project.assemble.dependsOn(sourcesJarTask)
     }
 
     /** Adds additional manifest info to jars, and adds source and javadoc jars */
@@ -472,6 +495,8 @@ class BuildPlugin implements Plugin<Project> {
             systemProperty 'tests.artifact', project.name
             systemProperty 'tests.task', path
             systemProperty 'tests.security.manager', 'true'
+            // Breaking change in JDK-9, revert to JDK-8 behavior for now, see https://github.com/elastic/elasticsearch/issues/21534
+            systemProperty 'jdk.io.permissionsUseCanonicalPath', 'true'
             systemProperty 'jna.nosys', 'true'
             // default test sysprop values
             systemProperty 'tests.ifNoTests', 'fail'

@@ -66,4 +66,9 @@ public final class ENull extends AExpression {
     void write(MethodWriter writer, Globals globals) {
         writer.visitInsn(Opcodes.ACONST_NULL);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString();
+    }
 }

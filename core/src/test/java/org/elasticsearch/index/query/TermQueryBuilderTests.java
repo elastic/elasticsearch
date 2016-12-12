@@ -27,6 +27,7 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -90,9 +91,9 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(TermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class)));
-        MappedFieldType mapper = context.fieldMapper(queryBuilder.fieldName());
+        MappedFieldType mapper = context.getQueryShardContext().fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery) {
             TermQuery termQuery = (TermQuery) query;
             assertThat(termQuery.getTerm().field(), equalTo(queryBuilder.fieldName()));
@@ -119,13 +120,13 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"term\" : {\n" + 
-                "    \"exact_value\" : {\n" + 
-                "      \"value\" : \"Quick Foxes!\",\n" + 
-                "      \"boost\" : 1.0\n" + 
-                "    }\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"term\" : {\n" +
+                "    \"exact_value\" : {\n" +
+                "      \"value\" : \"Quick Foxes!\",\n" +
+                "      \"boost\" : 1.0\n" +
+                "    }\n" +
+                "  }\n" +
                 "}";
 
         TermQueryBuilder parsed = (TermQueryBuilder) parseQuery(json);

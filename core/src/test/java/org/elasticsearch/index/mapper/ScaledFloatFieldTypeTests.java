@@ -38,9 +38,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ScaledFloatFieldMapper;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -122,7 +119,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
             Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper);
-            Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper);
+            Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, null);
             assertEquals(searcher.count(doubleQ), searcher.count(scaledFloatQ));
         }
         IOUtils.close(reader, dir);
@@ -132,8 +129,8 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType();
         ft.setName("scaled_float");
         ft.setScalingFactor(0.1 + randomDouble() * 100);
-        assertNull(ft.valueForSearch(null));
-        assertEquals(10/ft.getScalingFactor(), ft.valueForSearch(10L));
+        assertNull(ft.valueForDisplay(null));
+        assertEquals(10/ft.getScalingFactor(), ft.valueForDisplay(10L));
     }
 
     public void testStats() throws IOException {

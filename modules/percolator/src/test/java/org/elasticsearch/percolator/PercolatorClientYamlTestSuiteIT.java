@@ -35,6 +35,6 @@ public class PercolatorClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
-        return ESClientYamlSuiteTestCase.createParameters(0, 1);
+        return ESClientYamlSuiteTestCase.createParameters();
     }
 }

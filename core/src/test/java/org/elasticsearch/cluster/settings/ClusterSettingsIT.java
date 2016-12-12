@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -177,7 +177,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testClusterSettingsUpdateResponse() {
-        String key1 = IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey();
+        String key1 = RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey();
         int value1 = 10;
 
         String key2 = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey();
@@ -330,9 +330,11 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/20318")
     public void testLoggerLevelUpdate() {
         assertAcked(prepareCreate("test"));
+
+        final Level level = ESLoggerFactory.getRootLogger().getLevel();
+
         final IllegalArgumentException e =
             expectThrows(
                 IllegalArgumentException.class,
@@ -352,8 +354,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 final Settings.Builder defaultSettings = Settings.builder().putNull("logger.*");
                 client().admin().cluster().prepareUpdateSettings().setTransientSettings(defaultSettings).execute().actionGet();
             }
-            assertEquals(ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(Settings.EMPTY), ESLoggerFactory.getLogger("test").getLevel());
-            assertEquals(ESLoggerFactory.LOG_DEFAULT_LEVEL_SETTING.get(Settings.EMPTY), ESLoggerFactory.getRootLogger().getLevel());
+            assertEquals(level, ESLoggerFactory.getLogger("test").getLevel());
+            assertEquals(level, ESLoggerFactory.getRootLogger().getLevel());
         }
     }
 

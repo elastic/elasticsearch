@@ -29,8 +29,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.search.action.SearchTransportService;
-import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
@@ -46,6 +44,7 @@ import static org.elasticsearch.action.search.TransportSearchHelper.internalScro
 class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     private final Logger logger;
+    private final SearchTask task;
     private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
     private final SearchScrollRequest request;
@@ -58,13 +57,14 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
     private volatile ScoreDoc[] sortedShardDocs;
     private final AtomicInteger successfulOps;
 
-    SearchScrollQueryThenFetchAsyncAction(Logger logger, ClusterService clusterService,
-                                          SearchTransportService searchTransportService, SearchPhaseController searchPhaseController,
-                                          SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
+    SearchScrollQueryThenFetchAsyncAction(Logger logger, ClusterService clusterService, SearchTransportService searchTransportService,
+                                          SearchPhaseController searchPhaseController, SearchScrollRequest request, SearchTask task,
+                                          ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;
         this.request = request;
+        this.task = task;
         this.listener = listener;
         this.scrollId = scrollId;
         this.nodes = clusterService.state().nodes();
@@ -126,7 +126,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
 
     private void executeQueryPhase(final int shardIndex, final AtomicInteger counter, DiscoveryNode node, final long searchId) {
         InternalScrollSearchRequest internalRequest = internalScrollSearchRequest(searchId, request);
-        searchTransportService.sendExecuteQuery(node, internalRequest, new ActionListener<ScrollQuerySearchResult>() {
+        searchTransportService.sendExecuteQuery(node, internalRequest, task, new ActionListener<ScrollQuerySearchResult>() {
             @Override
             public void onResponse(ScrollQuerySearchResult result) {
                 queryResults.set(shardIndex, result.queryResult());
@@ -186,7 +186,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
             ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[entry.index];
             ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.id(), docIds, lastEmittedDoc);
             DiscoveryNode node = nodes.get(querySearchResult.shardTarget().nodeId());
-            searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, new ActionListener<FetchSearchResult>() {
+            searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, task, new ActionListener<FetchSearchResult>() {
                 @Override
                 public void onResponse(FetchSearchResult result) {
                     result.shardTarget(querySearchResult.shardTarget());

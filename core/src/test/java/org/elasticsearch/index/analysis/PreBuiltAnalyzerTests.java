@@ -39,9 +39,6 @@ import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
 
     @Override

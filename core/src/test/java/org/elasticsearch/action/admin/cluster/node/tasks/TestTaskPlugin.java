@@ -70,7 +70,7 @@ import static org.elasticsearch.test.ESTestCase.awaitBusy;
 public class TestTaskPlugin extends Plugin implements ActionPlugin {
 
     @Override
-    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(new ActionHandler<>(TestTaskAction.INSTANCE, TransportTestTaskAction.class),
                 new ActionHandler<>(UnblockTestTasksAction.INSTANCE, TransportUnblockTestTasksAction.class));
     }
@@ -438,9 +438,9 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin {
         }
 
         @Override
-        protected UnblockTestTaskResponse taskOperation(UnblockTestTasksRequest request, Task task) {
+        protected void taskOperation(UnblockTestTasksRequest request, Task task, ActionListener<UnblockTestTaskResponse> listener) {
             ((TestTask) task).unblock();
-            return new UnblockTestTaskResponse();
+            listener.onResponse(new UnblockTestTaskResponse());
         }
 
         @Override

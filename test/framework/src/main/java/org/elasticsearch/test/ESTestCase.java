@@ -25,11 +25,18 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.config.Configurator;
+import org.apache.logging.log4j.status.StatusConsoleListener;
+import org.apache.logging.log4j.status.StatusData;
+import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -43,8 +50,15 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,7 +69,11 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
@@ -96,14 +114,17 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -127,14 +148,24 @@ import static org.hamcrest.Matchers.equalTo;
 @LuceneTestCase.SuppressReproduceLine
 public abstract class ESTestCase extends LuceneTestCase {
 
+    private static final AtomicInteger portGenerator = new AtomicInteger();
+
+    @AfterClass
+    public static void resetPortCounter() {
+        portGenerator.set(0);
+    }
+
     static {
         System.setProperty("log4j.shutdownHookEnabled", "false");
-        // we can not shutdown logging when tests are running or the next test that runs within the
-        // same JVM will try to initialize logging after a security manager has been installed and
-        // this will fail
-        System.setProperty("es.log4j.shutdownEnabled", "false");
         System.setProperty("log4j2.disable.jmx", "true");
         System.setProperty("log4j.skipJansi", "true"); // jython has this crazy shaded Jansi version that log4j2 tries to load
+
+        // shutdown hook so that when the test JVM exits, logging is shutdown too
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            LoggerContext context = (LoggerContext) LogManager.getContext(false);
+            Configurator.shutdown(context);
+        }));
+
         BootstrapForTesting.ensureInitialized();
     }
 
@@ -168,6 +199,14 @@ public abstract class ESTestCase extends LuceneTestCase {
             super.afterAlways(errors);
         }
     });
+
+    /**
+     * Generates a new transport address using {@link TransportAddress#META_ADDRESS} with an incrementing port number.
+     * The port number starts at 0 and is reset after each test suite run.
+     */
+    public static TransportAddress buildNewFakeTransportAddress() {
+        return new TransportAddress(TransportAddress.META_ADDRESS, portGenerator.incrementAndGet());
+    }
 
     /**
      * Called when a test fails, supplying the errors it generated. Not called when the test fails because assumptions are violated.
@@ -206,17 +245,62 @@ public abstract class ESTestCase extends LuceneTestCase {
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 
+    @Before
+    public final void before()  {
+        logger.info("[{}]: before test", getTestName());
+    }
+
     @After
-    public final void ensureCleanedUp() throws Exception {
+    public final void after() throws Exception {
+        checkStaticState();
+        ensureAllSearchContextsReleased();
+        ensureCheckIndexPassed();
+        logger.info("[{}]: after test", getTestName());
+    }
+
+    private static final List<StatusData> statusData = new ArrayList<>();
+    static {
+        // ensure that the status logger is set to the warn level so we do not miss any warnings with our Log4j usage
+        StatusLogger.getLogger().setLevel(Level.WARN);
+        // Log4j will write out status messages indicating problems with the Log4j usage to the status logger; we hook into this logger and
+        // assert that no such messages were written out as these would indicate a problem with our logging configuration
+        StatusLogger.getLogger().registerListener(new StatusConsoleListener(Level.WARN) {
+
+            @Override
+            public void log(StatusData data) {
+                synchronized (statusData) {
+                    statusData.add(data);
+                }
+            }
+
+        });
+    }
+
+    // separate method so that this can be checked again after suite scoped cluster is shut down
+    protected static void checkStaticState() throws Exception {
         MockPageCacheRecycler.ensureAllPagesAreReleased();
         MockBigArrays.ensureAllArraysAreReleased();
         // field cache should NEVER get loaded.
         String[] entries = UninvertingReader.getUninvertedStats();
         assertEquals("fieldcache must never be used, got=" + Arrays.toString(entries), 0, entries.length);
+
+        // ensure no one changed the status logger level on us
+        assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
+        synchronized (statusData) {
+            try {
+                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
+                // StatusData instances to Strings as otherwise their toString output is useless
+                assertThat(
+                    statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
+                    empty());
+            } finally {
+                // we clear the list so that status data from other tests do not interfere with tests within the same JVM
+                statusData.clear();
+            }
+        }
     }
 
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
-    @After
     public final void ensureAllSearchContextsReleased() throws Exception {
         assertBusy(() -> MockSearchService.assertNoInFlightContext());
     }
@@ -232,7 +316,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         checkIndexFailed = false;
     }
 
-    @After
     public final void ensureCheckIndexPassed() throws Exception {
         assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
     }
@@ -259,7 +342,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @see #scaledRandomIntBetween(int, int)
      */
     public static int randomIntBetween(int min, int max) {
-        return RandomInts.randomIntBetween(random(), min, max);
+        return RandomNumbers.randomIntBetween(random(), min, max);
     }
 
     /**
@@ -367,7 +450,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomPicks.randomFrom(random, array);
     }
 
-
     /** Pick a random object from the given list. */
     public static <T> T randomFrom(List<T> list) {
         return RandomPicks.randomFrom(random(), list);
@@ -375,7 +457,12 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /** Pick a random object from the given collection. */
     public static <T> T randomFrom(Collection<T> collection) {
-        return RandomPicks.randomFrom(random(), collection);
+        return randomFrom(random(), collection);
+    }
+
+    /** Pick a random object from the given collection. */
+    public static <T> T randomFrom(Random random, Collection<T> collection) {
+        return RandomPicks.randomFrom(random, collection);
     }
 
     public static String randomAsciiOfLengthBetween(int minCodeUnits, int maxCodeUnits) {
@@ -645,7 +732,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns a random subset of values (including a potential empty list)
      */
     public static <T> List<T> randomSubsetOf(Collection<T> collection) {
-        return randomSubsetOf(randomInt(collection.size() - 1), collection);
+        return randomSubsetOf(randomInt(Math.max(collection.size() - 1, 0)), collection);
     }
 
     /**
@@ -725,6 +812,22 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
         }
         return targetMap;
+    }
+
+    /**
+     * Create a copy of an original {@link Writeable} object by running it through a {@link BytesStreamOutput} and
+     * reading it in again using a provided {@link Writeable.Reader}. The stream that is wrapped around the {@link StreamInput}
+     * potentially need to use a {@link NamedWriteableRegistry}, so this needs to be provided too (although it can be
+     * empty if the object that is streamed doesn't contain any {@link NamedWriteable} objects itself.
+     */
+    public static <T extends Writeable> T copyWriteable(T original, NamedWriteableRegistry namedWritabelRegistry,
+            Writeable.Reader<T> reader) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            original.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWritabelRegistry)) {
+                return reader.read(in);
+            }
+        }
     }
 
     /**
@@ -810,35 +913,37 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
-     * Creates an AnalysisService with all the default analyzers configured.
+     * Creates an TestAnalysis with all the default analyzers configured.
      */
-    public static AnalysisService createAnalysisService(Index index, Settings settings, AnalysisPlugin... analysisPlugins)
+    public static TestAnalysis createTestAnalysis(Index index, Settings settings, AnalysisPlugin... analysisPlugins)
             throws IOException {
         Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        return createAnalysisService(index, nodeSettings, settings, analysisPlugins);
+        return createTestAnalysis(index, nodeSettings, settings, analysisPlugins);
     }
 
     /**
-     * Creates an AnalysisService with all the default analyzers configured.
+     * Creates an TestAnalysis with all the default analyzers configured.
      */
-    public static AnalysisService createAnalysisService(Index index, Settings nodeSettings, Settings settings,
-            AnalysisPlugin... analysisPlugins) throws IOException {
+    public static TestAnalysis createTestAnalysis(Index index, Settings nodeSettings, Settings settings,
+                                                  AnalysisPlugin... analysisPlugins) throws IOException {
         Settings indexSettings = Settings.builder().put(settings)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        return createAnalysisService(IndexSettingsModule.newIndexSettings(index, indexSettings), nodeSettings, analysisPlugins);
+        return createTestAnalysis(IndexSettingsModule.newIndexSettings(index, indexSettings), nodeSettings, analysisPlugins);
     }
 
     /**
-     * Creates an AnalysisService with all the default analyzers configured.
+     * Creates an TestAnalysis with all the default analyzers configured.
      */
-    public static AnalysisService createAnalysisService(IndexSettings indexSettings, Settings nodeSettings,
-            AnalysisPlugin... analysisPlugins) throws IOException {
+    public static TestAnalysis createTestAnalysis(IndexSettings indexSettings, Settings nodeSettings,
+                                                  AnalysisPlugin... analysisPlugins) throws IOException {
         Environment env = new Environment(nodeSettings);
         AnalysisModule analysisModule = new AnalysisModule(env, Arrays.asList(analysisPlugins));
-        final AnalysisService analysisService = analysisModule.getAnalysisRegistry()
-                .build(indexSettings);
-        return analysisService;
+        AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
+        return new TestAnalysis(analysisRegistry.build(indexSettings),
+            analysisRegistry.buildTokenFilterFactories(indexSettings),
+            analysisRegistry.buildTokenizerFactories(indexSettings),
+            analysisRegistry.buildCharFilterFactories(indexSettings));
     }
 
     public static ScriptModule newTestScriptModule() {
@@ -868,4 +973,28 @@ public abstract class ESTestCase extends LuceneTestCase {
             }
         ));
     }
+
+    /**
+     * This cute helper class just holds all analysis building blocks that are used
+     * to build IndexAnalyzers. This is only for testing since in production we only need the
+     * result and we don't even expose it there.
+     */
+    public static final class TestAnalysis {
+
+        public final IndexAnalyzers indexAnalyzers;
+        public final Map<String, TokenFilterFactory> tokenFilter;
+        public final Map<String, TokenizerFactory> tokenizer;
+        public final Map<String, CharFilterFactory> charFilter;
+
+        public TestAnalysis(IndexAnalyzers indexAnalyzers,
+                            Map<String, TokenFilterFactory> tokenFilter,
+                            Map<String, TokenizerFactory> tokenizer,
+                            Map<String, CharFilterFactory> charFilter) {
+            this.indexAnalyzers = indexAnalyzers;
+            this.tokenFilter = tokenFilter;
+            this.tokenizer = tokenizer;
+            this.charFilter = charFilter;
+        }
+    }
+
 }

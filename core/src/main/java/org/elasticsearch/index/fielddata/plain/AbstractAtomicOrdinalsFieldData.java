@@ -29,15 +29,24 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Function;
 
 
-/**
- */
 public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsFieldData {
 
+    public static final Function<RandomAccessOrds, ScriptDocValues<?>> DEFAULT_SCRIPT_FUNCTION =
+            ((Function<RandomAccessOrds, SortedBinaryDocValues>) FieldData::toString)
+            .andThen(ScriptDocValues.Strings::new);
+
+    private final Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction;
+
+    protected AbstractAtomicOrdinalsFieldData(Function<RandomAccessOrds, ScriptDocValues<?>> scriptFunction) {
+        this.scriptFunction = scriptFunction;
+    }
+
     @Override
-    public final ScriptDocValues getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues());
+    public final ScriptDocValues<?> getScriptValues() {
+        return scriptFunction.apply(getOrdinalsValues());
     }
 
     @Override
@@ -46,7 +55,7 @@ public abstract class AbstractAtomicOrdinalsFieldData implements AtomicOrdinalsF
     }
 
     public static AtomicOrdinalsFieldData empty() {
-        return new AbstractAtomicOrdinalsFieldData() {
+        return new AbstractAtomicOrdinalsFieldData(DEFAULT_SCRIPT_FUNCTION) {
 
             @Override
             public long ramBytesUsed() {

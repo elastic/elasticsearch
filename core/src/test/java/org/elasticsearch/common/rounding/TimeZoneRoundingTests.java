@@ -30,6 +30,8 @@ import org.hamcrest.TypeSafeMatcher;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeConstants;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.ArrayList;
@@ -41,9 +43,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.startsWith;
 
-/**
- */
 public class TimeZoneRoundingTests extends ESTestCase {
 
     public void testUTCTimeUnitRounding() {
@@ -511,6 +512,63 @@ public class TimeZoneRoundingTests extends ESTestCase {
             assertInterval(time("2015-09-27T02:00:00.000+12:45"), time("2015-09-27T04:00:00.000+13:45"), rounding, 60, tz);
             assertInterval(time("2015-09-27T04:00:00.000+13:45"), time("2015-09-27T05:00:00.000+13:45"), rounding, 60, tz);
         }
+    }
+
+    /**
+     * tests for dst transition with overlaps and day roundings.
+     */
+    public void testDST_END_Edgecases() {
+        // First case, dst happens at 1am local time, switching back one hour.
+        // We want the overlapping hour to count for the next day, making it a 25h interval
+
+        DateTimeUnit timeUnit = DateTimeUnit.DAY_OF_MONTH;
+        DateTimeZone tz = DateTimeZone.forID("Atlantic/Azores");
+        Rounding rounding = new Rounding.TimeUnitRounding(timeUnit, tz);
+
+        // Sunday, 29 October 2000, 01:00:00 clocks were turned backward 1 hour
+        // to Sunday, 29 October 2000, 00:00:00 local standard time instead
+
+        long midnightBeforeTransition = time("2000-10-29T00:00:00", tz);
+        long nextMidnight = time("2000-10-30T00:00:00", tz);
+
+        assertInterval(midnightBeforeTransition, nextMidnight, rounding, 25 * 60, tz);
+
+        // Second case, dst happens at 0am local time, switching back one hour to 23pm local time.
+        // We want the overlapping hour to count for the previous day here
+
+        tz = DateTimeZone.forID("America/Lima");
+        rounding = new Rounding.TimeUnitRounding(timeUnit, tz);
+
+        // Sunday, 1 April 1990, 00:00:00 clocks were turned backward 1 hour to
+        // Saturday, 31 March 1990, 23:00:00 local standard time instead
+
+        midnightBeforeTransition = time("1990-03-31T00:00:00.000-04:00");
+        nextMidnight = time("1990-04-01T00:00:00.000-05:00");
+        assertInterval(midnightBeforeTransition, nextMidnight, rounding, 25 * 60, tz);
+
+        // make sure the next interval is 24h long again
+        long midnightAfterTransition = time("1990-04-01T00:00:00.000-05:00");
+        nextMidnight = time("1990-04-02T00:00:00.000-05:00");
+        assertInterval(midnightAfterTransition, nextMidnight, rounding, 24 * 60, tz);
+    }
+
+    /**
+     * Test that time zones are correctly parsed. There is a bug with
+     * Joda 2.9.4 (see https://github.com/JodaOrg/joda-time/issues/373)
+     */
+    public void testsTimeZoneParsing() {
+        final DateTime expected = new DateTime(2016, 11, 10, 5, 37, 59, randomDateTimeZone());
+
+        // Formatter used to print and parse the sample date.
+        // Printing the date works but parsing it back fails
+        // with Joda 2.9.4
+        DateTimeFormatter formatter = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH:mm:ss " + randomFrom("ZZZ", "[ZZZ]", "'['ZZZ']'"));
+
+        String dateTimeAsString = formatter.print(expected);
+        assertThat(dateTimeAsString, startsWith("2016-11-10T05:37:59 "));
+
+        DateTime parsedDateTime = formatter.parseDateTime(dateTimeAsString);
+        assertThat(parsedDateTime.getZone(), equalTo(expected.getZone()));
     }
 
     private static void assertInterval(long rounded, long nextRoundingValue, Rounding rounding, int minutes,

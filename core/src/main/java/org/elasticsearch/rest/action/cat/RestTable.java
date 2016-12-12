@@ -38,12 +38,14 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
-/**
- */
 public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
@@ -61,13 +63,13 @@ public class RestTable {
         List<DisplayHeader> displayHeaders = buildDisplayHeaders(table, request);
 
         builder.startArray();
-        for (int row = 0; row < table.getRows().size(); row++) {
+        List<Integer> rowOrder = getRowOrder(table, request);
+        for (Integer row : rowOrder) {
             builder.startObject();
             for (DisplayHeader header : displayHeaders) {
                 builder.field(header.display, renderValue(request, table.getAsMap().get(header.name).get(row).value));
             }
             builder.endObject();
-
         }
         builder.endArray();
         return new BytesRestResponse(RestStatus.OK, builder);
@@ -94,7 +96,10 @@ public class RestTable {
             }
             out.append("\n");
         }
-        for (int row = 0; row < table.getRows().size(); row++) {
+
+        List<Integer> rowOrder = getRowOrder(table, request);
+
+        for (Integer row: rowOrder) {
             for (int col = 0; col < headers.size(); col++) {
                 DisplayHeader header = headers.get(col);
                 boolean isLastColumn = col == lastHeader;
@@ -107,6 +112,38 @@ public class RestTable {
         }
         out.close();
         return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
+    }
+
+    static List<Integer> getRowOrder(Table table, RestRequest request) {
+        String[] columnOrdering = request.paramAsStringArray("s", null);
+
+        List<Integer> rowOrder = new ArrayList<>();
+        for (int i = 0; i < table.getRows().size(); i++) {
+            rowOrder.add(i);
+        }
+
+        if (columnOrdering != null) {
+            Map<String, String> headerAliasMap = table.getAliasMap();
+            List<ColumnOrderElement> ordering = new ArrayList<>();
+            for (int i = 0; i < columnOrdering.length; i++) {
+                String columnHeader = columnOrdering[i];
+                boolean reverse = false;
+                if (columnHeader.endsWith(":desc")) {
+                    columnHeader = columnHeader.substring(0, columnHeader.length() - ":desc".length());
+                    reverse = true;
+                } else if (columnHeader.endsWith(":asc")) {
+                    columnHeader = columnHeader.substring(0, columnHeader.length() - ":asc".length());
+                }
+                if (headerAliasMap.containsKey(columnHeader)) {
+                        ordering.add(new ColumnOrderElement(headerAliasMap.get(columnHeader), reverse));
+                } else {
+                    throw new UnsupportedOperationException(
+                        String.format(Locale.ROOT, "Unable to sort by unknown sort key `%s`", columnHeader));
+                }
+            }
+            Collections.sort(rowOrder, new TableIndexComparator(table, ordering));
+        }
+        return rowOrder;
     }
 
     static List<DisplayHeader> buildDisplayHeaders(Table table, RestRequest request) {
@@ -302,17 +339,17 @@ public class RestTable {
             ByteSizeValue v = (ByteSizeValue) value;
             String resolution = request.param("bytes");
             if ("b".equals(resolution)) {
-                return Long.toString(v.bytes());
+                return Long.toString(v.getBytes());
             } else if ("k".equals(resolution) || "kb".equals(resolution)) {
-                return Long.toString(v.kb());
+                return Long.toString(v.getKb());
             } else if ("m".equals(resolution) || "mb".equals(resolution)) {
-                return Long.toString(v.mb());
+                return Long.toString(v.getMb());
             } else if ("g".equals(resolution) || "gb".equals(resolution)) {
-                return Long.toString(v.gb());
+                return Long.toString(v.getGb());
             } else if ("t".equals(resolution) || "tb".equals(resolution)) {
-                return Long.toString(v.tb());
+                return Long.toString(v.getTb());
             } else if ("p".equals(resolution) || "pb".equals(resolution)) {
-                return Long.toString(v.pb());
+                return Long.toString(v.getPb());
             } else {
                 return v.toString();
             }
@@ -368,6 +405,73 @@ public class RestTable {
         DisplayHeader(String name, String display) {
             this.name = name;
             this.display = display;
+        }
+    }
+
+    static class TableIndexComparator implements Comparator<Integer> {
+        private final Table table;
+        private final int maxIndex;
+        private final List<ColumnOrderElement> ordering;
+
+        TableIndexComparator(Table table, List<ColumnOrderElement> ordering) {
+            this.table = table;
+            this.maxIndex = table.getRows().size();
+            this.ordering = ordering;
+        }
+
+        private int compareCell(Object o1, Object o2) {
+            if (o1 == null && o2 == null) {
+                return 0;
+            } else if (o1 == null) {
+                return -1;
+            } else if (o2 == null) {
+                return 1;
+            } else {
+                if (o1 instanceof Comparable && o1.getClass().equals(o2.getClass())) {
+                    return ((Comparable) o1).compareTo(o2);
+                } else {
+                    return o1.toString().compareTo(o2.toString());
+                }
+            }
+        }
+
+        @Override
+        public int compare(Integer rowIndex1, Integer rowIndex2) {
+            if (rowIndex1 < maxIndex && rowIndex1 >= 0 && rowIndex2 < maxIndex && rowIndex2 >= 0) {
+                Map<String, List<Table.Cell>> tableMap = table.getAsMap();
+                for (ColumnOrderElement orderingElement : ordering) {
+                    String column = orderingElement.getColumn();
+                    if (tableMap.containsKey(column)) {
+                        int comparison = compareCell(tableMap.get(column).get(rowIndex1).value,
+                            tableMap.get(column).get(rowIndex2).value);
+                        if (comparison != 0) {
+                            return orderingElement.isReversed() ? -1 * comparison : comparison;
+                        }
+                    }
+                }
+                return 0;
+            } else {
+                throw new AssertionError(String.format(Locale.ENGLISH, "Invalid comparison of indices (%s, %s): Table has %s rows.",
+                    rowIndex1, rowIndex2, table.getRows().size()));
+            }
+        }
+    }
+
+    static class ColumnOrderElement {
+        private final String column;
+        private final boolean reverse;
+
+        public ColumnOrderElement(String column, boolean reverse) {
+            this.column = column;
+            this.reverse = reverse;
+        }
+
+        public String getColumn() {
+            return column;
+        }
+
+        public boolean isReversed() {
+            return reverse;
         }
     }
 }

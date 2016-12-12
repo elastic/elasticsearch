@@ -54,9 +54,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptMetaData;
@@ -97,9 +95,28 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
         SNAPSHOT
     }
 
+    /**
+     * Indicates that this custom metadata will be returned as part of an API call but will not be persisted
+     */
     public static EnumSet<XContentContext> API_ONLY = EnumSet.of(XContentContext.API);
+
+    /**
+     * Indicates that this custom metadata will be returned as part of an API call and will be persisted between
+     * node restarts, but will not be a part of a snapshot global state
+     */
     public static EnumSet<XContentContext> API_AND_GATEWAY = EnumSet.of(XContentContext.API, XContentContext.GATEWAY);
+
+    /**
+     * Indicates that this custom metadata will be returned as part of an API call and stored as a part of
+     * a snapshot global state, but will not be persisted between node restarts
+     */
     public static EnumSet<XContentContext> API_AND_SNAPSHOT = EnumSet.of(XContentContext.API, XContentContext.SNAPSHOT);
+
+    /**
+     * Indicates that this custom metadata will be returned as part of an API call, stored as a part of
+     * a snapshot global state, and will be persisted between node restarts
+     */
+    public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
     public interface Custom extends Diffable<Custom>, ToXContent {
 
@@ -734,82 +751,6 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
     public static Builder builder(MetaData metaData) {
         return new Builder(metaData);
-    }
-
-    /** All known byte-sized cluster settings. */
-    public static final Set<String> CLUSTER_BYTES_SIZE_SETTINGS = unmodifiableSet(newHashSet(
-        IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC_SETTING.getKey(),
-        RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey()));
-
-
-    /** All known time cluster settings. */
-    public static final Set<String> CLUSTER_TIME_SETTINGS = unmodifiableSet(newHashSet(
-                                    IndicesTTLService.INDICES_TTL_INTERVAL_SETTING.getKey(),
-                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.getKey(),
-                                    RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(),
-                                    RecoverySettings.INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.getKey(),
-                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(),
-                                    RecoverySettings.INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.getKey(),
-                                    DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.getKey(),
-                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING.getKey(),
-                                    InternalClusterInfoService.INTERNAL_CLUSTER_INFO_TIMEOUT_SETTING.getKey(),
-                                    DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(),
-            ClusterService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING.getKey()));
-
-    /** As of 2.0 we require units for time and byte-sized settings.  This methods adds default units to any cluster settings that don't
-     *  specify a unit. */
-    public static MetaData addDefaultUnitsIfNeeded(Logger logger, MetaData metaData) {
-        Settings.Builder newPersistentSettings = null;
-        for(Map.Entry<String,String> ent : metaData.persistentSettings().getAsMap().entrySet()) {
-            String settingName = ent.getKey();
-            String settingValue = ent.getValue();
-            if (CLUSTER_BYTES_SIZE_SETTINGS.contains(settingName)) {
-                try {
-                    Long.parseLong(settingValue);
-                } catch (NumberFormatException nfe) {
-                    continue;
-                }
-                // It's a naked number that previously would be interpreted as default unit (bytes); now we add it:
-                logger.warn("byte-sized cluster setting [{}] with value [{}] is missing units; assuming default units (b) but in future versions this will be a hard error", settingName, settingValue);
-                if (newPersistentSettings == null) {
-                    newPersistentSettings = Settings.builder();
-                    newPersistentSettings.put(metaData.persistentSettings());
-                }
-                newPersistentSettings.put(settingName, settingValue + "b");
-            }
-            if (CLUSTER_TIME_SETTINGS.contains(settingName)) {
-                try {
-                    Long.parseLong(settingValue);
-                } catch (NumberFormatException nfe) {
-                    continue;
-                }
-                // It's a naked number that previously would be interpreted as default unit (ms); now we add it:
-                logger.warn("time cluster setting [{}] with value [{}] is missing units; assuming default units (ms) but in future versions this will be a hard error", settingName, settingValue);
-                if (newPersistentSettings == null) {
-                    newPersistentSettings = Settings.builder();
-                    newPersistentSettings.put(metaData.persistentSettings());
-                }
-                newPersistentSettings.put(settingName, settingValue + "ms");
-            }
-        }
-
-        if (newPersistentSettings != null) {
-            return new MetaData(
-                    metaData.clusterUUID(),
-                    metaData.version(),
-                    metaData.transientSettings(),
-                    newPersistentSettings.build(),
-                    metaData.getIndices(),
-                    metaData.getTemplates(),
-                    metaData.getCustoms(),
-                    metaData.getConcreteAllIndices(),
-                    metaData.getConcreteAllOpenIndices(),
-                    metaData.getConcreteAllClosedIndices(),
-                    metaData.getAliasAndIndexLookup());
-        } else {
-            // No changes:
-            return metaData;
-        }
     }
 
     public static class Builder {

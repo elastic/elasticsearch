@@ -117,9 +117,6 @@ import java.net.URL;
 import java.util.Date;
 import java.util.List;
 
-/**
- *
- */
 @SuppressForbidden(reason = "implements AWS api that uses java.io.File!")
 public class AmazonS3Wrapper implements AmazonS3 {
 

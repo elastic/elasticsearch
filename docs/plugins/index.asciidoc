@@ -3,7 +3,8 @@
 :ref:            https://www.elastic.co/guide/en/elasticsearch/reference/master
 :guide:          https://www.elastic.co/guide
 :version:        6.0.0-alpha1
-:lucene_version: 6.2.0
+:lucene_version: 6.3.0
+:plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
 
 [[intro]]
 == Introduction to plugins
@@ -15,6 +16,10 @@ scripts, custom discovery and more.
 Plugins contain JAR files, but may also contain scripts and config files, and
 must be installed on every node in the cluster. After installation, each
 node must be restarted before the plugin becomes visible.
+
+NOTE: A full cluster restart is required for installing plugins that have
+custom cluster state metadata, such as X-Pack. It is still possible to upgrade
+such plugins with a rolling restart.
 
 This documentation distinguishes two categories of plugins:
 
@@ -50,8 +55,6 @@ include::ingest.asciidoc[]
 include::management.asciidoc[]
 
 include::mapper.asciidoc[]
-
-include::scripting.asciidoc[]
 
 include::security.asciidoc[]
 

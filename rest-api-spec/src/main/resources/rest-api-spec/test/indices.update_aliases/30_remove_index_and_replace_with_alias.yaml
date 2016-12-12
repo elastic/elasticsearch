@@ -31,4 +31,5 @@
   - do:
       indices.get_mapping:
         index: test
-  - is_true: test_2 # the name of the index that the alias points to, would be `test` if the index were still there
+    # the name of the index that the alias points to, would be `test` if the index were still there
+  - is_true: test_2

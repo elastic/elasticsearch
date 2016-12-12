@@ -20,6 +20,9 @@ sudo bin/elasticsearch-plugin install repository-s3
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/repository-s3/repository-s3-{version}.zip.
+
 [[repository-s3-remove]]
 [float]
 ==== Removal
@@ -113,9 +116,10 @@ You can specifically set it for s3 only using `cloud.aws.s3.region`.
 The available values are:
 
 * `us-east` (`us-east-1`) for US East (N. Virginia)
+* `us-east-2` for US East (Ohio)
 * `us-west` (`us-west-1`) for US West (N. California)
 * `us-west-2` for US West (Oregon)
-* `ap-south-1` for Asia Pacific (Mumbai)
+* `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
 * `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
 * `ap-southeast-2` for Asia Pacific (Sydney)
 * `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
@@ -134,6 +138,17 @@ signer to use.
 
 If you are using a compatible S3 service which do not support Version 4 signing process, you may need to
 use `S3SignerType`, which is Signature Version 2.
+
+===== Read timeout
+
+Read timeout determines the amount of time to wait for data to be transferred over an established,
+open connection before the connection is timed out. Defaults to AWS SDK default value (`50s`).
+It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.s3.read_timeout`) setting:
+
+[source, yaml]
+----
+cloud.aws.read_timeout: 30s
+----
 
 [[repository-s3-repository]]
 ==== S3 Repository
@@ -214,7 +229,8 @@ The following settings are supported:
     to split the chunk into several parts, each of `buffer_size` length, and
     to upload each part in its own request. Note that setting a buffer
     size lower than `5mb` is not allowed since it will prevents the use of the
-    Multipart API and may result in upload errors. Defaults to `100mb`.
+    Multipart API and may result in upload errors. Defaults to the minimum
+    between `100mb` and `5%` of the heap size.
 
 `max_retries`::
 
@@ -224,7 +240,7 @@ The following settings are supported:
 
     Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
 
-`read_only`::
+`readonly`::
 
     Makes repository read-only. Defaults to `false`.
 

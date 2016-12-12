@@ -175,7 +175,7 @@ public class AzureStorageServiceImpl extends AbstractComponent implements AzureS
             blobContainer.createIfNotExists();
         } catch (IllegalArgumentException e) {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("fails creating container [{}]", container), e);
-            throw new RepositoryException(container, e.getMessage());
+            throw new RepositoryException(container, e.getMessage(), e);
         }
     }
 

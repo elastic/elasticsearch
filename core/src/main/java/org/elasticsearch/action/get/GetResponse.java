@@ -142,6 +142,10 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
         return getResult.field(name);
     }
 
+    /**
+     * @deprecated Use {@link GetResponse#getSource()} instead
+     */
+    @Deprecated
     @Override
     public Iterator<GetField> iterator() {
         return getResult.iterator();
@@ -150,12 +154,6 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return getResult.toXContent(builder, params);
-    }
-
-    public static GetResponse readGetResponse(StreamInput in) throws IOException {
-        GetResponse result = new GetResponse();
-        result.readFrom(in);
-        return result;
     }
 
     @Override

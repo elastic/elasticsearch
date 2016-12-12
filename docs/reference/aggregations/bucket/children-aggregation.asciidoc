@@ -10,14 +10,18 @@ This aggregation relies on the <<mapping-parent-field,_parent field>> in the map
 For example, let's say we have an index of questions and answers. The answer type has the following `_parent` field in the mapping:
 [source,js]
 --------------------------------------------------
+PUT child_example
 {
-    "answer" : {
-        "_parent" : {
-            "type" : "question"
+    "mappings": {
+        "answer" : {
+            "_parent" : {
+                "type" : "question"
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
 
 The question typed document contain a tag field and the answer typed documents contain an owner field. With the `children`
 aggregation the tag buckets can be mapped to the owner buckets in a single request even though the two fields exist in
@@ -26,6 +30,7 @@ two different kinds of documents.
 An example of a question typed document:
 [source,js]
 --------------------------------------------------
+PUT child_example/question/1
 {
     "body": "<p>I have Windows 2003 server and i bought a new Windows 2008 server...",
     "title": "Whats the best way to file transfer my site from server to a newer one?",
@@ -33,33 +38,49 @@ An example of a question typed document:
         "windows-server-2003",
         "windows-server-2008",
         "file-transfer"
-    ],
+    ]
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
-An example of an answer typed document:
+Examples of `answer` typed documents:
 [source,js]
 --------------------------------------------------
+PUT child_example/answer/1?parent=1&refresh
 {
     "owner": {
         "location": "Norfolk, United Kingdom",
         "display_name": "Sam",
         "id": 48
     },
-    "body": "<p>Unfortunately your pretty much limited to FTP...",
+    "body": "<p>Unfortunately you're pretty much limited to FTP...",
     "creation_date": "2009-05-04T13:45:37.030"
 }
+PUT child_example/answer/2?parent=1&refresh
+{
+    "owner": {
+        "location": "Norfolk, United Kingdom",
+        "display_name": "Troll",
+        "id": 49
+    },
+    "body": "<p>Use Linux...",
+    "creation_date": "2009-05-05T13:45:37.030"
+}
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 The following request can be built that connects the two together:
 
 [source,js]
 --------------------------------------------------
+POST child_example/_search?size=0
 {
   "aggs": {
     "top-tags": {
       "terms": {
-        "field": "tags",
+        "field": "tags.keyword",
         "size": 10
       },
       "aggs": {
@@ -70,7 +91,7 @@ The following request can be built that connects the two together:
           "aggs": {
             "top-names": {
               "terms": {
-                "field": "owner.display_name",
+                "field": "owner.display_name.keyword",
                 "size": 10
               }
             }
@@ -81,6 +102,8 @@ The following request can be built that connects the two together:
   }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
 
 <1> The `type` points to type / mapping with the name `answer`.
 
@@ -91,245 +114,74 @@ Possible response:
 [source,js]
 --------------------------------------------------
 {
+  "timed_out": false,
+  "took": 25,
+  "_shards": { "total": 5, "successful": 5, "failed": 0 },
+  "hits": { "total": 3, "max_score": 0.0, hits: [] },
   "aggregations": {
     "top-tags": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
       "buckets": [
         {
-          "key": "windows-server-2003",
-          "doc_count": 25365, <1>
+          "key": "file-transfer",
+          "doc_count": 1, <1>
           "to-answers": {
-            "doc_count": 36004, <2>
+            "doc_count": 2, <2>
             "top-names": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
               "buckets": [
                 {
                   "key": "Sam",
-                  "doc_count": 274
+                  "doc_count": 1
                 },
                 {
-                  "key": "chris",
-                  "doc_count": 19
-                },
-                {
-                  "key": "david",
-                  "doc_count": 14
-                },
-                ...
+                  "key": "Troll",
+                  "doc_count": 1
+                }
               ]
             }
           }
         },
         {
-          "key": "linux",
-          "doc_count": 18342,
+          "key": "windows-server-2003",
+          "doc_count": 1, <1>
           "to-answers": {
-            "doc_count": 6655,
+            "doc_count": 2, <2>
             "top-names": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
               "buckets": [
                 {
-                  "key": "abrams",
-                  "doc_count": 25
+                  "key": "Sam",
+                  "doc_count": 1
                 },
                 {
-                  "key": "ignacio",
-                  "doc_count": 25
-                },
-                {
-                  "key": "vazquez",
-                  "doc_count": 25
-                },
-                ...
+                  "key": "Troll",
+                  "doc_count": 1
+                }
               ]
             }
           }
         },
         {
-          "key": "windows",
-          "doc_count": 18119,
+          "key": "windows-server-2008",
+          "doc_count": 1, <1>
           "to-answers": {
-            "doc_count": 24051,
+            "doc_count": 2, <2>
             "top-names": {
+              "doc_count_error_upper_bound": 0,
+              "sum_other_doc_count": 0,
               "buckets": [
                 {
-                  "key": "molly7244",
-                  "doc_count": 265
+                  "key": "Sam",
+                  "doc_count": 1
                 },
                 {
-                  "key": "david",
-                  "doc_count": 27
-                },
-                {
-                  "key": "chris",
-                  "doc_count": 26
-                },
-                ...
-              ]
-            }
-          }
-        },
-        {
-          "key": "osx",
-          "doc_count": 10971,
-          "to-answers": {
-            "doc_count": 5902,
-            "top-names": {
-              "buckets": [
-                {
-                  "key": "diago",
-                  "doc_count": 4
-                },
-                {
-                  "key": "albert",
-                  "doc_count": 3
-                },
-                {
-                  "key": "asmus",
-                  "doc_count": 3
-                },
-                ...
-              ]
-            }
-          }
-        },
-        {
-          "key": "ubuntu",
-          "doc_count": 8743,
-          "to-answers": {
-            "doc_count": 8784,
-            "top-names": {
-              "buckets": [
-                {
-                  "key": "ignacio",
-                  "doc_count": 9
-                },
-                {
-                  "key": "abrams",
-                  "doc_count": 8
-                },
-                {
-                  "key": "molly7244",
-                  "doc_count": 8
-                },
-                ...
-              ]
-            }
-          }
-        },
-        {
-          "key": "windows-xp",
-          "doc_count": 7517,
-          "to-answers": {
-            "doc_count": 13610,
-            "top-names": {
-              "buckets": [
-                {
-                  "key": "molly7244",
-                  "doc_count": 232
-                },
-                {
-                  "key": "chris",
-                  "doc_count": 9
-                },
-                {
-                  "key": "john",
-                  "doc_count": 9
-                },
-                ...
-              ]
-            }
-          }
-        },
-        {
-          "key": "networking",
-          "doc_count": 6739,
-          "to-answers": {
-            "doc_count": 2076,
-            "top-names": {
-              "buckets": [
-                {
-                  "key": "molly7244",
-                  "doc_count": 6
-                },
-                {
-                  "key": "alnitak",
-                  "doc_count": 5
-                },
-                {
-                  "key": "chris",
-                  "doc_count": 3
-                },
-                ...
-              ]
-            }
-          }
-        },
-        {
-          "key": "mac",
-          "doc_count": 5590,
-          "to-answers": {
-            "doc_count": 999,
-            "top-names": {
-              "buckets": [
-                {
-                  "key": "abrams",
-                  "doc_count": 2
-                },
-                {
-                  "key": "ignacio",
-                  "doc_count": 2
-                },
-                {
-                  "key": "vazquez",
-                  "doc_count": 2
-                },
-                ...
-              ]
-            }
-          }
-        },
-        {
-          "key": "wireless-networking",
-          "doc_count": 4409,
-          "to-answers": {
-            "doc_count": 6497,
-            "top-names": {
-              "buckets": [
-                {
-                  "key": "molly7244",
-                  "doc_count": 61
-                },
-                {
-                  "key": "chris",
-                  "doc_count": 5
-                },
-                {
-                  "key": "mike",
-                  "doc_count": 5
-                },
-                ...
-              ]
-            }
-          }
-        },
-        {
-          "key": "windows-8",
-          "doc_count": 3601,
-          "to-answers": {
-            "doc_count": 4263,
-            "top-names": {
-              "buckets": [
-                {
-                  "key": "molly7244",
-                  "doc_count": 3
-                },
-                {
-                  "key": "msft",
-                  "doc_count": 2
-                },
-                {
-                  "key": "user172132",
-                  "doc_count": 2
-                },
-                ...
+                  "key": "Troll",
+                  "doc_count": 1
+                }
               ]
             }
           }
@@ -339,6 +191,7 @@ Possible response:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/"took": 25/"took": $body.took/]
 
-<1> The number of question documents with the tag `windows-server-2003`.
-<2> The number of answer documents that are related to question documents with the tag `windows-server-2003`.
+<1> The number of question documents with the tag `file-transfer`, `windows-server-2003`, etc.
+<2> The number of answer documents that are related to question documents with the tag `file-transfer`, `windows-server-2003`, etc.

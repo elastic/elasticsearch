@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
-import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -99,10 +98,11 @@ public class AliasValidator extends AbstractComponent {
         }
     }
 
-    private void validateAliasStandalone(String alias, String indexRouting) {
+    void validateAliasStandalone(String alias, String indexRouting) {
         if (!Strings.hasText(alias)) {
             throw new IllegalArgumentException("alias name is required");
         }
+        MetaDataCreateIndexService.validateIndexOrAliasName(alias, InvalidAliasNameException::new);
         if (indexRouting != null && indexRouting.indexOf(',') != -1) {
             throw new IllegalArgumentException("alias [" + alias + "] has several index routing values associated with it");
         }
@@ -138,10 +138,8 @@ public class AliasValidator extends AbstractComponent {
 
     private static void validateAliasFilter(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         QueryParseContext queryParseContext = queryShardContext.newParseContext(parser);
-        Optional<QueryBuilder> parseInnerQueryBuilder = queryParseContext.parseInnerQueryBuilder();
-        if (parseInnerQueryBuilder.isPresent()) {
-            QueryBuilder queryBuilder = QueryBuilder.rewriteQuery(parseInnerQueryBuilder.get(), queryShardContext);
-            queryBuilder.toFilter(queryShardContext);
-        }
+        QueryBuilder parseInnerQueryBuilder = queryParseContext.parseInnerQueryBuilder();
+        QueryBuilder queryBuilder = QueryBuilder.rewriteQuery(parseInnerQueryBuilder, queryShardContext);
+        queryBuilder.toFilter(queryShardContext);
     }
 }

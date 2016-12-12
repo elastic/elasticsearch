@@ -46,7 +46,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -484,10 +483,6 @@ public class StoreTests extends ESTestCase {
             return dir;
         }
 
-        @Override
-        public long throttleTimeInNanos() {
-            return random.nextInt(1000);
-        }
     }
 
     public static void assertConsistent(Store store, Store.MetadataSnapshot metadata) throws IOException {
@@ -766,7 +761,7 @@ public class StoreTests extends ESTestCase {
             initialStoreSize += store.directory().fileLength(extraFiles);
         }
         StoreStats stats = store.stats();
-        assertEquals(stats.getSize().bytes(), initialStoreSize);
+        assertEquals(stats.getSize().getBytes(), initialStoreSize);
 
         Directory dir = store.directory();
         final long length;
@@ -953,10 +948,6 @@ public class StoreTests extends ESTestCase {
         assertTrue(Store.canOpenIndex(logger, tempDir, shardId, (id, l) -> new DummyShardLock(id)));
 
         DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
-            @Override
-            public long throttleTimeInNanos() {
-                return 0;
-            }
 
             @Override
             public Directory newDirectory() throws IOException {
@@ -973,10 +964,6 @@ public class StoreTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         final Directory dir = new RAMDirectory(); // I use ram dir to prevent that virusscanner being a PITA
         DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
-            @Override
-            public long throttleTimeInNanos() {
-                return 0;
-            }
 
             @Override
             public Directory newDirectory() throws IOException {
@@ -1013,10 +1000,6 @@ public class StoreTests extends ESTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         final Directory dir = new RAMDirectory(); // I use ram dir to prevent that virusscanner being a PITA
         DirectoryService directoryService = new DirectoryService(shardId, INDEX_SETTINGS) {
-            @Override
-            public long throttleTimeInNanos() {
-                return 0;
-            }
 
             @Override
             public Directory newDirectory() throws IOException {

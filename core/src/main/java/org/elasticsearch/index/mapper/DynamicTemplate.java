@@ -34,9 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-/**
- *
- */
 public class DynamicTemplate implements ToXContent {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(DynamicTemplate.class));
@@ -208,15 +205,13 @@ public class DynamicTemplate implements ToXContent {
             try {
                 xcontentFieldType = XContentFieldType.fromString(matchMappingType);
             } catch (IllegalArgumentException e) {
-                // TODO: do this in 6.0
-                /*if (indexVersionCreated.onOrAfter(Version.V_6_0_0)) {
+                if (indexVersionCreated.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
                     throw e;
-                }*/
-
-                DEPRECATION_LOGGER.deprecated("Ignoring unrecognized match_mapping_type: [" + matchMappingType + "]");
-                // this template is on an unknown type so it will never match anything
-                // null indicates that the template should be ignored
-                return null;
+                } else {
+                    // this template is on an unknown type so it will never match anything
+                    // null indicates that the template should be ignored
+                    return null;
+                }
             }
         }
         return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xcontentFieldType, MatchType.fromString(matchPattern), mapping);

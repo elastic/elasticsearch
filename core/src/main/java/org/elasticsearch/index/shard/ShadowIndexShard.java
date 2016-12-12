@@ -29,6 +29,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -54,7 +55,8 @@ public final class ShadowIndexShard extends IndexShard {
                             ThreadPool threadPool, BigArrays bigArrays, Engine.Warmer engineWarmer,
                             List<SearchOperationListener> searchOperationListeners) throws IOException {
         super(shardRouting, indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldDataService, engineFactory,
-            indexEventListener, wrapper, threadPool, bigArrays, engineWarmer, searchOperationListeners, Collections.emptyList());
+            indexEventListener, wrapper, threadPool, bigArrays, engineWarmer, () -> {
+            }, searchOperationListeners, Collections.emptyList());
     }
 
     /**
@@ -65,7 +67,7 @@ public final class ShadowIndexShard extends IndexShard {
      */
     @Override
     public void updateRoutingEntry(ShardRouting newRouting) throws IOException {
-        if (newRouting.primary() == true) {// becoming a primary
+        if (newRouting.primary()) {// becoming a primary
             throw new IllegalStateException("can't promote shard to primary");
         }
         super.updateRoutingEntry(newRouting);
@@ -74,6 +76,11 @@ public final class ShadowIndexShard extends IndexShard {
     @Override
     public MergeStats mergeStats() {
         return new MergeStats();
+    }
+
+    @Override
+    public SeqNoStats seqNoStats() {
+        return null;
     }
 
     @Override
@@ -106,6 +113,20 @@ public final class ShadowIndexShard extends IndexShard {
     }
 
     @Override
+    public void updateGlobalCheckpointOnReplica(long checkpoint) {
+    }
+
+    @Override
+    public long getLocalCheckpoint() {
+        return -1;
+    }
+
+    @Override
+    public long getGlobalCheckpoint() {
+        return -1;
+    }
+
+    @Override
     public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
         throw new UnsupportedOperationException("Can't listen for a refresh on a shadow engine because it doesn't have a translog");
     }
@@ -114,4 +135,10 @@ public final class ShadowIndexShard extends IndexShard {
     public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
         throw new UnsupportedOperationException("can't snapshot the directory as the primary may change it underneath us");
     }
+
+    @Override
+    protected void onNewEngine(Engine newEngine) {
+        // nothing to do here - the superclass sets the translog on some listeners but we don't have such a thing
+    }
+
 }

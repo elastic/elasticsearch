@@ -25,9 +25,6 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class InvalidIndexTemplateException extends ElasticsearchException {
 
     private final String name;

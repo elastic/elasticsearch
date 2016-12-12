@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.text.Text;
@@ -26,12 +27,12 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class InternalSearchHitTests extends ESTestCase {
@@ -63,20 +64,34 @@ public class InternalSearchHitTests extends ESTestCase {
 
         InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[]{hit1, hit2}, 2, 1f);
 
-        InternalSearchHits.StreamContext context = new InternalSearchHits.StreamContext();
-        context.streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.STREAM);
         BytesStreamOutput output = new BytesStreamOutput();
-        hits.writeTo(output, context);
+        hits.writeTo(output);
         InputStream input = output.bytes().streamInput();
-        context = new InternalSearchHits.StreamContext();
-        context.streamShardTarget(InternalSearchHits.StreamContext.ShardTargetType.STREAM);
-        InternalSearchHits results = InternalSearchHits.readSearchHits(new InputStreamStreamInput(input), context);
+        InternalSearchHits results = InternalSearchHits.readSearchHits(new InputStreamStreamInput(input));
         assertThat(results.getAt(0).shard(), equalTo(target));
-        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).shard(), nullValue());
-        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).shard(), nullValue());
-        assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).shard(), nullValue());
-        assertThat(results.getAt(0).getInnerHits().get("2").getAt(0).shard(), nullValue());
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).shard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).shard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).shard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("2").getAt(0).shard(), notNullValue());
         assertThat(results.getAt(1).shard(), equalTo(target));
     }
 
+    public void testNullSource() throws Exception {
+        InternalSearchHit searchHit = new InternalSearchHit(0, "_id", new Text("_type"), null);
+
+        assertThat(searchHit.source(), nullValue());
+        assertThat(searchHit.sourceRef(), nullValue());
+        assertThat(searchHit.sourceAsMap(), nullValue());
+        assertThat(searchHit.sourceAsString(), nullValue());
+        assertThat(searchHit.getSource(), nullValue());
+        assertThat(searchHit.getSourceRef(), nullValue());
+        assertThat(searchHit.getSourceAsString(), nullValue());
+    }
+
+    public void testHasSource() {
+        InternalSearchHit searchHit = new InternalSearchHit(randomInt());
+        assertFalse(searchHit.hasSource());
+        searchHit.sourceRef(new BytesArray("{}"));
+        assertTrue(searchHit.hasSource());
+    }
 }

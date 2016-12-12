@@ -19,6 +19,7 @@
 
 package org.elasticsearch.bwcompat;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.FileTestUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -47,7 +48,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 // this test sometimes fails in recovery when the recovery is reset, increasing the logging level to help debug
-@TestLogging("indices.recovery:DEBUG")
+@TestLogging("org.elasticsearch.indices.recovery:DEBUG")
 public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
 
     /**
@@ -70,7 +71,12 @@ public class RepositoryUpgradabilityIT extends AbstractSnapshotIntegTestCase {
             final Set<SnapshotInfo> snapshotInfos = Sets.newHashSet(getSnapshots(repoName));
             assertThat(snapshotInfos.size(), equalTo(1));
             SnapshotInfo originalSnapshot = snapshotInfos.iterator().next();
-            assertThat(originalSnapshot.snapshotId(), equalTo(new SnapshotId("test_1", "test_1")));
+            if (Version.fromString(version).before(Version.V_5_0_0_alpha1)) {
+                assertThat(originalSnapshot.snapshotId(), equalTo(new SnapshotId("test_1", "test_1")));
+            } else {
+                assertThat(originalSnapshot.snapshotId().getName(), equalTo("test_1"));
+                assertNotNull(originalSnapshot.snapshotId().getUUID()); // it's a random UUID now
+            }
             assertThat(Sets.newHashSet(originalSnapshot.indices()), equalTo(indices));
 
             logger.info("--> restore the original snapshot");

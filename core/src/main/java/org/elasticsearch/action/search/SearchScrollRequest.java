@@ -25,16 +25,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-/**
- *
- */
-public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
+public class SearchScrollRequest extends ActionRequest {
 
     private String scrollId;
     private Scroll scroll;
@@ -111,6 +110,11 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
     }
 
     @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+        return new SearchTask(id, type, action, getDescription(), parentTaskId);
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) {
             return true;
@@ -135,4 +139,10 @@ public class SearchScrollRequest extends ActionRequest<SearchScrollRequest> {
                 ", scroll=" + scroll +
                 '}';
     }
+
+    @Override
+    public String getDescription() {
+        return "scrollId[" + scrollId + "], scroll[" + scroll + "]";
+    }
+
 }

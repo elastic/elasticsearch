@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -31,7 +32,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.cluster.ESAllocationTestCase;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -149,10 +149,9 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
     }
 
     private ClusterState rebalance(ClusterState clusterState) {
-        RoutingTable routingTable;AllocationService strategy = createAllocationService(Settings.builder()
+        AllocationService strategy = createAllocationService(Settings.builder()
                 .build());
-        RoutingAllocation.Result routingResult = strategy.reroute(clusterState, "reroute");
-        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
         int numRelocations = 0;
         while (true) {
             List<ShardRouting> initializing = clusterState.routingTable().shardsWithState(INITIALIZING);
@@ -161,8 +160,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
             }
             logger.debug("Initializing shards: {}", initializing);
             numRelocations += initializing.size();
-            routingResult = strategy.applyStartedShards(clusterState, initializing);
-            clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+            clusterState = strategy.applyStartedShards(clusterState, initializing);
         }
         logger.debug("--> num relocations to get balance: {}", numRelocations);
         return clusterState;

@@ -63,8 +63,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
     private final ShardId shardId = new ShardId("test", "_na_", 0);
     private final DiscoveryNode node1 = newNode("node1");
@@ -385,6 +383,11 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
                 }
             }
             return new AsyncShardFetch.FetchResult<>(shardId, tData, Collections.<String>emptySet(), Collections.<String>emptySet());
+        }
+
+        @Override
+        protected boolean hasInitiatedFetching(ShardRouting shard) {
+            return fetchDataCalled.get();
         }
     }
 }

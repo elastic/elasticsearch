@@ -23,9 +23,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class IndexShardNotRecoveringException extends IllegalIndexShardStateException {
 
     public IndexShardNotRecoveringException(ShardId shardId, IndexShardState currentState) {

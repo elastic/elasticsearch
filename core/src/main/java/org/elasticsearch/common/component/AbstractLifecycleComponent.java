@@ -21,12 +21,10 @@ package org.elasticsearch.common.component;
 
 import org.elasticsearch.common.settings.Settings;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
- *
- */
 public abstract class AbstractLifecycleComponent extends AbstractComponent implements LifecycleComponent {
 
     protected final Lifecycle lifecycle = new Lifecycle();
@@ -104,11 +102,17 @@ public abstract class AbstractLifecycleComponent extends AbstractComponent imple
             listener.beforeClose();
         }
         lifecycle.moveToClosed();
-        doClose();
+        try {
+            doClose();
+        } catch (IOException e) {
+            // TODO: we need to separate out closing (ie shutting down) services, vs releasing runtime transient
+            // structures. Shutting down services should use IOUtils.close
+            logger.warn("failed to close " + getClass().getName(), e);
+        }
         for (LifecycleListener listener : listeners) {
             listener.afterClose();
         }
     }
 
-    protected abstract void doClose();
+    protected abstract void doClose() throws IOException;
 }

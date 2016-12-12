@@ -30,11 +30,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 
+import java.util.List;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
     @Override
     protected boolean hasDocValues() {
@@ -78,30 +76,32 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
         d = mapper.parse("test", "test", "4", doc.bytes());
         writer.addDocument(d.rootDoc());
 
-        LeafReaderContext reader = refreshReader();
+        List<LeafReaderContext> readers = refreshReader();
         IndexFieldData<?> indexFieldData = getForField("field");
-        AtomicFieldData fieldData = indexFieldData.load(reader);
+        for (LeafReaderContext reader : readers) {
+            AtomicFieldData fieldData = indexFieldData.load(reader);
 
-        SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
+            SortedBinaryDocValues bytesValues = fieldData.getBytesValues();
 
-        CollectionUtils.sortAndDedup(bytesList1);
-        bytesValues.setDocument(0);
-        assertThat(bytesValues.count(), equalTo(2));
-        assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytesList1.get(0))));
-        assertThat(bytesValues.valueAt(1), equalTo(new BytesRef(bytesList1.get(1))));
+            CollectionUtils.sortAndDedup(bytesList1);
+            bytesValues.setDocument(0);
+            assertThat(bytesValues.count(), equalTo(2));
+            assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytesList1.get(0))));
+            assertThat(bytesValues.valueAt(1), equalTo(new BytesRef(bytesList1.get(1))));
 
-        bytesValues.setDocument(1);
-        assertThat(bytesValues.count(), equalTo(1));
-        assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytes1)));
+            bytesValues.setDocument(1);
+            assertThat(bytesValues.count(), equalTo(1));
+            assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytes1)));
 
-        bytesValues.setDocument(2);
-        assertThat(bytesValues.count(), equalTo(0));
+            bytesValues.setDocument(2);
+            assertThat(bytesValues.count(), equalTo(0));
 
-        CollectionUtils.sortAndDedup(bytesList2);
-        bytesValues.setDocument(3);
-        assertThat(bytesValues.count(), equalTo(2));
-        assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytesList2.get(0))));
-        assertThat(bytesValues.valueAt(1), equalTo(new BytesRef(bytesList2.get(1))));
+            CollectionUtils.sortAndDedup(bytesList2);
+            bytesValues.setDocument(3);
+            assertThat(bytesValues.count(), equalTo(2));
+            assertThat(bytesValues.valueAt(0), equalTo(new BytesRef(bytesList2.get(0))));
+            assertThat(bytesValues.valueAt(1), equalTo(new BytesRef(bytesList2.get(1))));
+        }
     }
 
     private byte[] randomBytes() {

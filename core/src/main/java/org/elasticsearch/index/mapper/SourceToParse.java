@@ -23,11 +23,7 @@ import java.util.Objects;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
 
-/**
- *
- */
 public class SourceToParse {
 
     public static SourceToParse source(String index, String type, String id, BytesReference source) {
@@ -51,10 +47,6 @@ public class SourceToParse {
     private String routing;
 
     private String parentId;
-
-    private long timestamp;
-
-    private long ttl;
 
     private SourceToParse(Origin origin, String index, String type, String id, BytesReference source) {
         this.origin = Objects.requireNonNull(origin);
@@ -101,38 +93,6 @@ public class SourceToParse {
 
     public SourceToParse routing(String routing) {
         this.routing = routing;
-        return this;
-    }
-
-    public long timestamp() {
-        return this.timestamp;
-    }
-
-    public SourceToParse timestamp(String timestamp) {
-        this.timestamp = Long.parseLong(timestamp);
-        return this;
-    }
-
-    public SourceToParse timestamp(long timestamp) {
-        this.timestamp = timestamp;
-        return this;
-    }
-
-    public long ttl() {
-        return this.ttl;
-    }
-
-    public SourceToParse ttl(TimeValue ttl) {
-        if (ttl == null) {
-            this.ttl = -1;
-            return this;
-        }
-        this.ttl = ttl.millis();
-        return this;
-    }
-
-    public SourceToParse ttl(long ttl) {
-        this.ttl = ttl;
         return this;
     }
 

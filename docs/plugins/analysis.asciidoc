@@ -36,16 +36,18 @@ segmented into words.
 
 Provides high quality stemming for Polish.
 
+<<analysis-ukrainian,Ukrainian>>::
+
+Provides stemming for Ukrainian.
+
 [float]
 ==== Community contributed analysis plugins
 
 A number of analysis plugins have been contributed by our community:
 
-* https://github.com/yakaz/elasticsearch-analysis-combo/[Combo Analysis Plugin] (by Olivier Favre, Yakaz)
 * https://github.com/synhershko/elasticsearch-analysis-hebrew[Hebrew Analysis Plugin] (by Itamar Syn-Hershko)
 * https://github.com/medcl/elasticsearch-analysis-ik[IK Analysis Plugin] (by Medcl)
 * https://github.com/medcl/elasticsearch-analysis-mmseg[Mmseg Analysis Plugin] (by Medcl)
-* https://github.com/chytreg/elasticsearch-analysis-morfologik[Morfologik (Polish) Analysis plugin] (by chytreg)
 * https://github.com/imotov/elasticsearch-analysis-morphology[Russian and English Morphological Analysis Plugin] (by Igor Motov)
 * https://github.com/medcl/elasticsearch-analysis-pinyin[Pinyin Analysis Plugin] (by Medcl)
 * https://github.com/duydo/elasticsearch-analysis-vietnamese[Vietnamese Analysis Plugin] (by Duy Do)
@@ -62,5 +64,4 @@ include::analysis-smartcn.asciidoc[]
 
 include::analysis-stempel.asciidoc[]
 
-
-
+include::analysis-ukrainian.asciidoc[]

@@ -19,7 +19,7 @@
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
@@ -35,6 +35,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -168,7 +169,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 try {
                     awaitBusy(() -> {
                         if (((CancellableTask) task).isCancelled()) {
-                            throw new RuntimeException("Cancelled");
+                            throw new TaskCancelledException("Cancelled");
                         }
                         return false;
                     });
@@ -379,9 +380,9 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Introduce an additional pseudo random repeatable race conditions
         String delayName = RandomizedContext.current().getRunnerSeedAsString() + ":" + nodeId + ":" + name;
         Random random = new Random(delayName.hashCode());
-        if (RandomInts.randomIntBetween(random, 0, 10) < 1) {
+        if (RandomNumbers.randomIntBetween(random, 0, 10) < 1) {
             try {
-                Thread.sleep(RandomInts.randomIntBetween(random, 20, 50));
+                Thread.sleep(RandomNumbers.randomIntBetween(random, 20, 50));
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
             }

@@ -100,11 +100,18 @@ public class AzureRepository extends BlobStoreRepository {
 
         this.compress = getValue(metadata.settings(), settings, Repository.COMPRESS_SETTING, Storage.COMPRESS_SETTING);
         String modeStr = getValue(metadata.settings(), settings, Repository.LOCATION_MODE_SETTING, Storage.LOCATION_MODE_SETTING);
-        if (Strings.hasLength(modeStr)) {
-            LocationMode locationMode = LocationMode.valueOf(modeStr.toUpperCase(Locale.ROOT));
-            readonly = locationMode == LocationMode.SECONDARY_ONLY;
+        Boolean forcedReadonly = metadata.settings().getAsBoolean("readonly", null);
+        // If the user explicitly did not define a readonly value, we set it by ourselves depending on the location mode setting.
+        // For secondary_only setting, the repository should be read only
+        if (forcedReadonly == null) {
+            if (Strings.hasLength(modeStr)) {
+                LocationMode locationMode = LocationMode.valueOf(modeStr.toUpperCase(Locale.ROOT));
+                this.readonly = locationMode == LocationMode.SECONDARY_ONLY;
+            } else {
+                this.readonly = false;
+            }
         } else {
-            readonly = false;
+            readonly = forcedReadonly;
         }
 
         String basePath = getValue(metadata.settings(), settings, Repository.BASE_PATH_SETTING, Storage.BASE_PATH_SETTING);

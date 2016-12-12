@@ -48,7 +48,7 @@ public final class FetchSourceSubPhase implements FetchSubPhase {
                     "for index [" + context.indexShard().shardId().getIndexName() + "]");
         }
 
-        Object value = source.filter(fetchSourceContext.includes(), fetchSourceContext.excludes());
+        final Object value = source.filter(fetchSourceContext);
         try {
             final int initialCapacity = Math.min(1024, source.internalSourceRef().length());
             BytesStreamOutput streamOutput = new BytesStreamOutput(initialCapacity);

@@ -30,9 +30,6 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
-/**
- *
- */
 public class InputStreamIndexInputTests extends ESTestCase {
     public void testSingleReadSingleByteLimit() throws IOException {
         RAMDirectory dir = new RAMDirectory();

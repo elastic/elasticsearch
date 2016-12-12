@@ -29,8 +29,6 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
-/**
- */
 public class ShardFieldData implements IndexFieldDataCache.Listener {
 
     final CounterMetric evictionsMetric = new CounterMetric();

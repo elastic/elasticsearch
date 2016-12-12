@@ -42,6 +42,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.AllFieldMapper;
@@ -289,16 +290,16 @@ public class TermVectorsUnitTests extends ESTestCase {
     }
 
     public void testMultiParser() throws Exception {
-        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
-        BytesReference bytes = new BytesArray(data);
+        byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
+        XContentParser data = XContentHelper.createParser(new BytesArray(bytes));
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), bytes);
+        request.add(new TermVectorsRequest(), data);
         checkParsedParameters(request);
 
-        data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
-        bytes = new BytesArray(data);
+        bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
+        data = XContentHelper.createParser(new BytesArray(bytes));
         request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), bytes);
+        request.add(new TermVectorsRequest(), data);
         checkParsedParameters(request);
     }
 
@@ -325,10 +326,10 @@ public class TermVectorsUnitTests extends ESTestCase {
 
     // issue #12311
     public void testMultiParserFilter() throws Exception {
-        byte[] data = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest3.json");
-        BytesReference bytes = new BytesArray(data);
+        byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest3.json");
+        XContentParser data = XContentHelper.createParser(new BytesArray(bytes));
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
-        request.add(new TermVectorsRequest(), bytes);
+        request.add(new TermVectorsRequest(), data);
         checkParsedFilterParameters(request);
     }
 

@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -48,7 +47,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
  * @deprecated Instead use multi search API with {@link PercolateQueryBuilder}
  */
 @Deprecated
-public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> implements CompositeIndicesRequest {
+public class MultiPercolateRequest extends ActionRequest implements CompositeIndicesRequest {
 
     private String[] indices;
     private String documentType;
@@ -89,7 +88,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     /**
      * Embeds a percolate request which request body is defined as raw bytes to this multi percolate request
      */
-    public MultiPercolateRequest add(BytesReference data, boolean allowExplicitIndex) throws Exception {
+    public MultiPercolateRequest add(BytesReference data, boolean allowExplicitIndex) throws IOException {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -162,11 +161,6 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
         }
 
         return this;
-    }
-
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        return requests;
     }
 
     private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest, boolean allowExplicitIndex) throws IOException {

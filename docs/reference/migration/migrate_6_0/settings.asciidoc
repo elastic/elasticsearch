@@ -1,0 +1,22 @@
+[[breaking_60_settings_changes]]
+=== Settings changes
+
+==== Snapshot settings
+
+The internal setting `cluster.routing.allocation.snapshot.relocation_enabled` that allowed shards with running snapshots to be reallocated to
+different nodes has been removed. Enabling this setting could cause allocation issues if a shard got allocated off a node and then
+reallocated back to this node while a snapshot was running.
+
+==== Store throttling settings
+
+Store throttling has been removed. As a consequence, the
+`indices.store.throttle.type` and `indices.store.throttle.max_bytes_per_sec`
+cluster settings and the `index.store.throttle.type` and
+`index.store.throttle.max_bytes_per_sec` index settings are not
+recognized anymore.
+
+==== Store settings
+
+The `default` `index.store.type` has been removed. If you were using it, we
+advise that you simply remove it from your index settings and Elasticsearch
+will use the best `store` implementation for your operating system.

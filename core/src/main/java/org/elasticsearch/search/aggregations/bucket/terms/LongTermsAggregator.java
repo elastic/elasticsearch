@@ -42,9 +42,6 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 
-/**
- *
- */
 public class LongTermsAggregator extends TermsAggregator {
 
     protected final ValuesSource.Numeric valuesSource;

@@ -38,9 +38,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SimpleIndexStateIT extends ESIntegTestCase {
     private final Logger logger = Loggers.getLogger(SimpleIndexStateIT.class);

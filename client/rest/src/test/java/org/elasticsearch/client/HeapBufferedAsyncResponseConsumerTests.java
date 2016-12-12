@@ -32,7 +32,6 @@ import org.apache.http.nio.ContentDecoder;
 import org.apache.http.nio.IOControl;
 import org.apache.http.protocol.HttpContext;
 
-import static org.elasticsearch.client.HeapBufferedAsyncResponseConsumer.DEFAULT_BUFFER_LIMIT;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
@@ -45,13 +44,14 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
 
     //maximum buffer that this test ends up allocating is 50MB
     private static final int MAX_TEST_BUFFER_SIZE = 50 * 1024 * 1024;
+    private static final int TEST_BUFFER_LIMIT = 10 * 1024 * 1024;
 
     public void testResponseProcessing() throws Exception {
         ContentDecoder contentDecoder = mock(ContentDecoder.class);
         IOControl ioControl = mock(IOControl.class);
         HttpContext httpContext = mock(HttpContext.class);
 
-        HeapBufferedAsyncResponseConsumer consumer = spy(new HeapBufferedAsyncResponseConsumer());
+        HeapBufferedAsyncResponseConsumer consumer = spy(new HeapBufferedAsyncResponseConsumer(TEST_BUFFER_LIMIT));
 
         ProtocolVersion protocolVersion = new ProtocolVersion("HTTP", 1, 1);
         StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "OK");
@@ -74,8 +74,8 @@ public class HeapBufferedAsyncResponseConsumerTests extends RestClientTestCase {
     }
 
     public void testDefaultBufferLimit() throws Exception {
-        HeapBufferedAsyncResponseConsumer consumer = new HeapBufferedAsyncResponseConsumer();
-        bufferLimitTest(consumer, DEFAULT_BUFFER_LIMIT);
+        HeapBufferedAsyncResponseConsumer consumer = new HeapBufferedAsyncResponseConsumer(TEST_BUFFER_LIMIT);
+        bufferLimitTest(consumer, TEST_BUFFER_LIMIT);
     }
 
     public void testConfiguredBufferLimit() throws Exception {

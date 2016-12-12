@@ -20,7 +20,6 @@
 group = 'org.elasticsearch.plugin'
 
 apply plugin: 'elasticsearch.esplugin'
-apply plugin: 'com.bmuschko.nexus'
 
 esplugin {
   name 'client-benchmark-noop-api'

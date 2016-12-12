@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
@@ -44,7 +43,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.indices.IndicesService;
 
 import java.io.IOException;
@@ -67,18 +65,16 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
-    private final NodeServicesProvider nodeServiceProvider;
 
     @Inject
     public MetaDataUpdateSettingsService(Settings settings, ClusterService clusterService, AllocationService allocationService,
-                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService, NodeServicesProvider nodeServicesProvider) {
+                                         IndexScopedSettings indexScopedSettings, IndicesService indicesService) {
         super(settings);
         this.clusterService = clusterService;
         this.clusterService.add(this);
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
-        this.nodeServiceProvider = nodeServicesProvider;
     }
 
     @Override
@@ -228,6 +224,9 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
                 int updatedNumberOfReplicas = openSettings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, -1);
                 if (updatedNumberOfReplicas != -1 && preserveExisting == false) {
+                    // we do *not* update the in sync allocation ids as they will be removed upon the first index
+                    // operation which make these copies stale
+                    // TODO: update the list once the data is deleted by the node?
                     routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     metaDataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                     logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
@@ -271,18 +270,17 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder.build()).blocks(blocks).build();
 
                 // now, reroute in case things change that require it (like number of replicas)
-                RoutingAllocation.Result routingResult = allocationService.reroute(updatedState, "settings update");
-                updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
+                updatedState = allocationService.reroute(updatedState, "settings update");
                 try {
                     for (Index index : openIndices) {
                         final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
                         final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
-                        indicesService.verifyIndexMetadata(nodeServiceProvider, currentMetaData, updatedMetaData);
+                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
                     }
                     for (Index index : closeIndices) {
                         final IndexMetaData currentMetaData = currentState.getMetaData().getIndexSafe(index);
                         final IndexMetaData updatedMetaData = updatedState.metaData().getIndexSafe(index);
-                        indicesService.verifyIndexMetadata(nodeServiceProvider, currentMetaData, updatedMetaData);
+                        indicesService.verifyIndexMetadata(currentMetaData, updatedMetaData);
                     }
                 } catch (IOException ex) {
                     throw ExceptionsHelper.convertToElastic(ex);

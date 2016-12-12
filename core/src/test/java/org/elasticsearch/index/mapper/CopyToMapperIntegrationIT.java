@@ -34,8 +34,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class CopyToMapperIntegrationIT extends ESIntegTestCase {
     public void testDynamicTemplateCopyTo() throws Exception {
         assertAcked(

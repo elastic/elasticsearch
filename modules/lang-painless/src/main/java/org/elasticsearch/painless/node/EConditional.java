@@ -34,7 +34,7 @@ import org.elasticsearch.painless.MethodWriter;
 import org.objectweb.asm.Opcodes;
 
 /**
- * Respresents a conditional expression.
+ * Represents a conditional expression.
  */
 public final class EConditional extends AExpression {
 
@@ -105,5 +105,10 @@ public final class EConditional extends AExpression {
         writer.mark(fals);
         right.write(writer, globals);
         writer.mark(end);
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(condition, left, right);
     }
 }

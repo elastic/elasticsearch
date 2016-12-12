@@ -27,7 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.ScoreAccessor;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.CoreMatchers;
@@ -169,7 +169,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         params.put("factor", randomIntBetween(2, 4));
 
         // Test for accessing _score
-        Script script = new Script("log(doc['index'].value + (factor * _score))", ScriptType.INLINE, NAME, params);
+        Script script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score))", params);
         SearchResponse resp = client()
                 .prepareSearch("test")
                 .setQuery(
@@ -185,7 +185,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.intValue()
-        script = new Script("log(doc['index'].value + (factor * _score.intValue()))", ScriptType.INLINE, NAME, params);
+        script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.intValue()))", params);
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
@@ -201,7 +201,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.longValue()
-        script = new Script("log(doc['index'].value + (factor * _score.longValue()))", ScriptType.INLINE, NAME, params);
+        script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.longValue()))", params);
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
@@ -217,7 +217,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.floatValue()
-        script = new Script("log(doc['index'].value + (factor * _score.floatValue()))", ScriptType.INLINE, NAME, params);
+        script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.floatValue()))", params);
         resp = client()
                 .prepareSearch("test")
                 .setQuery(
@@ -233,7 +233,7 @@ public class RandomScoreFunctionIT extends ESIntegTestCase {
         assertThat(firstHit.getScore(), greaterThan(1f));
 
         // Test for accessing _score.doubleValue()
-        script = new Script("log(doc['index'].value + (factor * _score.doubleValue()))", ScriptType.INLINE, NAME, params);
+        script = new Script(ScriptType.INLINE, NAME, "log(doc['index'].value + (factor * _score.doubleValue()))", params);
         resp = client()
                 .prepareSearch("test")
                 .setQuery(

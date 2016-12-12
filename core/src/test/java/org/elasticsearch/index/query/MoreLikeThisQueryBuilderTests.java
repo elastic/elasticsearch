@@ -40,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.junit.Before;
 
@@ -243,7 +244,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     }
 
     @Override
-    protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(MoreLikeThisQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.likeItems() != null && queryBuilder.likeItems().length > 0) {
             assertThat(query, instanceOf(BooleanQuery.class));
         } else {
@@ -300,6 +301,11 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
         assertEquals(expectedItem, newItem);
     }
 
+    @Override
+    protected boolean isCachable(MoreLikeThisQueryBuilder queryBuilder) {
+        return queryBuilder.likeItems().length == 0; // items are always fetched
+    }
+
     public void testFromJson() throws IOException {
         String json =
                 "{\n" +
@@ -333,38 +339,5 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
 
         assertEquals(json, 2, parsed.fields().length);
         assertEquals(json, "and potentially some more text here as well", parsed.likeTexts()[0]);
-
-        String deprecatedJson =
-                "{\n" +
-                        "  \"mlt\" : {\n" +
-                        "    \"fields\" : [ \"title\", \"description\" ],\n" +
-                        "    \"like\" : [ \"and potentially some more text here as well\", {\n" +
-                        "      \"_index\" : \"imdb\",\n" +
-                        "      \"_type\" : \"movies\",\n" +
-                        "      \"_id\" : \"1\"\n" +
-                        "    }, {\n" +
-                        "      \"_index\" : \"imdb\",\n" +
-                        "      \"_type\" : \"movies\",\n" +
-                        "      \"_id\" : \"2\"\n" +
-                        "    } ],\n" +
-                        "    \"max_query_terms\" : 12,\n" +
-                        "    \"min_term_freq\" : 1,\n" +
-                        "    \"min_doc_freq\" : 5,\n" +
-                        "    \"max_doc_freq\" : 2147483647,\n" +
-                        "    \"min_word_length\" : 0,\n" +
-                        "    \"max_word_length\" : 0,\n" +
-                        "    \"minimum_should_match\" : \"30%\",\n" +
-                        "    \"boost_terms\" : 0.0,\n" +
-                        "    \"include\" : false,\n" +
-                        "    \"fail_on_unsupported_field\" : true,\n" +
-                        "    \"boost\" : 1.0\n" +
-                        "  }\n" +
-                        "}";
-
-        MoreLikeThisQueryBuilder parsedQueryMltShortcut = (MoreLikeThisQueryBuilder) parseQuery(deprecatedJson, ParseFieldMatcher.EMPTY);
-        assertThat(parsedQueryMltShortcut, equalTo(parsed));
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(deprecatedJson));
-        assertEquals("Deprecated field [mlt] used, expected [more_like_this] instead", e.getMessage());
     }
 }

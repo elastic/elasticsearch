@@ -40,8 +40,8 @@ import java.util.List;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    private final SynonymMap synonymMap;
-    private final boolean ignoreCase;
+    protected final SynonymMap synonymMap;
+    protected final boolean ignoreCase;
 
     public SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
                                       String name, Settings settings) throws IOException {

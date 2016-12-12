@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.RecoverySource.LocalShardsRecoverySourc
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -134,11 +133,22 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
                     throw new IllegalStateException("shard routing has an index [" + shardRouting.index() + "] that is different " +
                                                     "from the routing table");
                 }
+                final Set<String> inSyncAllocationIds = indexMetaData.inSyncAllocationIds(shardRouting.id());
                 if (shardRouting.active() &&
-                    indexMetaData.inSyncAllocationIds(shardRouting.id()).contains(shardRouting.allocationId().getId()) == false) {
+                    inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false) {
                     throw new IllegalStateException("active shard routing " + shardRouting + " has no corresponding entry in the in-sync " +
-                        "allocation set " + indexMetaData.inSyncAllocationIds(shardRouting.id()));
+                        "allocation set " + inSyncAllocationIds);
                 }
+
+                if (indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1) &&
+                    IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.getSettings()) == false && // see #20650
+                    shardRouting.primary() && shardRouting.initializing() && shardRouting.relocating() == false &&
+                    RecoverySource.isInitialRecovery(shardRouting.recoverySource().getType()) == false &&
+                    inSyncAllocationIds.contains(shardRouting.allocationId().getId()) == false)
+                    throw new IllegalStateException("a primary shard routing " + shardRouting + " is a primary that is recovering from " +
+                        "a known allocation id but has no corresponding entry in the in-sync " +
+                        "allocation set " + inSyncAllocationIds);
+
             }
         }
         return true;
@@ -359,31 +369,28 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
          * Initializes a new empty index, as if it was created from an API.
          */
         public Builder initializeAsNew(IndexMetaData indexMetaData) {
-            RecoverySource primaryRecoverySource = indexMetaData.getMergeSourceIndex() != null ?
-                LocalShardsRecoverySource.INSTANCE :
-                StoreRecoverySource.EMPTY_STORE_INSTANCE;
-            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null), primaryRecoverySource);
+            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         }
 
         /**
          * Initializes an existing index.
          */
         public Builder initializeAsRecovery(IndexMetaData indexMetaData) {
-            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null), null);
+            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
         }
 
         /**
          * Initializes a new index caused by dangling index imported.
          */
         public Builder initializeAsFromDangling(IndexMetaData indexMetaData) {
-            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED, null), null);
+            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.DANGLING_INDEX_IMPORTED, null));
         }
 
         /**
          * Initializes a new empty index, as as a result of opening a closed index.
          */
         public Builder initializeAsFromCloseToOpen(IndexMetaData indexMetaData) {
-            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null), null);
+            return initializeEmpty(indexMetaData, new UnassignedInfo(UnassignedInfo.Reason.INDEX_REOPENED, null));
         }
 
         /**
@@ -435,28 +442,36 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
 
         /**
          * Initializes a new empty index, with an option to control if its from an API or not.
-         *
-         * @param primaryRecoverySource recovery source for primary shards. If null, it is automatically determined based on active
-         *                              allocation ids
          */
-        private Builder initializeEmpty(IndexMetaData indexMetaData, UnassignedInfo unassignedInfo, @Nullable RecoverySource primaryRecoverySource) {
+        private Builder initializeEmpty(IndexMetaData indexMetaData, UnassignedInfo unassignedInfo) {
             assert indexMetaData.getIndex().equals(index);
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
             for (int shardNumber = 0; shardNumber < indexMetaData.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
-                if (primaryRecoverySource == null) {
-                    if (indexMetaData.inSyncAllocationIds(shardNumber).isEmpty() && indexMetaData.getCreationVersion().onOrAfter(Version.V_5_0_0_alpha1)) {
-                        primaryRecoverySource = indexMetaData.getMergeSourceIndex() != null ? LocalShardsRecoverySource.INSTANCE : StoreRecoverySource.EMPTY_STORE_INSTANCE;
-                    } else {
-                        primaryRecoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
-                    }
+                final RecoverySource primaryRecoverySource;
+                if (indexMetaData.inSyncAllocationIds(shardNumber).isEmpty() == false) {
+                    // we have previous valid copies for this shard. use them for recovery
+                    primaryRecoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
+                } else if (indexMetaData.getCreationVersion().before(Version.V_5_0_0_alpha1) &&
+                    unassignedInfo.getReason() != UnassignedInfo.Reason.INDEX_CREATED // tests can create old indices
+                    ) {
+                    // the index is old and didn't maintain inSyncAllocationIds. Fall back to old behavior and require
+                    // finding existing copies
+                    primaryRecoverySource = StoreRecoverySource.EXISTING_STORE_INSTANCE;
+                } else if (indexMetaData.getMergeSourceIndex() != null) {
+                    // this is a new index but the initial shards should merged from another index
+                    primaryRecoverySource = LocalShardsRecoverySource.INSTANCE;
+                } else {
+                    // a freshly created index with no restriction
+                    primaryRecoverySource = StoreRecoverySource.EMPTY_STORE_INSTANCE;
                 }
                 IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
                 for (int i = 0; i <= indexMetaData.getNumberOfReplicas(); i++) {
                     boolean primary = i == 0;
-                    indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, primary, primary ? primaryRecoverySource : PeerRecoverySource.INSTANCE, unassignedInfo));
+                    indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(shardId, primary,
+                        primary ? primaryRecoverySource : PeerRecoverySource.INSTANCE, unassignedInfo));
                 }
                 shards.put(shardNumber, indexShardRoutingBuilder.build());
             }

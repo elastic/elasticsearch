@@ -36,8 +36,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ClusterScope(scope= Scope.SUITE, numDataNodes = 2)
 public class ClusterSearchShardsIT extends ESIntegTestCase {
 
@@ -58,16 +56,16 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         ensureGreen();
         ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("test").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
-        assertThat(response.getGroups()[0].getIndex(), equalTo("test"));
-        assertThat(response.getGroups()[0].getShardId(), equalTo(0));
+        assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
+        assertThat(response.getGroups()[0].getShardId().getId(), equalTo(0));
         assertThat(response.getGroups()[0].getShards().length, equalTo(1));
         assertThat(response.getNodes().length, equalTo(1));
         assertThat(response.getGroups()[0].getShards()[0].currentNodeId(), equalTo(response.getNodes()[0].getId()));
 
         response = client().admin().cluster().prepareSearchShards("test").setRouting("A").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
-        assertThat(response.getGroups()[0].getIndex(), equalTo("test"));
-        assertThat(response.getGroups()[0].getShardId(), equalTo(0));
+        assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
+        assertThat(response.getGroups()[0].getShardId().getId(), equalTo(0));
         assertThat(response.getGroups()[0].getShards().length, equalTo(1));
         assertThat(response.getNodes().length, equalTo(1));
         assertThat(response.getGroups()[0].getShards()[0].currentNodeId(), equalTo(response.getNodes()[0].getId()));
@@ -81,7 +79,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
 
         ClusterSearchShardsResponse response = client().admin().cluster().prepareSearchShards("test").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(4));
-        assertThat(response.getGroups()[0].getIndex(), equalTo("test"));
+        assertThat(response.getGroups()[0].getShardId().getIndexName(), equalTo("test"));
         assertThat(response.getNodes().length, equalTo(1));
         assertThat(response.getGroups()[0].getShards()[0].currentNodeId(), equalTo(response.getNodes()[0].getId()));
 
@@ -90,7 +88,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
 
         response = client().admin().cluster().prepareSearchShards("test").setPreference("_shards:2").execute().actionGet();
         assertThat(response.getGroups().length, equalTo(1));
-        assertThat(response.getGroups()[0].getShardId(), equalTo(2));
+        assertThat(response.getGroups()[0].getShardId().getId(), equalTo(2));
     }
 
     public void testMultipleIndicesAllocation() throws Exception {
@@ -111,10 +109,10 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         boolean seenTest1 = false;
         boolean seenTest2 = false;
         for (ClusterSearchShardsGroup group : response.getGroups()) {
-            if (group.getIndex().equals("test1")) {
+            if (group.getShardId().getIndexName().equals("test1")) {
                 seenTest1 = true;
                 assertThat(group.getShards().length, equalTo(2));
-            } else if (group.getIndex().equals("test2")) {
+            } else if (group.getShardId().getIndexName().equals("test2")) {
                 seenTest2 = true;
                 assertThat(group.getShards().length, equalTo(2));
             } else {

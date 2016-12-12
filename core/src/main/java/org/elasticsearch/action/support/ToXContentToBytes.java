@@ -69,10 +69,16 @@ public abstract class ToXContentToBytes implements ToXContent {
 
     @Override
     public final String toString() {
+        return toString(EMPTY_PARAMS);
+    }
+
+    public final String toString(Params params) {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.prettyPrint();
-            toXContent(builder, EMPTY_PARAMS);
+            if (params.paramAsBoolean("pretty", true)) {
+                builder.prettyPrint();
+            }
+            toXContent(builder, params);
             return builder.string();
         } catch (Exception e) {
             // So we have a stack trace logged somewhere

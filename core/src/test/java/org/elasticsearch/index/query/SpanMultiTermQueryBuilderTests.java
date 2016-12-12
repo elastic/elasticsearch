@@ -19,12 +19,18 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -41,7 +47,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             assertThat(query, instanceOf(SpanBoostQuery.class));
             SpanBoostQuery boostQuery = (SpanBoostQuery) query;
@@ -50,7 +56,7 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         }
         assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
         SpanMultiTermQueryWrapper spanMultiTermQueryWrapper = (SpanMultiTermQueryWrapper) query;
-        Query multiTermQuery = queryBuilder.innerQuery().toQuery(context);
+        Query multiTermQuery = queryBuilder.innerQuery().toQuery(context.getQueryShardContext());
         if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             assertThat(multiTermQuery, instanceOf(BoostQuery.class));
             BoostQuery boostQuery = (BoostQuery) multiTermQuery;
@@ -71,12 +77,57 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
      * to a date.
      */
     public void testUnsupportedInnerQueryType() throws IOException {
-        QueryShardContext context = createShardContext();
-        // test makes only sense if we have at least one type registered with date field mapping
-        assumeTrue("test runs only if there is a registered type",
-                getCurrentTypes().length > 0 && context.fieldMapper(DATE_FIELD_NAME) != null);
+        MultiTermQueryBuilder query = new MultiTermQueryBuilder() {
+            @Override
+            public Query toQuery(QueryShardContext context) throws IOException {
+                return new TermQuery(new Term("foo", "bar"));
+            }
 
-        RangeQueryBuilder query = new RangeQueryBuilder(DATE_FIELD_NAME);
+            @Override
+            public Query toFilter(QueryShardContext context) throws IOException {
+                return toQuery(context);
+            }
+
+            @Override
+            public QueryBuilder queryName(String queryName) {
+                return this;
+            }
+
+            @Override
+            public String queryName() {
+                return "foo";
+            }
+
+            @Override
+            public float boost() {
+                return 1f;
+            }
+
+            @Override
+            public QueryBuilder boost(float boost) {
+                return this;
+            }
+
+            @Override
+            public String getName() {
+                return "foo";
+            }
+
+            @Override
+            public String getWriteableName() {
+                return "foo";
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                return builder;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+
+            }
+        };
         SpanMultiTermQueryBuilder spamMultiTermQuery = new SpanMultiTermQueryBuilder(query);
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
                 () -> spamMultiTermQuery.toQuery(createShardContext()));

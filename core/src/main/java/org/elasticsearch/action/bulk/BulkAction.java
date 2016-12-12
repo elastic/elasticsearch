@@ -24,8 +24,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportRequestOptions;
 
-/**
- */
 public class BulkAction extends Action<BulkRequest, BulkResponse, BulkRequestBuilder> {
 
     public static final BulkAction INSTANCE = new BulkAction();

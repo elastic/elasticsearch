@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A query that wraps a filter and simply returns a constant score equal to the
@@ -86,10 +85,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
         builder.endObject();
     }
 
-    public static Optional<ConstantScoreQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static ConstantScoreQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        Optional<QueryBuilder> query = null;
+        QueryBuilder query = null;
         boolean queryFound = false;
         String queryName = null;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -130,15 +129,10 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
             throw new ParsingException(parser.getTokenLocation(), "[constant_score] requires a 'filter' element");
         }
 
-        if (query.isPresent() == false) {
-            // if inner query is empty, bubble this up to caller so they can decide how to deal with it
-            return Optional.empty();
-        }
-
-        ConstantScoreQueryBuilder constantScoreBuilder = new ConstantScoreQueryBuilder(query.get());
+        ConstantScoreQueryBuilder constantScoreBuilder = new ConstantScoreQueryBuilder(query);
         constantScoreBuilder.boost(boost);
         constantScoreBuilder.queryName(queryName);
-        return Optional.of(constantScoreBuilder);
+        return constantScoreBuilder;
     }
 
     @Override

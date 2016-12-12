@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.reindex;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
@@ -42,7 +41,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
@@ -97,11 +95,6 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
-        // These exist just so the user can get a nice validation error:
-        destParser.declareString(IndexRequest::timestamp, new ParseField("timestamp"));
-        destParser.declareString((i, ttl) -> i.ttl(parseTimeValue(ttl, TimeValue.timeValueMillis(-1), "ttl").millis()),
-                new ParseField("ttl"));
-
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v, c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
@@ -118,15 +111,19 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Override
-    public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws IOException {
-        if (false == request.hasContent()) {
-            throw new ElasticsearchException("_reindex requires a request body");
-        }
-        handleRequest(request, channel, client, true, true);
+    public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        return doPrepareRequest(request, client, true, true);
     }
 
     @Override
     protected ReindexRequest buildRequest(RestRequest request) throws IOException {
+        if (false == request.hasContent()) {
+            throw new IllegalArgumentException("_reindex requires a request body");
+        }
+        if (request.hasParam("pipeline")) {
+            throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parmaeter. "
+                    + "Specify it in the [dest] object instead.");
+        }
         ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
             PARSER.parse(xcontent, internal, new ReindexParseContext(searchRequestParsers, parseFieldMatcher));
@@ -151,11 +148,13 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         String host = hostMatcher.group("host");
         int port = Integer.parseInt(hostMatcher.group("port"));
         Map<String, String> headers = extractStringStringMap(remote, "headers");
+        TimeValue socketTimeout = extractTimeValue(remote, "socket_timeout", RemoteInfo.DEFAULT_SOCKET_TIMEOUT);
+        TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         if (false == remote.isEmpty()) {
             throw new IllegalArgumentException(
                     "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
         }
-        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password, headers);
+        return new RemoteInfo(scheme, host, port, queryForRemote(source), username, password, headers, socketTimeout, connectTimeout);
     }
 
     /**
@@ -206,6 +205,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         @SuppressWarnings("unchecked") // We just checked....
         Map<String, String> safe = (Map<String, String>) map;
         return safe;
+    }
+
+    private static TimeValue extractTimeValue(Map<String, Object> source, String name, TimeValue defaultValue) {
+        String string = extractString(source, name);
+        return string == null ? defaultValue : parseTimeValue(string, name);
     }
 
     private static BytesReference queryForRemote(Map<String, Object> source) throws IOException {

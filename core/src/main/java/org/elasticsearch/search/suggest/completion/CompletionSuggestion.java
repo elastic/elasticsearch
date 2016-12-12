@@ -27,7 +27,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
-import org.elasticsearch.search.internal.InternalSearchHits.StreamContext.ShardTargetType;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -261,8 +260,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 super.readFrom(in);
                 this.doc = Lucene.readScoreDoc(in);
                 if (in.readBoolean()) {
-                    this.hit = InternalSearchHit.readSearchHit(in,
-                        InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
+                    this.hit = InternalSearchHit.readSearchHit(in);
                 }
                 int contextSize = in.readInt();
                 this.contexts = new LinkedHashMap<>(contextSize);
@@ -283,7 +281,7 @@ public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSug
                 Lucene.writeScoreDoc(out, doc);
                 if (hit != null) {
                     out.writeBoolean(true);
-                    hit.writeTo(out, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
+                    hit.writeTo(out);
                 } else {
                     out.writeBoolean(false);
                 }

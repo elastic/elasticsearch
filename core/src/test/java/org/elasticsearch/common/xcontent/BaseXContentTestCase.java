@@ -47,15 +47,18 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -844,6 +847,140 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertThat(e.getMessage(), containsString("message"));
 
         XContentBuilder.ensureNotNull("foo", "No exception must be thrown");
+    }
+
+    public void testEnsureNoSelfReferences() throws IOException {
+        XContentBuilder.ensureNoSelfReferences(emptyMap());
+        XContentBuilder.ensureNoSelfReferences(null);
+
+        Map<String, Object> map = new HashMap<>();
+        map.put("field", map);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map));
+        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+    }
+
+    /**
+     * Test that the same map written multiple times do not trigger the self-reference check in
+     * {@link XContentBuilder#ensureNoSelfReferences(Object)}
+     */
+    public void testRepeatedMapsAndNoSelfReferences() throws Exception {
+        Map<String, Object> mapB = singletonMap("b", "B");
+        Map<String, Object> mapC = singletonMap("c", "C");
+        Map<String, Object> mapD = singletonMap("d", "D");
+        Map<String, Object> mapA = new HashMap<>();
+        mapA.put("a", 0);
+        mapA.put("b1", mapB);
+        mapA.put("b2", mapB);
+        mapA.put("c", Arrays.asList(mapC, mapC));
+        mapA.put("d1", mapD);
+        mapA.put("d2", singletonMap("d3", mapD));
+
+        final String expected =
+                "{'map':{'b2':{'b':'B'},'a':0,'c':[{'c':'C'},{'c':'C'}],'d1':{'d':'D'},'d2':{'d3':{'d':'D'}},'b1':{'b':'B'}}}";
+
+        assertResult(expected, () -> builder().startObject().field("map", mapA).endObject());
+        assertResult(expected, () -> builder().startObject().field("map").value(mapA).endObject());
+        assertResult(expected, () -> builder().startObject().field("map").map(mapA).endObject());
+    }
+
+    public void testSelfReferencingMapsOneLevel() throws IOException {
+        Map<String, Object> map0 = new HashMap<>();
+        Map<String, Object> map1 = new HashMap<>();
+
+        map0.put("foo", 0);
+        map0.put("map1", map1); // map 0 -> map 1
+
+        map1.put("bar", 1);
+        map1.put("map0", map0); // map 1 -> map 0 loop
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
+        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+    }
+
+    public void testSelfReferencingMapsTwoLevels() throws IOException {
+        Map<String, Object> map0 = new HashMap<>();
+        Map<String, Object> map1 = new HashMap<>();
+        Map<String, Object> map2 = new HashMap<>();
+
+        map0.put("foo", 0);
+        map0.put("map1", map1); // map 0 -> map 1
+
+        map1.put("bar", 1);
+        map1.put("map2", map2); // map 1 -> map 2
+
+        map2.put("baz", 2);
+        map2.put("map0", map0); // map 2 -> map 0 loop
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
+        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+    }
+
+    public void testSelfReferencingObjectsArray() throws IOException {
+        Object[] values = new Object[3];
+        values[0] = 0;
+        values[1] = 1;
+        values[2] = values;
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder()
+                .startObject()
+                .field("field", values)
+                .endObject());
+        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> builder()
+                .startObject()
+                .array("field", values)
+                .endObject());
+        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+    }
+
+    public void testSelfReferencingIterable() throws IOException {
+        List<Object> values = new ArrayList<>();
+        values.add("foo");
+        values.add("bar");
+        values.add(values);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder()
+                .startObject()
+                .field("field", (Iterable) values)
+                .endObject());
+        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+    }
+
+    public void testSelfReferencingIterableOneLevel() throws IOException {
+        Map<String, Object> map = new HashMap<>();
+        map.put("foo", 0);
+        map.put("bar", 1);
+
+        Iterable<Object> values = Arrays.asList("one", "two", map);
+        map.put("baz", values);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder()
+                .startObject()
+                .field("field", (Iterable) values)
+                .endObject());
+        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+    }
+
+    public void testSelfReferencingIterableTwoLevels() throws IOException {
+        Map<String, Object> map0 = new HashMap<>();
+        Map<String, Object> map1 = new HashMap<>();
+        Map<String, Object> map2 = new HashMap<>();
+
+        List<Object> it1 = new ArrayList<>();
+
+        map0.put("foo", 0);
+        map0.put("it1", (Iterable<?>) it1); // map 0 -> it1
+
+        it1.add(map1);
+        it1.add(map2); // it 1 -> map 1, map 2
+
+        map2.put("baz", 2);
+        map2.put("map0", map0); // map 2 -> map 0 loop
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
+        assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
     }
 
     private static void expectUnclosedException(ThrowingRunnable runnable) {

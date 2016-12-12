@@ -23,23 +23,27 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
-import org.elasticsearch.search.internal.InternalSearchHits.StreamContext.ShardTargetType;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -49,18 +53,18 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.Lucene.readExplanation;
 import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
 import static org.elasticsearch.search.internal.InternalSearchHitField.readSearchHitField;
 
-/**
- *
- */
 public class InternalSearchHit implements SearchHit {
 
     private static final Object[] EMPTY_SORT_VALUES = new Object[0];
@@ -204,6 +208,10 @@ public class InternalSearchHit implements SearchHit {
      */
     @Override
     public BytesReference sourceRef() {
+        if (this.source == null) {
+            return null;
+        }
+
         try {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;
@@ -249,7 +257,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public boolean hasSource() {
-        return source == null;
+        return source != null;
     }
 
     @Override
@@ -274,7 +282,6 @@ public class InternalSearchHit implements SearchHit {
         return sourceAsString();
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
         if (source == null) {
@@ -468,7 +475,8 @@ public class InternalSearchHit implements SearchHit {
             builder.field(Fields._SCORE, score);
         }
         for (SearchHitField field : metaFields) {
-            builder.field(field.name(), (Object) field.value());
+            Object value = field.value();
+            builder.field(field.name(), value);
         }
         if (source != null) {
             XContentHelper.writeRawField("_source", source, builder, params);
@@ -487,16 +495,7 @@ public class InternalSearchHit implements SearchHit {
         if (highlightFields != null && !highlightFields.isEmpty()) {
             builder.startObject(Fields.HIGHLIGHT);
             for (HighlightField field : highlightFields.values()) {
-                builder.field(field.name());
-                if (field.fragments() == null) {
-                    builder.nullValue();
-                } else {
-                    builder.startArray();
-                    for (Text fragment : field.fragments()) {
-                        builder.value(fragment);
-                    }
-                    builder.endArray();
-                }
+                field.toXContent(builder, params);
             }
             builder.endObject();
         }
@@ -554,22 +553,18 @@ public class InternalSearchHit implements SearchHit {
         return builder;
     }
 
-    public static InternalSearchHit readSearchHit(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
+    public static InternalSearchHit readSearchHit(StreamInput in) throws IOException {
         InternalSearchHit hit = new InternalSearchHit();
-        hit.readFrom(in, context);
+        hit.readFrom(in);
         return hit;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        readFrom(in, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
-    }
-
-    public void readFrom(StreamInput in, InternalSearchHits.StreamContext context) throws IOException {
         score = in.readFloat();
         id = in.readOptionalText();
         type = in.readOptionalText();
-        nestedIdentity = in.readOptionalStreamable(InternalNestedIdentity::new);
+        nestedIdentity = in.readOptionalWriteable(InternalNestedIdentity::new);
         version = in.readLong();
         source = in.readBytesReference();
         if (source.length() == 0) {
@@ -644,26 +639,13 @@ public class InternalSearchHit implements SearchHit {
                 matchedQueries[i] = in.readString();
             }
         }
-
-        if (context.streamShardTarget() == ShardTargetType.STREAM) {
-            if (in.readBoolean()) {
-                shard = new SearchShardTarget(in);
-            }
-        } else if (context.streamShardTarget() == ShardTargetType.LOOKUP) {
-            int lookupId = in.readVInt();
-            if (lookupId > 0) {
-                shard = context.handleShardLookup().get(lookupId);
-            }
-        }
-
+        shard = in.readOptionalWriteable(SearchShardTarget::new);
         size = in.readVInt();
         if (size > 0) {
             innerHits = new HashMap<>(size);
             for (int i = 0; i < size; i++) {
                 String key = in.readString();
-                ShardTargetType shardTarget = context.streamShardTarget();
-                InternalSearchHits value = InternalSearchHits.readSearchHits(in, context.streamShardTarget(ShardTargetType.NO_STREAM));
-                context.streamShardTarget(shardTarget);
+                InternalSearchHits value = InternalSearchHits.readSearchHits(in);
                 innerHits.put(key, value);
             }
         }
@@ -671,14 +653,10 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeTo(out, InternalSearchHits.streamContext().streamShardTarget(ShardTargetType.STREAM));
-    }
-
-    public void writeTo(StreamOutput out, InternalSearchHits.StreamContext context) throws IOException {
         out.writeFloat(score);
         out.writeOptionalText(id);
         out.writeOptionalText(type);
-        out.writeOptionalStreamable(nestedIdentity);
+        out.writeOptionalWriteable(nestedIdentity);
         out.writeLong(version);
         out.writeBytesReference(source);
         if (explanation == null) {
@@ -752,36 +730,19 @@ public class InternalSearchHit implements SearchHit {
                 out.writeString(matchedFilter);
             }
         }
-
-        if (context.streamShardTarget() == ShardTargetType.STREAM) {
-            if (shard == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                shard.writeTo(out);
-            }
-        } else if (context.streamShardTarget() == ShardTargetType.LOOKUP) {
-            if (shard == null) {
-                out.writeVInt(0);
-            } else {
-                out.writeVInt(context.shardHandleLookup().get(shard));
-            }
-        }
-
+        out.writeOptionalWriteable(shard);
         if (innerHits == null) {
             out.writeVInt(0);
         } else {
             out.writeVInt(innerHits.size());
             for (Map.Entry<String, InternalSearchHits> entry : innerHits.entrySet()) {
                 out.writeString(entry.getKey());
-                ShardTargetType shardTarget = context.streamShardTarget();
-                entry.getValue().writeTo(out, context.streamShardTarget(ShardTargetType.NO_STREAM));
-                context.streamShardTarget(shardTarget);
+                entry.getValue().writeTo(out);
             }
         }
     }
 
-    public static final class InternalNestedIdentity implements NestedIdentity, Streamable, ToXContent {
+    public static final class InternalNestedIdentity implements NestedIdentity, Writeable, ToXContent {
 
         private Text field;
         private int offset;
@@ -793,7 +754,10 @@ public class InternalSearchHit implements SearchHit {
             this.child = child;
         }
 
-        InternalNestedIdentity() {
+        InternalNestedIdentity(StreamInput in) throws IOException {
+            field = in.readOptionalText();
+            offset = in.readInt();
+            child = in.readOptionalWriteable(InternalNestedIdentity::new);
         }
 
         @Override
@@ -812,22 +776,24 @@ public class InternalSearchHit implements SearchHit {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
-            field = in.readOptionalText();
-            offset = in.readInt();
-            child = in.readOptionalStreamable(InternalNestedIdentity::new);
-        }
-
-        @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalText(field);
             out.writeInt(offset);
-            out.writeOptionalStreamable(child);
+            out.writeOptionalWriteable(child);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(Fields._NESTED);
+            builder.field(Fields._NESTED);
+            return innerToXContent(builder, params);
+        }
+
+        /**
+         * Rendering of the inner XContent object without the leading field name. This way the structure innerToXContent renders and
+         * fromXContent parses correspond to each other.
+         */
+        XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             if (field != null) {
                 builder.field(Fields._NESTED_FIELD, field);
             }
@@ -841,12 +807,42 @@ public class InternalSearchHit implements SearchHit {
             return builder;
         }
 
-        public static class Fields {
+        private static final ConstructingObjectParser<InternalNestedIdentity, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+                "nested_identity",
+                ctorArgs -> new InternalNestedIdentity((String) ctorArgs[0], (int) ctorArgs[1], (InternalNestedIdentity) ctorArgs[2]));
+        static {
+            PARSER.declareString(constructorArg(), new ParseField(Fields._NESTED_FIELD));
+            PARSER.declareInt(constructorArg(), new ParseField(Fields._NESTED_OFFSET));
+            PARSER.declareObject(optionalConstructorArg(), PARSER, new ParseField(Fields._NESTED));
+        }
 
+        public static InternalNestedIdentity fromXContent(XContentParser parser) {
+            return PARSER.apply(parser, () -> ParseFieldMatcher.EMPTY);
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            InternalNestedIdentity other = (InternalNestedIdentity) obj;
+            return Objects.equals(field, other.field) &&
+                    Objects.equals(offset, other.offset) &&
+                    Objects.equals(child, other.child);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(field, offset, child);
+        }
+
+        public static class Fields {
             static final String _NESTED = "_nested";
             static final String _NESTED_FIELD = "field";
             static final String _NESTED_OFFSET = "offset";
-
         }
     }
 

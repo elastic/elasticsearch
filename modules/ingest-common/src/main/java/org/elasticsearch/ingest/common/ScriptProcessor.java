@@ -36,9 +36,9 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalMap;
 import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalStringProperty;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
-import static org.elasticsearch.script.ScriptService.ScriptType.FILE;
-import static org.elasticsearch.script.ScriptService.ScriptType.INLINE;
-import static org.elasticsearch.script.ScriptService.ScriptType.STORED;
+import static org.elasticsearch.script.ScriptType.FILE;
+import static org.elasticsearch.script.ScriptType.INLINE;
+import static org.elasticsearch.script.ScriptType.STORED;
 
 /**
  * Processor that adds new fields with their corresponding values. If the field is already present, its value
@@ -59,7 +59,7 @@ public final class ScriptProcessor extends AbstractProcessor {
 
     @Override
     public void execute(IngestDocument document) {
-        ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.INGEST, emptyMap());
+        ExecutableScript executableScript = scriptService.executable(script, ScriptContext.Standard.INGEST);
         executableScript.setNextVar("ctx",  document.getSourceAndMetadata());
         executableScript.run();
     }
@@ -67,6 +67,10 @@ public final class ScriptProcessor extends AbstractProcessor {
     @Override
     public String getType() {
         return TYPE;
+    }
+
+    Script getScript() {
+        return script;
     }
 
     public static final class Factory implements Processor.Factory {
@@ -78,9 +82,10 @@ public final class ScriptProcessor extends AbstractProcessor {
         }
 
         @Override
+        @SuppressWarnings("unchecked")
         public ScriptProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                       Map<String, Object> config) throws Exception {
-            String lang = readStringProperty(TYPE, processorTag, config, "lang");
+            String lang = readOptionalStringProperty(TYPE, processorTag, config, "lang");
             String inline = readOptionalStringProperty(TYPE, processorTag, config, "inline");
             String file = readOptionalStringProperty(TYPE, processorTag, config, "file");
             String id = readOptionalStringProperty(TYPE, processorTag, config, "id");
@@ -97,17 +102,21 @@ public final class ScriptProcessor extends AbstractProcessor {
                 throw newConfigurationException(TYPE, processorTag, null, "Only one of [file], [id], or [inline] may be configured");
             }
 
-            if(params == null) {
+            if (lang == null) {
+                lang = Script.DEFAULT_SCRIPT_LANG;
+            }
+
+            if (params == null) {
                 params = emptyMap();
             }
 
             final Script script;
             if (Strings.hasLength(file)) {
-                script = new Script(file, FILE, lang, params);
+                script = new Script(FILE, lang, file, (Map<String, Object>)params);
             } else if (Strings.hasLength(inline)) {
-                script = new Script(inline, INLINE, lang, params);
+                script = new Script(INLINE, lang, inline, (Map<String, Object>)params);
             } else if (Strings.hasLength(id)) {
-                script = new Script(id, STORED, lang, params);
+                script = new Script(STORED, lang, id, (Map<String, Object>)params);
             } else {
                 throw newConfigurationException(TYPE, processorTag, null, "Could not initialize script");
             }

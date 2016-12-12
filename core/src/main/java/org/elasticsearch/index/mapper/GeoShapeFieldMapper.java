@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.index.IndexableField;
 import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Shape;
 import org.locationtech.spatial4j.shape.jts.JtsGeometry;
@@ -430,10 +431,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
     }
 
     @Override
-    public Mapper parse(ParseContext originalContext) throws IOException {
-        // Numeric fields, by default, will not be included in _all
-        final ParseContext context = originalContext.setIncludeInAllDefault(false);
-
+    public Mapper parse(ParseContext context) throws IOException {
         try {
             Shape shape = context.parseExternalValue(Shape.class);
             if (shape == null) {
@@ -465,7 +463,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
     }
 
     @Override

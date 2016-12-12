@@ -124,7 +124,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         }
 
         // if we are still fetching, return null to indicate it
-        if (hasAnyNodeFetching(cache) == true) {
+        if (hasAnyNodeFetching(cache)) {
             return new FetchResult<>(shardId, null, emptySet(), emptySet());
         } else {
             // nothing to fetch, yay, build the return value
@@ -137,7 +137,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
 
                 DiscoveryNode node = nodes.get(nodeId);
                 if (node != null) {
-                    if (nodeEntry.isFailed() == true) {
+                    if (nodeEntry.isFailed()) {
                         // if its failed, remove it from the list of nodes, so if this run doesn't work
                         // we try again next round to fetch it again
                         it.remove();
@@ -361,7 +361,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         }
 
         void doneFetching(T value) {
-            assert fetching == true : "setting value but not in fetching mode";
+            assert fetching : "setting value but not in fetching mode";
             assert failure == null : "setting value when failure already set";
             this.valueSet = true;
             this.value = value;
@@ -369,7 +369,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         }
 
         void doneFetching(Throwable failure) {
-            assert fetching == true : "setting value but not in fetching mode";
+            assert fetching : "setting value but not in fetching mode";
             assert valueSet == false : "setting failure when already set value";
             assert failure != null : "setting failure can't be null";
             this.failure = failure;
@@ -377,7 +377,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         }
 
         void restartFetching() {
-            assert fetching == true : "restarting fetching, but not in fetching mode";
+            assert fetching : "restarting fetching, but not in fetching mode";
             assert valueSet == false : "value can't be set when restarting fetching";
             assert failure == null : "failure can't be set when restarting fetching";
             this.fetching = false;
@@ -388,7 +388,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         }
 
         boolean hasData() {
-            return valueSet == true || failure != null;
+            return valueSet || failure != null;
         }
 
         Throwable getFailure() {
@@ -399,7 +399,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         @Nullable
         T getValue() {
             assert failure == null : "trying to fetch value, but its marked as failed, check isFailed";
-            assert valueSet == true : "value is not set, hasn't been fetched yet";
+            assert valueSet : "value is not set, hasn't been fetched yet";
             return value;
         }
     }

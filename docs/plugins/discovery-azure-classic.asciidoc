@@ -21,6 +21,9 @@ sudo bin/elasticsearch-plugin install discovery-azure-classic
 The plugin must be installed on every node in the cluster, and each node must
 be restarted after installation.
 
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/discovery-azure-classic/discovery-azure-classic-{version}.zip.
+
 [[discovery-azure-classic-remove]]
 [float]
 ==== Removal
@@ -53,7 +56,7 @@ cloud:
                    type: pkcs12
 
 discovery:
-    type: azure
+    zen.hosts_provider: azure
 ----
 
 [IMPORTANT]
@@ -375,6 +378,7 @@ curl -s https://download.elasticsearch.org/elasticsearch/elasticsearch/elasticse
 # Prepare Elasticsearch installation
 sudo dpkg -i elasticsearch-{version}.deb
 ----
+// NOTCONSOLE
 
 Check that elasticsearch is running:
 
@@ -391,6 +395,7 @@ This command should give you a JSON result:
 {
   "name" : "Cp8oag6",
   "cluster_name" : "elasticsearch",
+  "cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",
   "version" : {
     "number" : "{version}",
     "build_hash" : "f27399d",
@@ -403,6 +408,7 @@ This command should give you a JSON result:
 --------------------------------------------
 // TESTRESPONSE[s/"name" : "Cp8oag6",/"name" : "$body.name",/]
 // TESTRESPONSE[s/"cluster_name" : "elasticsearch",/"cluster_name" : "$body.cluster_name",/]
+// TESTRESPONSE[s/"cluster_uuid" : "AT69_T_DTp-1qgIJlatQqA",/"cluster_uuid" : "$body.cluster_uuid",/]
 // TESTRESPONSE[s/"build_hash" : "f27399d",/"build_hash" : "$body.version.build_hash",/]
 // TESTRESPONSE[s/"build_date" : "2016-03-30T09:51:41.449Z",/"build_date" : $body.version.build_date,/]
 // TESTRESPONSE[s/"build_snapshot" : false,/"build_snapshot" : $body.version.build_snapshot,/]

@@ -26,7 +26,6 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.Netty4Plugin;
@@ -76,8 +75,8 @@ public class Netty4TransportPublishAddressIT extends ESNetty4IntegTestCase {
             } else {
                 assertThat(boundTransportAddress.boundAddresses().length, greaterThan(1));
                 for (TransportAddress boundAddress : boundTransportAddress.boundAddresses()) {
-                    assertThat(boundAddress, instanceOf(InetSocketTransportAddress.class));
-                    InetSocketTransportAddress inetBoundAddress = (InetSocketTransportAddress) boundAddress;
+                    assertThat(boundAddress, instanceOf(TransportAddress.class));
+                    TransportAddress inetBoundAddress = (TransportAddress) boundAddress;
                     if (inetBoundAddress.address().getAddress() instanceof Inet4Address) {
                         // IPv4 address is preferred publish address for _local_
                         assertThat(inetBoundAddress.getPort(), equalTo(boundTransportAddress.publishAddress().getPort()));

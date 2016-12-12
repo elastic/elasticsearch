@@ -21,8 +21,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.index.mapper.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.junit.Before;
 
 public class BooleanFieldTypeTests extends FieldTypeTestCase {
@@ -44,11 +42,11 @@ public class BooleanFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueForSearch() {
         MappedFieldType ft = createDefaultFieldType();
-        assertEquals(true, ft.valueForSearch("T"));
-        assertEquals(false, ft.valueForSearch("F"));
-        expectThrows(IllegalArgumentException.class, () -> ft.valueForSearch(0));
-        expectThrows(IllegalArgumentException.class, () -> ft.valueForSearch("true"));
-        expectThrows(IllegalArgumentException.class, () -> ft.valueForSearch("G"));
+        assertEquals(true, ft.valueForDisplay("T"));
+        assertEquals(false, ft.valueForDisplay("F"));
+        expectThrows(IllegalArgumentException.class, () -> ft.valueForDisplay(0));
+        expectThrows(IllegalArgumentException.class, () -> ft.valueForDisplay("true"));
+        expectThrows(IllegalArgumentException.class, () -> ft.valueForDisplay("G"));
     }
 
     public void testTermQuery() {

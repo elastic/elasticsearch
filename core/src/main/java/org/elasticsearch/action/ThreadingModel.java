@@ -20,9 +20,6 @@
 package org.elasticsearch.action;
 
 
-/**
- *
- */
 public enum ThreadingModel {
     NONE((byte) 0),
     OPERATION((byte) 1),

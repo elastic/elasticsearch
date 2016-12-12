@@ -37,15 +37,10 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A Query that does fuzzy matching for a specific value.
- *
- * @deprecated Fuzzy queries are not useful enough. This class will be removed with Elasticsearch 4.0. In most cases you may want to use
- * a match query with the fuzziness parameter for strings or range queries for numeric and date fields.
  */
-@Deprecated
 public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "fuzzy";
 
@@ -256,7 +251,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
         builder.endObject();
     }
 
-    public static Optional<FuzzyQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static FuzzyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         String fieldName = null;
         Object value = null;
@@ -311,14 +306,14 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
                 value = parser.objectBytes();
             }
         }
-        return Optional.of(new FuzzyQueryBuilder(fieldName, value)
+        return new FuzzyQueryBuilder(fieldName, value)
                 .fuzziness(fuzziness)
                 .prefixLength(prefixLength)
                 .maxExpansions(maxExpansions)
                 .transpositions(transpositions)
                 .rewrite(rewrite)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName);
     }
 
     @Override

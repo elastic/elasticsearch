@@ -26,7 +26,6 @@ import org.elasticsearch.script.ScriptService;
 
 import java.util.Map;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -102,32 +101,6 @@ public class ReindexScriptTests extends AbstractAsyncBulkIndexByScrollActionScri
         String routing = randomRealisticUnicodeOfLengthBetween(5, 20);
         IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_routing", routing));
         assertEquals(routing, index.routing());
-    }
-
-    public void testSetTimestamp() throws Exception {
-        String timestamp = randomFrom("now", "1234", null);
-        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_timestamp", timestamp));
-        assertEquals(timestamp, index.timestamp());
-    }
-
-    public void testSetTtl() throws Exception {
-        Number ttl = randomFrom(new Number[] { null, 1233214, 134143797143L });
-        IndexRequest index = applyScript((Map<String, Object> ctx) -> ctx.put("_ttl", ttl));
-        if (ttl == null) {
-            assertEquals(null, index.ttl());
-        } else {
-            assertEquals(timeValueMillis(ttl.longValue()), index.ttl());
-        }
-    }
-
-    public void testSettingTtlToJunkIsAnError() throws Exception {
-        Object junkTtl = randomFrom(new Object[] { "junk", Math.PI });
-        try {
-            applyScript((Map<String, Object> ctx) -> ctx.put("_ttl", junkTtl));
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("_ttl may only be set to an int or a long but was ["));
-            assertThat(e.getMessage(), containsString(junkTtl.toString()));
-        }
     }
 
     @Override

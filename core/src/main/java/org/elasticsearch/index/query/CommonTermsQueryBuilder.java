@@ -40,7 +40,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * CommonTermsQuery query is a query that executes high-frequency terms in a
@@ -263,7 +262,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         builder.endObject();
     }
 
-    public static Optional<CommonTermsQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static CommonTermsQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -348,7 +347,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
             }
         }
 
-        return Optional.of(new CommonTermsQueryBuilder(fieldName, text)
+        return new CommonTermsQueryBuilder(fieldName, text)
                 .lowFreqMinimumShouldMatch(lowFreqMinimumShouldMatch)
                 .highFreqMinimumShouldMatch(highFreqMinimumShouldMatch)
                 .analyzer(analyzer)
@@ -357,7 +356,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                 .disableCoord(disableCoord)
                 .cutoffFrequency(cutoffFrequency)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName);
     }
 
     @Override
@@ -383,7 +382,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
                 analyzerObj = context.getMapperService().searchAnalyzer();
             }
         } else {
-            analyzerObj = context.getMapperService().analysisService().analyzer(analyzer);
+            analyzerObj = context.getMapperService().getIndexAnalyzers().get(analyzer);
             if (analyzerObj == null) {
                 throw new QueryShardException(context, "[common] analyzer [" + analyzer + "] not found");
             }

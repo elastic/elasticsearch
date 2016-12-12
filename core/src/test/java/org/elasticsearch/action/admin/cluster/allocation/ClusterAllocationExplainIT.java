@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,20 +36,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
-import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -102,7 +96,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         // verify cluster info
         verifyClusterInfo(clusterInfo, includeDiskInfo, 1);
 
-        // very decision objects
+        // verify decision objects
         assertTrue(allocateDecision.isDecisionTaken());
         assertFalse(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO_VALID_SHARD_COPY, allocateDecision.getAllocationDecision());
@@ -113,96 +107,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());
         assertEquals(0L, allocateDecision.getRemainingDelayInMillis());
         assertEquals(0, allocateDecision.getNodeDecisions().size());
-    }
-
-    public void testUnassignedPrimaryDueToFailedInitialization() throws Exception {
-        logger.info("--> starting 2 nodes");
-        internalCluster().startNodes(2);
-        ensureStableCluster(2);
-
-        logger.info("--> creating an index with 1 primary, 0 replicas");
-        // set max retries to 1 to speed the process up
-        createIndexAndIndexData(1, 0, Settings.builder().put(SETTING_ALLOCATION_MAX_RETRY.getKey(), 1).build(), true);
-        Index index = resolveIndex("idx");
-        String primaryNode = primaryNodeName();
-        Path shardPath = internalCluster().getInstance(NodeEnvironment.class, primaryNode).availableShardPaths(new ShardId(index, 0))[0];
-
-        logger.info("--> stopping the node with the primary [{}]", primaryNode);
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
-        ensureStableCluster(1);
-
-        logger.info("--> deleting a cfs file to make the shard copy corrupt");
-        IOUtils.rm(shardPath.resolve("index/_0.cfs"));
-
-        logger.info("--> restarting the node with the primary [{}]", primaryNode);
-        internalCluster().startDataOnlyNode(Settings.builder().put("node.name", primaryNode).build());
-        ensureStableCluster(2);
-        // wait until shard has attempted to initialize max number of retries
-        assertBusy(() -> {
-            UnassignedInfo unassignedInfo = client().admin().cluster().prepareAllocationExplain()
-                .setIndex("idx").setShard(0).setPrimary(true).get().getExplanation().getUnassignedInfo();
-            assertNotNull(unassignedInfo);
-            assertThat(unassignedInfo.getNumFailedAllocations(), greaterThanOrEqualTo(1));
-        });
-
-        boolean includeYesDecisions = randomBoolean();
-        boolean includeDiskInfo = randomBoolean();
-        ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
-
-        ShardId shardId = explanation.getShard();
-        boolean isPrimary = explanation.isPrimary();
-        ShardRoutingState shardRoutingState = explanation.getShardState();
-        DiscoveryNode currentNode = explanation.getCurrentNode();
-        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
-        ClusterInfo clusterInfo = explanation.getClusterInfo();
-        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
-        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
-
-        // verify shard info
-        assertEquals("idx", shardId.getIndexName());
-        assertEquals(0, shardId.getId());
-        assertTrue(isPrimary);
-
-        // verify current node info
-        assertNotEquals(ShardRoutingState.STARTED, shardRoutingState);
-        assertNull(currentNode);
-
-        // verify unassigned info
-        assertNotNull(unassignedInfo);
-        assertEquals(Reason.ALLOCATION_FAILED, unassignedInfo.getReason());
-
-        // verify cluster info
-        verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
-
-        // very decision objects
-        assertTrue(allocateDecision.isDecisionTaken());
-        assertFalse(moveDecision.isDecisionTaken());
-        assertEquals(AllocationDecision.NO, allocateDecision.getAllocationDecision());
-        assertEquals("cannot allocate because allocation is not permitted to any of the nodes that hold an in-sync shard copy",
-            allocateDecision.getExplanation());
-        assertNull(allocateDecision.getAllocationId());
-        assertNull(allocateDecision.getTargetNode());
-        assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());
-        assertEquals(0L, allocateDecision.getRemainingDelayInMillis());
-        assertEquals(1, allocateDecision.getNodeDecisions().size());
-        NodeAllocationResult result = allocateDecision.getNodeDecisions().get(0);
-        assertNotNull(result.getNode());
-        assertEquals(AllocationDecision.NO, result.getNodeDecision());
-        assertTrue(result.getShardStoreInfo().isInSync());
-        assertNotNull(result.getShardStoreInfo().getAllocationId());
-        if (includeYesDecisions) {
-            assertThat(result.getCanAllocateDecision().getDecisions().size(), greaterThan(1));
-        } else {
-            assertEquals(1, result.getCanAllocateDecision().getDecisions().size());
-        }
-        for (Decision d : result.getCanAllocateDecision().getDecisions()) {
-            assertEquals(d.label().equals("max_retry") ? Decision.Type.NO : Decision.Type.YES, d.type());
-            assertNotNull(d.getExplanation());
-            if (d.label().equals("max_retry")) {
-                assertThat(d.getExplanation(), startsWith("shard has exceeded the maximum number of retries [1] on failed allocation " +
-                    "attempts - manually call [/_cluster/reroute?retry_failed=true] to retry"));
-            }
-        }
     }
 
     public void testUnassignedReplicaDelayedAllocation() throws Exception {
@@ -853,4 +757,5 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         String nodeId = clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0).currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node().getName();
     }
+
 }

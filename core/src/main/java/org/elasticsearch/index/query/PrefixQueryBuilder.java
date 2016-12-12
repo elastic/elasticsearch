@@ -36,7 +36,6 @@ import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A Query that matches documents containing terms with a specified prefix.
@@ -117,7 +116,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         builder.endObject();
     }
 
-    public static Optional<PrefixQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static PrefixQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -161,10 +160,10 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
             }
         }
 
-        return Optional.of(new PrefixQueryBuilder(fieldName, value)
+        return new PrefixQueryBuilder(fieldName, value)
                 .rewrite(rewrite)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName);
     }
 
     @Override

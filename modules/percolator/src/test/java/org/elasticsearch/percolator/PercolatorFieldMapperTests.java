@@ -480,9 +480,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         QueryParseContext qsc = indexService.newQueryShardContext(
                 randomInt(20), null, () -> { throw new UnsupportedOperationException(); })
                 .newParseContext(sourceParser);
-        assertThat(qsc.parseInnerQueryBuilder().get(), equalTo(expected));
+        assertThat(qsc.parseInnerQueryBuilder(), equalTo(expected));
     }
-
 
     public void testEmptyName() throws Exception {
         // after 5.x

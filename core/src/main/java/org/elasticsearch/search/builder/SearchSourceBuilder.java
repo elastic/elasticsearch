@@ -1228,7 +1228,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.field(STATS_FIELD.getPreferredName(), stats);
         }
 
-        if (extBuilders != null) {
+        if (extBuilders != null && extBuilders.isEmpty() == false) {
             builder.startObject(EXT_FIELD.getPreferredName());
             for (SearchExtBuilder extBuilder : extBuilders) {
                 extBuilder.toXContent(builder, params);

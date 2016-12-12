@@ -66,7 +66,10 @@ public class IncludeExclude implements Writeable, ToXContent {
     public static final ParseField PATTERN_FIELD = new ParseField("pattern");
     public static final ParseField PARTITION_FIELD = new ParseField("partition");
     public static final ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
-    private static final int hash_partitioning_seed = 31;
+    // Needed to add this seed for a deterministic term hashing policy
+    // otherwise tests fail to get expected results and worse, shards 
+    // can disagree on which terms hash to the required partition. 
+    private static final int HASH_PARTITIONING_SEED = 31;
 
     // for parsing purposes only
     // TODO: move all aggs to the same package so that this stuff could be pkg-private
@@ -197,7 +200,7 @@ public class IncludeExclude implements Writeable, ToXContent {
     class PartitionedStringFilter extends StringFilter {
         @Override
         public boolean accept(BytesRef value) {
-            return Math.floorMod(StringHelper.murmurhash3_x86_32(value, hash_partitioning_seed), incNumPartitions) == incZeroBasedPartition;
+            return Math.floorMod(StringHelper.murmurhash3_x86_32(value, HASH_PARTITIONING_SEED), incNumPartitions) == incZeroBasedPartition;
         }
     }
 
@@ -253,7 +256,7 @@ public class IncludeExclude implements Writeable, ToXContent {
 
             BytesRef term = termEnum.next();
             while (term != null) {
-                if (Math.floorMod(StringHelper.murmurhash3_x86_32(term, hash_partitioning_seed), incNumPartitions) == incZeroBasedPartition) {
+                if (Math.floorMod(StringHelper.murmurhash3_x86_32(term, HASH_PARTITIONING_SEED), incNumPartitions) == incZeroBasedPartition) {
                     acceptedGlobalOrdinals.set(termEnum.ord());
                 }
                 term = termEnum.next();

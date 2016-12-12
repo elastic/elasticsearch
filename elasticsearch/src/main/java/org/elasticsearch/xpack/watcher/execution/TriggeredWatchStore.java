@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -129,10 +130,10 @@ public class TriggeredWatchStore extends AbstractComponent {
         }
     }
 
-    public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<List<Integer>> listener) throws Exception {
+    public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<BitSet> listener) throws Exception {
 
         if (triggeredWatches.isEmpty()) {
-            listener.onResponse(Collections.emptyList());
+            listener.onResponse(new BitSet(0));
             return;
         }
 
@@ -140,7 +141,9 @@ public class TriggeredWatchStore extends AbstractComponent {
             put(triggeredWatches.get(0), new ActionListener<Boolean>() {
                 @Override
                 public void onResponse(Boolean success) {
-                    listener.onResponse(Collections.singletonList(0));
+                    BitSet bitSet = new BitSet(1);
+                    bitSet.set(0);
+                    listener.onResponse(bitSet);
                 }
 
                 @Override
@@ -163,15 +166,14 @@ public class TriggeredWatchStore extends AbstractComponent {
             client.bulk(request, new ActionListener<BulkResponse>() {
                 @Override
                 public void onResponse(BulkResponse response) {
-                    List<Integer> successFullSlots = new ArrayList<Integer>();
+                    BitSet successFullSlots = new BitSet(triggeredWatches.size());
                     for (int i = 0; i < response.getItems().length; i++) {
                         BulkItemResponse itemResponse = response.getItems()[i];
                         if (itemResponse.isFailed()) {
                             logger.error("could store triggered watch with id [{}], because failed [{}]", itemResponse.getId(),
                                     itemResponse.getFailureMessage());
                         } else {
-                            IndexResponse indexResponse = itemResponse.getResponse();
-                            successFullSlots.add(i);
+                            successFullSlots.set(i);
                         }
                     }
                     listener.onResponse(successFullSlots);
@@ -187,7 +189,7 @@ public class TriggeredWatchStore extends AbstractComponent {
         }
     }
 
-    public List<Integer> putAll(final List<TriggeredWatch> triggeredWatches) throws Exception {
+    public BitSet putAll(final List<TriggeredWatch> triggeredWatches) throws Exception {
         ensureStarted();
         try {
             BulkRequest request = new BulkRequest();
@@ -198,15 +200,14 @@ public class TriggeredWatchStore extends AbstractComponent {
                 request.add(indexRequest);
             }
             BulkResponse response = client.bulk(request, (TimeValue) null);
-            List<Integer> successFullSlots = new ArrayList<>();
+            BitSet successFullSlots = new BitSet(triggeredWatches.size());
             for (int i = 0; i < response.getItems().length; i++) {
                 BulkItemResponse itemResponse = response.getItems()[i];
                 if (itemResponse.isFailed()) {
                     logger.error("could store triggered watch with id [{}], because failed [{}]", itemResponse.getId(),
                             itemResponse.getFailureMessage());
                 } else {
-                    IndexResponse indexResponse = itemResponse.getResponse();
-                    successFullSlots.add(i);
+                    successFullSlots.set(i);
                 }
             }
             return successFullSlots;

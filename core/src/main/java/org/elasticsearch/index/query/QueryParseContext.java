@@ -23,21 +23,14 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptSettings;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 public class QueryParseContext implements ParseFieldMatcherSupplier {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(QueryParseContext.class));
 
     private static final ParseField CACHE = new ParseField("_cache").withAllDeprecated("Elasticsearch makes its own caching decisions");
     private static final ParseField CACHE_KEY = new ParseField("_cache_key").withAllDeprecated("Filters are always used as cache keys");
@@ -77,7 +70,7 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
                     if ("query".equals(fieldName)) {
-                        queryBuilder = parseInnerQueryBuilder().orElse(null);
+                        queryBuilder = parseInnerQueryBuilder();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }
@@ -94,42 +87,35 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
     /**
      * Parses a query excluding the query element that wraps it
      */
-    public Optional<QueryBuilder> parseInnerQueryBuilder() throws IOException {
-        // move to START object
-        XContentParser.Token token;
+    public QueryBuilder parseInnerQueryBuilder() throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-            token = parser.nextToken();
-            if (token != XContentParser.Token.START_OBJECT) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, must start with start_object");
             }
         }
-        token = parser.nextToken();
-        if (token == XContentParser.Token.END_OBJECT) {
-            // we encountered '{}' for a query clause
-            String msg = "query malformed, empty clause found at [" + parser.getTokenLocation() +"]";
-            DEPRECATION_LOGGER.deprecated(msg);
-            if (parseFieldMatcher.isStrict()) {
-                throw new IllegalArgumentException(msg);
-            }
-            return Optional.empty();
+        if (parser.nextToken() == XContentParser.Token.END_OBJECT) {
+            // we encountered '{}' for a query clause, it used to be supported, deprecated in 5.0 and removed in 6.0
+            throw new IllegalArgumentException("query malformed, empty clause found at [" + parser.getTokenLocation() +"]");
         }
-        if (token != XContentParser.Token.FIELD_NAME) {
+        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
             throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, no field after start_object");
         }
         String queryName = parser.currentName();
         // move to the next START_OBJECT
-        token = parser.nextToken();
-        if (token != XContentParser.Token.START_OBJECT) {
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(), "[" + queryName + "] query malformed, no start_object after query name");
         }
-        @SuppressWarnings("unchecked")
-        Optional<QueryBuilder> result = (Optional<QueryBuilder>) indicesQueriesRegistry.lookup(queryName, parseFieldMatcher,
-                parser.getTokenLocation()).fromXContent(this);
+        QueryBuilder result = indicesQueriesRegistry.lookup(queryName, parseFieldMatcher, parser.getTokenLocation()).fromXContent(this);
+        //end_object of the specific query (e.g. match, multi_match etc.) element
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(),
                     "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]");
         }
-        parser.nextToken();
+        //end_object of the query object
+        if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "[" + queryName + "] malformed query, expected [END_OBJECT] but found [" + parser.currentToken() + "]");
+        }
         return result;
     }
 

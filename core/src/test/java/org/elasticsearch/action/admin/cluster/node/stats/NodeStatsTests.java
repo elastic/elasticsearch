@@ -22,9 +22,8 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
+import org.elasticsearch.discovery.zen.PendingClusterStateStats;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -73,6 +72,30 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(nodeStats.getOs().getMem().getFreePercent(), deserializedNodeStats.getOs().getMem().getFreePercent());
                     assertEquals(nodeStats.getOs().getMem().getUsedPercent(), deserializedNodeStats.getOs().getMem().getUsedPercent());
                     assertEquals(nodeStats.getOs().getCpu().getPercent(), deserializedNodeStats.getOs().getCpu().getPercent());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getCpuAcctControlGroup(),
+                        deserializedNodeStats.getOs().getCgroup().getCpuAcctControlGroup());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getCpuAcctUsageNanos(),
+                        deserializedNodeStats.getOs().getCgroup().getCpuAcctUsageNanos());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getCpuControlGroup(),
+                        deserializedNodeStats.getOs().getCgroup().getCpuControlGroup());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getCpuCfsPeriodMicros(),
+                        deserializedNodeStats.getOs().getCgroup().getCpuCfsPeriodMicros());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getCpuCfsQuotaMicros(),
+                        deserializedNodeStats.getOs().getCgroup().getCpuCfsQuotaMicros());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getCpuStat().getNumberOfElapsedPeriods(),
+                        deserializedNodeStats.getOs().getCgroup().getCpuStat().getNumberOfElapsedPeriods());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getCpuStat().getNumberOfTimesThrottled(),
+                        deserializedNodeStats.getOs().getCgroup().getCpuStat().getNumberOfTimesThrottled());
+                    assertEquals(
+                        nodeStats.getOs().getCgroup().getCpuStat().getTimeThrottledNanos(),
+                        deserializedNodeStats.getOs().getCgroup().getCpuStat().getTimeThrottledNanos());
                     assertArrayEquals(nodeStats.getOs().getCpu().getLoadAverage(),
                             deserializedNodeStats.getOs().getCpu().getLoadAverage(), 0);
                 }
@@ -255,7 +278,7 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static NodeStats createNodeStats() {
-        DiscoveryNode node = new DiscoveryNode("test_node", LocalTransportAddress.buildUnique(),
+        DiscoveryNode node = new DiscoveryNode("test_node", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), VersionUtils.randomVersion(random()));
         OsStats osStats = null;
         if (frequently()) {
@@ -265,7 +288,14 @@ public class NodeStatsTests extends ESTestCase {
             }
             osStats = new OsStats(System.currentTimeMillis(), new OsStats.Cpu(randomShort(), loadAverages),
                     new OsStats.Mem(randomLong(), randomLong()),
-                    new OsStats.Swap(randomLong(), randomLong()));
+                    new OsStats.Swap(randomLong(), randomLong()),
+                    new OsStats.Cgroup(
+                        randomAsciiOfLength(8),
+                        randomPositiveLong(),
+                        randomAsciiOfLength(8),
+                        randomPositiveLong(),
+                        randomPositiveLong(),
+                        new OsStats.Cgroup.CpuStat(randomPositiveLong(), randomPositiveLong(), randomPositiveLong())));
         }
         ProcessStats processStats = frequently() ? new ProcessStats(randomPositiveLong(), randomPositiveLong(), randomPositiveLong(),
                 new ProcessStats.Cpu(randomShort(), randomPositiveLong()),

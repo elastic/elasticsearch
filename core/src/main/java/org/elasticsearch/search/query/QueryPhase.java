@@ -85,7 +85,7 @@ public class QueryPhase implements SearchPhase {
 
     @Override
     public void preProcess(SearchContext context) {
-        context.preProcess();
+        context.preProcess(true);
     }
 
     @Override
@@ -359,6 +359,15 @@ public class QueryPhase implements SearchPhase {
                 if (doProfile) {
                     collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_TIMEOUT,
                             Collections.singletonList((InternalProfileCollector) child));
+                }
+            }
+
+            if (collector != null) {
+                final Collector child = collector;
+                collector = new CancellableCollector(searchContext.getTask()::isCancelled, searchContext.lowLevelCancellation(), collector);
+                if (doProfile) {
+                    collector = new InternalProfileCollector(collector, CollectorResult.REASON_SEARCH_CANCELLED,
+                        Collections.singletonList((InternalProfileCollector) child));
                 }
             }
 

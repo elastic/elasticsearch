@@ -26,8 +26,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 
-/**
- */
 public class FieldDataLoadingIT extends ESIntegTestCase {
 
     public void testEagerGlobalOrdinalsFieldDataLoading() throws Exception {

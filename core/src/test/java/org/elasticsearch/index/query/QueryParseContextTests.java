@@ -21,18 +21,20 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.Optional;
 
 import static java.util.Collections.emptyList;
 
@@ -43,6 +45,20 @@ public class QueryParseContextTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, false, emptyList()).getQueryParserRegistry();
+    }
+
+    private ThreadContext threadContext;
+
+    @Before
+    public void beforeTest() throws IOException {
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        DeprecationLogger.setThreadContext(threadContext);
+    }
+
+    @After
+    public void teardown() throws IOException {
+        DeprecationLogger.removeThreadContext(this.threadContext);
+        this.threadContext.close();
     }
 
     public void testParseTopLevelBuilder() throws IOException {
@@ -78,17 +94,8 @@ public class QueryParseContextTests extends ESTestCase {
         String source = query.toString();
         try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
-            Optional<QueryBuilder> actual = context.parseInnerQueryBuilder();
-            assertEquals(query, actual.get());
-        }
-    }
-
-    public void testParseInnerQueryBuilderEmptyBody() throws IOException {
-        String source = "{}";
-        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
-            Optional<QueryBuilder> emptyQuery = context.parseInnerQueryBuilder();
-            assertFalse(emptyQuery.isPresent());
+            QueryBuilder actual = context.parseInnerQueryBuilder();
+            assertEquals(query, actual);
         }
     }
 
@@ -104,7 +111,7 @@ public class QueryParseContextTests extends ESTestCase {
 
         source = "{}";
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(source)) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->  context.parseInnerQueryBuilder());
             assertEquals("query malformed, empty clause found at [1:2]", exception.getMessage());
         }
@@ -123,5 +130,4 @@ public class QueryParseContextTests extends ESTestCase {
             assertEquals("no [query] registered for [foo]", exception.getMessage());
         }
     }
-
 }

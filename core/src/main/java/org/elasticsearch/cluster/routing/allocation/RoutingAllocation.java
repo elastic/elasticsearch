@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -46,83 +48,6 @@ import static java.util.Collections.unmodifiableSet;
  */
 public class RoutingAllocation {
 
-    /**
-     * this class is used to describe results of a {@link RoutingAllocation}
-     */
-    public static class Result {
-
-        private final boolean changed;
-
-        private final RoutingTable routingTable;
-
-        private final MetaData metaData;
-
-        private final RoutingExplanations explanations;
-
-        /**
-         * Creates a new {@link RoutingAllocation.Result} where no change to the routing table was made.
-         * @param clusterState the unchanged {@link ClusterState}
-         */
-        public static Result unchanged(ClusterState clusterState) {
-            return new Result(false, clusterState.routingTable(), clusterState.metaData(), new RoutingExplanations());
-        }
-
-        /**
-         * Creates a new {@link RoutingAllocation.Result} where changes were made to the routing table.
-         * @param routingTable the {@link RoutingTable} this Result references
-         * @param metaData the {@link MetaData} this Result references
-         * @param explanations Explanation for the reroute actions
-         */
-        public static Result changed(RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
-            return new Result(true, routingTable, metaData, explanations);
-        }
-
-        /**
-         * Creates a new {@link RoutingAllocation.Result}
-         * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
-         * @param routingTable the {@link RoutingTable} this Result references
-         * @param metaData the {@link MetaData} this Result references
-         * @param explanations Explanation for the reroute actions
-         */
-        private Result(boolean changed, RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
-            this.changed = changed;
-            this.routingTable = routingTable;
-            this.metaData = metaData;
-            this.explanations = explanations;
-        }
-
-        /** determine whether the actual {@link RoutingTable} has been changed
-         * @return <code>true</code> if the {@link RoutingTable} has been changed by allocation. Otherwise <code>false</code>
-         */
-        public boolean changed() {
-            return this.changed;
-        }
-
-        /**
-         * Get the {@link MetaData} referenced by this result
-         * @return referenced {@link MetaData}
-         */
-        public MetaData metaData() {
-            return metaData;
-        }
-
-        /**
-         * Get the {@link RoutingTable} referenced by this result
-         * @return referenced {@link RoutingTable}
-         */
-        public RoutingTable routingTable() {
-            return routingTable;
-        }
-
-        /**
-         * Get the explanation of this result
-         * @return explanation
-         */
-        public RoutingExplanations explanations() {
-            return explanations;
-        }
-    }
-
     private final AllocationDeciders deciders;
 
     private final RoutingNodes routingNodes;
@@ -134,8 +59,6 @@ public class RoutingAllocation {
     private final DiscoveryNodes nodes;
 
     private final ImmutableOpenMap<String, ClusterState.Custom> customs;
-
-    private final AllocationExplanation explanation = new AllocationExplanation();
 
     private final ClusterInfo clusterInfo;
 
@@ -153,8 +76,9 @@ public class RoutingAllocation {
 
     private final IndexMetaDataUpdater indexMetaDataUpdater = new IndexMetaDataUpdater();
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
+    private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-        nodesChangedObserver, indexMetaDataUpdater
+        nodesChangedObserver, indexMetaDataUpdater, restoreInProgressUpdater
     );
 
 
@@ -231,12 +155,8 @@ public class RoutingAllocation {
         return (T)customs.get(key);
     }
 
-    /**
-     * Get explanations of current routing
-     * @return explanation of routing
-     */
-    public AllocationExplanation explanation() {
-        return explanation;
+    public ImmutableOpenMap<String, ClusterState.Custom> getCustoms() {
+        return customs;
     }
 
     public void ignoreDisable(boolean ignoreDisable) {
@@ -309,6 +229,13 @@ public class RoutingAllocation {
      */
     public MetaData updateMetaDataWithRoutingChanges(RoutingTable newRoutingTable) {
         return indexMetaDataUpdater.applyChanges(metaData, newRoutingTable);
+    }
+
+    /**
+     * Returns updated {@link RestoreInProgress} based on the changes that were made to the routing nodes
+     */
+    public RestoreInProgress updateRestoreInfoWithRoutingChanges(RestoreInProgress restoreInProgress) {
+        return restoreInProgressUpdater.applyChanges(restoreInProgress);
     }
 
     /**

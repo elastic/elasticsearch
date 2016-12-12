@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
@@ -36,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
@@ -62,35 +62,36 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
     private final AliasValidator aliasValidator;
 
-    private final NodeServicesProvider nodeServicesProvider;
-
     private final MetaDataDeleteIndexService deleteIndexService;
 
     @Inject
-    public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService,
-            AliasValidator aliasValidator, NodeServicesProvider nodeServicesProvider, MetaDataDeleteIndexService deleteIndexService) {
+    public MetaDataIndexAliasesService(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        AliasValidator aliasValidator,
+        MetaDataDeleteIndexService deleteIndexService) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.aliasValidator = aliasValidator;
-        this.nodeServicesProvider = nodeServicesProvider;
         this.deleteIndexService = deleteIndexService;
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request,
-            final ActionListener<ClusterStateUpdateResponse> listener) {
+                               final ActionListener<ClusterStateUpdateResponse> listener) {
         clusterService.submitStateUpdateTask("index-aliases",
-                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
+            new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                @Override
+                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                    return new ClusterStateUpdateResponse(acknowledged);
+                }
 
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return innerExecute(currentState, request.actions());
-            }
-        });
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return innerExecute(currentState, request.actions());
+                }
+            });
     }
 
     ClusterState innerExecute(ClusterState currentState, Iterable<AliasAction> actions) {
@@ -139,20 +140,22 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                             if (indexService == null) {
                                 // temporarily create the index and add mappings so we can parse the filter
                                 try {
-                                    indexService = indicesService.createIndex(nodeServicesProvider, index, emptyList());
+                                    indexService = indicesService.createIndex(index, emptyList(), shardId -> {});
                                 } catch (IOException e) {
                                     throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
                                 }
                                 for (ObjectCursor<MappingMetaData> cursor : index.getMappings().values()) {
                                     MappingMetaData mappingMetaData = cursor.value;
                                     indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(),
-                                            MapperService.MergeReason.MAPPING_RECOVERY, false);
+                                        MapperService.MergeReason.MAPPING_RECOVERY, false);
                                 }
                                 indicesToClose.add(index.getIndex());
                             }
                             indices.put(action.getIndex(), indexService);
                         }
-                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext());
+                        // the context is only used for validation so it's fine to pass fake values for the shard id and the current
+                        // timestamp
+                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null, () -> 0L));
                     }
                 };
                 changed |= action.apply(newAliasValidator, metadata, index);
@@ -173,4 +176,5 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
             }
         }
     }
+
 }

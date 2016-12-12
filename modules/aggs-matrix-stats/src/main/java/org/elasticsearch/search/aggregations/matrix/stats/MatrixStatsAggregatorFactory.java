@@ -33,8 +33,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- */
 public class MatrixStatsAggregatorFactory
     extends MultiValuesSourceAggregatorFactory<ValuesSource.Numeric, MatrixStatsAggregatorFactory> {
 

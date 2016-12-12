@@ -57,6 +57,8 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -110,7 +112,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     public void testCannotCreateWithBadPath() throws Exception {
         Settings nodeSettings = nodeSettings("/badpath");
-        internalCluster().startNodesAsync(1, nodeSettings).get();
+        internalCluster().startNodes(1, nodeSettings);
         Settings idxSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_DATA_PATH, "/etc/foo")
@@ -132,7 +134,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         final Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        internalCluster().startNodesAsync(3, nodeSettings).get();
+        internalCluster().startNodes(3, nodeSettings);
         Settings idxSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0).build();
@@ -142,7 +144,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("foo", "doc", ""+i).setSource("foo", "bar").get();
         }
-        assertNoFailures(client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).execute().actionGet());
+        assertNoFailures(client().admin().indices().prepareFlush().setForce(true).execute().actionGet());
 
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.builder()
@@ -184,12 +186,12 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     }
 
-    @TestLogging("gateway:TRACE")
+    @TestLogging("org.elasticsearch.gateway:TRACE")
     public void testIndexWithFewDocuments() throws Exception {
         final Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        internalCluster().startNodesAsync(3, nodeSettings).get();
+        internalCluster().startNodes(3, nodeSettings);
         final String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -291,13 +293,14 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(gResp2.getSource().get("foo"), equalTo("bar"));
 
         // Node1 has the primary, now node2 has the replica
-        String node2 = internalCluster().startNode(nodeSettings);
+        internalCluster().startNode(nodeSettings);
         ensureGreen(IDX);
         client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
         flushAndRefresh(IDX);
 
         logger.info("--> stopping node1 [{}]", node1);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
+        ensureClusterSizeConsistency(); // wait for the new node to be elected and process the node leave
         ensureYellow(IDX);
 
         logger.info("--> performing query");
@@ -492,14 +495,13 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
                 new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                     @Override
-                    public void sendRequest(DiscoveryNode node, long requestId, String action,
-                                            TransportRequest request, TransportRequestOptions options)
-                            throws IOException, TransportException {
+                    protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                               TransportRequestOptions options) throws IOException {
                         if (keepFailing.get() && action.equals(PeerRecoveryTargetService.Actions.TRANSLOG_OPS)) {
                             logger.info("--> failing translog ops");
                             throw new ElasticsearchException("failing on purpose");
                         }
-                        super.sendRequest(node, requestId, action, request, options);
+                        super.sendRequest(connection, requestId, action, request, options);
                     }
                 });
 
@@ -551,7 +553,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         final int nodeCount = randomIntBetween(2, 5);
         logger.info("--> starting {} nodes", nodeCount);
-        final List<String> nodes = internalCluster().startNodesAsync(nodeCount, nodeSettings).get();
+        final List<String> nodes = internalCluster().startNodes(nodeCount, nodeSettings);
         final String IDX = "test";
         final Tuple<Integer, Integer> numPrimariesAndReplicas = randomPrimariesAndReplicas(nodeCount);
         final int numPrimaries = numPrimariesAndReplicas.v1();
@@ -599,12 +601,12 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
     // deleting the index and hence, deleting all the shard data for the index, the test
     // failure still showed some Lucene files in the data directory for that index. Not sure
     // why that is, so turning on more logging here.
-    @TestLogging("indices:TRACE,env:TRACE")
+    @TestLogging("org.elasticsearch.indices:TRACE,org.elasticsearch.env:TRACE,_root:DEBUG")
     public void testShadowReplicaNaturalRelocation() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        final List<String> nodes = internalCluster().startNodesAsync(2, nodeSettings).get();
+        final List<String> nodes = internalCluster().startNodes(2, nodeSettings);
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -660,7 +662,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        internalCluster().startNodesAsync(3, nodeSettings).get();
+        internalCluster().startNodes(3, nodeSettings);
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -730,10 +732,9 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Settings fooSettings = Settings.builder().put(nodeSettings).put("node.attr.affinity", "foo").build();
         Settings barSettings = Settings.builder().put(nodeSettings).put("node.attr.affinity", "bar").build();
 
-        final InternalTestCluster.Async<List<String>> fooNodes = internalCluster().startNodesAsync(2, fooSettings);
-        final InternalTestCluster.Async<List<String>> barNodes = internalCluster().startNodesAsync(2, barSettings);
-        fooNodes.get();
-        barNodes.get();
+        List<String> allNodes = internalCluster().startNodes(fooSettings, fooSettings, barSettings, barSettings);
+        List<String> fooNodes = allNodes.subList(0, 2);
+        List<String> barNodes = allNodes.subList(2, 4);
         String IDX = "test";
 
         Settings includeFoo = Settings.builder()
@@ -767,27 +768,27 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings(IDX).setSettings(includeBar).get();
 
         // wait for the shards to move from "foo" nodes to "bar" nodes
-        assertNoShardsOn(fooNodes.get());
+        assertNoShardsOn(fooNodes);
 
         // put shards back on "foo"
         client().admin().indices().prepareUpdateSettings(IDX).setSettings(includeFoo).get();
 
         // wait for the shards to move from "bar" nodes to "foo" nodes
-        assertNoShardsOn(barNodes.get());
+        assertNoShardsOn(barNodes);
 
         // Stop a foo node
         logger.info("--> stopping first 'foo' node");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(fooNodes.get().get(0)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(fooNodes.get(0)));
 
         // Ensure that the other foo node has all the shards now
-        assertShardCountOn(fooNodes.get().get(1), 5);
+        assertShardCountOn(fooNodes.get(1), 5);
 
         // Assert no shards on the "bar" nodes
-        assertNoShardsOn(barNodes.get());
+        assertNoShardsOn(barNodes);
 
         // Stop the second "foo" node
         logger.info("--> stopping second 'foo' node");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(fooNodes.get().get(1)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(fooNodes.get(1)));
 
         // The index should still be able to be allocated (on the "bar" nodes),
         // all the "foo" nodes are gone
@@ -798,7 +799,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         String newFooNode = internalCluster().startNode(fooSettings);
 
         assertShardCountOn(newFooNode, 5);
-        assertNoShardsOn(barNodes.get());
+        assertNoShardsOn(barNodes);
     }
 
     public void testDeletingClosedIndexRemovesFiles() throws Exception {
@@ -807,7 +808,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         final int numNodes = randomIntBetween(2, 5);
         logger.info("--> starting {} nodes", numNodes);
-        final List<String> nodes = internalCluster().startNodesAsync(numNodes, nodeSettings).get();
+        final List<String> nodes = internalCluster().startNodes(numNodes, nodeSettings);
         final String IDX = "test";
         final Tuple<Integer, Integer> numPrimariesAndReplicas = randomPrimariesAndReplicas(numNodes);
         final int numPrimaries = numPrimariesAndReplicas.v1();
@@ -850,7 +851,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
 
-        internalCluster().startNodesAsync(2, nodeSettings).get();
+        internalCluster().startNodes(2, nodeSettings);
         String IDX = "test";
 
         Settings idxSettings = Settings.builder()
@@ -867,7 +868,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
         flushAndRefresh(IDX);
 
-        internalCluster().startNodesAsync(1).get();
+        internalCluster().startNodes(1);
         ensureYellow(IDX);
 
         final ClusterHealthResponse clusterHealth = client().admin().cluster()

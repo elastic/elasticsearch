@@ -58,8 +58,12 @@ public final class EDecimal extends AExpression {
                 throw createError(new IllegalArgumentException("Invalid float constant [" + value + "]."));
             }
         } else {
+            String toParse = value;
+            if (toParse.endsWith("d") || value.endsWith("D")) {
+                toParse = toParse.substring(0, value.length() - 1);
+            }
             try {
-                constant = Double.parseDouble(value);
+                constant = Double.parseDouble(toParse);
                 actual = Definition.DOUBLE_TYPE;
             } catch (NumberFormatException exception) {
                 throw createError(new IllegalArgumentException("Invalid double constant [" + value + "]."));
@@ -70,5 +74,10 @@ public final class EDecimal extends AExpression {
     @Override
     void write(MethodWriter writer, Globals globals) {
         throw createError(new IllegalStateException("Illegal tree structure."));
+    }
+
+    @Override
+    public String toString() {
+        return singleLineToString(value);
     }
 }

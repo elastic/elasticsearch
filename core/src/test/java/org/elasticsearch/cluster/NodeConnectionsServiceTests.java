@@ -26,12 +26,12 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -43,6 +43,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -64,7 +65,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         List<DiscoveryNode> nodes = new ArrayList<>();
         for (int i = randomIntBetween(20, 50); i > 0; i--) {
             Set<DiscoveryNode.Role> roles = new HashSet<>(randomSubsetOf(Arrays.asList(DiscoveryNode.Role.values())));
-            nodes.add(new DiscoveryNode("node_" + i, "" + i, LocalTransportAddress.buildUnique(), Collections.emptyMap(),
+            nodes.add(new DiscoveryNode("node_" + i, "" + i, buildNewFakeTransportAddress(), Collections.emptyMap(),
                     roles, Version.CURRENT));
         }
         return nodes;
@@ -85,19 +86,19 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         ClusterState current = clusterStateFromNodes(Collections.emptyList());
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
 
-        service.connectToAddedNodes(event);
+        service.connectToNodes(event.nodesDelta().addedNodes());
         assertConnected(event.nodesDelta().addedNodes());
 
-        service.disconnectFromRemovedNodes(event);
+        service.disconnectFromNodes(event.nodesDelta().removedNodes());
         assertConnectedExactlyToNodes(event.state());
 
         current = event.state();
         event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
 
-        service.connectToAddedNodes(event);
+        service.connectToNodes(event.nodesDelta().addedNodes());
         assertConnected(event.nodesDelta().addedNodes());
 
-        service.disconnectFromRemovedNodes(event);
+        service.disconnectFromNodes(event.nodesDelta().removedNodes());
         assertConnectedExactlyToNodes(event.state());
     }
 
@@ -111,7 +112,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         transport.randomConnectionExceptions = true;
 
-        service.connectToAddedNodes(event);
+        service.connectToNodes(event.nodesDelta().addedNodes());
 
         for (int i = 0; i < 3; i++) {
             // simulate disconnects
@@ -149,7 +150,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.transport = new MockTransport();
-        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL);
+        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         transportService.start();
         transportService.acceptIncomingRequests();
     }
@@ -175,7 +176,6 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
         @Override
         public void transportServiceAdapter(TransportServiceAdapter service) {
-
         }
 
         @Override
@@ -189,13 +189,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
+        public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {
             return new TransportAddress[0];
-        }
-
-        @Override
-        public boolean addressSupported(Class<? extends TransportAddress> address) {
-            return false;
         }
 
         @Override
@@ -204,16 +199,13 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-            if (connectedNodes.contains(node) == false && randomConnectionExceptions && randomBoolean()) {
-                throw new ConnectTransportException(node, "simulated");
+        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+            if (connectionProfile == null) {
+                if (connectedNodes.contains(node) == false && randomConnectionExceptions && randomBoolean()) {
+                    throw new ConnectTransportException(node, "simulated");
+                }
+                connectedNodes.add(node);
             }
-            connectedNodes.add(node);
-        }
-
-        @Override
-        public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
-
         }
 
         @Override
@@ -222,9 +214,29 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException, TransportException {
+        public Connection getConnection(DiscoveryNode node) {
+            return new Connection() {
+                @Override
+                public DiscoveryNode getNode() {
+                    return node;
+                }
 
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    throws IOException, TransportException {
+
+                }
+
+                @Override
+                public void close() throws IOException {
+
+                }
+            };
+        }
+
+        @Override
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            return getConnection(node);
         }
 
         @Override

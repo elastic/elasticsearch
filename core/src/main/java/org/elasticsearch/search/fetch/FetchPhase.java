@@ -51,6 +51,7 @@ import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SourceLookup;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,11 +100,9 @@ public class FetchPhase implements SearchPhase {
         } else {
             for (String fieldName : context.storedFieldsContext().fieldNames()) {
                 if (fieldName.equals(SourceFieldMapper.NAME)) {
-                    if (context.hasFetchSourceContext()) {
-                        context.fetchSourceContext().fetchSource(true);
-                    } else {
-                        context.fetchSourceContext(new FetchSourceContext(true));
-                    }
+                    FetchSourceContext fetchSourceContext = context.hasFetchSourceContext() ? context.fetchSourceContext()
+                        : FetchSourceContext.FETCH_SOURCE;
+                    context.fetchSourceContext(new FetchSourceContext(true, fetchSourceContext.includes(), fetchSourceContext.excludes()));
                     continue;
                 }
                 if (Regex.isSimpleMatchPattern(fieldName)) {
@@ -138,6 +137,9 @@ public class FetchPhase implements SearchPhase {
         InternalSearchHit[] hits = new InternalSearchHit[context.docIdsToLoadSize()];
         FetchSubPhase.HitContext hitContext = new FetchSubPhase.HitContext();
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
+            if(context.isCancelled()) {
+                throw new TaskCancelledException("cancelled");
+            }
             int docId = context.docIdsToLoad()[context.docIdsToLoadFrom() + index];
             int readerIndex = ReaderUtil.subIndex(docId, context.searcher().getIndexReader().leaves());
             LeafReaderContext subReaderContext = context.searcher().getIndexReader().leaves().get(readerIndex);

@@ -77,7 +77,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void preProcess() {
+    public void preProcess(boolean rewrite) {
     }
 
     @Override
@@ -340,16 +340,6 @@ public class SubSearchContext extends FilteredSearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return fetchSearchResult;
-    }
-
-    private SearchLookup searchLookup;
-
-    @Override
-    public SearchLookup lookup() {
-        if (searchLookup == null) {
-            searchLookup = new SearchLookup(mapperService(), fieldData(), request().types());
-        }
-        return searchLookup;
     }
 
     @Override

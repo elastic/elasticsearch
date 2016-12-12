@@ -57,6 +57,7 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -73,7 +74,7 @@ public class RestIndicesActionTests extends ESTestCase {
 
     public void testBuildTable() {
         final Settings settings = Settings.EMPTY;
-        final RestController restController = new RestController(settings, Collections.emptySet());
+        final RestController restController = new RestController(settings, Collections.emptySet(), null);
         final RestIndicesAction action = new RestIndicesAction(settings, restController, new IndexNameExpressionResolver(settings));
 
         // build a (semi-)random table
@@ -107,7 +108,7 @@ public class RestIndicesActionTests extends ESTestCase {
             clusterState.getClusterName().value(), indicesStr, clusterState, 0, 0, 0, TimeValue.timeValueMillis(1000L)
         );
 
-        final Table table = action.buildTable(null, indices, clusterHealth, randomIndicesStatsResponse(indices), metaData);
+        final Table table = action.buildTable(new FakeRestRequest(), indices, clusterHealth, randomIndicesStatsResponse(indices), metaData);
 
         // now, verify the table is correct
         int count = 0;
@@ -157,7 +158,7 @@ public class RestIndicesActionTests extends ESTestCase {
                 stats.get = new GetStats();
                 stats.flush = new FlushStats();
                 stats.warmer = new WarmerStats();
-                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null));
+                shardStats.add(new ShardStats(shardRouting, new ShardPath(false, path, path, shardId), stats, null, null));
             }
         }
         return IndicesStatsTests.newIndicesStatsResponse(

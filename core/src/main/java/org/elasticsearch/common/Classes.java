@@ -21,9 +21,6 @@ package org.elasticsearch.common;
 
 import java.lang.reflect.Modifier;
 
-/**
- *
- */
 public class Classes {
 
     /**

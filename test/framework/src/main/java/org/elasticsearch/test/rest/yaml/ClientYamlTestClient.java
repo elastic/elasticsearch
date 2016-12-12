@@ -62,38 +62,12 @@ public class ClientYamlTestClient {
     private final RestClient restClient;
     private final Version esVersion;
 
-    public ClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts) throws IOException {
+    public ClientYamlTestClient(ClientYamlSuiteRestSpec restSpec, RestClient restClient, List<HttpHost> hosts,
+                                Version esVersion) throws IOException {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClient = restClient;
-        this.esVersion = readAndCheckVersion(hosts);
-    }
-
-    private Version readAndCheckVersion(List<HttpHost> hosts) throws IOException {
-        ClientYamlSuiteRestApi restApi = restApi("info");
-        assert restApi.getPaths().size() == 1;
-        assert restApi.getMethods().size() == 1;
-
-        String version = null;
-        for (HttpHost ignored : hosts) {
-            //we don't really use the urls here, we rely on the client doing round-robin to touch all the nodes in the cluster
-            String method = restApi.getMethods().get(0);
-            String endpoint = restApi.getPaths().get(0);
-            Response response = restClient.performRequest(method, endpoint);
-            ClientYamlTestResponse restTestResponse = new ClientYamlTestResponse(response);
-            Object latestVersion = restTestResponse.evaluate("version.number");
-            if (latestVersion == null) {
-                throw new RuntimeException("elasticsearch version not found in the response");
-            }
-            if (version == null) {
-                version = latestVersion.toString();
-            } else {
-                if (!latestVersion.equals(version)) {
-                    throw new IllegalArgumentException("provided nodes addresses run different elasticsearch versions");
-                }
-            }
-        }
-        return Version.fromString(version);
+        this.esVersion = esVersion;
     }
 
     public Version getEsVersion() {
@@ -143,10 +117,7 @@ public class ClientYamlTestClient {
             }
         }
 
-        //create doesn't exist in the spec but is supported in the clients (index with op_type=create)
-        boolean indexCreateApi = "create".equals(apiName);
-        String api = indexCreateApi ? "index" : apiName;
-        ClientYamlSuiteRestApi restApi = restApi(api);
+        ClientYamlSuiteRestApi restApi = restApi(apiName);
 
         //divide params between ones that go within query string and ones that go within path
         Map<String, String> pathParts = new HashMap<>();
@@ -162,10 +133,6 @@ public class ClientYamlTestClient {
                             + restApi.getName() + "] " + "api");
                 }
             }
-        }
-
-        if (indexCreateApi) {
-            queryStringParams.put("op_type", "create");
         }
 
         List<String> supportedMethods = restApi.getSupportedMethods(pathParts.keySet());

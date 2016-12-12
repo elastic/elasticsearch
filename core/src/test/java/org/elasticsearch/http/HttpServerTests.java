@@ -28,7 +28,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -60,7 +59,7 @@ public class HttpServerTests extends ESTestCase {
         inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
 
         HttpServerTransport httpServerTransport = new TestHttpServerTransport();
-        RestController restController = new RestController(settings, Collections.emptySet());
+        RestController restController = new RestController(settings, Collections.emptySet(), null);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (request, channel, client) -> channel.sendResponse(
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
@@ -142,7 +141,7 @@ public class HttpServerTests extends ESTestCase {
 
         @Override
         public BoundTransportAddress boundAddress() {
-            LocalTransportAddress transportAddress = new LocalTransportAddress("1");
+            TransportAddress transportAddress = buildNewFakeTransportAddress();
             return new BoundTransportAddress(new TransportAddress[] {transportAddress} ,transportAddress);
         }
 

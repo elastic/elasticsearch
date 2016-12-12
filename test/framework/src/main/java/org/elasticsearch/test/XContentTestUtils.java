@@ -111,7 +111,7 @@ public final class XContentTestUtils {
             if (second instanceof Map) {
                 return differenceBetweenMapsIgnoringArrayOrder(path, (Map<String, Object>) first, (Map<String, Object>) second);
             } else {
-                return path + ": the second element is not a map";
+                return path + ": the second element is not a map (got " + second +")";
             }
         } else {
             if (first.equals(second)) {

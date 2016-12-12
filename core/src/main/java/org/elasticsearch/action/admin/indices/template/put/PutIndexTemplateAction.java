@@ -22,8 +22,6 @@ package org.elasticsearch.action.admin.indices.template.put;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- */
 public class PutIndexTemplateAction extends Action<PutIndexTemplateRequest, PutIndexTemplateResponse, PutIndexTemplateRequestBuilder> {
 
     public static final PutIndexTemplateAction INSTANCE = new PutIndexTemplateAction();

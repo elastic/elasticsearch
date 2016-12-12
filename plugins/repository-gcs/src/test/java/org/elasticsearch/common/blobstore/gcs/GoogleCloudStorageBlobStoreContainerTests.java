@@ -27,7 +27,6 @@ import java.io.IOException;
 import java.util.Locale;
 
 public class GoogleCloudStorageBlobStoreContainerTests extends ESBlobStoreContainerTestCase {
-
     @Override
     protected BlobStore newBlobStore() throws IOException {
         String bucket = randomAsciiOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);

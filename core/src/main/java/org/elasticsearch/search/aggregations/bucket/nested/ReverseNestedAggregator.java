@@ -40,9 +40,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-/**
- *
- */
 public class ReverseNestedAggregator extends SingleBucketAggregator {
 
     static final ParseField PATH_FIELD = new ParseField("path");

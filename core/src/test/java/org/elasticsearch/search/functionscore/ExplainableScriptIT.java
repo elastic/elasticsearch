@@ -32,7 +32,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -76,7 +77,8 @@ public class ExplainableScriptIT extends ESIntegTestCase {
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
                         searchSource().explain(true).query(
                                 functionScoreQuery(termQuery("text", "text"),
-                                        scriptFunction(new Script("native_explainable_script", ScriptType.INLINE, "native", null)))
+                                        scriptFunction(
+                                            new Script(ScriptType.INLINE, "native", "native_explainable_script", Collections.emptyMap())))
                                         .boostMode(CombineFunction.REPLACE)))).actionGet();
 
         ElasticsearchAssertions.assertNoFailures(response);

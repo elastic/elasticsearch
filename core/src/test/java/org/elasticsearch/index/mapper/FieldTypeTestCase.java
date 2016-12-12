@@ -20,6 +20,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.test.ESTestCase;
@@ -68,49 +69,49 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         new Modifier("analyzer", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setIndexAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setIndexAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("analyzer", false) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setIndexAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setIndexAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
             @Override
             public void normalizeOther(MappedFieldType other) {
-                other.setIndexAnalyzer(new NamedAnalyzer("foo", new StandardAnalyzer()));
+                other.setIndexAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("search_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSearchAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setSearchAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("search_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSearchAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setSearchAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
             @Override
             public void normalizeOther(MappedFieldType other) {
-                other.setSearchAnalyzer(new NamedAnalyzer("foo", new StandardAnalyzer()));
+                other.setSearchAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("search_quote_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSearchQuoteAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setSearchQuoteAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("search_quote_analyzer", true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ft.setSearchQuoteAnalyzer(new NamedAnalyzer("bar", new StandardAnalyzer()));
+                ft.setSearchQuoteAnalyzer(new NamedAnalyzer("bar", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
             @Override
             public void normalizeOther(MappedFieldType other) {
-                other.setSearchQuoteAnalyzer(new NamedAnalyzer("foo", new StandardAnalyzer()));
+                other.setSearchQuoteAnalyzer(new NamedAnalyzer("foo", AnalyzerScope.INDEX, new StandardAnalyzer()));
             }
         },
         new Modifier("similarity", false) {

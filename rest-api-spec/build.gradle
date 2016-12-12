@@ -1,8 +1,7 @@
-apply plugin: 'java'
-apply plugin: 'com.bmuschko.nexus'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'nebula.maven-base-publish'
+apply plugin: 'nebula.maven-scm'
 
-extraArchive {
-  sources = false
-  javadoc = false
-  tests = false
-}
+test.enabled = false
+jarHell.enabled = false
+licenseHeaders.enabled = false

@@ -39,6 +39,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 
 import java.io.IOException;
 import java.nio.channels.Channels;
@@ -166,7 +167,7 @@ public class TruncateTranslogCommand extends SettingCommand {
 
     /** Write a checkpoint file to the given location with the given generation */
     public static void writeEmptyCheckpoint(Path filename, int translogLength, long translogGeneration) throws IOException {
-        Checkpoint emptyCheckpoint = new Checkpoint(translogLength, 0, translogGeneration);
+        Checkpoint emptyCheckpoint = new Checkpoint(translogLength, 0, translogGeneration, SequenceNumbersService.UNASSIGNED_SEQ_NO);
         Checkpoint.write(FileChannel::open, filename, emptyCheckpoint,
             StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);
         // fsync with metadata here to make sure.

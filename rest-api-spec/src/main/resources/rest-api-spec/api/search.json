@@ -72,10 +72,6 @@
           "type" : "boolean",
           "description" : "Specify whether format-based query failures (such as providing text to a numeric field) should be ignored"
         },
-        "lowercase_expanded_terms": {
-          "type" : "boolean",
-          "description" : "Specify whether query terms should be lowercased"
-        },
         "preference": {
           "type" : "string",
           "description" : "Specify the node or shard the operation should be performed on (default: random)"
@@ -89,7 +85,7 @@
           "description" : "A comma-separated list of specific routing values"
         },
         "scroll": {
-          "type" : "duration",
+          "type" : "time",
           "description" : "Specify how long a consistent view of the index should be maintained for scrolled search"
         },
         "search_type": {
@@ -140,7 +136,7 @@
           "description" : "How many suggestions to return in response"
         },
         "suggest_text": {
-          "type" : "text",
+          "type" : "string",
           "description" : "The source text for which the suggestions should be returned"
         },
         "timeout": {

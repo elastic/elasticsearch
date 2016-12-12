@@ -88,8 +88,8 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      * Explicitly specify the fields that will be returned. By default, the <tt>_source</tt>
      * field will be returned.
      */
-    public GetRequestBuilder setFields(String... fields) {
-        request.fields(fields);
+    public GetRequestBuilder setStoredFields(String... fields) {
+        request.storedFields(fields);
         return this;
     }
 
@@ -99,12 +99,8 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      * @return this for chaining
      */
     public GetRequestBuilder setFetchSource(boolean fetch) {
-        FetchSourceContext context = request.fetchSourceContext();
-        if (context == null) {
-            request.fetchSourceContext(new FetchSourceContext(fetch));
-        } else {
-            context.fetchSource(fetch);
-        }
+        FetchSourceContext context = request.fetchSourceContext() == null ? FetchSourceContext.FETCH_SOURCE : request.fetchSourceContext();
+        request.fetchSourceContext(new FetchSourceContext(fetch, context.includes(), context.excludes()));
         return this;
     }
 
@@ -129,14 +125,8 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      * @param excludes An optional list of exclude (optionally wildcarded) pattern to filter the returned _source
      */
     public GetRequestBuilder setFetchSource(@Nullable String[] includes, @Nullable String[] excludes) {
-        FetchSourceContext context = request.fetchSourceContext();
-        if (context == null) {
-            request.fetchSourceContext(new FetchSourceContext(includes, excludes));
-        } else {
-            context.fetchSource(true);
-            context.includes(includes);
-            context.excludes(excludes);
-        }
+        FetchSourceContext context = request.fetchSourceContext() == null ? FetchSourceContext.FETCH_SOURCE : request.fetchSourceContext();
+        request.fetchSourceContext(new FetchSourceContext(context.fetchSource(), includes, excludes));
         return this;
     }
 
@@ -152,11 +142,6 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
 
     public GetRequestBuilder setRealtime(boolean realtime) {
         request.realtime(realtime);
-        return this;
-    }
-
-    public GetRequestBuilder setIgnoreErrorsOnGeneratedFields(Boolean ignoreErrorsOnGeneratedFields) {
-        request.ignoreErrorsOnGeneratedFields(ignoreErrorsOnGeneratedFields);
         return this;
     }
 

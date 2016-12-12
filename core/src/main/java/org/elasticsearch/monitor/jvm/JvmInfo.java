@@ -103,6 +103,7 @@ public class JvmInfo implements Writeable, ToXContent {
         String onOutOfMemoryError = null;
         String useCompressedOops = "unknown";
         String useG1GC = "unknown";
+        String useSerialGC = "unknown";
         long configuredInitialHeapSize = -1;
         long configuredMaxHeapSize = -1;
         try {
@@ -148,6 +149,13 @@ public class JvmInfo implements Writeable, ToXContent {
                 configuredMaxHeapSize = Long.parseLong((String) valueMethod.invoke(maxHeapSizeVmOptionObject));
             } catch (Exception ignored) {
             }
+
+            try {
+                Object useSerialGCVmOptionObject = vmOptionMethod.invoke(hotSpotDiagnosticMXBean, "UseSerialGC");
+                useSerialGC = (String) valueMethod.invoke(useSerialGCVmOptionObject);
+            } catch (Exception ignored) {
+            }
+
         } catch (Exception ignored) {
 
         }
@@ -155,7 +163,7 @@ public class JvmInfo implements Writeable, ToXContent {
         INSTANCE = new JvmInfo(pid, System.getProperty("java.version"), runtimeMXBean.getVmName(), runtimeMXBean.getVmVersion(),
                 runtimeMXBean.getVmVendor(), runtimeMXBean.getStartTime(), configuredInitialHeapSize, configuredMaxHeapSize,
                 mem, inputArguments, bootClassPath, classPath, systemProperties, gcCollectors, memoryPools, onError, onOutOfMemoryError,
-                useCompressedOops, useG1GC);
+                useCompressedOops, useG1GC, useSerialGC);
     }
 
     public static JvmInfo jvmInfo() {
@@ -186,11 +194,12 @@ public class JvmInfo implements Writeable, ToXContent {
     private final String onOutOfMemoryError;
     private final String useCompressedOops;
     private final String useG1GC;
+    private final String useSerialGC;
 
     private JvmInfo(long pid, String version, String vmName, String vmVersion, String vmVendor, long startTime,
                    long configuredInitialHeapSize, long configuredMaxHeapSize, Mem mem, String[] inputArguments, String bootClassPath,
                    String classPath, Map<String, String> systemProperties, String[] gcCollectors, String[] memoryPools, String onError,
-                   String onOutOfMemoryError, String useCompressedOops, String useG1GC) {
+                   String onOutOfMemoryError, String useCompressedOops, String useG1GC, String useSerialGC) {
         this.pid = pid;
         this.version = version;
         this.vmName = vmName;
@@ -210,6 +219,7 @@ public class JvmInfo implements Writeable, ToXContent {
         this.onOutOfMemoryError = onOutOfMemoryError;
         this.useCompressedOops = useCompressedOops;
         this.useG1GC = useG1GC;
+        this.useSerialGC = useSerialGC;
     }
 
     public JvmInfo(StreamInput in) throws IOException {
@@ -230,12 +240,13 @@ public class JvmInfo implements Writeable, ToXContent {
         gcCollectors = in.readStringArray();
         memoryPools = in.readStringArray();
         useCompressedOops = in.readString();
-        //the following members are only used locally for boostrap checks, never serialized nor printed out
+        //the following members are only used locally for bootstrap checks, never serialized nor printed out
         this.configuredMaxHeapSize = -1;
         this.configuredInitialHeapSize = -1;
         this.onError = null;
         this.onOutOfMemoryError = null;
         this.useG1GC = "unknown";
+        this.useSerialGC = "unknown";
     }
 
     @Override
@@ -413,6 +424,10 @@ public class JvmInfo implements Writeable, ToXContent {
 
     public String useG1GC() {
         return this.useG1GC;
+    }
+
+    public String useSerialGC() {
+        return this.useSerialGC;
     }
 
     public String[] getGcCollectors() {

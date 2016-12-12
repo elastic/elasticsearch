@@ -1,0 +1,18 @@
+# Integration tests for Ukrainian analyzer
+---
+"Analyzer":
+    - do:
+        indices.analyze:
+          body:
+            text: колу
+            analyzer: ukrainian
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: кола  }
+    - match:  { tokens.0.start_offset: 0  }
+    - match:  { tokens.0.end_offset: 4  }
+    - match:  { tokens.1.token: коло  }
+    - match:  { tokens.1.start_offset: 0  }
+    - match:  { tokens.1.end_offset: 4  }
+    - match:  { tokens.2.token: кіл  }
+    - match:  { tokens.2.start_offset: 0  }
+    - match:  { tokens.2.end_offset: 4  }

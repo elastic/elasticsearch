@@ -15,28 +15,33 @@ setup:
                   "suggest_context":
                      "type" : "completion"
                      "contexts":
-                        - "name" : "color"
+                        -
+                          "name" : "color"
                           "type" : "category"
                   "suggest_context_with_path":
                      "type" : "completion"
                      "contexts":
-                        - "name" : "color"
+                        -
+                          "name" : "color"
                           "type" : "category"
                           "path" : "color"
                   "suggest_geo":
                      "type" : "completion"
                      "contexts":
-                        - "name" : "location"
+                        -
+                          "name" : "location"
                           "type" : "geo"
                           "precision" : "5km"
                   "suggest_multi_contexts":
                      "type" : "completion"
                      "contexts":
-                        - "name" : "location"
+                        -
+                          "name" : "location"
                           "type" : "geo"
                           "precision" : "5km"
                           "path" : "location"
-                        - "name" : "color"
+                        -
+                          "name" : "color"
                           "type" : "category"
                           "path" : "color"
 

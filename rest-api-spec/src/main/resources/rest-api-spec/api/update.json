@@ -31,9 +31,21 @@
           "type": "list",
           "description": "A comma-separated list of fields to return in the response"
         },
+        "_source": {
+          "type" : "list",
+          "description" : "True or false to return the _source field or not, or a list of fields to return"
+        },
+        "_source_exclude": {
+          "type" : "list",
+          "description" : "A list of fields to exclude from the returned _source field"
+        },
+        "_source_include": {
+          "type" : "list",
+          "description" : "A list of fields to extract and return from the _source field"
+        },
         "lang": {
           "type": "string",
-          "description": "The script language (default: groovy)"
+          "description": "The script language (default: painless)"
         },
         "parent": {
           "type": "string",
@@ -61,7 +73,7 @@
           "description": "Explicit timestamp for the document"
         },
         "ttl": {
-          "type": "duration",
+          "type": "time",
           "description": "Expiration time for the document"
         },
         "version": {

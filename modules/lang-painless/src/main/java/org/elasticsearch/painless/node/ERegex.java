@@ -104,4 +104,23 @@ public final class ERegex extends AExpression {
                 throw new IllegalArgumentException("Unknown flag [" + c + "]");
         }
     }
+
+    @Override
+    public String toString() {
+        StringBuilder f = new StringBuilder();
+        if ((flags & Pattern.CANON_EQ) != 0)                f.append('c');
+        if ((flags & Pattern.CASE_INSENSITIVE) != 0)        f.append('i');
+        if ((flags & Pattern.LITERAL) != 0)                 f.append('l');
+        if ((flags & Pattern.MULTILINE) != 0)               f.append('m');
+        if ((flags & Pattern.DOTALL) != 0)                  f.append('s');
+        if ((flags & Pattern.UNICODE_CHARACTER_CLASS) != 0) f.append('U');
+        if ((flags & Pattern.UNICODE_CASE) != 0)            f.append('u');
+        if ((flags & Pattern.COMMENTS) != 0)                f.append('x');
+
+        String p = "/" + pattern + "/";
+        if (f.length() == 0) {
+            return singleLineToString(p);
+        }
+        return singleLineToString(p, f);
+    }
 }

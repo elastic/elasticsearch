@@ -39,7 +39,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.discovery.zen.ping.unicast.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -51,9 +51,6 @@ import java.util.List;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
-/**
- *
- */
 public class AzureUnicastHostsProvider extends AbstractComponent implements UnicastHostsProvider {
 
     public enum HostType {
@@ -110,10 +107,8 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
     private final String deploymentName;
     private final DeploymentSlot deploymentSlot;
 
-    @Inject
     public AzureUnicastHostsProvider(Settings settings, AzureComputeService azureComputeService,
-                                   TransportService transportService,
-                                   NetworkService networkService) {
+                                     TransportService transportService, NetworkService networkService) {
         super(settings);
         this.azureComputeService = azureComputeService;
         this.transportService = transportService;

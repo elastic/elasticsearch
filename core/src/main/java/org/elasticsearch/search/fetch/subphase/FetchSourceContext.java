@@ -21,65 +21,42 @@ package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 
 /**
  * Context used to fetch the {@code _source}.
  */
-public class FetchSourceContext implements Streamable, ToXContent {
+public class FetchSourceContext implements Writeable, ToXContent {
 
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
 
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true);
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(false);
-    private boolean fetchSource;
-    private String[] includes;
-    private String[] excludes;
+    private final boolean fetchSource;
+    private final String[] includes;
+    private final String[] excludes;
+    private Function<Map<String, ?>, Map<String, Object>> filter;
 
-    public static FetchSourceContext parse(QueryParseContext context) throws IOException {
-        FetchSourceContext fetchSourceContext = new FetchSourceContext();
-        fetchSourceContext.fromXContent(context);
-        return fetchSourceContext;
-    }
-
-    public FetchSourceContext() {
-    }
-
-    public FetchSourceContext(boolean fetchSource) {
-        this(fetchSource, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
-    }
-
-    public FetchSourceContext(String include) {
-        this(include, null);
-    }
-
-    public FetchSourceContext(String include, String exclude) {
-        this(true,
-                include == null ? Strings.EMPTY_ARRAY : new String[]{include},
-                exclude == null ? Strings.EMPTY_ARRAY : new String[]{exclude});
-    }
-
-    public FetchSourceContext(String[] includes) {
-        this(true, includes, Strings.EMPTY_ARRAY);
-    }
-
-    public FetchSourceContext(String[] includes, String[] excludes) {
-        this(true, includes, excludes);
+    public static FetchSourceContext parse(XContentParser parser) throws IOException {
+        return fromXContent(parser, ParseFieldMatcher.STRICT);
     }
 
     public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes) {
@@ -88,31 +65,33 @@ public class FetchSourceContext implements Streamable, ToXContent {
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
     }
 
-    public boolean fetchSource() {
-        return this.fetchSource;
+    public FetchSourceContext(boolean fetchSource) {
+        this(fetchSource, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
     }
 
-    public FetchSourceContext fetchSource(boolean fetchSource) {
-        this.fetchSource = fetchSource;
-        return this;
+    public FetchSourceContext(StreamInput in) throws IOException {
+        fetchSource = in.readBoolean();
+        includes = in.readStringArray();
+        excludes = in.readStringArray();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(fetchSource);
+        out.writeStringArray(includes);
+        out.writeStringArray(excludes);
+    }
+
+    public boolean fetchSource() {
+        return this.fetchSource;
     }
 
     public String[] includes() {
         return this.includes;
     }
 
-    public FetchSourceContext includes(String[] includes) {
-        this.includes = includes;
-        return this;
-    }
-
     public String[] excludes() {
         return this.excludes;
-    }
-
-    public FetchSourceContext excludes(String[] excludes) {
-        this.excludes = excludes;
-        return this;
     }
 
     public static FetchSourceContext parseFromRestRequest(RestRequest request) {
@@ -148,8 +127,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
         return null;
     }
 
-    public void fromXContent(QueryParseContext context) throws IOException {
-        XContentParser parser = context.parser();
+    public static FetchSourceContext fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
         XContentParser.Token token = parser.currentToken();
         boolean fetchSource = true;
         String[] includes = Strings.EMPTY_ARRAY;
@@ -170,7 +148,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (context.getParseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {
+                    if (parseFieldMatcher.match(currentFieldName, INCLUDES_FIELD)) {
                         List<String> includesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
@@ -181,7 +159,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
                             }
                         }
                         includes = includesList.toArray(new String[includesList.size()]);
-                    } else if (context.getParseFieldMatcher().match(currentFieldName, EXCLUDES_FIELD)) {
+                    } else if (parseFieldMatcher.match(currentFieldName, EXCLUDES_FIELD)) {
                         List<String> excludesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
@@ -197,10 +175,13 @@ public class FetchSourceContext implements Streamable, ToXContent {
                                 + " in [" + currentFieldName + "].", parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (context.getParseFieldMatcher().match(currentFieldName, INCLUDES_FIELD)) {
+                    if (parseFieldMatcher.match(currentFieldName, INCLUDES_FIELD)) {
                         includes = new String[] {parser.text()};
-                    } else if (context.getParseFieldMatcher().match(currentFieldName, EXCLUDES_FIELD)) {
+                    } else if (parseFieldMatcher.match(currentFieldName, EXCLUDES_FIELD)) {
                         excludes = new String[] {parser.text()};
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token
+                            + " in [" + currentFieldName + "].", parser.getTokenLocation());
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
@@ -211,9 +192,7 @@ public class FetchSourceContext implements Streamable, ToXContent {
             throw new ParsingException(parser.getTokenLocation(), "Expected one of [" + XContentParser.Token.VALUE_BOOLEAN + ", "
                     + XContentParser.Token.START_OBJECT + "] but found [" + token + "]", parser.getTokenLocation());
         }
-        this.fetchSource = fetchSource;
-        this.includes = includes;
-        this.excludes = excludes;
+        return new FetchSourceContext(fetchSource, includes, excludes);
     }
 
     @Override
@@ -227,22 +206,6 @@ public class FetchSourceContext implements Streamable, ToXContent {
             builder.value(false);
         }
         return builder;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        fetchSource = in.readBoolean();
-        includes = in.readStringArray();
-        excludes = in.readStringArray();
-        in.readBoolean(); // Used to be transformSource but that was dropped in 2.1
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(fetchSource);
-        out.writeStringArray(includes);
-        out.writeStringArray(excludes);
-        out.writeBoolean(false); // Used to be transformSource but that was dropped in 2.1
     }
 
     @Override
@@ -265,5 +228,16 @@ public class FetchSourceContext implements Streamable, ToXContent {
         result = 31 * result + (includes != null ? Arrays.hashCode(includes) : 0);
         result = 31 * result + (excludes != null ? Arrays.hashCode(excludes) : 0);
         return result;
+    }
+
+    /**
+     * Returns a filter function that expects the source map as an input and returns
+     * the filtered map.
+     */
+    public Function<Map<String, ?>, Map<String, Object>> getFilter() {
+        if (filter == null) {
+            filter = XContentMapValues.filter(includes, excludes);
+        }
+        return filter;
     }
 }

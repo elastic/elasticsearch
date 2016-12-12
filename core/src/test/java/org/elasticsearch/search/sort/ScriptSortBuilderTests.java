@@ -22,18 +22,16 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
-import org.junit.Rule;
-import org.junit.rules.ExpectedException;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -79,7 +77,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
             Script script = original.script();
             ScriptSortType type = original.type();
             if (randomBoolean()) {
-                result = new ScriptSortBuilder(new Script(script.getScript() + "_suffix"), type);
+                result = new ScriptSortBuilder(new Script(script.getIdOrCode() + "_suffix"), type);
             } else {
                 result = new ScriptSortBuilder(script, type.equals(ScriptSortType.NUMBER) ? ScriptSortType.STRING : ScriptSortType.NUMBER);
             }
@@ -146,19 +144,14 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         assertEquals(ScriptSortType.NUMBER, ScriptSortType.fromString("NUMBER"));
     }
 
-    @Rule
-    public ExpectedException exceptionRule = ExpectedException.none();
-
     public void testScriptSortTypeNull() {
-        exceptionRule.expect(NullPointerException.class);
-        exceptionRule.expectMessage("input string is null");
-        ScriptSortType.fromString(null);
+        Exception e = expectThrows(NullPointerException.class, () -> ScriptSortType.fromString(null));
+        assertEquals("input string is null", e.getMessage());
     }
 
     public void testScriptSortTypeIllegalArgument() {
-        exceptionRule.expect(IllegalArgumentException.class);
-        exceptionRule.expectMessage("Unknown ScriptSortType [xyz]");
-        ScriptSortType.fromString("xyz");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortType.fromString("xyz"));
+        assertEquals("Unknown ScriptSortType [xyz]", e.getMessage());
     }
 
     public void testParseJson() throws IOException {
@@ -181,7 +174,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
-        assertEquals("doc['field_name'].value * factor", builder.script().getScript());
+        assertEquals("doc['field_name'].value * factor", builder.script().getIdOrCode());
         assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
         assertEquals(1.1, builder.script().getParams().get("factor"));
         assertEquals(ScriptType.INLINE, builder.script().getType());
@@ -207,9 +200,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         ScriptSortBuilder builder = ScriptSortBuilder.fromXContent(context, null);
-        assertEquals("doc['field_name'].value", builder.script().getScript());
+        assertEquals("doc['field_name'].value", builder.script().getIdOrCode());
         assertEquals(Script.DEFAULT_SCRIPT_LANG, builder.script().getLang());
-        assertNull(builder.script().getParams());
+        assertEquals(builder.script().getParams(), Collections.emptyMap());
         assertEquals(ScriptType.INLINE, builder.script().getType());
         assertEquals(ScriptSortType.NUMBER, builder.type());
         assertEquals(SortOrder.ASC, builder.order());
@@ -226,9 +219,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
-        exceptionRule.expect(ParsingException.class);
-        exceptionRule.expectMessage("failed to parse field [bad_field]");
-        ScriptSortBuilder.fromXContent(context, null);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(context, null));
+        assertEquals("[_script] unknown field [bad_field], parser not found", e.getMessage());
     }
 
     public void testParseBadFieldNameExceptionsOnStartObject() throws IOException {
@@ -240,9 +232,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
-        exceptionRule.expect(ParsingException.class);
-        exceptionRule.expectMessage("failed to parse field [bad_field]");
-        ScriptSortBuilder.fromXContent(context, null);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(context, null));
+        assertEquals("[_script] unknown field [bad_field], parser not found", e.getMessage());
     }
 
     public void testParseUnexpectedToken() throws IOException {
@@ -253,9 +244,8 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         parser.nextToken();
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
-        exceptionRule.expect(ParsingException.class);
-        exceptionRule.expectMessage("unexpected token [START_ARRAY]");
-        ScriptSortBuilder.fromXContent(context, null);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> ScriptSortBuilder.fromXContent(context, null));
+        assertEquals("[_script] script doesn't support values of type: START_ARRAY", e.getMessage());
     }
 
     /**
@@ -263,9 +253,9 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
      */
     public void testBadSortMode() throws IOException {
         ScriptSortBuilder builder = new ScriptSortBuilder(new Script("something"), ScriptSortType.STRING);
-        exceptionRule.expect(IllegalArgumentException.class);
-        exceptionRule.expectMessage("script sort of type [string] doesn't support mode");
-        builder.sortMode(SortMode.fromString(randomFrom(new String[]{"avg", "median", "sum"})));
+        String sortMode = randomFrom(new String[] { "avg", "median", "sum" });
+        Exception e = expectThrows(IllegalArgumentException.class, () -> builder.sortMode(SortMode.fromString(sortMode)));
+        assertEquals("script sort of type [string] doesn't support mode [" + sortMode + "]", e.getMessage());
     }
 
     @Override

@@ -19,6 +19,9 @@
 
 package org.elasticsearch.cloud.azure.classic.management;
 
+import java.io.IOException;
+import java.util.ServiceLoader;
+
 import com.microsoft.windowsazure.Configuration;
 import com.microsoft.windowsazure.core.Builder;
 import com.microsoft.windowsazure.core.DefaultBuilder;
@@ -29,30 +32,24 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import com.microsoft.windowsazure.management.configuration.ManagementConfiguration;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.classic.AzureServiceRemoteException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 
-import java.io.IOException;
-import java.util.ServiceLoader;
-
-/**
- *
- */
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent
     implements AzureComputeService {
 
     private final ComputeManagementClient client;
     private final String serviceName;
 
-    @Inject
     public AzureComputeServiceImpl(Settings settings) {
         super(settings);
-        String subscriptionId = Management.SUBSCRIPTION_ID_SETTING.get(settings);
+        String subscriptionId = getRequiredSetting(settings, Management.SUBSCRIPTION_ID_SETTING);
 
-        serviceName = Management.SERVICE_NAME_SETTING.get(settings);
-        String keystorePath = Management.KEYSTORE_PATH_SETTING.get(settings);
-        String keystorePassword = Management.KEYSTORE_PASSWORD_SETTING.get(settings);
+        serviceName = getRequiredSetting(settings, Management.SERVICE_NAME_SETTING);
+        String keystorePath = getRequiredSetting(settings, Management.KEYSTORE_PATH_SETTING);
+        String keystorePassword = getRequiredSetting(settings, Management.KEYSTORE_PASSWORD_SETTING);
         KeyStoreType keystoreType = Management.KEYSTORE_TYPE_SETTING.get(settings);
 
         logger.trace("creating new Azure client for [{}], [{}]", subscriptionId, serviceName);
@@ -80,6 +77,14 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent
         } catch (IOException e) {
             throw new ElasticsearchException("Unable to configure Azure compute service", e);
         }
+    }
+
+    private static String getRequiredSetting(Settings settings, Setting<String> setting) {
+        String value = setting.get(settings);
+        if (value == null || Strings.hasLength(value) == false) {
+            throw new IllegalArgumentException("Missing required setting " + setting.getKey() + " for azure");
+        }
+        return value;
     }
 
     @Override

@@ -31,9 +31,6 @@ import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
 import java.io.IOException;
 import java.nio.CharBuffer;
 
-/**
- *
- */
 public class JsonXContentParser extends AbstractXContentParser {
 
     final JsonParser parser;

@@ -26,9 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
-
-/**
- */
 public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory implements MultiTermAwareComponent {
 
     private final String id;

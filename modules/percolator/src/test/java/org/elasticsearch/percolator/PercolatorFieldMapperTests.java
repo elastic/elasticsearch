@@ -292,7 +292,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                 .field(fieldName, queryBuilder)
                 .endObject().bytes());
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name())[0].binaryValue();
-        assertQueryBuilder(qbSource, queryBuilder.rewrite(indexService.newQueryShardContext()));
+        assertQueryBuilder(qbSource, queryBuilder.rewrite(indexService.newQueryShardContext(
+                randomInt(20), null, () -> { throw new UnsupportedOperationException(); })));
     }
 
 
@@ -358,7 +359,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                         .field("query_field2", queryBuilder)
                         .endObject().bytes()
         );
-        assertThat(doc.rootDoc().getFields().size(), equalTo(11)); // also includes _uid (1), type (2), source (1)
+        assertThat(doc.rootDoc().getFields().size(), equalTo(14)); // also includes all other meta fields
         BytesRef queryBuilderAsBytes = doc.rootDoc().getField("query_field1.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 
@@ -388,7 +389,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                             .field("query_field", queryBuilder)
                         .endObject().endObject().bytes()
         );
-        assertThat(doc.rootDoc().getFields().size(), equalTo(8)); // also includes _uid (1), type (2), source (1)
+        assertThat(doc.rootDoc().getFields().size(), equalTo(11)); // also includes all other meta fields
         BytesRef queryBuilderAsBytes = doc.rootDoc().getField("object_field.query_field.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 
@@ -399,7 +400,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
                             .endArray()
                         .endObject().bytes()
         );
-        assertThat(doc.rootDoc().getFields().size(), equalTo(8)); // also includes _uid (1), type (2), source (1)
+        assertThat(doc.rootDoc().getFields().size(), equalTo(11)); // also includes all other meta fields
         queryBuilderAsBytes = doc.rootDoc().getField("object_field.query_field.query_builder_field").binaryValue();
         assertQueryBuilder(queryBuilderAsBytes, queryBuilder);
 
@@ -476,10 +477,11 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     private void assertQueryBuilder(BytesRef actual, QueryBuilder expected) throws IOException {
         XContentParser sourceParser = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent()
                 .createParser(actual.bytes, actual.offset, actual.length);
-        QueryParseContext qsc = indexService.newQueryShardContext().newParseContext(sourceParser);
-        assertThat(qsc.parseInnerQueryBuilder().get(), equalTo(expected));
+        QueryParseContext qsc = indexService.newQueryShardContext(
+                randomInt(20), null, () -> { throw new UnsupportedOperationException(); })
+                .newParseContext(sourceParser);
+        assertThat(qsc.parseInnerQueryBuilder(), equalTo(expected));
     }
-
 
     public void testEmptyName() throws Exception {
         // after 5.x

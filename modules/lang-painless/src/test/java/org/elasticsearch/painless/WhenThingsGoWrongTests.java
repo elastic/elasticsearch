@@ -20,14 +20,13 @@
 package org.elasticsearch.painless;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.script.ScriptException;
 
 import java.lang.invoke.WrongMethodTypeException;
 import java.util.Arrays;
 import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
-import static org.hamcrest.Matchers.containsString;
+import static java.util.Collections.singletonMap;
 
 public class WhenThingsGoWrongTests extends ScriptTestCase {
     public void testNullPointer() {
@@ -234,4 +233,38 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
             exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);");
         });
     }
+
+    public void testRegexDisabledByDefault() {
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> exec("return 'foo' ==~ /foo/"));
+        assertEquals("Regexes are disabled. Set [script.painless.regex.enabled] to [true] in elasticsearch.yaml to allow them. "
+                + "Be careful though, regexes break out of Painless's protection against deep recursion and long loops.", e.getMessage());
+    }
+
+    public void testCanNotOverrideRegexEnabled() {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> exec("", null, singletonMap(CompilerSettings.REGEX_ENABLED.getKey(), "true"), null, false));
+        assertEquals("[painless.regex.enabled] can only be set on node startup.", e.getMessage());
+    }
+
+    public void testInvalidIntConstantSuggestsLong() {
+        IllegalArgumentException e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 864000000000"));
+        assertEquals("Invalid int constant [864000000000]. If you want a long constant then change it to [864000000000L].", e.getMessage());
+        assertEquals(864000000000L, exec("return 864000000000L"));
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return -864000000000"));
+        assertEquals("Invalid int constant [-864000000000]. If you want a long constant then change it to [-864000000000L].",
+                e.getMessage());
+        assertEquals(-864000000000L, exec("return -864000000000L"));
+
+        // If it isn't a valid long we don't give any suggestions
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return 92233720368547758070"));
+        assertEquals("Invalid int constant [92233720368547758070].", e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return -92233720368547758070"));
+        assertEquals("Invalid int constant [-92233720368547758070].", e.getMessage());
+    }
+
+    public void testQuestionSpaceDotIsNotNullSafeDereference() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("return params.a? .b", false));
+        assertEquals("invalid sequence of tokens near ['.'].", e.getMessage());
+    }
+
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -96,7 +97,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         // Test sort:_doc for versions that support it.
         Version remoteVersion = Version.fromId(between(Version.V_2_1_0_ID, Version.CURRENT.id));
         searchRequest.source().sort("_doc");
-        assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("sorts", "_doc:asc"));
+        assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("sort", "_doc:asc"));
 
         // Test search_type scan for versions that don't support sort:_doc.
         remoteVersion = Version.fromId(between(0, Version.V_2_1_0_ID - 1));
@@ -106,14 +107,14 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
         searchRequest.source().sorts().clear();
         searchRequest.source().sort("foo");
-        assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("sorts", "foo:asc"));
+        assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("sort", "foo:asc"));
     }
 
     public void testInitialSearchParamsFields() {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
 
         // Test request without any fields
-        Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
+        Version remoteVersion = VersionUtils.randomVersion(random());
         assertThat(initialSearchParams(searchRequest, remoteVersion),
                 not(either(hasKey("stored_fields")).or(hasKey("fields"))));
 
@@ -121,11 +122,11 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.source().storedField("_source").storedField("_id");
 
         // Test stored_fields for versions that support it
-        remoteVersion = Version.fromId(between(Version.V_5_0_0_alpha4_ID, Version.CURRENT.id));
+        remoteVersion = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0_alpha4, null);
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("stored_fields", "_source,_id"));
 
         // Test fields for versions that support it
-        remoteVersion = Version.fromId(between(0, Version.V_5_0_0_alpha4_ID - 1));
+        remoteVersion = VersionUtils.randomVersionBetween(random(), null, Version.V_5_0_0_alpha3);
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("fields", "_source,_id"));
     }
 
@@ -151,6 +152,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(params, scroll == null ? not(hasKey("scroll")) : hasEntry("scroll", scroll.toString()));
         assertThat(params, hasEntry("size", Integer.toString(size)));
         assertThat(params, fetchVersion == null || fetchVersion == true ? hasEntry("version", null) : not(hasEntry("version", null)));
+        assertThat(params, hasEntry("_source", "true"));
     }
 
     public void testInitialSearchEntity() throws IOException {

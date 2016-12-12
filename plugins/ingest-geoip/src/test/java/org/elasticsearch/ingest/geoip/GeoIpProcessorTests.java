@@ -33,6 +33,7 @@ import java.util.zip.GZIPInputStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class GeoIpProcessorTests extends ESTestCase {
 
@@ -63,6 +64,51 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("location"), equalTo(location));
     }
 
+    public void testCity_withIpV6() throws Exception {
+        InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb.gz");
+        GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field",
+                new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class));
+
+        String address = "2602:306:33d3:8000::3257:9652";
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", address);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(address));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData.size(), equalTo(8));
+        assertThat(geoData.get("ip"), equalTo(address));
+        assertThat(geoData.get("country_iso_code"), equalTo("US"));
+        assertThat(geoData.get("country_name"), equalTo("United States"));
+        assertThat(geoData.get("continent_name"), equalTo("North America"));
+        assertThat(geoData.get("region_name"), equalTo("Florida"));
+        assertThat(geoData.get("city_name"), equalTo("Hollywood"));
+        assertThat(geoData.get("timezone"), equalTo("America/New_York"));
+        Map<String, Object> location = new HashMap<>();
+        location.put("lat", 26.0252d);
+        location.put("lon", -80.296d);
+        assertThat(geoData.get("location"), equalTo(location));
+    }
+
+    public void testCityWithMissingLocation() throws Exception {
+        InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb.gz");
+        GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field",
+            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class));
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "93.114.45.13");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("93.114.45.13"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData.size(), equalTo(1));
+        assertThat(geoData.get("ip"), equalTo("93.114.45.13"));
+    }
+
     public void testCountry() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-Country.mmdb.gz");
         GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field",
@@ -83,6 +129,23 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("continent_name"), equalTo("Europe"));
     }
 
+    public void testCountryWithMissingLocation() throws Exception {
+        InputStream database = getDatabaseFileInputStream("/GeoLite2-Country.mmdb.gz");
+        GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field",
+            new DatabaseReader.Builder(database).build(), "target_field", EnumSet.allOf(GeoIpProcessor.Property.class));
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "93.114.45.13");
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo("93.114.45.13"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData.size(), equalTo(1));
+        assertThat(geoData.get("ip"), equalTo("93.114.45.13"));
+    }
+
     public void testAddressIsNotInTheDatabase() throws Exception {
         InputStream database = getDatabaseFileInputStream("/GeoLite2-City.mmdb.gz");
         GeoIpProcessor processor = new GeoIpProcessor(randomAsciiOfLength(10), "source_field",
@@ -92,9 +155,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         document.put("source_field", "127.0.0.1");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
         processor.execute(ingestDocument);
-        @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(0));
+        assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
     }
 
     /** Don't silently do DNS lookups or anything trappy on bogus data */
@@ -115,7 +176,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         }
     }
 
-    static InputStream getDatabaseFileInputStream(String path) throws IOException {
+    private static InputStream getDatabaseFileInputStream(String path) throws IOException {
         return new GZIPInputStream(GeoIpProcessor.class.getResourceAsStream(path));
     }
 

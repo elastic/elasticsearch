@@ -22,8 +22,9 @@
     - do:
         indices.analyze:
             index: phonetic_sample
-            analyzer: my_analyzer
-            text: supercalifragilisticexpialidocious
+            body:
+                analyzer: my_analyzer
+                text: supercalifragilisticexpialidocious
 
     - length: { tokens: 1 }
     - match:  { tokens.0.token: SPRKLF }

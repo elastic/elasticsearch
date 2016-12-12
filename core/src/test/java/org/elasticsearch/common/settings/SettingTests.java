@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class SettingTests extends ESTestCase {
@@ -48,11 +49,11 @@ public class SettingTests extends ESTestCase {
             Setting.byteSizeSetting("a.byte.size", new ByteSizeValue(1024), Property.Dynamic, Property.NodeScope);
         assertFalse(byteSizeValueSetting.isGroupSetting());
         ByteSizeValue byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
-        assertEquals(byteSizeValue.bytes(), 1024);
+        assertEquals(byteSizeValue.getBytes(), 1024);
 
         byteSizeValueSetting = Setting.byteSizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
         byteSizeValue = byteSizeValueSetting.get(Settings.EMPTY);
-        assertEquals(byteSizeValue.bytes(), 2048);
+        assertEquals(byteSizeValue.getBytes(), 2048);
 
 
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
@@ -75,20 +76,20 @@ public class SettingTests extends ESTestCase {
 
         assertFalse(memorySizeValueSetting.isGroupSetting());
         ByteSizeValue memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
-        assertEquals(memorySizeValue.bytes(), 1024);
+        assertEquals(memorySizeValue.getBytes(), 1024);
 
         memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", s -> "2048b", Property.Dynamic, Property.NodeScope);
         memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
-        assertEquals(memorySizeValue.bytes(), 2048);
+        assertEquals(memorySizeValue.getBytes(), 2048);
 
         memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", "50%", Property.Dynamic, Property.NodeScope);
         assertFalse(memorySizeValueSetting.isGroupSetting());
         memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
-        assertEquals(memorySizeValue.bytes(), JvmInfo.jvmInfo().getMem().getHeapMax().bytes() * 0.5, 1.0);
+        assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.5, 1.0);
 
         memorySizeValueSetting = Setting.memorySizeSetting("a.byte.size", s -> "25%", Property.Dynamic, Property.NodeScope);
         memorySizeValue = memorySizeValueSetting.get(Settings.EMPTY);
-        assertEquals(memorySizeValue.bytes(), JvmInfo.jvmInfo().getMem().getHeapMax().bytes() * 0.25, 1.0);
+        assertEquals(memorySizeValue.getBytes(), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.25, 1.0);
 
         AtomicReference<ByteSizeValue> value = new AtomicReference<>(null);
         ClusterSettings.SettingUpdater<ByteSizeValue> settingUpdater = memorySizeValueSetting.newUpdater(value::set, logger);
@@ -104,7 +105,7 @@ public class SettingTests extends ESTestCase {
         assertEquals(new ByteSizeValue(12), value.get());
 
         assertTrue(settingUpdater.apply(Settings.builder().put("a.byte.size", "20%").build(), Settings.EMPTY));
-        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().bytes() * 0.2)), value.get());
+        assertEquals(new ByteSizeValue((int) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.2)), value.get());
     }
 
     public void testSimpleUpdate() {
@@ -441,9 +442,9 @@ public class SettingTests extends ESTestCase {
         }
     }
 
-    public void testAdfixKeySetting() {
+    public void testAffixKeySetting() {
         Setting<Boolean> setting =
-            Setting.adfixKeySetting("foo", "enable", "false", Boolean::parseBoolean, Property.NodeScope);
+            Setting.affixKeySetting("foo.", "enable", "false", Boolean::parseBoolean, Property.NodeScope);
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar.enable"));
         assertTrue(setting.match("foo.baz.enable"));
@@ -455,12 +456,12 @@ public class SettingTests extends ESTestCase {
         assertTrue(concreteSetting.get(Settings.builder().put("foo.bar.enable", "true").build()));
         assertFalse(concreteSetting.get(Settings.builder().put("foo.baz.enable", "true").build()));
 
-        try {
-            setting.getConcreteSetting("foo");
-            fail();
-        } catch (IllegalArgumentException ex) {
-            assertEquals("key [foo] must match [foo*enable.] but didn't.", ex.getMessage());
-        }
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> setting.getConcreteSetting("foo"));
+        assertEquals("key [foo] must match [foo.*.enable] but didn't.", exc.getMessage());
+
+        exc = expectThrows(IllegalArgumentException.class, () -> Setting.affixKeySetting("foo", "enable", "false",
+            Boolean::parseBoolean, Property.NodeScope));
+        assertEquals("prefix must end with a '.'", exc.getMessage());
     }
 
     public void testMinMaxInt() {
@@ -516,5 +517,17 @@ public class SettingTests extends ESTestCase {
         } catch (IllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("properties cannot be null for setting"));
         }
+    }
+
+    public void testTimeValue() {
+        final TimeValue random = TimeValue.parseTimeValue(randomTimeValue(), "test");
+
+        Setting<TimeValue> setting = Setting.timeSetting("foo", random);
+        assertThat(setting.get(Settings.EMPTY), equalTo(random));
+
+        final int factor = randomIntBetween(1, 10);
+        setting = Setting.timeSetting("foo", (s) -> TimeValue.timeValueMillis(random.getMillis() * factor), TimeValue.ZERO);
+        assertThat(setting.get(Settings.builder().put("foo", "12h").build()), equalTo(TimeValue.timeValueHours(12)));
+        assertThat(setting.get(Settings.EMPTY).getMillis(), equalTo(random.getMillis() * factor));
     }
 }

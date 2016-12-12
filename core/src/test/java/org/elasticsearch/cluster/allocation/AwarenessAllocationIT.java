@@ -31,7 +31,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
-import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
@@ -41,8 +40,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 @ClusterScope(scope= ESIntegTestCase.Scope.TEST, numDataNodes =0, minNumDataNodes = 2)
 public class AwarenessAllocationIT extends ESIntegTestCase {
 
@@ -60,7 +57,7 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
 
 
         logger.info("--> starting 2 nodes on the same rack");
-        internalCluster().startNodesAsync(2, Settings.builder().put(commonSettings).put("node.attr.rack_id", "rack_1").build()).get();
+        internalCluster().startNodes(2, Settings.builder().put(commonSettings).put("node.attr.rack_id", "rack_1").build());
 
         createIndex("test1");
         createIndex("test2");
@@ -106,17 +103,16 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
         Settings commonSettings = Settings.builder()
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a,b")
                 .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 3)
                 .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), "10s")
                 .build();
 
         logger.info("--> starting 4 nodes on different zones");
-        List<String> nodes = internalCluster().startNodesAsync(
+        List<String> nodes = internalCluster().startNodes(
                 Settings.builder().put(commonSettings).put("node.attr.zone", "a").build(),
                 Settings.builder().put(commonSettings).put("node.attr.zone", "b").build(),
                 Settings.builder().put(commonSettings).put("node.attr.zone", "b").build(),
                 Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
-        ).get();
+        );
         String A_0 = nodes.get(0);
         String B_0 = nodes.get(1);
         String B_1 = nodes.get(2);
@@ -157,10 +153,10 @@ public class AwarenessAllocationIT extends ESIntegTestCase {
                 .build();
 
         logger.info("--> starting 2 nodes on zones 'a' & 'b'");
-        List<String> nodes = internalCluster().startNodesAsync(
+        List<String> nodes = internalCluster().startNodes(
                 Settings.builder().put(commonSettings).put("node.attr.zone", "a").build(),
                 Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
-        ).get();
+        );
         String A_0 = nodes.get(0);
         String B_0 = nodes.get(1);
         client().admin().indices().prepareCreate("test")

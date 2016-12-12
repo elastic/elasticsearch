@@ -105,13 +105,13 @@ import static org.apache.lucene.util.ArrayUtil.grow;
  * <li>vint: frequency (always returned)</li>
  * <li>
  * <ul>
- * <li>vint: position_1 (if positions == true)</li>
- * <li>vint: startOffset_1 (if offset == true)</li>
- * <li>vint: endOffset_1 (if offset == true)</li>
- * <li>BytesRef: payload_1 (if payloads == true)</li>
+ * <li>vint: position_1 (if positions)</li>
+ * <li>vint: startOffset_1 (if offset)</li>
+ * <li>vint: endOffset_1 (if offset)</li>
+ * <li>BytesRef: payload_1 (if payloads)</li>
  * <li>...</li>
- * <li>vint: endOffset_freqency (if offset == true)</li>
- * <li>BytesRef: payload_freqency (if payloads == true)</li>
+ * <li>vint: endOffset_freqency (if offset)</li>
+ * <li>BytesRef: payload_freqency (if payloads)</li>
  * </ul></li>
  * </ul>
  */

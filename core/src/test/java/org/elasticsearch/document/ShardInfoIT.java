@@ -39,8 +39,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- */
 public class ShardInfoIT extends ESIntegTestCase {
     private int numCopies;
     private int numNodes;

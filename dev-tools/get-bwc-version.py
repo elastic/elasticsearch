@@ -9,7 +9,7 @@
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on 
+# software distributed under the License is distributed on
 # an 'AS IS' BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
 # either express or implied. See the License for the specific
 # language governing permissions and limitations under the License.
@@ -38,7 +38,7 @@ def parse_config():
 
 def main():
   c = parse_config()
-  
+
   if not os.path.exists(c.path):
     print('Creating %s' % c.path)
     os.mkdir(c.path)
@@ -53,7 +53,7 @@ def main():
       shutil.rmtree(version_dir)
     else:
       print('Version %s exists at %s' % (c.version, version_dir))
-      return 
+      return
 
   # before 1.4.0, the zip file contains windows scripts, and tar.gz contained *nix scripts
   if is_windows:
@@ -64,17 +64,17 @@ def main():
   if c.version == '1.2.0':
     # 1.2.0 was pulled from download.elasticsearch.org because of routing bug:
     url = 'http://central.maven.org/maven2/org/elasticsearch/elasticsearch/1.2.0/%s' % filename
-  elif c.version.startswith('0.') or c.version.startswith('1.'):
+  elif c.version.startswith('0.') or c.version.startswith('1.') or c.version.startswith('2.'):
     url = 'https://download.elasticsearch.org/elasticsearch/elasticsearch/%s' % filename
   else:
-    url = 'http://download.elasticsearch.org/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/%s/%s' % (c.version, filename)
+    url = 'https://artifacts.elastic.co/downloads/elasticsearch/%s' % filename
   print('Downloading %s' % url)
   urllib.request.urlretrieve(url, filename)
 
   print('Extracting to %s' % version_dir)
   if is_windows:
     archive = zipfile.ZipFile(filename)
-    archive.extractall() 
+    archive.extractall()
   else:
     # for some reason python's tarfile module has trouble with ES tgz?
     subprocess.check_call('tar -xzf %s' % filename, shell=True)

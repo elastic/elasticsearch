@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -39,7 +40,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -47,19 +47,18 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -70,7 +69,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -85,7 +84,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
@@ -100,7 +98,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -126,29 +123,33 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
     public static final String STRING_FIELD_NAME = "mapped_string";
     protected static final String STRING_FIELD_NAME_2 = "mapped_string_2";
     protected static final String INT_FIELD_NAME = "mapped_int";
+    protected static final String INT_RANGE_FIELD_NAME = "mapped_int_range";
     protected static final String DOUBLE_FIELD_NAME = "mapped_double";
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
     protected static final String DATE_FIELD_NAME = "mapped_date";
+    protected static final String DATE_RANGE_FIELD_NAME = "mapped_date_range";
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
-    protected static final String GEO_POINT_FIELD_MAPPING = "type=geo_point,lat_lon=true,geohash=true,geohash_prefix=true";
     protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
-    protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME,
-            BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME, GEO_SHAPE_FIELD_NAME};
-    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME,
-            BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, GEO_POINT_FIELD_NAME};
+    protected static final String[] MAPPED_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME,
+            GEO_SHAPE_FIELD_NAME};
+    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[]{STRING_FIELD_NAME, INT_FIELD_NAME, INT_RANGE_FIELD_NAME,
+            DOUBLE_FIELD_NAME, BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, GEO_POINT_FIELD_NAME, };
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
     private static ServiceHolder serviceHolder;
@@ -159,12 +160,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static String[] currentTypes;
     private static String[] randomTypes;
 
+    /**
+     * used to check warning headers of the deprecation logger
+     */
+    private ThreadContext threadContext;
+
     protected static Index getIndex() {
         return index;
     }
 
     protected static String[] getCurrentTypes() {
-        return currentTypes;
+        return currentTypes == null ? Strings.EMPTY_ARRAY : currentTypes;
     }
 
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -178,7 +184,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public static void beforeClass() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         Version indexVersionCreated = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
+                : VersionUtils.randomVersionBetween(random(), null, Version.CURRENT);
         nodeSettings = Settings.builder()
                 .put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
@@ -212,9 +218,23 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             serviceHolder = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), this);
         }
         serviceHolder.clientInvocationHandler.delegate = this;
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        DeprecationLogger.setThreadContext(threadContext);
     }
 
-    private static void setSearchContext(String[] types, QueryShardContext context) {
+    /**
+     * Check that there are no unaccounted warning headers. These should be checked with {@link #checkWarningHeaders(String...)} in the
+     * appropriate test
+     */
+    @After
+    public void teardown() throws IOException {
+        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
+        assertNull("unexpected warning headers", warnings);
+        DeprecationLogger.removeThreadContext(this.threadContext);
+        this.threadContext.close();
+    }
+
+    private static SearchContext getSearchContext(String[] types, QueryShardContext context) {
         TestSearchContext testSearchContext = new TestSearchContext(context) {
             @Override
             public MapperService mapperService() {
@@ -227,13 +247,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             }
         };
         testSearchContext.getQueryShardContext().setTypes(types);
-        SearchContext.setCurrent(testSearchContext);
+        return testSearchContext;
     }
 
     @After
     public void afterTest() {
         serviceHolder.clientInvocationHandler.delegate = null;
-        SearchContext.removeCurrent();
     }
 
     public final QB createTestQueryBuilder() {
@@ -487,7 +506,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    private void queryWrappedInArrayTest(String queryName, String validQuery) throws IOException {
+    private static void queryWrappedInArrayTest(String queryName, String validQuery) throws IOException {
         int i = validQuery.indexOf("\"" + queryName + "\"");
         assertThat(i, greaterThan(0));
 
@@ -572,10 +591,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     private static QueryBuilder parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
         QueryParseContext context = createParseContext(parser, matcher);
-        QueryBuilder parseInnerQueryBuilder = context.parseInnerQueryBuilder()
-                .orElseThrow(() -> new IllegalArgumentException("inner query body cannot be empty"));
+        QueryBuilder parseInnerQueryBuilder = context.parseInnerQueryBuilder();
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
+    }
+
+    /**
+     * Whether the queries produced by this builder are expected to be cacheable.
+     */
+    protected boolean builderGeneratesCacheableQueries() {
+        return true;
     }
 
     /**
@@ -585,15 +610,26 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public void testToQuery() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QueryShardContext context = createShardContext();
+            assert context.isCachable();
             context.setAllowUnmappedFields(true);
             QB firstQuery = createTestQueryBuilder();
             QB controlQuery = copyQuery(firstQuery);
-            setSearchContext(randomTypes, context); // only set search context for toQuery to be more realistic
-            Query firstLuceneQuery = rewriteQuery(firstQuery, context).toQuery(context);
+            SearchContext searchContext = getSearchContext(randomTypes, context);
+            /* we use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not.
+             * We do it this way in SearchService where
+             * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
+            QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
+            Query firstLuceneQuery = rewritten.toQuery(context);
+            if (isCachable(firstQuery)) {
+                assertTrue("query was marked as not cacheable in the context but this test indicates it should be cacheable: "
+                        + firstQuery.toString(), context.isCachable());
+            } else {
+                assertFalse("query was marked as cacheable in the context but this test indicates it should not be cacheable: "
+                        + firstQuery.toString(), context.isCachable());
+            }
             assertNotNull("toQuery should not return null", firstLuceneQuery);
-            assertLuceneQuery(firstQuery, firstLuceneQuery, context);
+            assertLuceneQuery(firstQuery, firstLuceneQuery, searchContext);
             //remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
-            SearchContext.removeCurrent();
             assertTrue(
                     "query is not equal to its copy after calling toQuery, firstQuery: " + firstQuery + ", secondQuery: " + controlQuery,
                     firstQuery.equals(controlQuery));
@@ -608,20 +644,19 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName()
                         + randomAsciiOfLengthBetween(1, 10));
             }
-            setSearchContext(randomTypes, context);
+            searchContext = getSearchContext(randomTypes, context);
             Query secondLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
             assertNotNull("toQuery should not return null", secondLuceneQuery);
-            assertLuceneQuery(secondQuery, secondLuceneQuery, context);
-            SearchContext.removeCurrent();
+            assertLuceneQuery(secondQuery, secondLuceneQuery, searchContext);
 
-            assertEquals("two equivalent query builders lead to different lucene queries",
-                    rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
+            if (builderGeneratesCacheableQueries()) {
+                assertEquals("two equivalent query builders lead to different lucene queries",
+                        rewrite(secondLuceneQuery), rewrite(firstLuceneQuery));
+            }
 
             if (supportsBoostAndQueryName()) {
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-                setSearchContext(randomTypes, context);
                 Query thirdLuceneQuery = rewriteQuery(secondQuery, context).toQuery(context);
-                SearchContext.removeCurrent();
                 assertNotEquals("modifying the boost doesn't affect the corresponding lucene query", rewrite(firstLuceneQuery),
                         rewrite(thirdLuceneQuery));
             }
@@ -641,6 +676,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return rewritten;
     }
 
+    protected boolean isCachable(QB queryBuilder) {
+        return true;
+    }
+
     /**
      * Few queries allow you to set the boost and queryName on the java api, although the corresponding parser
      * doesn't parse them as they are not supported. This method allows to disable boost and queryName related tests for those queries.
@@ -654,11 +693,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder}
      * and {@link QueryShardContext}. Verifies that named queries and boost are properly handled and delegates to
-     * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, QueryShardContext)} for query specific checks.
+     * {@link #doAssertLuceneQuery(AbstractQueryBuilder, Query, SearchContext)} for query specific checks.
      */
-    private void assertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException {
+    private void assertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException {
         if (queryBuilder.queryName() != null) {
-            Query namedQuery = context.copyNamedQueries().get(queryBuilder.queryName());
+            Query namedQuery = context.getQueryShardContext().copyNamedQueries().get(queryBuilder.queryName());
             assertThat(namedQuery, equalTo(query));
         }
         if (query != null) {
@@ -682,7 +721,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Checks the result of {@link QueryBuilder#toQuery(QueryShardContext)} given the original {@link QueryBuilder}
      * and {@link QueryShardContext}. Contains the query specific checks to be implemented by subclasses.
      */
-    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException;
+    protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, SearchContext context) throws IOException;
 
     protected static void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
         if (fieldBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
@@ -729,47 +768,28 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
-            QB firstQuery = createTestQueryBuilder();
-            assertFalse("query is equal to null", firstQuery.equals(null));
-            assertFalse("query is equal to incompatible type", firstQuery.equals(""));
-            assertTrue("query is not equal to self", firstQuery.equals(firstQuery));
-            assertThat("same query's hashcode returns different values if called multiple times", firstQuery.hashCode(),
-                    equalTo(firstQuery.hashCode()));
-
-            QB secondQuery = copyQuery(firstQuery);
-            assertTrue("query is not equal to self", secondQuery.equals(secondQuery));
-            assertTrue("query is not equal to its copy", firstQuery.equals(secondQuery));
-            assertTrue("equals is not symmetric", secondQuery.equals(firstQuery));
-            assertThat("query copy's hashcode is different from original hashcode", secondQuery.hashCode(), equalTo(firstQuery.hashCode()));
-
-            QB thirdQuery = copyQuery(secondQuery);
-            assertTrue("query is not equal to self", thirdQuery.equals(thirdQuery));
-            assertTrue("query is not equal to its copy", secondQuery.equals(thirdQuery));
-            assertThat("query copy's hashcode is different from original hashcode", secondQuery.hashCode(), equalTo(thirdQuery.hashCode()));
-            assertTrue("equals is not transitive", firstQuery.equals(thirdQuery));
-            assertThat("query copy's hashcode is different from original hashcode", firstQuery.hashCode(), equalTo(thirdQuery.hashCode()));
-            assertTrue("equals is not symmetric", thirdQuery.equals(secondQuery));
-            assertTrue("equals is not symmetric", thirdQuery.equals(firstQuery));
-
-            if (randomBoolean()) {
-                secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName()
-                        + randomAsciiOfLengthBetween(1, 10));
-            } else {
-                secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
-            }
-            assertThat("different queries should not be equal", secondQuery, not(equalTo(firstQuery)));
+            // TODO we only change name and boost, we should extend by any sub-test supplying a "mutate" method that randomly changes one
+            // aspect of the object under test
+            checkEqualsAndHashCode(createTestQueryBuilder(), this::copyQuery, this::changeNameOrBoost);
         }
+    }
+
+    private QB changeNameOrBoost(QB original) throws IOException {
+        QB secondQuery = copyQuery(original);
+        if (randomBoolean()) {
+            secondQuery.queryName(secondQuery.queryName() == null ? randomAsciiOfLengthBetween(1, 30) : secondQuery.queryName()
+                    + randomAsciiOfLengthBetween(1, 10));
+        } else {
+            secondQuery.boost(original.boost() + 1f + randomFloat());
+        }
+        return secondQuery;
     }
 
     //we use the streaming infra to create a copy of the query provided as argument
     @SuppressWarnings("unchecked")
     private QB copyQuery(QB query) throws IOException {
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.writeNamedWriteable(query);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), serviceHolder.namedWriteableRegistry)) {
-                return (QB) in.readNamedWriteable(QueryBuilder.class);
-            }
-        }
+        Reader<QB> reader = (Reader<QB>) serviceHolder.namedWriteableRegistry.getReader(QueryBuilder.class, query.getWriteableName());
+        return copyWriteable(query, serviceHolder.namedWriteableRegistry, reader);
     }
 
     /**
@@ -807,7 +827,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 value = randomIntBetween(0, 10);
                 break;
             case DOUBLE_FIELD_NAME:
-                value = randomDouble() * 10;
+                value = 1 + randomDouble() * 9;
                 break;
             case BOOLEAN_FIELD_NAME:
                 value = randomBoolean();
@@ -1004,7 +1024,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
         QB queryBuilder = createTestQueryBuilder();
-        setSearchContext(randomTypes, context); // only set search context for toQuery to be more realistic
         queryBuilder.toQuery(context);
     }
 
@@ -1012,9 +1031,25 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return query;
     }
 
+    protected void checkWarningHeaders(String... messages) {
+        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
+        assertThat(warnings, hasSize(messages.length));
+        for (String msg : messages) {
+            assertThat(warnings, hasItem(equalTo(msg)));
+        }
+        // "clear" current warning headers by setting a new ThreadContext
+        DeprecationLogger.removeThreadContext(this.threadContext);
+        try {
+            this.threadContext.close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        DeprecationLogger.setThreadContext(this.threadContext);
+    }
+
     private static class ServiceHolder implements Closeable {
 
-        private final Injector injector;
         private final IndicesQueriesRegistry indicesQueriesRegistry;
         private final IndexFieldDataService indexFieldDataService;
         private final SearchModule searchModule;
@@ -1025,18 +1060,15 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         private final MapperService mapperService;
         private final BitsetFilterCache bitsetFilterCache;
         private final ScriptService scriptService;
+        private final Client client;
+        private final long nowInMillis = randomPositiveLong();
 
         ServiceHolder(Settings nodeSettings, Settings indexSettings,
                       Collection<Class<? extends Plugin>> plugins, AbstractQueryTestCase<?> testCase) throws IOException {
-            final ThreadPool threadPool = new ThreadPool(nodeSettings);
-            ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-            ClusterServiceUtils.setState(clusterService, new ClusterState.Builder(clusterService.state()).metaData(
-                            new MetaData.Builder().put(new IndexMetaData.Builder(
-                                    index.getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
             Environment env = InternalSettingsPreparer.prepareEnvironment(nodeSettings, null);
             PluginsService pluginsService = new PluginsService(nodeSettings, env.modulesFile(), env.pluginsFile(), plugins);
 
-            final Client proxy = (Client) Proxy.newProxyInstance(
+            client = (Client) Proxy.newProxyInstance(
                     Client.class.getClassLoader(),
                     new Class[]{Client.class},
                     clientInvocationHandler);
@@ -1045,53 +1077,24 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             scriptSettings.addAll(pluginsService.getPluginSettings());
             scriptSettings.add(InternalSettingsPlugin.VERSION_CREATED);
             SettingsModule settingsModule = new SettingsModule(nodeSettings, scriptSettings, pluginsService.getPluginSettingsFilter());
-            searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class)) {
-                @Override
-                protected void configureSearch() {
-                    // Skip me
-                }
-            };
-            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class)) {
-                @Override
-                public void configure() {
-                    // skip services
-                    bindMapperExtension();
-                }
-            };
+            searchModule = new SearchModule(nodeSettings, false, pluginsService.filterPlugins(SearchPlugin.class));
+            IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(indicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
-            ModulesBuilder modulesBuilder = new ModulesBuilder();
-            for (Module pluginModule : pluginsService.createGuiceModules()) {
-                modulesBuilder.add(pluginModule);
-            }
-            modulesBuilder.add(
-                    b -> {
-                        b.bind(PluginsService.class).toInstance(pluginsService);
-                        b.bind(Environment.class).toInstance(new Environment(nodeSettings));
-                        b.bind(ThreadPool.class).toInstance(threadPool);
-                        b.bind(Client.class).toInstance(proxy);
-                        b.bind(ClusterService.class).toProvider(Providers.of(clusterService));
-                        b.bind(CircuitBreakerService.class).to(NoneCircuitBreakerService.class);
-                        b.bind(NamedWriteableRegistry.class).toInstance(namedWriteableRegistry);
-                    },
-                    settingsModule, indicesModule, searchModule, new IndexSettingsModule(index, indexSettings)
-            );
-            pluginsService.processModules(modulesBuilder);
-            injector = modulesBuilder.createInjector();
-            IndexScopedSettings indexScopedSettings = injector.getInstance(IndexScopedSettings.class);
+            IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
             AnalysisModule analysisModule = new AnalysisModule(new Environment(nodeSettings), emptyList());
-            AnalysisService analysisService = analysisModule.getAnalysisRegistry().build(idxSettings);
+            IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(idxSettings);
             scriptService = scriptModule.getScriptService();
             similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
-            MapperRegistry mapperRegistry = injector.getInstance(MapperRegistry.class);
-            mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry, this::createShardContext);
+            MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
+            mapperService = new MapperService(idxSettings, indexAnalyzers, similarityService, mapperRegistry, this::createShardContext);
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache,
-                    injector.getInstance(CircuitBreakerService.class), mapperService);
+                    new NoneCircuitBreakerService(), mapperService);
             bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
                 @Override
                 public void onCache(ShardId shardId, Accountable accountable) {
@@ -1103,18 +1106,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
                 }
             });
-            indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
+            indicesQueriesRegistry = searchModule.getQueryParserRegistry();
 
             for (String type : currentTypes) {
                 mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
                         STRING_FIELD_NAME, "type=text",
                         STRING_FIELD_NAME_2, "type=keyword",
                         INT_FIELD_NAME, "type=integer",
+                        INT_RANGE_FIELD_NAME, "type=integer_range",
                         DOUBLE_FIELD_NAME, "type=double",
                         BOOLEAN_FIELD_NAME, "type=boolean",
                         DATE_FIELD_NAME, "type=date",
+                        DATE_RANGE_FIELD_NAME, "type=date_range",
                         OBJECT_FIELD_NAME, "type=object",
-                        GEO_POINT_FIELD_NAME, GEO_POINT_FIELD_MAPPING,
+                        GEO_POINT_FIELD_NAME, "type=geo_point",
                         GEO_SHAPE_FIELD_NAME, "type=geo_shape"
                 ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
                 // also add mappings for two inner field in the object field
@@ -1124,24 +1129,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         MapperService.MergeReason.MAPPING_UPDATE, false);
             }
             testCase.initializeAdditionalMappings(mapperService);
-            this.namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
+            this.namedWriteableRegistry = namedWriteableRegistry;
         }
 
         @Override
         public void close() throws IOException {
-            injector.getInstance(ClusterService.class).close();
-            try {
-                terminate(injector.getInstance(ThreadPool.class));
-            } catch (InterruptedException e) {
-                IOUtils.reThrow(e);
-            }
         }
 
         QueryShardContext createShardContext() {
             ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
-            Client client = injector.getInstance(Client.class);
-            return new QueryShardContext(idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                    scriptService, indicesQueriesRegistry, client, null, state);
+            return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
+                    scriptService, indicesQueriesRegistry, this.client, null, state, () -> nowInMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

@@ -41,9 +41,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import java.util.ArrayList;
 import java.util.Locale;
 
-/**
- *
- */
 public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final AmazonS3 client;

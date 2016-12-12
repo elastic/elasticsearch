@@ -93,16 +93,17 @@ The systemd service file (`/usr/lib/systemd/system/elasticsearch.service`)
 contains the limits that are applied by default.
 
 To override these, add a file called
-`/etc/systemd/system/elasticsearch.service.d/elasticsearch.conf`) and specify
+`/etc/systemd/system/elasticsearch.service.d/elasticsearch.conf` and specify
 any changes in that file, such as:
 
 [source,sh]
 ---------------------------------
+[Service]
 LimitMEMLOCK=infinity
 ---------------------------------
 
-[[es-java-opts]]
-==== Setting JVM system properties
+[[jvm-options]]
+==== Setting JVM options
 
 The preferred method of setting Java Virtual Machine options (including
 system properties and JVM flags) is via the `jvm.options` configuration

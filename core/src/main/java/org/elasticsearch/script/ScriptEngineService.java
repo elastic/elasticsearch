@@ -25,9 +25,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.Closeable;
 import java.util.Map;
 
-/**
- *
- */
 public interface ScriptEngineService extends Closeable {
 
     String getType();

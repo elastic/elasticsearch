@@ -9,7 +9,6 @@
             "processors": [
               {
                 "script" : {
-                  "lang" : "painless",
                   "inline": "ctx.bytes_total = (ctx.bytes_in + ctx.bytes_out) * params.factor",
                   "params": {
                      "factor": 10
@@ -48,7 +47,6 @@
             "processors": [
               {
                 "script" : {
-                  "lang" : "painless",
                   "file": "master"
                 }
               }
@@ -94,7 +92,6 @@
             "processors": [
               {
                 "script" : {
-                  "lang" : "painless",
                   "id" : "sum_bytes"
                 }
               }

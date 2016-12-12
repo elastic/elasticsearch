@@ -1,5 +1,5 @@
 [[search-aggregations-bucket-diversified-sampler-aggregation]]
-=== Sampler Aggregation
+=== Diversified Sampler Aggregation
 
 experimental[]
 
@@ -24,7 +24,7 @@ Example:
     },
     "aggs": {
         "sample": {
-            "sampler": {
+            "diversified_sampler": {
                 "shard_size": 200,
                 "field" : "user.id"   
             },
@@ -63,7 +63,7 @@ Response:
 }
 --------------------------------------------------
 
-<1> 1000 documents were sampled in total becase we asked for a maximum of 200 from an index with 5 shards. The cost of performing the nested significant_terms aggregation was therefore limited rather than unbounded.
+<1> 1000 documents were sampled in total because we asked for a maximum of 200 from an index with 5 shards. The cost of performing the nested significant_terms aggregation was therefore limited rather than unbounded.
 <2> The results of the significant_terms aggregation are not skewed by any single over-active Twitter user because we asked for a maximum of one tweet from any one user in our sample.
 
 
@@ -92,7 +92,7 @@ Controlling diversity using a field:
 {
     "aggs" : {
         "sample" : {
-            "diverisfied_sampler" : {
+            "diversified_sampler" : {
                 "field" : "author",
                 "max_docs_per_value" : 3
             }

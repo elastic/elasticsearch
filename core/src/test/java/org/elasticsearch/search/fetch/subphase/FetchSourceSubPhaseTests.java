@@ -136,7 +136,7 @@ public class FetchSourceSubPhaseTests extends ESTestCase {
 
         @Override
         public SearchLookup lookup() {
-            SearchLookup lookup = super.lookup();
+            SearchLookup lookup = new SearchLookup(this.mapperService(), this.fieldData(), null);
             lookup.source().setSource(source);
             return lookup;
         }

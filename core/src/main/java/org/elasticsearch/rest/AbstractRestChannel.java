@@ -40,12 +40,20 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     protected final RestRequest request;
     protected final boolean detailedErrorsEnabled;
+    private final String format;
+    private final String filterPath;
+    private final boolean pretty;
+    private final boolean human;
 
     private BytesStreamOutput bytesOut;
 
     protected AbstractRestChannel(RestRequest request, boolean detailedErrorsEnabled) {
         this.request = request;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
+        this.format = request.param("format", request.header("Accept"));
+        this.filterPath = request.param("filter_path", null);
+        this.pretty = request.paramAsBoolean("pretty", false);
+        this.human = request.paramAsBoolean("human", false);
     }
 
     @Override
@@ -61,7 +69,7 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     @Override
     public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
-        XContentType contentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
+        XContentType contentType = XContentType.fromMediaTypeOrFormat(format);
         if (contentType == null) {
             // try and guess it from the auto detect source
             if (autoDetectSource != null) {
@@ -76,17 +84,17 @@ public abstract class AbstractRestChannel implements RestChannel {
         Set<String> includes = Collections.emptySet();
         Set<String> excludes = Collections.emptySet();
         if (useFiltering) {
-            Set<String> filters = Strings.splitStringByCommaToSet(request.param("filter_path", null));
+            Set<String> filters = Strings.splitStringByCommaToSet(filterPath);
             includes = filters.stream().filter(INCLUDE_FILTER).collect(toSet());
             excludes = filters.stream().filter(EXCLUDE_FILTER).map(f -> f.substring(1)).collect(toSet());
         }
 
         XContentBuilder builder = new XContentBuilder(XContentFactory.xContent(contentType), bytesOutput(), includes, excludes);
-        if (request.paramAsBoolean("pretty", false)) {
+        if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }
 
-        builder.humanReadable(request.paramAsBoolean("human", builder.humanReadable()));
+        builder.humanReadable(human);
         return builder;
     }
 

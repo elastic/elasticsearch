@@ -19,20 +19,20 @@
 
 package org.elasticsearch.http;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -60,7 +60,6 @@ public class HttpServer extends AbstractLifecycleComponent implements HttpServer
 
     private final CircuitBreakerService circuitBreakerService;
 
-    @Inject
     public HttpServer(Settings settings, HttpServerTransport transport, RestController restController,
                       NodeClient client, CircuitBreakerService circuitBreakerService) {
         super(settings);
@@ -115,7 +114,13 @@ public class HttpServer extends AbstractLifecycleComponent implements HttpServer
             responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
             restController.dispatchRequest(request, responseChannel, client, threadContext);
         } catch (Exception e) {
-            restController.sendErrorResponse(request, responseChannel, e);
+            try {
+                responseChannel.sendResponse(new BytesRestResponse(channel, e));
+            } catch (Exception inner) {
+                inner.addSuppressed(e);
+                logger.error((Supplier<?>) () ->
+                    new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
+            }
         }
     }
 

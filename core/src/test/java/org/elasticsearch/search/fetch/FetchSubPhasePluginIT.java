@@ -118,7 +118,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public static final class TermVectorsFetchSubPhase implements FetchSubPhase {
+    private static final class TermVectorsFetchSubPhase implements FetchSubPhase {
         private static final String NAME = "term_vectors_fetch";
 
         @Override
@@ -153,7 +153,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public static final class TermVectorsFetchParser implements SearchExtParser<TermVectorsFetchBuilder> {
+    private static final class TermVectorsFetchParser implements SearchExtParser<TermVectorsFetchBuilder> {
 
         private static final TermVectorsFetchParser INSTANCE = new TermVectorsFetchParser();
 
@@ -176,18 +176,18 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    public static final class TermVectorsFetchBuilder extends SearchExtBuilder {
+    private static final class TermVectorsFetchBuilder extends SearchExtBuilder {
         private final String field;
 
-        public TermVectorsFetchBuilder(String field) {
+        private TermVectorsFetchBuilder(String field) {
             this.field = field;
         }
 
-        public TermVectorsFetchBuilder(StreamInput in) throws IOException {
+        private TermVectorsFetchBuilder(StreamInput in) throws IOException {
             this.field = in.readString();
         }
 
-        public String getField() {
+        private String getField() {
             return field;
         }
 

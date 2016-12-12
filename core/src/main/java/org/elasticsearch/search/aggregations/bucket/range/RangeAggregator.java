@@ -19,7 +19,6 @@
 package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,9 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- *
- */
 public class RangeAggregator extends BucketsAggregator {
 
     public static final ParseField RANGES_FIELD = new ParseField("ranges");
@@ -119,10 +115,10 @@ public class RangeAggregator extends BucketsAggregator {
             Double from = this.from;
             Double to = this.to;
             if (fromAsStr != null) {
-                from = parser.parseDouble(fromAsStr, false, context::nowInMillis);
+                from = parser.parseDouble(fromAsStr, false, context.getQueryShardContext()::nowInMillis);
             }
             if (toAsStr != null) {
-                to = parser.parseDouble(toAsStr, false, context::nowInMillis);
+                to = parser.parseDouble(toAsStr, false, context.getQueryShardContext()::nowInMillis);
             }
             return new Range(key, from, fromAsStr, to, toAsStr);
         }
@@ -210,7 +206,7 @@ public class RangeAggregator extends BucketsAggregator {
     final double[] maxTo;
 
     public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
-            InternalRange.Factory rangeFactory, List<? extends Range> ranges, boolean keyed, AggregationContext aggregationContext,
+            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, AggregationContext aggregationContext,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
@@ -220,11 +216,7 @@ public class RangeAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
 
-        this.ranges = new Range[ranges.size()];
-        for (int i = 0; i < this.ranges.length; i++) {
-            this.ranges[i] = ranges.get(i).process(format, context.searchContext());
-        }
-        sortRanges(this.ranges);
+        this.ranges = ranges;
 
         maxTo = new double[this.ranges.length];
         maxTo[0] = this.ranges[0].to;
@@ -337,45 +329,21 @@ public class RangeAggregator extends BucketsAggregator {
         return rangeFactory.create(name, buckets, format, keyed, pipelineAggregators(), metaData());
     }
 
-    private static void sortRanges(final Range[] ranges) {
-        new InPlaceMergeSorter() {
-
-            @Override
-            protected void swap(int i, int j) {
-                final Range tmp = ranges[i];
-                ranges[i] = ranges[j];
-                ranges[j] = tmp;
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                int cmp = Double.compare(ranges[i].from, ranges[j].from);
-                if (cmp == 0) {
-                    cmp = Double.compare(ranges[i].to, ranges[j].to);
-                }
-                return cmp;
-            }
-        }.sort(0, ranges.length);
-    }
-
     public static class Unmapped<R extends RangeAggregator.Range> extends NonCollectingAggregator {
 
-        private final List<R> ranges;
+        private final R[] ranges;
         private final boolean keyed;
         private final InternalRange.Factory factory;
         private final DocValueFormat format;
 
         @SuppressWarnings("unchecked")
-        public Unmapped(String name, List<R> ranges, boolean keyed, DocValueFormat format,
+        public Unmapped(String name, R[] ranges, boolean keyed, DocValueFormat format,
                 AggregationContext context,
                 Aggregator parent, InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
 
             super(name, context, parent, pipelineAggregators, metaData);
-            this.ranges = new ArrayList<>();
-            for (R range : ranges) {
-                this.ranges.add((R) range.process(format, context.searchContext()));
-            }
+            this.ranges = ranges;
             this.keyed = keyed;
             this.format = format;
             this.factory = factory;
@@ -384,7 +352,7 @@ public class RangeAggregator extends BucketsAggregator {
         @Override
         public InternalAggregation buildEmptyAggregation() {
             InternalAggregations subAggs = buildEmptySubAggregations();
-            List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.size());
+            List<org.elasticsearch.search.aggregations.bucket.range.Range.Bucket> buckets = new ArrayList<>(ranges.length);
             for (RangeAggregator.Range range : ranges) {
                 buckets.add(factory.createBucket(range.key, range.from, range.to, 0, subAggs, keyed, format));
             }

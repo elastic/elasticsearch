@@ -32,25 +32,14 @@ import java.util.function.Function;
 
 public class ScriptSettings {
 
-    static final String LEGACY_DEFAULT_LANG = "groovy";
-
-    /**
-     * The default script language to use for scripts that are stored in documents that have no script lang set explicitly.
-     * This setting is legacy setting and only applies for indices created on ES versions prior to version 5.0
-     *
-     * This constant will be removed in the next major release.
-     */
-    @Deprecated
-    public static final String LEGACY_SCRIPT_SETTING = "script.legacy.default_lang";
-
-    private static final Map<ScriptService.ScriptType, Setting<Boolean>> SCRIPT_TYPE_SETTING_MAP;
+    private static final Map<ScriptType, Setting<Boolean>> SCRIPT_TYPE_SETTING_MAP;
 
     static {
-        Map<ScriptService.ScriptType, Setting<Boolean>> scriptTypeSettingMap = new HashMap<>();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+        Map<ScriptType, Setting<Boolean>> scriptTypeSettingMap = new HashMap<>();
+        for (ScriptType scriptType : ScriptType.values()) {
             scriptTypeSettingMap.put(scriptType, Setting.boolSetting(
                 ScriptModes.sourceKey(scriptType),
-                scriptType.getDefaultScriptEnabled(),
+                scriptType.isDefaultEnabled(),
                 Property.NodeScope));
         }
         SCRIPT_TYPE_SETTING_MAP = Collections.unmodifiableMap(scriptTypeSettingMap);
@@ -58,7 +47,6 @@ public class ScriptSettings {
 
     private final Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap;
     private final List<Setting<Boolean>> scriptLanguageSettings;
-    private final Setting<String> defaultLegacyScriptLanguageSetting;
 
     public ScriptSettings(ScriptEngineRegistry scriptEngineRegistry, ScriptContextRegistry scriptContextRegistry) {
         Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap = contextSettings(scriptContextRegistry);
@@ -66,13 +54,6 @@ public class ScriptSettings {
 
         List<Setting<Boolean>> scriptLanguageSettings = languageSettings(SCRIPT_TYPE_SETTING_MAP, scriptContextSettingMap, scriptEngineRegistry, scriptContextRegistry);
         this.scriptLanguageSettings = Collections.unmodifiableList(scriptLanguageSettings);
-
-        this.defaultLegacyScriptLanguageSetting = new Setting<>(LEGACY_SCRIPT_SETTING, LEGACY_DEFAULT_LANG, setting -> {
-            if (!LEGACY_DEFAULT_LANG.equals(setting) && !scriptEngineRegistry.getRegisteredLanguages().containsKey(setting)) {
-                throw new IllegalArgumentException("unregistered default language [" + setting + "]");
-            }
-            return setting;
-        }, Property.NodeScope);
     }
 
     private static Map<ScriptContext, Setting<Boolean>> contextSettings(ScriptContextRegistry scriptContextRegistry) {
@@ -84,7 +65,7 @@ public class ScriptSettings {
         return scriptContextSettingMap;
     }
 
-    private static List<Setting<Boolean>> languageSettings(Map<ScriptService.ScriptType, Setting<Boolean>> scriptTypeSettingMap,
+    private static List<Setting<Boolean>> languageSettings(Map<ScriptType, Setting<Boolean>> scriptTypeSettingMap,
                                                               Map<ScriptContext, Setting<Boolean>> scriptContextSettingMap,
                                                               ScriptEngineRegistry scriptEngineRegistry,
                                                               ScriptContextRegistry scriptContextRegistry) {
@@ -96,13 +77,13 @@ public class ScriptSettings {
                 continue;
             }
             final String language = scriptEngineRegistry.getLanguage(scriptEngineService);
-            for (final ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+            for (final ScriptType scriptType : ScriptType.values()) {
                 // Top level, like "script.engine.groovy.inline"
                 final boolean defaultNonFileScriptMode = scriptEngineRegistry.getDefaultInlineScriptEnableds().get(language);
                 boolean defaultLangAndType = defaultNonFileScriptMode;
                 // Files are treated differently because they are never default-deny
-                if (ScriptService.ScriptType.FILE == scriptType) {
-                    defaultLangAndType = ScriptService.ScriptType.FILE.getDefaultScriptEnabled();
+                if (ScriptType.FILE == scriptType) {
+                    defaultLangAndType = ScriptType.FILE.isDefaultEnabled();
                 }
                 final boolean defaultIfNothingSet = defaultLangAndType;
 
@@ -169,19 +150,10 @@ public class ScriptSettings {
         settings.addAll(SCRIPT_TYPE_SETTING_MAP.values());
         settings.addAll(scriptContextSettingMap.values());
         settings.addAll(scriptLanguageSettings);
-        settings.add(defaultLegacyScriptLanguageSetting);
         return settings;
     }
 
     public Iterable<Setting<Boolean>> getScriptLanguageSettings() {
         return scriptLanguageSettings;
-    }
-
-    public Setting<String> getDefaultLegacyScriptLanguageSetting() {
-        return defaultLegacyScriptLanguageSetting;
-    }
-
-    public static String getLegacyDefaultLang(Settings settings) {
-        return settings.get(LEGACY_SCRIPT_SETTING, ScriptSettings.LEGACY_DEFAULT_LANG);
     }
 }

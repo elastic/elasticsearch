@@ -19,18 +19,33 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.MockInternalClusterInfoService;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.discovery.zen.UnicastHostsProvider;
+import org.elasticsearch.discovery.zen.ZenPing;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.test.discovery.MockZenPing;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.Collection;
-import java.util.List;
 
 /**
  * A node for testing which allows:
@@ -62,11 +77,51 @@ public class MockNode extends Node {
         return new MockBigArrays(settings, circuitBreakerService);
     }
 
+
     @Override
-    protected Class<? extends SearchService> pickSearchServiceImplementation() {
+    protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
+                                             ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
+                                             FetchPhase fetchPhase) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
-            return super.pickSearchServiceImplementation();
+            return super.newSearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
         }
-        return MockSearchService.class;
+        return new MockSearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase);
+    }
+
+    @Override
+    protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
+                                                   TransportInterceptor interceptor, ClusterSettings clusterSettings) {
+        // we use the MockTransportService.TestPlugin class as a marker to create a network
+        // module with this MockNetworkService. NetworkService is such an integral part of the systme
+        // we don't allow to plug it in from plugins or anything. this is a test-only override and
+        // can't be done in a production env.
+        if (getPluginsService().filterPlugins(MockTransportService.TestPlugin.class).isEmpty()) {
+            return super.newTransportService(settings, transport, threadPool, interceptor, clusterSettings);
+        } else {
+            return new MockTransportService(settings, transport, threadPool, interceptor, clusterSettings);
+        }
+    }
+
+    @Override
+    protected Node newTribeClientNode(Settings settings, Collection<Class<? extends Plugin>> classpathPlugins) {
+        return new MockNode(settings, classpathPlugins);
+    }
+
+    @Override
+    protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
+        if (false == getPluginsService().filterPlugins(RecoverySettingsChunkSizePlugin.class).isEmpty()) {
+            clusterSettings.addSettingsUpdateConsumer(RecoverySettingsChunkSizePlugin.CHUNK_SIZE_SETTING, recoverySettings::setChunkSize);
+        }
+    }
+
+    @Override
+    protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
+                                                       ThreadPool threadPool, NodeClient client) {
+        if (getPluginsService().filterPlugins(MockInternalClusterInfoService.TestPlugin.class).isEmpty()) {
+            return super.newClusterInfoService(settings, clusterService, threadPool, client);
+        } else {
+            return new MockInternalClusterInfoService(settings, clusterService, threadPool, client);
+        }
     }
 }
+

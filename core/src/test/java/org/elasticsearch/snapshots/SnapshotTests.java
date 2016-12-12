@@ -19,6 +19,8 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
@@ -49,6 +51,20 @@ public class SnapshotTests extends ESTestCase {
         final BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
         assertThat(new Snapshot(out.bytes().streamInput()), equalTo(original));
+    }
+
+    public void testCreateSnapshotRequestDescrptions() {
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest();
+        createSnapshotRequest.snapshot("snapshot_name");
+        createSnapshotRequest.repository("repo_name");
+        assertEquals("snapshot [repo_name:snapshot_name]", createSnapshotRequest.getDescription());
+    }
+
+    public void testRestoreSnapshotRequestDescrptions() {
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest();
+        restoreSnapshotRequest.snapshot("snapshot_name");
+        restoreSnapshotRequest.repository("repo_name");
+        assertEquals("snapshot [repo_name:snapshot_name]", restoreSnapshotRequest.getDescription());
     }
 
 }

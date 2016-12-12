@@ -1,0 +1,42 @@
+[[analysis-ukrainian]]
+=== Ukrainian Analysis Plugin
+
+The Ukrainian Analysis plugin integrates Lucene's UkrainianMorfologikAnalyzer into elasticsearch.
+
+It provides stemming for Ukrainian using the http://github.com/morfologik/morfologik-stemming[Morfologik project]. 
+
+[[analysis-ukrainian-install]]
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin install analysis-ukrainian
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+This plugin can be downloaded for <<plugin-management-custom-url,offline install>> from
+{plugin_url}/analysis-ukrainian/analysis-ukrainian-{version}.zip.
+
+[[analysis-ukrainian-remove]]
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/elasticsearch-plugin remove analysis-ukrainian
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[analysis-ukrainian-analyzer]]
+[float]
+==== `ukrainian` analyzer
+
+The plugin provides the `ukrainian` analyzer.

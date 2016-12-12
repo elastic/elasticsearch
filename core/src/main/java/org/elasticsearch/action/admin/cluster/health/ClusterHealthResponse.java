@@ -36,9 +36,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- *
- */
 public class ClusterHealthResponse extends ActionResponse implements StatusToXContent {
     private String clusterName;
     private int numberOfPendingTasks = 0;

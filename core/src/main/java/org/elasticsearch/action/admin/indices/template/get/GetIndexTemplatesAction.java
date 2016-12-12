@@ -21,9 +21,6 @@ package org.elasticsearch.action.admin.indices.template.get;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.client.ElasticsearchClient;
 
-/**
- *
- */
 public class GetIndexTemplatesAction extends Action<GetIndexTemplatesRequest, GetIndexTemplatesResponse, GetIndexTemplatesRequestBuilder> {
 
     public static final GetIndexTemplatesAction INSTANCE = new GetIndexTemplatesAction();

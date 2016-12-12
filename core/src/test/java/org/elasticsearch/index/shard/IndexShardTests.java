@@ -58,7 +58,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.NodeEnvironment;
@@ -70,6 +70,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -109,11 +110,13 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
+import static org.elasticsearch.common.lucene.Lucene.readScoreDoc;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -121,11 +124,26 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Simple unit-test IndexShard related operations.
  */
 public class IndexShardTests extends IndexShardTestCase {
+
+    public static ShardStateMetaData load(Logger logger, Path... shardPaths) throws IOException {
+        return ShardStateMetaData.FORMAT.loadLatestState(logger, shardPaths);
+    }
+
+    public static void write(ShardStateMetaData shardStateMetaData,
+                             Path... shardPaths) throws IOException {
+        ShardStateMetaData.FORMAT.write(shardStateMetaData, shardPaths);
+    }
+
+    public static Engine getEngineFromShard(IndexShard shard) {
+        return shard.getEngineOrNull();
+    }
 
     public void testWriteShardState() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
@@ -323,10 +341,10 @@ public class IndexShardTests extends IndexShardTestCase {
             }
             case 2: {
                 // relocation source
-                indexShard = newStartedShard(false);
+                indexShard = newStartedShard(true);
                 ShardRouting routing = indexShard.routingEntry();
                 routing = TestShardRouting.newShardRouting(routing.shardId(), routing.currentNodeId(), "otherNode",
-                    false, ShardRoutingState.RELOCATING, AllocationId.newRelocation(routing.allocationId()));
+                    true, ShardRoutingState.RELOCATING, AllocationId.newRelocation(routing.allocationId()));
                 indexShard.updateRoutingEntry(routing);
                 indexShard.relocated("test");
                 break;
@@ -371,15 +389,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(indexShard);
     }
 
-    public static ShardStateMetaData load(Logger logger, Path... shardPaths) throws IOException {
-        return ShardStateMetaData.FORMAT.loadLatestState(logger, shardPaths);
-    }
-
-    public static void write(ShardStateMetaData shardStateMetaData,
-                             Path... shardPaths) throws IOException {
-        ShardStateMetaData.FORMAT.write(shardStateMetaData, shardPaths);
-    }
-
     public void testAcquireIndexCommit() throws IOException {
         final IndexShard shard = newStartedShard();
         int numDocs = randomInt(20);
@@ -415,7 +424,7 @@ public class IndexShardTests extends IndexShardTestCase {
         flushShard(shard);
 
         final IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
         Store.MetadataSnapshot snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_2"));
@@ -443,7 +452,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-
     public void testAsyncFsync() throws InterruptedException, IOException {
         IndexShard shard = newStartedShard();
         Semaphore semaphore = new Semaphore(Integer.MAX_VALUE);
@@ -464,8 +472,6 @@ public class IndexShardTests extends IndexShardTestCase {
                         throw new RuntimeException(ex);
                     }
                 }
-
-                ;
             };
             thread[i].start();
         }
@@ -500,11 +506,11 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(test);
     }
 
-
     public void testShardStats() throws IOException {
+
         IndexShard shard = newStartedShard();
         ShardStats stats = new ShardStats(shard.routingEntry(), shard.shardPath(),
-            new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()), shard.commitStats());
+            new CommonStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()), shard.commitStats(), shard.seqNoStats());
         assertEquals(shard.shardPath().getRootDataPath().toString(), stats.getDataPath());
         assertEquals(shard.shardPath().getRootStatePath().toString(), stats.getStatePath());
         assertEquals(shard.shardPath().isCustomDataPath(), stats.isCustomDataPath());
@@ -525,19 +531,25 @@ public class IndexShardTests extends IndexShardTestCase {
         expectedSubSequence.append("\",\"data_path\":\"");
         expectedSubSequence.append(shard.shardPath().getRootDataPath().toString());
         expectedSubSequence.append("\",\"is_custom_data_path\":").append(shard.shardPath().isCustomDataPath()).append("}");
-        assumeFalse("Some path weirdness on windows", Constants.WINDOWS);
-        assertTrue(xContent.contains(expectedSubSequence));
-
+        if (Constants.WINDOWS) {
+            // Some path weirdness on windows
+        } else {
+            assertTrue(xContent.contains(expectedSubSequence));
+        }
         closeShards(shard);
     }
 
-    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl,
+    private ParsedDocument testParsedDocument(String uid, String id, String type, String routing,
                                               ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
+        SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
+        document.add(seqID.seqNo);
+        document.add(seqID.seqNoDocValue);
+        document.add(seqID.primaryTerm);
+        return new ParsedDocument(versionField, seqID, id, type, routing, Arrays.asList(document), source, mappingUpdate);
     }
 
     public void testIndexingOperationsListeners() throws IOException {
@@ -559,11 +571,15 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
-                if (created) {
-                    postIndexCreate.incrementAndGet();
+            public void postIndex(Engine.Index index, Engine.IndexResult result) {
+                if (result.hasFailure() == false) {
+                    if (result.isCreated()) {
+                        postIndexCreate.incrementAndGet();
+                    } else {
+                        postIndexUpdate.incrementAndGet();
+                    }
                 } else {
-                    postIndexUpdate.incrementAndGet();
+                    postIndex(index, result.getFailure());
                 }
             }
 
@@ -579,8 +595,12 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postDelete(Engine.Delete delete) {
-                postDelete.incrementAndGet();
+            public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
+                if (result.hasFailure() == false) {
+                    postDelete.incrementAndGet();
+                } else {
+                    postDelete(delete, result.getFailure());
+                }
             }
 
             @Override
@@ -591,7 +611,7 @@ public class IndexShardTests extends IndexShardTestCase {
         });
         recoveryShardFromStore(shard);
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, new ParseContext.Document(),
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, new ParseContext.Document(),
             new BytesArray(new byte[]{1}), null);
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), doc);
         shard.index(index);
@@ -660,6 +680,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testLockingBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
         CountDownLatch latch = new CountDownLatch(1);
         Thread recoveryThread = new Thread(() -> {
             latch.countDown();
@@ -690,6 +711,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
         Thread recoveryThread = new Thread(() -> {
             try {
                 shard.relocated("simulated recovery");
@@ -723,6 +745,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     public void testStressRelocated() throws Exception {
         final IndexShard shard = newStartedShard(true);
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(shard.routingEntry(), "other_node"));
         final int numThreads = randomIntBetween(2, 4);
         Thread[] indexThreads = new Thread[numThreads];
         CountDownLatch allPrimaryOperationLocksAcquired = new CountDownLatch(numThreads);
@@ -774,6 +797,75 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    public void testRelocatedShardCanNotBeRevived() throws IOException, InterruptedException {
+        final IndexShard shard = newStartedShard(true);
+        final ShardRouting originalRouting = shard.routingEntry();
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(originalRouting, "other_node"));
+        shard.relocated("test");
+        expectThrows(IllegalIndexShardStateException.class, () -> shard.updateRoutingEntry(originalRouting));
+        closeShards(shard);
+    }
+
+    public void testShardCanNotBeMarkedAsRelocatedIfRelocationCancelled() throws IOException, InterruptedException {
+        final IndexShard shard = newStartedShard(true);
+        final ShardRouting originalRouting = shard.routingEntry();
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(originalRouting, "other_node"));
+        shard.updateRoutingEntry(originalRouting);
+        expectThrows(IllegalIndexShardStateException.class, () ->  shard.relocated("test"));
+        closeShards(shard);
+    }
+
+    public void testRelocatedShardCanNotBeRevivedConcurrently() throws IOException, InterruptedException, BrokenBarrierException {
+        final IndexShard shard = newStartedShard(true);
+        final ShardRouting originalRouting = shard.routingEntry();
+        shard.updateRoutingEntry(ShardRoutingHelper.relocate(originalRouting, "other_node"));
+        CyclicBarrier cyclicBarrier = new CyclicBarrier(3);
+        AtomicReference<Exception> relocationException = new AtomicReference<>();
+        Thread relocationThread = new Thread(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                relocationException.set(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                cyclicBarrier.await();
+                shard.relocated("test");
+            }
+        });
+        relocationThread.start();
+        AtomicReference<Exception> cancellingException = new AtomicReference<>();
+        Thread cancellingThread = new Thread(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                cancellingException.set(e);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                cyclicBarrier.await();
+                shard.updateRoutingEntry(originalRouting);
+            }
+        });
+        cancellingThread.start();
+        cyclicBarrier.await();
+        relocationThread.join();
+        cancellingThread.join();
+        if (shard.state() == IndexShardState.RELOCATED) {
+            logger.debug("shard was relocated successfully");
+            assertThat(cancellingException.get(), instanceOf(IllegalIndexShardStateException.class));
+            assertThat("current routing:" + shard.routingEntry(), shard.routingEntry().relocating(), equalTo(true));
+            assertThat(relocationException.get(), nullValue());
+        } else {
+            logger.debug("shard relocation was cancelled");
+            assertThat(relocationException.get(), instanceOf(IllegalIndexShardStateException.class));
+            assertThat("current routing:" + shard.routingEntry(), shard.routingEntry().relocating(), equalTo(false));
+            assertThat(cancellingException.get(), nullValue());
+
+        }
+        closeShards(shard);
+    }
+
     public void testRecoverFromStore() throws IOException {
         final IndexShard shard = newStartedShard(true);
         int translogOps = 1;
@@ -783,7 +875,7 @@ public class IndexShardTests extends IndexShardTestCase {
             translogOps = 0;
         }
         IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());
         assertEquals(translogOps, newShard.recoveryState().getTranslog().recoveredOperations());
@@ -806,7 +898,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRoutingHelper.initWithSameId(shardRouting, RecoverySource.StoreRecoverySource.EMPTY_STORE_INSTANCE)
         );
 
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(newShard.recoverFromStore());
         assertEquals(0, newShard.recoveryState().getTranslog().recoveredOperations());
@@ -831,7 +923,7 @@ public class IndexShardTests extends IndexShardTestCase {
         cleanLuceneIndex(store.directory());
         store.decRef();
         IndexShard newShard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         ShardRouting routing = newShard.routingEntry();
         newShard.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         try {
@@ -905,7 +997,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Store sourceStore = source.store();
         Store targetStore = target.store();
 
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
         assertTrue(target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
@@ -960,7 +1052,7 @@ public class IndexShardTests extends IndexShardTestCase {
         };
         closeShards(shard);
         IndexShard newShard = newShard(ShardRoutingHelper.reinitPrimary(shard.routingEntry()),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper);
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, () -> {});
 
         recoveryShardFromStore(newShard);
 
@@ -1014,7 +1106,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
-            assumeTrue("we have to have more than one segment", searcher.getDirectoryReader().leaves().size() > 1);
+            assertThat("we have to have more than one segment", searcher.getDirectoryReader().leaves().size(), greaterThan(1));
             ifd.loadGlobal(searcher.getDirectoryReader());
             after = shard.fieldData().stats("foo");
             assertEquals(after.getEvictions(), before.getEvictions());
@@ -1030,7 +1122,6 @@ public class IndexShardTests extends IndexShardTestCase {
 
         closeShards(shard);
     }
-
 
     public void testIndexingOperationListenersIsInvokedOnRecovery() throws IOException {
         IndexShard shard = newStartedShard(true);
@@ -1051,7 +1142,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
+            public void postIndex(Engine.Index index, Engine.IndexResult result) {
                 postIndex.incrementAndGet();
             }
 
@@ -1062,7 +1153,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
 
             @Override
-            public void postDelete(Engine.Delete delete) {
+            public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
                 postDelete.incrementAndGet();
 
             }
@@ -1084,7 +1175,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(newShard);
     }
 
-
     public void testSearchIsReleaseIfWrapperFails() throws IOException {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "test", "0", "{\"foo\" : \"bar\"}");
@@ -1095,6 +1185,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 throw new RuntimeException("boom");
             }
 
+            @Override
             public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
                 return searcher;
             }
@@ -1102,7 +1193,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         closeShards(shard);
         IndexShard newShard = newShard(ShardRoutingHelper.reinitPrimary(shard.routingEntry()),
-            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper);
+            shard.shardPath(), shard.indexSettings().getIndexMetaData(), wrapper, () -> {});
 
         recoveryShardFromStore(newShard);
 
@@ -1114,7 +1205,6 @@ public class IndexShardTests extends IndexShardTestCase {
         }
         closeShards(newShard);
     }
-
 
     public void testTranslogRecoverySyncsTranslog() throws IOException {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -1147,7 +1237,7 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard(true);
         indexDoc(shard, "type", "0");
         shard = reinitShard(shard);
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         shard.markAsRecovering("for testing", new RecoveryState(shard.routingEntry(), localNode, null));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(shard.isActive());
@@ -1174,7 +1264,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         indexDoc(primary, "test", "0", "{\"foo\" : \"bar\"}");
         IndexShard replica = newShard(primary.shardId(), false, "n2", metaData, null);
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         replica.markAsRecovering("for testing", new RecoveryState(replica.routingEntry(), localNode, localNode));
         // Shard is still inactive since we haven't started recovering yet
         assertFalse(replica.isActive());
@@ -1222,7 +1312,7 @@ public class IndexShardTests extends IndexShardTestCase {
             ShardRoutingState.INITIALIZING, RecoverySource.LocalShardsRecoverySource.INSTANCE);
 
         final IndexShard targetShard;
-        DiscoveryNode localNode = new DiscoveryNode("foo", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         Map<String, MappingMetaData> requestedMappingUpdates = ConcurrentCollections.newConcurrentMap();
         {
             targetShard = newShard(targetRouting);
@@ -1359,9 +1449,5 @@ public class IndexShardTests extends IndexShardTestCase {
         @Override
         public void verify(String verificationToken, DiscoveryNode localNode) {
         }
-    }
-
-    public static Engine getEngineFromShard(IndexShard shard) {
-        return shard.getEngineOrNull();
     }
 }

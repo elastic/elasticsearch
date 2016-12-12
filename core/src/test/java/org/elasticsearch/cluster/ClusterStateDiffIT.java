@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -46,7 +47,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -57,6 +57,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -74,9 +75,9 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0, numClientNodes = 0)
 public class ClusterStateDiffIT extends ESIntegTestCase {
     public void testClusterStateDiffSerialization() throws Exception {
-        DiscoveryNode masterNode = new DiscoveryNode("master", new LocalTransportAddress("master"),
+        DiscoveryNode masterNode = new DiscoveryNode("master", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT);
-        DiscoveryNode otherNode = new DiscoveryNode("other", new LocalTransportAddress("other"),
+        DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(),
                 emptyMap(), emptySet(), Version.CURRENT);
         DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(masterNode).add(otherNode).localNodeId(masterNode.getId()).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(discoveryNodes).build();
@@ -193,14 +194,14 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             if (nodeId.startsWith("node-")) {
                 nodes.remove(nodeId);
                 if (randomBoolean()) {
-                    nodes.add(new DiscoveryNode(nodeId, new LocalTransportAddress(randomAsciiOfLength(10)), emptyMap(),
+                    nodes.add(new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(),
                             emptySet(), randomVersion(random())));
                 }
             }
         }
         int additionalNodeCount = randomIntBetween(1, 20);
         for (int i = 0; i < additionalNodeCount; i++) {
-            nodes.add(new DiscoveryNode("node-" + randomAsciiOfLength(10), new LocalTransportAddress(randomAsciiOfLength(10)),
+            nodes.add(new DiscoveryNode("node-" + randomAsciiOfLength(10), buildNewFakeTransportAddress(),
                     emptyMap(), emptySet(), randomVersion(random())));
         }
         return ClusterState.builder(clusterState).nodes(nodes);
@@ -239,13 +240,19 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
         for (int i = 0; i < shardCount; i++) {
             IndexShardRoutingTable.Builder indexShard = new IndexShardRoutingTable.Builder(new ShardId(index, "_na_", i));
             int replicaCount = randomIntBetween(1, 10);
+            Set<String> availableNodeIds = Sets.newHashSet(nodeIds);
             for (int j = 0; j < replicaCount; j++) {
                 UnassignedInfo unassignedInfo = null;
                 if (randomInt(5) == 1) {
                     unassignedInfo = new UnassignedInfo(randomReason(), randomAsciiOfLength(10));
                 }
+                if (availableNodeIds.isEmpty()) {
+                    break;
+                }
+                String nodeId = randomFrom(availableNodeIds);
+                availableNodeIds.remove(nodeId);
                 indexShard.addShard(
-                        TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, j == 0,
+                        TestShardRouting.newShardRouting(index, i, nodeId, null, j == 0,
                                 ShardRoutingState.fromValue((byte) randomIntBetween(2, 3)), unassignedInfo));
             }
             builder.addIndexShard(indexShard.build());
@@ -259,8 +266,20 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
     private IndexRoutingTable randomChangeToIndexRoutingTable(IndexRoutingTable original, String[] nodes) {
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder(original.getIndex());
         for (ObjectCursor<IndexShardRoutingTable> indexShardRoutingTable :  original.shards().values()) {
+            Set<String> availableNodes = Sets.newHashSet(nodes);
             for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
-                final ShardRouting updatedShardRouting = randomChange(shardRouting, nodes);
+                availableNodes.remove(shardRouting.currentNodeId());
+                if (shardRouting.relocating()) {
+                    availableNodes.remove(shardRouting.relocatingNodeId());
+                }
+            }
+
+            for (ShardRouting shardRouting : indexShardRoutingTable.value.shards()) {
+                final ShardRouting updatedShardRouting = randomChange(shardRouting, availableNodes);
+                availableNodes.remove(updatedShardRouting.currentNodeId());
+                if (shardRouting.relocating()) {
+                    availableNodes.remove(updatedShardRouting.relocatingNodeId());
+                }
                 builder.addShard(updatedShardRouting);
             }
         }
@@ -554,7 +573,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             public IndexTemplateMetaData randomCreate(String name) {
                 IndexTemplateMetaData.Builder builder = IndexTemplateMetaData.builder(name);
                 builder.order(randomInt(1000))
-                        .template(randomName("temp"))
+                        .patterns(Collections.singletonList(randomName("temp")))
                         .settings(randomSettings(Settings.EMPTY));
                 int aliasCount = randomIntBetween(0, 10);
                 for (int i = 0; i < aliasCount; i++) {

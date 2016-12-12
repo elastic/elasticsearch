@@ -35,8 +35,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- */
 public class DanglingIndicesStateTests extends ESTestCase {
 
     private static Settings indexSettings = Settings.builder()

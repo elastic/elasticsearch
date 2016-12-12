@@ -29,9 +29,6 @@ import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class PreBuiltAnalyzerProviderFactory implements AnalysisModule.AnalysisProvider<AnalyzerProvider<?>> {
 
     private final PreBuiltAnalyzerProvider analyzerProvider;

@@ -67,8 +67,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-/**
- */
 public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataImplTestCase {
     private void addField(Document d, String name, String value) {
         d.add(new StringField(name, value, Field.Store.YES));
@@ -559,37 +557,40 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
 
     public void testTermsEnum() throws Exception {
         fillExtendedMvSet();
-        LeafReaderContext atomicReaderContext = refreshReader();
+        writer.forceMerge(1);
+        List<LeafReaderContext> atomicReaderContexts = refreshReader();
 
         IndexOrdinalsFieldData ifd = getForField("value");
-        AtomicOrdinalsFieldData afd = ifd.load(atomicReaderContext);
+        for (LeafReaderContext atomicReaderContext : atomicReaderContexts) {
+            AtomicOrdinalsFieldData afd = ifd.load(atomicReaderContext);
 
-        TermsEnum termsEnum = afd.getOrdinalsValues().termsEnum();
-        int size = 0;
-        while (termsEnum.next() != null) {
-            size++;
+            TermsEnum termsEnum = afd.getOrdinalsValues().termsEnum();
+            int size = 0;
+            while (termsEnum.next() != null) {
+                size++;
+            }
+            assertThat(size, equalTo(12));
+
+            assertThat(termsEnum.seekExact(new BytesRef("10")), is(true));
+            assertThat(termsEnum.term().utf8ToString(), equalTo("10"));
+            assertThat(termsEnum.next(), nullValue());
+
+            assertThat(termsEnum.seekExact(new BytesRef("08")), is(true));
+            assertThat(termsEnum.term().utf8ToString(), equalTo("08"));
+            size = 0;
+            while (termsEnum.next() != null) {
+                size++;
+            }
+            assertThat(size, equalTo(2));
+
+            termsEnum.seekExact(8);
+            assertThat(termsEnum.term().utf8ToString(), equalTo("07"));
+            size = 0;
+            while (termsEnum.next() != null) {
+                size++;
+            }
+            assertThat(size, equalTo(3));
         }
-        assertThat(size, equalTo(12));
-
-        assertThat(termsEnum.seekExact(new BytesRef("10")), is(true));
-        assertThat(termsEnum.term().utf8ToString(), equalTo("10"));
-        assertThat(termsEnum.next(), nullValue());
-
-        assertThat(termsEnum.seekExact(new BytesRef("08")), is(true));
-        assertThat(termsEnum.term().utf8ToString(), equalTo("08"));
-        size = 0;
-        while (termsEnum.next() != null) {
-            size++;
-        }
-        assertThat(size, equalTo(2));
-
-        termsEnum.seekExact(8);
-        assertThat(termsEnum.term().utf8ToString(), equalTo("07"));
-        size = 0;
-        while (termsEnum.next() != null) {
-            size++;
-        }
-        assertThat(size, equalTo(3));
     }
 
     public void testGlobalOrdinalsGetRemovedOnceIndexReaderCloses() throws Exception {

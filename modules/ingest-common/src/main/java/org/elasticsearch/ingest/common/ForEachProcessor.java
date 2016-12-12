@@ -38,6 +38,8 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
  *
  * This can be useful in cases to do string operations on json array of strings,
  * or remove a field from objects inside a json array.
+ *
+ * Note that this processor is experimental.
  */
 public final class ForEachProcessor extends AbstractProcessor {
 

@@ -40,10 +40,13 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
 
+import java.io.IOException;
+
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 
 public class RestListTasksAction extends BaseRestHandler {
+
     private final ClusterService clusterService;
 
     @Inject
@@ -53,16 +56,23 @@ public class RestListTasksAction extends BaseRestHandler {
         controller.registerHandler(GET, "/_tasks", this);
     }
 
+    @Override
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
+        final String groupBy = request.param("group_by", "nodes");
+        return channel -> client.admin().cluster().listTasks(listTasksRequest, listTasksResponseListener(clusterService, groupBy, channel));
+    }
+
     public static ListTasksRequest generateListTasksRequest(RestRequest request) {
         boolean detailed = request.paramAsBoolean("detailed", false);
-        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("node_id"));
+        String[] nodes = Strings.splitStringByCommaToArray(request.param("nodes"));
         String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         TaskId parentTaskId = new TaskId(request.param("parent_task_id"));
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
         TimeValue timeout = request.paramAsTime("timeout", null);
 
         ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setNodesIds(nodesIds);
+        listTasksRequest.setNodes(nodes);
         listTasksRequest.setDetailed(detailed);
         listTasksRequest.setActions(actions);
         listTasksRequest.setParentTaskId(parentTaskId);
@@ -71,17 +81,13 @@ public class RestListTasksAction extends BaseRestHandler {
         return listTasksRequest;
     }
 
-    @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
-        client.admin().cluster().listTasks(generateListTasksRequest(request), listTasksResponseListener(clusterService, channel));
-    }
-
     /**
      * Standard listener for extensions of {@link ListTasksResponse} that supports {@code group_by=nodes}.
      */
-    public static <T extends ListTasksResponse> ActionListener<T> listTasksResponseListener(ClusterService clusterService,
-            RestChannel channel) {
-        String groupBy = channel.request().param("group_by", "nodes");
+    public static <T extends ListTasksResponse> ActionListener<T> listTasksResponseListener(
+        ClusterService clusterService,
+        String groupBy,
+        final RestChannel channel) {
         if ("nodes".equals(groupBy)) {
             return new RestBuilderListener<T>(channel) {
                 @Override

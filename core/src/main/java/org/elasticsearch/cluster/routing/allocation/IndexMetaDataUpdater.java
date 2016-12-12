@@ -22,12 +22,12 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation.StaleShard;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -92,11 +92,6 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
     @Override
     public void relocationCompleted(ShardRouting removedRelocationSource) {
         removeAllocationId(removedRelocationSource);
-    }
-
-    @Override
-    public void startedPrimaryReinitialized(ShardRouting startedPrimaryShard, ShardRouting initializedShard) {
-        removeAllocationId(startedPrimaryShard);
     }
 
     /**
@@ -180,10 +175,13 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
             // Prevent set of inSyncAllocationIds to grow unboundedly. This can happen for example if we don't write to a primary
             // but repeatedly shut down nodes that have active replicas.
             // We use number_of_replicas + 1 (= possible active shard copies) to bound the inSyncAllocationIds set
+            // Only trim the set of allocation ids when it grows, otherwise we might trim too eagerly when the number
+            // of replicas was decreased while shards were unassigned.
             int maxActiveShards = oldIndexMetaData.getNumberOfReplicas() + 1; // +1 for the primary
-            if (inSyncAllocationIds.size() > maxActiveShards) {
+            IndexShardRoutingTable newShardRoutingTable = newRoutingTable.shardRoutingTable(shardId);
+            if (inSyncAllocationIds.size() > oldInSyncAllocationIds.size() && inSyncAllocationIds.size() > maxActiveShards) {
                 // trim entries that have no corresponding shard routing in the cluster state (i.e. trim unavailable copies)
-                List<ShardRouting> assignedShards = newRoutingTable.shardRoutingTable(shardId).assignedShards();
+                List<ShardRouting> assignedShards = newShardRoutingTable.assignedShards();
                 assert assignedShards.size() <= maxActiveShards :
                     "cannot have more assigned shards " + assignedShards + " than maximum possible active shards " + maxActiveShards;
                 Set<String> assignedAllocations = assignedShards.stream().map(s -> s.allocationId().getId()).collect(Collectors.toSet());
@@ -193,16 +191,12 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
                     .collect(Collectors.toSet());
             }
 
-            // only update in-sync allocation ids if there is at least one entry remaining. Assume for example that there only
-            // ever was a primary active and now it failed. If we were to remove the allocation id from the in-sync set, this would
-            // create an empty primary on the next allocation (see ShardRouting#allocatedPostIndexCreate)
-            if (inSyncAllocationIds.isEmpty() && oldInSyncAllocationIds.isEmpty() == false) {
-                assert updates.firstFailedPrimary != null :
-                    "in-sync set became empty but active primary wasn't failed: " + oldInSyncAllocationIds;
-                if (updates.firstFailedPrimary != null) {
-                    // add back allocation id of failed primary
-                    inSyncAllocationIds.add(updates.firstFailedPrimary.allocationId().getId());
-                }
+            // only remove allocation id of failed active primary if there is at least one active shard remaining. Assume for example that
+            // the primary fails but there is no new primary to fail over to. If we were to remove the allocation id of the primary from the
+            // in-sync set, this could create an empty primary on the next allocation.
+            if (newShardRoutingTable.activeShards().isEmpty() && updates.firstFailedPrimary != null) {
+                // add back allocation id of failed primary
+                inSyncAllocationIds.add(updates.firstFailedPrimary.allocationId().getId());
             }
 
             assert inSyncAllocationIds.isEmpty() == false || oldInSyncAllocationIds.isEmpty() :
@@ -229,17 +223,17 @@ public class IndexMetaDataUpdater extends RoutingChangesObserver.AbstractRouting
         MetaData.Builder metaDataBuilder = null;
         // group staleShards entries by index
         for (Map.Entry<Index, List<StaleShard>> indexEntry : staleShards.stream().collect(
-            Collectors.groupingBy(fs -> fs.shardId.getIndex())).entrySet()) {
+            Collectors.groupingBy(fs -> fs.getShardId().getIndex())).entrySet()) {
             final IndexMetaData oldIndexMetaData = oldMetaData.getIndexSafe(indexEntry.getKey());
             IndexMetaData.Builder indexMetaDataBuilder = null;
             // group staleShards entries by shard id
             for (Map.Entry<ShardId, List<StaleShard>> shardEntry : indexEntry.getValue().stream().collect(
-                Collectors.groupingBy(staleShard -> staleShard.shardId)).entrySet()) {
+                Collectors.groupingBy(staleShard -> staleShard.getShardId())).entrySet()) {
                 int shardNumber = shardEntry.getKey().getId();
                 Set<String> oldInSyncAllocations = oldIndexMetaData.inSyncAllocationIds(shardNumber);
-                Set<String> idsToRemove = shardEntry.getValue().stream().map(e -> e.allocationId).collect(Collectors.toSet());
+                Set<String> idsToRemove = shardEntry.getValue().stream().map(e -> e.getAllocationId()).collect(Collectors.toSet());
                 assert idsToRemove.stream().allMatch(id -> oldRoutingTable.getByAllocationId(shardEntry.getKey(), id) == null) :
-                    "removing stale ids: " + idsToRemove + ", some of which have still a routing entry: " + oldRoutingTable.prettyPrint();
+                    "removing stale ids: " + idsToRemove + ", some of which have still a routing entry: " + oldRoutingTable;
                 Set<String> remainingInSyncAllocations = Sets.difference(oldInSyncAllocations, idsToRemove);
                 assert remainingInSyncAllocations.isEmpty() == false : "Set of in-sync ids cannot become empty for shard " +
                     shardEntry.getKey() + " (before: " + oldInSyncAllocations + ", ids to remove: " + idsToRemove + ")";

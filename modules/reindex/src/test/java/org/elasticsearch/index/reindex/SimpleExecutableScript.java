@@ -59,7 +59,7 @@ public class SimpleExecutableScript implements ExecutableScript {
                 return new HashMap<>((Map<?, ?>) value);
             }
         }
-        // Others just return the objects plain (groovy, painless)
+        // Others just return the objects plain (painless)
         return value;
     }
 }

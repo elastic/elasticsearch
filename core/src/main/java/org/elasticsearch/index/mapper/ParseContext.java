@@ -29,15 +29,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-/**
- *
- */
 public abstract class ParseContext {
 
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
@@ -243,11 +240,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public AnalysisService analysisService() {
-            return in.analysisService();
-        }
-
-        @Override
         public MapperService mapperService() {
             return in.mapperService();
         }
@@ -260,6 +252,16 @@ public abstract class ParseContext {
         @Override
         public void version(Field version) {
             in.version(version);
+        }
+
+        @Override
+        public SeqNoFieldMapper.SequenceID seqID() {
+            return in.seqID();
+        }
+
+        @Override
+        public void seqID(SeqNoFieldMapper.SequenceID seqID) {
+            in.seqID(seqID);
         }
 
         @Override
@@ -308,6 +310,8 @@ public abstract class ParseContext {
         private final SourceToParse sourceToParse;
 
         private Field version;
+
+        private SeqNoFieldMapper.SequenceID seqID;
 
         private final AllEntries allEntries;
 
@@ -386,11 +390,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public AnalysisService analysisService() {
-            return docMapperParser.analysisService;
-        }
-
-        @Override
         public MapperService mapperService() {
             return docMapperParser.mapperService;
         }
@@ -403,6 +402,16 @@ public abstract class ParseContext {
         @Override
         public void version(Field version) {
             this.version = version;
+        }
+
+        @Override
+        public SeqNoFieldMapper.SequenceID seqID() {
+            return this.seqID;
+        }
+
+        @Override
+        public void seqID(SeqNoFieldMapper.SequenceID seqID) {
+            this.seqID = seqID;
         }
 
         @Override
@@ -525,13 +534,15 @@ public abstract class ParseContext {
 
     public abstract DocumentMapper docMapper();
 
-    public abstract AnalysisService analysisService();
-
     public abstract MapperService mapperService();
 
     public abstract Field version();
 
     public abstract void version(Field version);
+
+    public abstract SeqNoFieldMapper.SequenceID seqID();
+
+    public abstract void seqID(SeqNoFieldMapper.SequenceID seqID);
 
     public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
         return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);

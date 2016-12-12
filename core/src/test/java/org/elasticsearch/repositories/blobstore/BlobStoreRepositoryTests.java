@@ -67,7 +67,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             String id = Integer.toString(i);
             client().prepareIndex(indexName, "type1", id).setSource("text", "sometext").get();
         }
-        client().admin().indices().prepareFlush(indexName).setWaitIfOngoing(true).get();
+        client().admin().indices().prepareFlush(indexName).get();
 
         logger.info("--> create first snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin()

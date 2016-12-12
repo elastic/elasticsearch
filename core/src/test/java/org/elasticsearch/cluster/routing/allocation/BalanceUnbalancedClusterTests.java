@@ -65,14 +65,12 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
                 .build();
 
         ClusterState clusterState = ClusterState.builder(state).metaData(metaData).routingTable(initialRoutingTable).build();
-        RoutingAllocation.Result routingResult = strategy.reroute(clusterState, "reroute");
-        clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+        clusterState = strategy.reroute(clusterState, "reroute");
         while (true) {
             if (clusterState.routingTable().shardsWithState(INITIALIZING).isEmpty()) {
                 break;
             }
-            routingResult = strategy.applyStartedShards(clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
-            clusterState = ClusterState.builder(clusterState).routingResult(routingResult).build();
+            clusterState = strategy.applyStartedShards(clusterState, clusterState.routingTable().shardsWithState(INITIALIZING));
         }
         Map<String, Integer> counts = new HashMap<>();
         for (IndexShardRoutingTable table : clusterState.routingTable().index(index)) {

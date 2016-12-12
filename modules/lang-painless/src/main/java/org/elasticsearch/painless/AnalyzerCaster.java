@@ -30,6 +30,9 @@ import org.elasticsearch.painless.Definition.Type;
 public final class AnalyzerCaster {
 
     public static Cast getLegalCast(Location location, Type actual, Type expected, boolean explicit, boolean internal) {
+        if (actual == null || expected == null) {
+            throw new IllegalStateException("Neither actual [" + actual + "] nor expected [" + expected + "] can be null");
+        }
         if (actual.equals(expected)) {
             return null;
         }

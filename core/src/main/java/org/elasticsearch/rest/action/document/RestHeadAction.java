@@ -28,11 +28,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
+
+import java.io.IOException;
 
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
@@ -82,7 +83,7 @@ public abstract class RestHeadAction extends BaseRestHandler {
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, final NodeClient client) {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         getRequest.operationThreaded(true);
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
@@ -91,10 +92,10 @@ public abstract class RestHeadAction extends BaseRestHandler {
         getRequest.preference(request.param("preference"));
         getRequest.realtime(request.paramAsBoolean("realtime", getRequest.realtime()));
         // don't get any fields back...
-        getRequest.fields(Strings.EMPTY_ARRAY);
+        getRequest.storedFields(Strings.EMPTY_ARRAY);
         // TODO we can also just return the document size as Content-Length
 
-        client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
+        return channel -> client.get(getRequest, new RestResponseListener<GetResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetResponse response) {
                 if (!response.isExists()) {
@@ -107,4 +108,5 @@ public abstract class RestHeadAction extends BaseRestHandler {
             }
         });
     }
+
 }

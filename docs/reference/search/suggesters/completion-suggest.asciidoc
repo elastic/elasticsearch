@@ -202,24 +202,66 @@ The configured weight for a suggestion is returned as `_score`. The
 `text` field uses the `input` of your indexed suggestion. Suggestions
 return the full document `_source` by default. The size of the `_source`
 can impact performance due to disk fetch and network transport overhead.
-For best performance, filter out unnecessary fields from the `_source`
+To save some network overhead, filter out unnecessary fields from the `_source`
 using <<search-request-source-filtering, source filtering>> to minimize
-`_source` size. The following demonstrates an example completion query
-with source filtering:
+`_source` size. Note that the _suggest endpoint doesn't support source
+filtering but using suggest on the `_search` endpoint does:
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest
+POST music/_search?size=0
 {
-    "_source": "completion.*",
-    "song-suggest" : {
-        "prefix" : "nir",
-        "completion" : {
-            "field" : "suggest"
+    "_source": "suggest",
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nir",
+            "completion" : {
+                "field" : "suggest"
+            }
         }
     }
 }
 --------------------------------------------------
+// CONSOLE
+// TEST[continued]
+
+Which should look like:
+
+[source,js]
+--------------------------------------------------
+{
+    "took": 6,
+    "timed_out": false,
+    "_shards" : {
+        "total" : 5,
+        "successful" : 5,
+        "failed" : 0
+    },
+    "hits": {
+        "total" : 0,
+        "max_score" : 0.0,
+        "hits" : []
+    },
+    "suggest": {
+        "song-suggest" : [ {
+            "text" : "nir",
+            "offset" : 0,
+            "length" : 3,
+            "options" : [ {
+                "text" : "Nirvana",
+                "_index": "music",
+                "_type": "song",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                    "suggest": ["Nevermind", "Nirvana"]
+                }
+            } ]
+        } ]
+    }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 6,/"took": $body.took,/]
 
 The basic completion suggester query supports the following parameters:
 

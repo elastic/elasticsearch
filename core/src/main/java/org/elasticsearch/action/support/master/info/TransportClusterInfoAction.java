@@ -31,8 +31,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Supplier;
 
-/**
- */
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse>
         extends TransportMasterNodeReadAction<Request, Response> {
 

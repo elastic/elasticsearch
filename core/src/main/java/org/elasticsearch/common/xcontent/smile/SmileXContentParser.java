@@ -23,9 +23,6 @@ import com.fasterxml.jackson.core.JsonParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 
-/**
- *
- */
 public class SmileXContentParser extends JsonXContentParser {
 
     public SmileXContentParser(JsonParser parser) {

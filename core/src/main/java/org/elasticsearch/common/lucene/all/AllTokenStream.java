@@ -28,9 +28,6 @@ import org.apache.lucene.util.SmallFloat;
 
 import java.io.IOException;
 
-/**
- *
- */
 public final class AllTokenStream extends TokenFilter {
     public static TokenStream allTokenStream(String allFieldName, String value, float boost, Analyzer analyzer) throws IOException {
         return new AllTokenStream(analyzer.tokenStream(allFieldName, value), boost);

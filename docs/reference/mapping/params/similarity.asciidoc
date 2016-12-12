@@ -15,14 +15,14 @@ similarities. For more details about this expert options, see the
 The only similarities which can be used out of the box, without any further
 configuration are:
 
-`classic`::
-        The Default TF/IDF algorithm used by Elasticsearch and
-        Lucene. See {defguide}/practical-scoring-function.html[Lucene’s Practical Scoring Function]
+`BM25`::
+        The Okapi BM25 algorithm. The algorithm used by default in Elasticsearch and Lucene.
+        See {defguide}/pluggable-similarites.html[Pluggable Similarity Algorithms]
         for more information.
 
-`BM25`::
-        The Okapi BM25 algorithm.
-        See {defguide}/pluggable-similarites.html[Pluggable Similarity Algorithms]
+`classic`::
+        The TF/IDF algorithm which used to be the default in Elasticsearch and
+        Lucene. See {defguide}/practical-scoring-function.html[Lucene’s Practical Scoring Function]
         for more information.
 
 
@@ -39,9 +39,9 @@ PUT my_index
         "default_field": { <1>
           "type": "text"
         },
-        "bm25_field": {
+        "classic_field": {
           "type": "text",
-          "similarity": "BM25" <2>
+          "similarity": "classic" <2>
         }
       }
     }
@@ -49,6 +49,5 @@ PUT my_index
 }
 --------------------------------------------------
 // CONSOLE
-<1> The `default_field` uses the `classic` similarity (ie TF/IDF).
-<2> The `bm25_field` uses the `BM25` similarity.
-
+<1> The `default_field` uses the `BM25` similarity.
+<2> The `classic_field` uses the `classic` similarity (ie TF/IDF).

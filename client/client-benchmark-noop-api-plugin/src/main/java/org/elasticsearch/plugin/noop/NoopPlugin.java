@@ -35,7 +35,7 @@ import java.util.List;
 
 public class NoopPlugin extends Plugin implements ActionPlugin {
     @Override
-    public List<ActionHandler<? extends ActionRequest<?>, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionHandler<>(NoopBulkAction.INSTANCE, TransportNoopBulkAction.class),
             new ActionHandler<>(NoopSearchAction.INSTANCE, TransportNoopSearchAction.class)

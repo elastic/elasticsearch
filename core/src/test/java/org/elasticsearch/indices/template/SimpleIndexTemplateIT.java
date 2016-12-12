@@ -34,15 +34,16 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import org.junit.After;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -63,9 +64,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     @After
@@ -83,7 +81,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
 
         client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setSettings(indexSettings())
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -93,7 +91,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .get();
 
         client().admin().indices().preparePutTemplate("template_2")
-                .setTemplate("test*")
+                .setPatterns(Collections.singletonList("test*"))
                 .setSettings(indexSettings())
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -103,14 +101,14 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         // test create param
         assertThrows(client().admin().indices().preparePutTemplate("template_2")
-                .setTemplate("test*")
+                .setPatterns(Collections.singletonList("test*"))
                 .setSettings(indexSettings())
                 .setCreate(true)
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field2").field("type", "text").field("store", false).endObject()
                         .endObject().endObject().endObject())
-                , IndexTemplateAlreadyExistsException.class
+                , IllegalArgumentException.class
         );
 
         response = client().admin().indices().prepareGetTemplates().get();
@@ -155,7 +153,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         final int existingTemplates = admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size();
         logger.info("--> put template_1 and template_2");
         client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
@@ -164,7 +162,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         client().admin().indices().preparePutTemplate("template_2")
-                .setTemplate("test*")
+                .setPatterns(Collections.singletonList("test*"))
                 .setOrder(1)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field2").field("type", "text").field("store", "no").endObject()
@@ -183,7 +181,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         logger.info("--> put template_1 back");
         client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
@@ -205,7 +203,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     public void testThatGetIndexTemplatesWorks() throws Exception {
         logger.info("--> put template_1");
         client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
                 .setVersion(123)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -218,7 +216,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         GetIndexTemplatesResponse getTemplate1Response = client().admin().indices().prepareGetTemplates("template_1").execute().actionGet();
         assertThat(getTemplate1Response.getIndexTemplates(), hasSize(1));
         assertThat(getTemplate1Response.getIndexTemplates().get(0), is(notNullValue()));
-        assertThat(getTemplate1Response.getIndexTemplates().get(0).getTemplate(), is("te*"));
+        assertThat(getTemplate1Response.getIndexTemplates().get(0).patterns(), is(Collections.singletonList("te*")));
         assertThat(getTemplate1Response.getIndexTemplates().get(0).getOrder(), is(0));
         assertThat(getTemplate1Response.getIndexTemplates().get(0).getVersion(), is(123));
 
@@ -231,7 +229,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     public void testThatGetIndexTemplatesWithSimpleRegexWorks() throws Exception {
         logger.info("--> put template_1");
         client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
@@ -241,7 +239,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         logger.info("--> put template_2");
         client().admin().indices().preparePutTemplate("template_2")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
@@ -251,7 +249,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         logger.info("--> put template3");
         client().admin().indices().preparePutTemplate("template3")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setOrder(0)
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                         .startObject("field1").field("type", "text").field("store", true).endObject()
@@ -319,7 +317,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         MapperParsingException e = expectThrows( MapperParsingException.class,
             () -> client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .addMapping("type1", "abcde")
                 .get());
         assertThat(e.getMessage(), containsString("Failed to parse mapping "));
@@ -338,7 +336,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setSettings(Settings.builder().put("does_not_exist", "test"))
                 .get());
         assertEquals("unknown setting [index.does_not_exist] please check that any required plugins are" +
@@ -356,7 +354,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     public void testIndexTemplateWithAliases() throws Exception {
 
         client().admin().indices().preparePutTemplate("template_with_aliases")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .addMapping("type1", "{\"type1\" : {\"properties\" : {\"value\" : {\"type\" : \"text\"}}}}")
                 .addAlias(new Alias("simple_alias"))
                 .addAlias(new Alias("templated_alias-{index}"))
@@ -443,7 +441,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     public void testIndexTemplateWithAliasesSource() {
         client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setAliases(
                         "    {\n" +
                         "        \"alias1\" : {},\n" +
@@ -481,7 +479,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     public void testDuplicateAlias() throws Exception {
         client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .addAlias(new Alias("my_alias").filter(termQuery("field", "value1")))
                 .addAlias(new Alias("my_alias").filter(termQuery("field", "value2")))
                 .get();
@@ -495,7 +493,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     public void testAliasInvalidFilterValidJson() throws Exception {
         //invalid filter but valid json: put index template works fine, fails during index creation
         client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .addAlias(new Alias("invalid_alias").filter("{ \"invalid\": {} }")).get();
 
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates("template_1").get();
@@ -513,7 +511,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     public void testAliasInvalidFilterInvalidJson() throws Exception {
         //invalid json: put index template fails
         PutIndexTemplateRequestBuilder putIndexTemplateRequestBuilder = client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .addAlias(new Alias("invalid_alias").filter("abcde"));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -528,7 +526,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         createIndex("index");
 
         client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .addAlias(new Alias("index")).get();
 
         InvalidAliasNameException e = expectThrows(InvalidAliasNameException.class,
@@ -538,7 +536,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     public void testAliasEmptyName() throws Exception {
         PutIndexTemplateRequestBuilder putIndexTemplateRequestBuilder = client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .addAlias(new Alias("  ").indexRouting("1,2,3"));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -548,7 +546,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     public void testAliasWithMultipleIndexRoutings() throws Exception {
         PutIndexTemplateRequestBuilder putIndexTemplateRequestBuilder = client().admin().indices().preparePutTemplate("template_1")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .addAlias(new Alias("alias").indexRouting("1,2,3"));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -558,7 +556,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     public void testMultipleAliasesPrecedence() throws Exception {
         client().admin().indices().preparePutTemplate("template1")
-                .setTemplate("*")
+                .setPatterns(Collections.singletonList("*"))
                 .setOrder(0)
                 .addAlias(new Alias("alias1"))
                 .addAlias(new Alias("{index}-alias"))
@@ -566,7 +564,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .addAlias(new Alias("alias4")).get();
 
         client().admin().indices().preparePutTemplate("template2")
-                .setTemplate("te*")
+                .setPatterns(Collections.singletonList("te*"))
                 .setOrder(1)
                 .addAlias(new Alias("alias1").routing("test"))
                 .addAlias(new Alias("alias3")).get();
@@ -596,27 +594,27 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     public void testStrictAliasParsingInIndicesCreatedViaTemplates() throws Exception {
         // Indexing into a should succeed, because the field mapping for field 'field' is defined in the test mapping.
         client().admin().indices().preparePutTemplate("template1")
-                .setTemplate("a*")
+                .setPatterns(Collections.singletonList("a*"))
                 .setOrder(0)
                 .addMapping("test", "field", "type=text")
                 .addAlias(new Alias("alias1").filter(termQuery("field", "value"))).get();
         // Indexing into b should succeed, because the field mapping for field 'field' is defined in the _default_ mapping and
         //  the test type exists.
         client().admin().indices().preparePutTemplate("template2")
-                .setTemplate("b*")
+                .setPatterns(Collections.singletonList("b*"))
                 .setOrder(0)
                 .addMapping("_default_", "field", "type=text")
                 .addMapping("test")
                 .addAlias(new Alias("alias2").filter(termQuery("field", "value"))).get();
         // Indexing into c should succeed, because the field mapping for field 'field' is defined in the _default_ mapping.
         client().admin().indices().preparePutTemplate("template3")
-                .setTemplate("c*")
+                .setPatterns(Collections.singletonList("c*"))
                 .setOrder(0)
                 .addMapping("_default_", "field", "type=text")
                 .addAlias(new Alias("alias3").filter(termQuery("field", "value"))).get();
         // Indexing into d index should fail, since there is field with name 'field' in the mapping
         client().admin().indices().preparePutTemplate("template4")
-                .setTemplate("d*")
+                .setPatterns(Collections.singletonList("d*"))
                 .setOrder(0)
                 .addAlias(new Alias("alias4").filter(termQuery("field", "value"))).get();
 
@@ -675,7 +673,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         //Now, a complete mapping with two separated templates is error
         // base template
         client().admin().indices().preparePutTemplate("template_1")
-            .setTemplate("*")
+            .setPatterns(Collections.singletonList("*"))
             .setSettings(
                 "    {\n" +
                     "        \"index\" : {\n" +
@@ -693,11 +691,11 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // put template using custom_1 analyzer
         MapperParsingException e = expectThrows(MapperParsingException.class,
             () -> client().admin().indices().preparePutTemplate("template_2")
-                    .setTemplate("test*")
+                    .setPatterns(Collections.singletonList("test*"))
                     .setCreate(true)
                     .setOrder(1)
                     .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("field2").field("type", "string").field("analyzer", "custom_1").endObject()
+                        .startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
                         .endObject().endObject().endObject())
                 .get());
         assertThat(e.getMessage(), containsString("analyzer [custom_1] not found for field [field2]"));
@@ -712,7 +710,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         Integer version = randomBoolean() ? randomInt() : null;
 
         assertAcked(client().admin().indices().preparePutTemplate("versioned_template")
-                                              .setTemplate("te*")
+                                              .setPatterns(Collections.singletonList("te*"))
                                               .setVersion(version)
                                               .setOrder(order)
                                               .addMapping("test", "field", "type=text")
@@ -724,4 +722,46 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getIndexTemplates().get(0).getOrder(), equalTo(order));
     }
 
+    public void testMultipleTemplate() throws IOException {
+        client().admin().indices().preparePutTemplate("template_1")
+            .setPatterns(Arrays.asList("a*", "b*"))
+            .setSettings(indexSettings())
+            .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+            .startObject("field1").field("type", "text").field("store", true).endObject()
+            .startObject("field2").field("type", "keyword").field("store", false).endObject()
+            .endObject().endObject().endObject())
+            .get();
+
+        client().prepareIndex("ax", "type1", "1")
+            .setSource("field1", "value1", "field2", "value2")
+            .setRefreshPolicy(IMMEDIATE).get();
+
+        client().prepareIndex("bx", "type1", "1")
+            .setSource("field1", "value1", "field2", "value2")
+            .setRefreshPolicy(IMMEDIATE).get();
+
+        ensureGreen();
+
+        // ax -> matches template
+        SearchResponse searchResponse = client().prepareSearch("ax")
+            .setQuery(termQuery("field1", "value1"))
+            .addStoredField("field1")
+            .addStoredField("field2")
+            .execute().actionGet();
+
+        assertHitCount(searchResponse, 1);
+        assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").value().toString());
+        assertNull(searchResponse.getHits().getAt(0).field("field2"));
+
+        // bx -> matches template
+        searchResponse = client().prepareSearch("bx")
+            .setQuery(termQuery("field1", "value1"))
+            .addStoredField("field1")
+            .addStoredField("field2")
+            .execute().actionGet();
+
+        assertHitCount(searchResponse, 1);
+        assertEquals("value1", searchResponse.getHits().getAt(0).field("field1").value().toString());
+        assertNull(searchResponse.getHits().getAt(0).field("field2"));
+    }
 }

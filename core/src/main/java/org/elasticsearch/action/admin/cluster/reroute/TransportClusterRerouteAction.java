@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -40,8 +39,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-/**
- */
 public class TransportClusterRerouteAction extends TransportMasterNodeAction<ClusterRerouteRequest, ClusterRerouteResponse> {
 
     private final AllocationService allocationService;
@@ -111,15 +108,14 @@ public class TransportClusterRerouteAction extends TransportMasterNodeAction<Clu
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            RoutingAllocation.Result routingResult = allocationService.reroute(currentState, request.getCommands(), request.explain(),
-                request.isRetryFailed());
-            ClusterState newState = ClusterState.builder(currentState).routingResult(routingResult).build();
-            clusterStateToSend = newState;
-            explanations = routingResult.explanations();
+            AllocationService.CommandsResult commandsResult =
+                allocationService.reroute(currentState, request.getCommands(), request.explain(), request.isRetryFailed());
+            clusterStateToSend = commandsResult.getClusterState();
+            explanations = commandsResult.explanations();
             if (request.dryRun()) {
                 return currentState;
             }
-            return newState;
+            return commandsResult.getClusterState();
         }
     }
 }

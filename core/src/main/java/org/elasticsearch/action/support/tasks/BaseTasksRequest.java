@@ -36,13 +36,13 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * A base class for task requests
  */
-public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest<Request> {
+public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends ActionRequest {
 
     public static final String[] ALL_ACTIONS = Strings.EMPTY_ARRAY;
 
     public static final String[] ALL_NODES = Strings.EMPTY_ARRAY;
 
-    private String[] nodesIds = ALL_NODES;
+    private String[] nodes = ALL_NODES;
 
     private TimeValue timeout;
 
@@ -58,7 +58,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (taskId.isSet() && nodesIds.length > 0) {
+        if (taskId.isSet() && nodes.length > 0) {
             validationException = addValidationError("task id cannot be used together with node ids",
                 validationException);
         }
@@ -81,13 +81,13 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         return actions;
     }
 
-    public final String[] getNodesIds() {
-        return nodesIds;
+    public final String[] getNodes() {
+        return nodes;
     }
 
     @SuppressWarnings("unchecked")
-    public final Request setNodesIds(String... nodesIds) {
-        this.nodesIds = nodesIds;
+    public final Request setNodes(String... nodes) {
+        this.nodes = nodes;
         return (Request) this;
     }
 
@@ -142,7 +142,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         super.readFrom(in);
         taskId = TaskId.readFromStream(in);
         parentTaskId = TaskId.readFromStream(in);
-        nodesIds = in.readStringArray();
+        nodes = in.readStringArray();
         actions = in.readStringArray();
         timeout = in.readOptionalWriteable(TimeValue::new);
     }
@@ -152,7 +152,7 @@ public class BaseTasksRequest<Request extends BaseTasksRequest<Request>> extends
         super.writeTo(out);
         taskId.writeTo(out);
         parentTaskId.writeTo(out);
-        out.writeStringArrayNullable(nodesIds);
+        out.writeStringArrayNullable(nodes);
         out.writeStringArrayNullable(actions);
         out.writeOptionalWriteable(timeout);
     }

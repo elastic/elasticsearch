@@ -1,0 +1,7 @@
+[[breaking_60_plugins_changes]]
+=== Plugins changes
+
+==== Mapper attachments plugin
+
+* The mapper attachments plugin has been deprecated in elasticsearch 5.0 and is now removed.
+You can use {plugins}/ingest-attachment.html[ingest attachment plugin] instead.

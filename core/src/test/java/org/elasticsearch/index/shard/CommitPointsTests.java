@@ -29,9 +29,6 @@ import java.util.ArrayList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-/**
- *
- */
 public class CommitPointsTests extends ESTestCase {
     private final Logger logger = Loggers.getLogger(CommitPointsTests.class);
 

@@ -10,37 +10,63 @@ link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
+NOTE: Elasticsearch requires Java 8 or later. Use the
+http://www.oracle.com/technetwork/java/javase/downloads/index.html[official Oracle distribution]
+or an open-source distribution such as http://openjdk.java.net[OpenJDK].
+
 [[install-zip]]
 ==== Download and install the `.zip` package
 
-The `.zip` archive for Elastisearch v{version} can be downloaded and installed as follows:
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+The `.zip` archive for Elasticsearch v{version} can be downloaded and installed as follows:
+
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/zip/elasticsearch/{version}/elasticsearch-{version}.zip
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip
 sha1sum elasticsearch-{version}.zip <1>
 unzip elasticsearch-{version}.zip
 cd elasticsearch-{version}/ <2>
 --------------------------------------------
 <1> Compare the SHA produced by `sha1sum` or `shasum` with the
-    https://download.elastics.co/elasticsearch/release/org/elasticsearch/distribution/zip/elasticsearch/{version}/elasticsearch-{version}.zip.sha1[published SHA].
+    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.zip.sha1[published SHA].
 <2> This directory is known as `$ES_HOME`.
+
+endif::[]
+
 
 [[install-targz]]
 ==== Download and install the `.tar.gz` package
 
-The `.tar.gz` archive for Elastisearch v{version} can be downloaded and installed as follows:
+ifeval::["{release-state}"=="unreleased"]
+
+Version {version} of Elasticsearch has not yet been released.
+
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+The `.tar.gz` archive for Elasticsearch v{version} can be downloaded and installed as follows:
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/{version}/elasticsearch-{version}.tar.gz
+wget https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz
 sha1sum elasticsearch-{version}.tar.gz <1>
 tar -xzf elasticsearch-{version}.tar.gz
 cd elasticsearch-{version}/ <2>
 --------------------------------------------
 <1> Compare the SHA produced by `sha1sum` or `shasum` with the
-    https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/{version}/elasticsearch-{version}.tar.gz.sha1[published SHA].
+    https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-{version}.tar.gz.sha1[published SHA].
 <2> This directory is known as `$ES_HOME`.
+
+endif::[]
 
 [[zip-targz-running]]
 ==== Running Elasticsearch from the command line
@@ -52,10 +78,13 @@ Elasticsearch can be started from the command line as follows:
 ./bin/elasticsearch
 --------------------------------------------
 
-By default, Elasticsearch runs in the foreground, prints its logs to `STDOUT`,
-and can be stopped by pressing `Ctrl-C`.
+By default, Elasticsearch runs in the foreground, prints its logs to the
+standard output (`stdout`), and can be stopped by pressing `Ctrl-C`.
 
 include::check-running.asciidoc[]
+
+Log printing to `stdout` can be disabled using the `-q` or `--quiet`
+option on the command line.
 
 [[setup-installation-daemon]]
 ==== Running as a daemon
@@ -146,6 +175,7 @@ directory so that you do not delete important data later on.
 | plugins
   | Plugin files location. Each plugin will be contained in a subdirectory.
   | $ES_HOME/plugins
+  |
 
 | repo
   | Shared file system repository locations. Can hold multiple locations. A file system repository can be placed in to any subdirectory of any directory specified here.

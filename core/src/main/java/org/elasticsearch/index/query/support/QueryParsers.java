@@ -24,9 +24,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 
-/**
- *
- */
 public final class QueryParsers {
 
     public static final ParseField CONSTANT_SCORE = new ParseField("constant_score", "constant_score_auto", "constant_score_filter");

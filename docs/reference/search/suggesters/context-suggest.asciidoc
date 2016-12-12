@@ -220,7 +220,6 @@ at index time. At query time, suggestions can be filtered and boosted if they ar
 a certain distance of a specified geo location.
 
 Internally, geo points are encoded as geohashes with the specified precision.
-See <<geohash>> for more background details.
 
 [float]
 ===== Geo Mapping

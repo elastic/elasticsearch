@@ -129,4 +129,9 @@ final class SSubEachIterable extends AStatement {
         writer.goTo(begin);
         writer.mark(end);
     }
+
+    @Override
+    public String toString() {
+        return singleLineToString(variable.type.name, variable.name, expression, block);
+    }
 }

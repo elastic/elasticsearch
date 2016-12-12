@@ -25,8 +25,6 @@ import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
-import org.elasticsearch.index.mapper.TTLFieldMapper;
-import org.elasticsearch.index.mapper.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 
 import java.text.DateFormat;
@@ -56,8 +54,7 @@ public final class IngestDocument {
     private final Map<String, Object> sourceAndMetadata;
     private final Map<String, Object> ingestMetadata;
 
-    public IngestDocument(String index, String type, String id, String routing, String parent, String timestamp,
-                          String ttl, Map<String, Object> source) {
+    public IngestDocument(String index, String type, String id, String routing, String parent, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
         this.sourceAndMetadata.put(MetaData.INDEX.getFieldName(), index);
@@ -68,12 +65,6 @@ public final class IngestDocument {
         }
         if (parent != null) {
             this.sourceAndMetadata.put(MetaData.PARENT.getFieldName(), parent);
-        }
-        if (timestamp != null) {
-            this.sourceAndMetadata.put(MetaData.TIMESTAMP.getFieldName(), timestamp);
-        }
-        if (ttl != null) {
-            this.sourceAndMetadata.put(MetaData.TTL.getFieldName(), ttl);
         }
 
         this.ingestMetadata = new HashMap<>();
@@ -114,6 +105,28 @@ public final class IngestDocument {
             context = resolve(pathElement, path, context);
         }
         return cast(path, context, clazz);
+    }
+
+    /**
+     * Returns the value contained in the document for the provided path
+     *
+     * @param path The path within the document in dot-notation
+     * @param clazz The expected class of the field value
+     * @param ignoreMissing The flag to determine whether to throw an exception when `path` is not found in the document.
+     * @return the value for the provided path if existing, null otherwise.
+     * @throws IllegalArgumentException only if ignoreMissing is false and the path is null, empty, invalid, if the field doesn't exist
+     * or if the field that is found at the provided path is not of the expected type.
+     */
+    public <T> T getFieldValue(String path, Class<T> clazz, boolean ignoreMissing) {
+        try {
+            return getFieldValue(path, clazz);
+        } catch (IllegalArgumentException e) {
+            if (ignoreMissing && hasField(path) != true) {
+                return null;
+            } else {
+                throw e;
+            }
+        }
     }
 
     /**
@@ -617,9 +630,7 @@ public final class IngestDocument {
         TYPE(TypeFieldMapper.NAME),
         ID(IdFieldMapper.NAME),
         ROUTING(RoutingFieldMapper.NAME),
-        PARENT(ParentFieldMapper.NAME),
-        TIMESTAMP(TimestampFieldMapper.NAME),
-        TTL(TTLFieldMapper.NAME);
+        PARENT(ParentFieldMapper.NAME);
 
         private final String fieldName;
 

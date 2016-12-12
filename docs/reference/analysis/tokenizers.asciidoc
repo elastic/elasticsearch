@@ -32,7 +32,7 @@ punctuation symbols. It is the best choice for most languages.
 The `letter` tokenizer divides text into terms whenever it encounters a
 character which is not a letter.
 
-<<analysis-letter-tokenizer,Lowercase Tokenizer>>::
+<<analysis-lowercase-tokenizer,Lowercase Tokenizer>>::
 
 The `lowercase` tokenizer, like the `letter` tokenizer,  divides text into
 terms whenever it encounters a character which is not a letter, but it also

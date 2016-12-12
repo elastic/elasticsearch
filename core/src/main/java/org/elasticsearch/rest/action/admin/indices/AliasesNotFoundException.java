@@ -24,9 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 
-/**
- *
- */
 public class AliasesNotFoundException extends ResourceNotFoundException {
 
     public AliasesNotFoundException(String... names) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -107,6 +106,27 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
                 throw ex;
             }
         }
+    }
+
+    @Override
+    protected void afterExecute(Runnable r, Throwable t) {
+        super.afterExecute(r, t);
+        assert assertDefaultContext(r);
+    }
+
+    private boolean assertDefaultContext(Runnable r) {
+        try {
+            assert contextHolder.isDefaultContext() : "the thread context is not the default context and the thread [" +
+                Thread.currentThread().getName() + "] is being returned to the pool after executing [" + r + "]";
+        } catch (IllegalStateException ex) {
+            // sometimes we execute on a closed context and isDefaultContext doen't bypass the ensureOpen checks
+            // this must not trigger an exception here since we only assert if the default is restored and
+            // we don't really care if we are closed
+            if (contextHolder.isClosed() == false) {
+                throw ex;
+            }
+        }
+        return true;
     }
 
     /**

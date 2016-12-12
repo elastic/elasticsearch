@@ -38,12 +38,17 @@ public interface IndexingOperationListener {
     }
 
     /**
-     * Called after the indexing operation occurred.
+     * Called after the indexing operation occurred. Note that this is
+     * also called when indexing a document did not succeed due to document
+     * related failures. See {@link #postIndex(Engine.Index, Exception)}
+     * for engine level failures
      */
-    default void postIndex(Engine.Index index, boolean created) {}
+    default void postIndex(Engine.Index index, Engine.IndexResult result) {}
 
     /**
-     * Called after the indexing operation occurred with exception.
+     * Called after the indexing operation occurred with engine level exception.
+     * See {@link #postIndex(Engine.Index, Engine.IndexResult)} for document
+     * related failures
      */
     default void postIndex(Engine.Index index, Exception ex) {}
 
@@ -56,12 +61,17 @@ public interface IndexingOperationListener {
 
 
     /**
-     * Called after the delete operation occurred.
+     * Called after the delete operation occurred. Note that this is
+     * also called when deleting a document did not succeed due to document
+     * related failures. See {@link #postDelete(Engine.Delete, Exception)}
+     * for engine level failures
      */
-    default void postDelete(Engine.Delete delete) {}
+    default void postDelete(Engine.Delete delete, Engine.DeleteResult result) {}
 
     /**
-     * Called after the delete operation occurred with exception.
+     * Called after the delete operation occurred with engine level exception.
+     * See {@link #postDelete(Engine.Delete, Engine.DeleteResult)} for document
+     * related failures
      */
     default void postDelete(Engine.Delete delete, Exception ex) {}
 
@@ -91,11 +101,11 @@ public interface IndexingOperationListener {
         }
 
         @Override
-        public void postIndex(Engine.Index index, boolean created) {
+        public void postIndex(Engine.Index index, Engine.IndexResult result) {
             assert index != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
-                    listener.postIndex(index, created);
+                    listener.postIndex(index, result);
                 } catch (Exception e) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("postIndex listener [{}] failed", listener), e);
                 }
@@ -129,11 +139,11 @@ public interface IndexingOperationListener {
         }
 
         @Override
-        public void postDelete(Engine.Delete delete) {
+        public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
             assert delete != null;
             for (IndexingOperationListener listener : listeners) {
                 try {
-                    listener.postDelete(delete);
+                    listener.postDelete(delete, result);
                 } catch (Exception e) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("postDelete listener [{}] failed", listener), e);
                 }

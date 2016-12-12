@@ -54,9 +54,11 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.nio.file.attribute.GroupPrincipal;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -253,7 +255,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                     assertFalse("not a dir", Files.isDirectory(file));
                     if (isPosix) {
                         PosixFileAttributes attributes = Files.readAttributes(file, PosixFileAttributes.class);
-                        assertEquals(InstallPluginCommand.DIR_AND_EXECUTABLE_PERMS, attributes.permissions());
+                        assertEquals(InstallPluginCommand.BIN_FILES_PERMS, attributes.permissions());
                     }
                 }
             }
@@ -263,18 +265,33 @@ public class InstallPluginCommandTests extends ESTestCase {
             assertTrue("config dir exists", Files.exists(configDir));
             assertTrue("config is a dir", Files.isDirectory(configDir));
 
+            UserPrincipal user = null;
+            GroupPrincipal group = null;
+
             if (isPosix) {
-                Path configRoot = env.configFile();
                 PosixFileAttributes configAttributes =
-                    Files.getFileAttributeView(configRoot, PosixFileAttributeView.class).readAttributes();
+                        Files.getFileAttributeView(env.configFile(), PosixFileAttributeView.class).readAttributes();
+                user = configAttributes.owner();
+                group = configAttributes.group();
+
                 PosixFileAttributes attributes = Files.getFileAttributeView(configDir, PosixFileAttributeView.class).readAttributes();
-                assertThat(attributes.owner(), equalTo(configAttributes.owner()));
-                assertThat(attributes.group(), equalTo(configAttributes.group()));
+                assertThat(attributes.owner(), equalTo(user));
+                assertThat(attributes.group(), equalTo(group));
             }
 
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(configDir)) {
                 for (Path file : stream) {
                     assertFalse("not a dir", Files.isDirectory(file));
+
+                    if (isPosix) {
+                        PosixFileAttributes attributes = Files.readAttributes(file, PosixFileAttributes.class);
+                        if (user != null) {
+                            assertThat(attributes.owner(), equalTo(user));
+                        }
+                        if (group != null) {
+                            assertThat(attributes.group(), equalTo(group));
+                        }
+                    }
                 }
             }
         }
@@ -289,6 +306,12 @@ public class InstallPluginCommandTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testMissingPluginId() throws IOException {
+        final Tuple<Path, Environment> env = createEnv(fs, temp);
+        final UserException e = expectThrows(UserException.class, () -> installPlugin(null, env.v1()));
+        assertTrue(e.getMessage(), e.getMessage().contains("plugin id is required"));
     }
 
     public void testSomethingWorks() throws Exception {
@@ -349,7 +372,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testBuiltinModule() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        String pluginZip = createPlugin("lang-groovy", pluginDir);
+        String pluginZip = createPlugin("lang-painless", pluginDir);
         UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1()));
         assertTrue(e.getMessage(), e.getMessage().contains("is a system module"));
         assertInstallCleaned(env.v2());
@@ -452,6 +475,34 @@ public class InstallPluginCommandTests extends ESTestCase {
             installPlugin(pluginZip, env.v1());
             assertPlugin("fake", pluginDir, env.v2());
         }
+    }
+
+    public void testPlatformBinPermissions() throws Exception {
+        assumeTrue("posix filesystem", isPosix);
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Path platformDir = pluginDir.resolve("platform");
+        Path platformNameDir = platformDir.resolve("linux-x86_64");
+        Path platformBinDir = platformNameDir.resolve("bin");
+        Files.createDirectories(platformBinDir);
+        Path programFile = Files.createFile(platformBinDir.resolve("someprogram"));
+        // a file created with Files.createFile() should not have execute permissions
+        Set<PosixFilePermission> sourcePerms = Files.getPosixFilePermissions(programFile);
+        assertFalse(sourcePerms.contains(PosixFilePermission.OWNER_EXECUTE));
+        assertFalse(sourcePerms.contains(PosixFilePermission.GROUP_EXECUTE));
+        assertFalse(sourcePerms.contains(PosixFilePermission.OTHERS_EXECUTE));
+        String pluginZip = createPlugin("fake", pluginDir);
+        installPlugin(pluginZip, env.v1());
+        assertPlugin("fake", pluginDir, env.v2());
+        // check that the installed program has execute permissions, even though the one added to the plugin didn't
+        Path installedPlatformBinDir = env.v2().pluginsFile().resolve("fake").resolve("platform").resolve("linux-x86_64").resolve("bin");
+        assertTrue(Files.isDirectory(installedPlatformBinDir));
+        Path installedProgramFile = installedPlatformBinDir.resolve("someprogram");
+        assertTrue(Files.isRegularFile(installedProgramFile));
+        Set<PosixFilePermission> installedPerms = Files.getPosixFilePermissions(installedProgramFile);
+        assertTrue(installedPerms.contains(PosixFilePermission.OWNER_EXECUTE));
+        assertTrue(installedPerms.contains(PosixFilePermission.GROUP_EXECUTE));
+        assertTrue(installedPerms.contains(PosixFilePermission.OTHERS_EXECUTE));
     }
 
     public void testConfig() throws Exception {

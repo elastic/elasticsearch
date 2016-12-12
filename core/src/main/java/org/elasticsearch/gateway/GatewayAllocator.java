@@ -28,9 +28,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
+import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.StartedRerouteAllocation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -40,11 +39,9 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 
-/**
- *
- */
 public class GatewayAllocator extends AbstractComponent {
 
     private RoutingService routingService;
@@ -88,7 +85,7 @@ public class GatewayAllocator extends AbstractComponent {
                 boolean cleanCache = false;
                 DiscoveryNode localNode = event.state().nodes().getLocalNode();
                 if (localNode != null) {
-                    if (localNode.isMasterNode() == true && event.localNodeMaster() == false) {
+                    if (localNode.isMasterNode() && event.localNodeMaster() == false) {
                         cleanCache = true;
                     }
                 } else {
@@ -115,21 +112,28 @@ public class GatewayAllocator extends AbstractComponent {
         return count;
     }
 
-    public void applyStartedShards(StartedRerouteAllocation allocation) {
-        for (ShardRouting shard : allocation.startedShards()) {
-            Releasables.close(asyncFetchStarted.remove(shard.shardId()));
-            Releasables.close(asyncFetchStore.remove(shard.shardId()));
+    public void applyStartedShards(final RoutingAllocation allocation, final List<ShardRouting> startedShards) {
+        for (ShardRouting startedShard : startedShards) {
+            Releasables.close(asyncFetchStarted.remove(startedShard.shardId()));
+            Releasables.close(asyncFetchStore.remove(startedShard.shardId()));
         }
     }
 
-    public void applyFailedShards(FailedRerouteAllocation allocation) {
-        for (FailedRerouteAllocation.FailedShard shard : allocation.failedShards()) {
-            Releasables.close(asyncFetchStarted.remove(shard.routingEntry.shardId()));
-            Releasables.close(asyncFetchStore.remove(shard.routingEntry.shardId()));
+    public void applyFailedShards(final RoutingAllocation allocation, final List<FailedShard> failedShards) {
+        for (FailedShard failedShard : failedShards) {
+            Releasables.close(asyncFetchStarted.remove(failedShard.getRoutingEntry().shardId()));
+            Releasables.close(asyncFetchStore.remove(failedShard.getRoutingEntry().shardId()));
         }
     }
 
     public void allocateUnassigned(final RoutingAllocation allocation) {
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator);
+    }
+
+    // allow for testing infra to change shard allocators implementation
+    protected static void innerAllocatedUnassigned(RoutingAllocation allocation,
+                                                   PrimaryShardAllocator primaryShardAllocator,
+                                                   ReplicaShardAllocator replicaShardAllocator) {
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
         unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
 
@@ -170,7 +174,7 @@ public class GatewayAllocator extends AbstractComponent {
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
 
-            if (shardState.hasData() == true) {
+            if (shardState.hasData()) {
                 shardState.processAllocation(allocation);
             }
             return shardState;
@@ -195,10 +199,15 @@ public class GatewayAllocator extends AbstractComponent {
             }
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
-            if (shardStores.hasData() == true) {
+            if (shardStores.hasData()) {
                 shardStores.processAllocation(allocation);
             }
             return shardStores;
+        }
+
+        @Override
+        protected boolean hasInitiatedFetching(ShardRouting shard) {
+            return asyncFetchStore.get(shard.shardId()) != null;
         }
     }
 }

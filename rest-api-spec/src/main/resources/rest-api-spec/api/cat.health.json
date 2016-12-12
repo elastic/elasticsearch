@@ -29,6 +29,10 @@
           "description": "Return help information",
           "default": false
         },
+        "s": {
+          "type": "list",
+          "description" : "Comma-separated list of column names or column aliases to sort by"
+        },
         "ts": {
           "type": "boolean",
           "description": "Set to false to disable timestamping",

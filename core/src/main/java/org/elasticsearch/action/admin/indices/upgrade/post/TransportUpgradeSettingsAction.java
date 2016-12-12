@@ -36,9 +36,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-/**
- *
- */
 public class TransportUpgradeSettingsAction extends TransportMasterNodeAction<UpgradeSettingsRequest, UpgradeSettingsResponse> {
 
     private final MetaDataUpdateSettingsService updateSettingsService;

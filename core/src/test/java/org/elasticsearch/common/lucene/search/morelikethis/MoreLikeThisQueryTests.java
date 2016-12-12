@@ -35,9 +35,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
 public class MoreLikeThisQueryTests extends ESTestCase {
     public void testSimple() throws Exception {
         Directory dir = new RAMDirectory();

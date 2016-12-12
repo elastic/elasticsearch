@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Assert;
 
@@ -35,8 +36,8 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
     private static final String RESOURCE = "/org/elasticsearch/index/analysis/keep_analysis.json";
 
     public void testLoadWithoutSettings() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
-        TokenFilterFactory tokenFilter = analysisService.tokenFilter("keep");
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("keep");
         Assert.assertNull(tokenFilter);
     }
 
@@ -48,7 +49,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
                 .put("index.analysis.filter.broken_keep_filter.keep_words", "[\"Hello\", \"worlD\"]")
                 .build();
         try {
-            AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
             Assert.fail("path and array are configured");
         } catch (IllegalArgumentException e) {
         } catch (IOException e) {
@@ -64,7 +65,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
                 .build();
         try {
             // test our none existing setup is picked up
-            AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
             fail("expected an exception due to non existent keep_words_path");
         } catch (IllegalArgumentException e) {
         } catch (IOException e) {
@@ -76,7 +77,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
                 .build();
         try {
             // test our none existing setup is picked up
-            AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings);
             fail("expected an exception indicating that you can't use [keep_words_path] with [keep_words] ");
         } catch (IllegalArgumentException e) {
         } catch (IOException e) {
@@ -86,8 +87,8 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testCaseInsensitiveMapping() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
-        TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_keep_filter");
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_keep_filter");
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));
         String source = "hello small world";
         String[] expected = new String[]{"hello", "world"};
@@ -97,8 +98,8 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
     }
 
     public void testCaseSensitiveMapping() throws IOException {
-        AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
-        TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_case_sensitive_keep_filter");
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE);
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_case_sensitive_keep_filter");
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));
         String source = "Hello small world";
         String[] expected = new String[]{"Hello"};

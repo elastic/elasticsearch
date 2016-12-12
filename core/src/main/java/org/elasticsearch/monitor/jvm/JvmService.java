@@ -25,9 +25,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 
-/**
- *
- */
 public class JvmService extends AbstractComponent {
 
     private final JvmInfo jvmInfo;

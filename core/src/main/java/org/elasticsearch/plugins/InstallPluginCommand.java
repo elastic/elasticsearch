@@ -42,8 +42,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLDecoder;
@@ -174,8 +172,6 @@ class InstallPluginCommand extends SettingCommand {
         PLUGIN_FILES_PERMS = Collections.unmodifiableSet(PosixFilePermissions.fromString("rw-r--r--"));
     }
 
-    private final List<Path> pathsToDeleteOnShutdown = new ArrayList<>();
-
     InstallPluginCommand() {
         super("Install a plugin");
         this.batchOption = parser.acceptsAll(Arrays.asList("b", "batch"),
@@ -210,24 +206,6 @@ class InstallPluginCommand extends SettingCommand {
             terminal.println("Plugins directory [" + env.pluginsFile() + "] does not exist. Creating...");
             Files.createDirectory(env.pluginsFile());
         }
-
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            for (final Path pathToDeleteOnShutdown : pathsToDeleteOnShutdown) {
-                try {
-                    IOUtils.rm(pathToDeleteOnShutdown);
-                } catch (final IOException e) {
-                    try (
-                        final StringWriter sw = new StringWriter();
-                        final PrintWriter pw = new PrintWriter(sw)) {
-                        e.printStackTrace(pw);
-                        terminal.println(sw.toString());
-                    } catch (final IOException impossible) {
-                        // StringWriter#close declared a checked IOException from the Closeable interface but the Javadocs for StringWriter
-                        // say that an exception here is impossible
-                    }
-                }
-            }
-        }));
 
         Path pluginZip = download(terminal, pluginId, env.tmpFile());
         Path extractedZip = unzip(pluginZip, env.pluginsFile());
@@ -369,7 +347,6 @@ class InstallPluginCommand extends SettingCommand {
         pathsToDeleteOnShutdown.add(target);
 
         boolean hasEsDir = false;
-        // TODO: we should wrap this in a try/catch and try deleting the target dir on failure?
         try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry;
             byte[] buffer = new byte[8192];
@@ -628,4 +605,26 @@ class InstallPluginCommand extends SettingCommand {
             Files.setPosixFilePermissions(path, permissions);
         }
     }
+
+    private final List<Path> pathsToDeleteOnShutdown = new ArrayList<>();
+
+    @Override
+    public void close() throws IOException {
+        IOException exception = null;
+        for (final Path pathToDeleteOnShutdown : pathsToDeleteOnShutdown) {
+            try {
+                IOUtils.rm(pathToDeleteOnShutdown);
+            } catch (final IOException e) {
+                if (exception == null) {
+                    exception = e;
+                } else {
+                    exception.addSuppressed(e);
+                }
+            }
+        }
+        if (exception != null) {
+            throw exception;
+        }
+    }
+
 }

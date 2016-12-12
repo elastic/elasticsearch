@@ -23,6 +23,11 @@ import joptsimple.OptionException;
 import joptsimple.OptionSet;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.hamcrest.CoreMatchers.containsString;
+
 public class CommandTests extends ESTestCase {
 
     static class UserErrorCommand extends Command {
@@ -143,4 +148,39 @@ public class CommandTests extends ESTestCase {
         assertTrue(output, output.contains("Throws a usage error"));
         assertTrue(output, output.contains("ERROR: something was no good"));
     }
+
+    public void testCommandShutdownHook() throws Exception {
+        final AtomicBoolean closed = new AtomicBoolean();
+        final boolean shouldThrow = randomBoolean();
+        final Command command = new Command("test-shutdown-hook-installed") {
+            @Override
+            protected void execute(Terminal terminal, OptionSet options) throws Exception {
+
+            }
+
+            @Override
+            public void close() throws IOException {
+                closed.set(true);
+                if (shouldThrow) {
+                    throw new IOException("fail");
+                }
+            }
+        };
+        final MockTerminal terminal = new MockTerminal();
+        command.main(new String[0], terminal);
+        assertNotNull(command.shutdownHookThread.get());
+        // successful removal here asserts that the runtime hook was installed in Command#main
+        assertTrue(Runtime.getRuntime().removeShutdownHook(command.shutdownHookThread.get()));
+        command.shutdownHookThread.get().run();
+        command.shutdownHookThread.get().join();
+        assertTrue(closed.get());
+        if (shouldThrow) {
+            final String output = terminal.getOutput();
+            // ensure that we dump the exception
+            assertThat(output, containsString("java.io.IOException: fail"));
+            // ensure that we dump the stack trace too
+            assertThat(output, containsString("\tat org.elasticsearch.cli.CommandTests$1.close"));
+        }
+    }
+
 }

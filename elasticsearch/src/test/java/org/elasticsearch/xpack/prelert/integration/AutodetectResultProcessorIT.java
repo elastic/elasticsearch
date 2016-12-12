@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.prelert.job.persistence.RecordsQueryBuilder;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutoDetectResultProcessor;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectResultsParser;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.output.FlushAcknowledgement;
-import org.elasticsearch.xpack.prelert.job.process.normalizer.Renormaliser;
-import org.elasticsearch.xpack.prelert.job.process.normalizer.noop.NoOpRenormaliser;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.Renormalizer;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.noop.NoOpRenormalizer;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecordTests;
@@ -57,14 +57,14 @@ import java.util.Set;
 public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     private static final String JOB_ID = "foo";
 
-    private Renormaliser renormaliser;
+    private Renormalizer renormaliser;
     private JobResultsPersister jobResultsPersister;
     private AutodetectResultsParser autodetectResultsParser;
     private JobProvider jobProvider;
 
     @Before
     private void createComponents() {
-        renormaliser = new NoOpRenormaliser();
+        renormaliser = new NoOpRenormalizer();
         jobResultsPersister = new JobResultsPersister(nodeSettings(), client());
         ParseFieldMatcher matcher = new ParseFieldMatcher(nodeSettings());
         autodetectResultsParser = new AutodetectResultsParser(nodeSettings(), () -> matcher);

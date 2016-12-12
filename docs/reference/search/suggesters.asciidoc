@@ -117,17 +117,19 @@ and applies to the `my-suggest-1` and `my-suggest-2` suggestions.
 
 [source,js]
 --------------------------------------------------
-POST _suggest
+POST _search
 {
-  "text" : "tring out Elasticsearch",
-  "my-suggest-1" : {
-    "term" : {
-      "field" : "message"
-    }
-  },
-  "my-suggest-2" : {
-    "term" : {
-      "field" : "user"
+  "suggest": {
+    "text" : "tring out Elasticsearch",
+    "my-suggest-1" : {
+      "term" : {
+        "field" : "message"
+      }
+    },
+    "my-suggest-2" : {
+      "term" : {
+        "field" : "user"
+      }
     }
   }
 }

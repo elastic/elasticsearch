@@ -26,8 +26,11 @@ setup:
 
 ---
 "BWC tests for suggest API":
-
+  - skip:
+      features: 'warnings'
   - do:
+      warnings:
+        - "[POST /_suggest] is deprecated! Use [POST /_search] instead."
       suggest:
         body:
           test_suggestion:

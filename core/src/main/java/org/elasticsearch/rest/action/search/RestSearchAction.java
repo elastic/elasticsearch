@@ -100,8 +100,6 @@ public class RestSearchAction extends BaseRestHandler {
                 searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
                         searchRequestParsers.searchExtParsers);
             }
-            searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
-                    searchRequestParsers.searchExtParsers);
         }
 
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types

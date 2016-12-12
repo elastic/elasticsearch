@@ -386,11 +386,11 @@ setup:
 
   - length: { aggregations.str_terms.buckets: 1 }
 
-  - match: { aggregations.str_terms.buckets.0.key: "abc" }
+  - match: { aggregations.str_terms.buckets.0.key: "bcd" }
 
   - is_false: aggregations.str_terms.buckets.0.key_as_string
 
-  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
 
   - do:
       search:
@@ -400,8 +400,8 @@ setup:
 
   - length: { aggregations.str_terms.buckets: 1 }
 
-  - match: { aggregations.str_terms.buckets.0.key: "bcd" }
+  - match: { aggregations.str_terms.buckets.0.key: "abc" }
 
   - is_false: aggregations.str_terms.buckets.0.key_as_string
 
-  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }

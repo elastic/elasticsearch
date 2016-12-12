@@ -216,8 +216,8 @@ final class Bootstrap {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final Settings settings,
-                final BoundTransportAddress boundTransportAddress, List<Check> checks) throws NodeValidationException {
-                BootstrapCheck.check(settings, boundTransportAddress, checks);
+                final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
+                BootstrapChecks.check(settings, boundTransportAddress, checks);
             }
         };
     }

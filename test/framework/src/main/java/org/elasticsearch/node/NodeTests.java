@@ -20,7 +20,7 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.Check;
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -69,7 +69,7 @@ public class NodeTests extends ESTestCase {
     }
 
     public static class CheckPlugin extends Plugin {
-        public static final Check CHECK = new Check() {
+        public static final BootstrapCheck CHECK = new BootstrapCheck() {
             @Override
             public boolean check() {
                 return false;
@@ -81,7 +81,7 @@ public class NodeTests extends ESTestCase {
             }
         };
         @Override
-        public List<Check> getBootstrapChecks() {
+        public List<BootstrapCheck> getBootstrapChecks() {
             return Collections.singletonList(CHECK);
         }
     }
@@ -102,7 +102,7 @@ public class NodeTests extends ESTestCase {
         try (Node node = new MockNode(settings.build(), Arrays.asList(MockTcpTransportPlugin.class, CheckPlugin.class)) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(Settings settings, BoundTransportAddress boundTransportAddress,
-                                                               List<Check> bootstrapChecks) throws NodeValidationException {
+                                                               List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
                 assertEquals(1, bootstrapChecks.size());
                 assertSame(CheckPlugin.CHECK, bootstrapChecks.get(0));
                 executed.set(true);

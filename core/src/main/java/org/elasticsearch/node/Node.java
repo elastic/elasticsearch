@@ -32,7 +32,7 @@ import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
-import org.elasticsearch.bootstrap.Check;
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -790,7 +790,7 @@ public class Node implements Closeable {
     @SuppressWarnings("unused")
     protected void validateNodeBeforeAcceptingRequests(
         final Settings settings,
-        final BoundTransportAddress boundTransportAddress, List<Check> bootstrapChecks) throws NodeValidationException {
+        final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
     }
 
     /** Writes a file to the logs dir containing the ports for the given transport type */

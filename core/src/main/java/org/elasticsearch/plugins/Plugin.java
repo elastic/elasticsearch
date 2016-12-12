@@ -26,7 +26,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.elasticsearch.action.ActionModule;
-import org.elasticsearch.bootstrap.Check;
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -171,7 +171,7 @@ public abstract class Plugin implements Closeable {
      * to provide a better out of the box experience by pre-configuring otherwise (in production) mandatory settings or to enforce certain
      * configurations like OS settings or 3rd party resources.
      */
-    public List<Check> getBootstrapChecks() { return Collections.emptyList(); }
+    public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
 
     /**
      * Close the resources opened by this plugin.

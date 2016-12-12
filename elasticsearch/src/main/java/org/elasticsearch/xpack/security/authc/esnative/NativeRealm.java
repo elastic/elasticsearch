@@ -26,11 +26,6 @@ public class NativeRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    public boolean userLookupSupported() {
-        return true;
-    }
-
-    @Override
     protected void doLookupUser(String username, ActionListener<User> listener) {
         userStore.getUser(username, listener);
     }

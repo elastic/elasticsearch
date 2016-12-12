@@ -25,12 +25,4 @@ abstract class UsernamePasswordRealm extends Realm {
     public boolean supports(AuthenticationToken token) {
         return token instanceof UsernamePasswordToken;
     }
-
-    public final User authenticate(AuthenticationToken token) {
-        throw new UnsupportedOperationException("internal realms should not support blocking calls!!");
-    }
-
-    public final User lookupUser(String username) {
-        throw new UnsupportedOperationException("internal realms should not support blocking calls!");
-    }
 }

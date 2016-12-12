@@ -343,8 +343,7 @@ public class AuthenticationService extends AbstractComponent {
          */
         private void lookupRunAsUser(final User user, String runAsUsername, Consumer<User> userConsumer) {
             final List<Realm> realmsList = realms.asList();
-            final BiConsumer<Realm, ActionListener<User>> realmLookupConsumer = (realm, lookupUserListener) -> {
-                if (realm.userLookupSupported()) {
+            final BiConsumer<Realm, ActionListener<User>> realmLookupConsumer = (realm, lookupUserListener) ->
                     realm.lookupUser(runAsUsername, ActionListener.wrap((lookedupUser) -> {
                         if (lookedupUser != null) {
                             lookedupBy = new RealmRef(realm.name(), realm.type(), nodeName);
@@ -353,10 +352,6 @@ public class AuthenticationService extends AbstractComponent {
                             lookupUserListener.onResponse(null);
                         }
                     }, lookupUserListener::onFailure));
-                } else {
-                    lookupUserListener.onResponse(null);
-                }
-            };
 
             final IteratingActionListener<User, Realm> userLookupListener =
                     new IteratingActionListener<>(ActionListener.wrap((lookupUser) -> userConsumer.accept(new User(user, lookupUser)),

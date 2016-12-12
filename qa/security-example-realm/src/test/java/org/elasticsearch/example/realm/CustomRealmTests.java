@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.example.realm;
 
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
@@ -22,7 +23,9 @@ public class CustomRealmTests extends ESTestCase {
         CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings));
         SecuredString password = new SecuredString(CustomRealm.KNOWN_PW.toCharArray());
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER, password);
-        User user = realm.authenticate(token);
+        PlainActionFuture<User> plainActionFuture = new PlainActionFuture<>();
+        realm.authenticate(token, plainActionFuture);
+        User user = plainActionFuture.actionGet();
         assertThat(user, notNullValue());
         assertThat(user.roles(), equalTo(CustomRealm.ROLES));
         assertThat(user.principal(), equalTo(CustomRealm.KNOWN_USER));
@@ -33,7 +36,8 @@ public class CustomRealmTests extends ESTestCase {
         CustomRealm realm = new CustomRealm(new RealmConfig("test", Settings.EMPTY, globalSettings));
         SecuredString password = new SecuredString(CustomRealm.KNOWN_PW.toCharArray());
         UsernamePasswordToken token = new UsernamePasswordToken(CustomRealm.KNOWN_USER + "1", password);
-        User user = realm.authenticate(token);
-        assertThat(user, nullValue());
+        PlainActionFuture<User> plainActionFuture = new PlainActionFuture<>();
+        realm.authenticate(token, plainActionFuture);
+        assertThat(plainActionFuture.actionGet(), nullValue());
     }
 }

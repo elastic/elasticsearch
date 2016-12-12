@@ -102,11 +102,6 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
     }
 
     @Override
-    public boolean userLookupSupported() {
-        return sessionFactory.supportsUnauthenticatedSession();
-    }
-
-    @Override
     public Map<String, Object> usageStats() {
         Map<String, Object> usage = super.usageStats();
         usage.put("load_balance_type", LdapLoadBalancing.resolve(config.settings()).toString());

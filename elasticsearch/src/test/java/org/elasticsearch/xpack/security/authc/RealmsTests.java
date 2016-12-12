@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -433,18 +434,13 @@ public class RealmsTests extends ESTestCase {
         }
 
         @Override
-        public User authenticate(AuthenticationToken token) {
-            return null;
+        public void authenticate(AuthenticationToken token, ActionListener<User> listener) {
+            listener.onResponse(null);
         }
 
         @Override
-        public User lookupUser(String username) {
-            return null;
-        }
-
-        @Override
-        public boolean userLookupSupported() {
-            return false;
+        public void lookupUser(String username, ActionListener<User> listener) {
+            listener.onResponse(null);
         }
     }
 }

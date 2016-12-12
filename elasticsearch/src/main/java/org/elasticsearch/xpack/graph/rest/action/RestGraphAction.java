@@ -5,37 +5,34 @@
  */
 package org.elasticsearch.xpack.graph.rest.action;
 
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.xpack.graph.action.GraphExploreAction.INSTANCE;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.XPackClient;
+import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
+import org.elasticsearch.xpack.graph.action.GraphExploreRequest.TermBoost;
+import org.elasticsearch.xpack.graph.action.Hop;
+import org.elasticsearch.xpack.graph.action.VertexRequest;
+import org.elasticsearch.xpack.rest.XPackRestHandler;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.XPackClient;
-import org.elasticsearch.xpack.graph.action.GraphExploreRequest;
-import org.elasticsearch.xpack.graph.action.Hop;
-import org.elasticsearch.xpack.graph.action.VertexRequest;
-import org.elasticsearch.xpack.graph.action.GraphExploreRequest.TermBoost;
-import org.elasticsearch.xpack.rest.XPackRestHandler;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.graph.action.GraphExploreAction.INSTANCE;
 
 /**
  * @see GraphExploreRequest
@@ -88,14 +85,13 @@ public class RestGraphAction extends XPackRestHandler {
         if (request.hasParam(TIMEOUT_FIELD.getPreferredName())) {
             graphRequest.timeout(request.paramAsTime(TIMEOUT_FIELD.getPreferredName(), null));
         }
-        if (!RestActions.hasBodyContent(request)) {
+        if (false == request.hasContentOrSourceParam()) {
             throw new ElasticsearchParseException("Body missing for graph request");
         }
-        BytesReference qBytes = RestActions.getRestContent(request);
 
         Hop currentHop = graphRequest.createNextHop(null);
 
-        try(XContentParser parser = XContentFactory.xContent(qBytes).createParser(qBytes)) {
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
 
             XContentParser.Token token = parser.nextToken();

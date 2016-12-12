@@ -34,6 +34,7 @@ import org.joda.time.DateTime;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.BitSet;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -187,16 +188,13 @@ public class ExecutionService extends AbstractComponent {
 
         logger.debug("saving watch records [{}]", triggeredWatches.size());
 
-        triggeredWatchStore.putAll(triggeredWatches, new ActionListener<List<Integer>>() {
+        triggeredWatchStore.putAll(triggeredWatches, new ActionListener<BitSet>() {
             @Override
-            public void onResponse(List<Integer> successFullSlots) {
-                for (Integer slot : successFullSlots) {
-                    TriggeredWatch triggeredWatch = triggeredWatches.get(slot);
-                    try {
-                        executeAsync(contexts.get(slot), triggeredWatch);
-                    } catch (Exception e) {
-                        logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute watch [{}]", triggeredWatch.id()), e);
-                    }
+            public void onResponse(BitSet slots) {
+                int slot = 0;
+                while ((slot = slots.nextSetBit(slot)) != -1) {
+                    executeAsync(contexts.get(slot), triggeredWatches.get(slot));
+                    slot++;
                 }
             }
 
@@ -236,9 +234,11 @@ public class ExecutionService extends AbstractComponent {
             return;
         }
 
-        List<Integer> slots = triggeredWatchStore.putAll(triggeredWatches);
-        for (Integer slot : slots) {
+        BitSet slots = triggeredWatchStore.putAll(triggeredWatches);
+        int slot = 0;
+        while ((slot = slots.nextSetBit(slot)) != -1) {
             executeAsync(contexts.get(slot), triggeredWatches.get(slot));
+            slot++;
         }
     }
 

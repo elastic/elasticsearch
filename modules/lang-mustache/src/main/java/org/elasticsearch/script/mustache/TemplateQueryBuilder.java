@@ -60,8 +60,9 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     }
 
     public TemplateQueryBuilder(String template, ScriptType scriptType, Map<String, Object> params, XContentType ct) {
-        this(new Script(scriptType, "mustache", template,
-            ct == null ? Collections.emptyMap() : Collections.singletonMap(Script.CONTENT_TYPE_OPTION, ct.mediaType()), params));
+        this(new Script(scriptType, "mustache", template, scriptType == ScriptType.INLINE ?
+            (ct == null ? Collections.emptyMap() : Collections.singletonMap(Script.CONTENT_TYPE_OPTION, ct.mediaType()))
+            : null, params));
     }
 
     TemplateQueryBuilder(Script template) {

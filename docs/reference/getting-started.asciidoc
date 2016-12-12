@@ -623,12 +623,12 @@ The REST API for search is accessible from the `_search` endpoint. This example 
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search?q=*&sort=account_number:asc
+GET /bank/_search?q=*&sort=account_number:asc&pretty
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
 
-Let's first dissect the search call. We are searching (`_search` endpoint) in the bank index, and the `q=*` parameter instructs Elasticsearch to match all documents in the index. The `pretty` parameter, again, just tells Elasticsearch to return pretty-printed JSON results.
+Let's first dissect the search call. We are searching (`_search` endpoint) in the bank index, and the `q=*` parameter instructs Elasticsearch to match all documents in the index. The `sort=account_number:asc` parameter indicates to sort the results using the `account_number` field of each document in an ascending order. The `pretty` parameter, again, just tells Elasticsearch to return pretty-printed JSON results.
 
 And the response (partially shown):
 

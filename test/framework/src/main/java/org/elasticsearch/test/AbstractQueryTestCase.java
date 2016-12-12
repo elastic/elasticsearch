@@ -591,8 +591,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     private static QueryBuilder parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
         QueryParseContext context = createParseContext(parser, matcher);
-        QueryBuilder parseInnerQueryBuilder = context.parseInnerQueryBuilder()
-                .orElseThrow(() -> new IllegalArgumentException("inner query body cannot be empty"));
+        QueryBuilder parseInnerQueryBuilder = context.parseInnerQueryBuilder();
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
     }

@@ -77,7 +77,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
         parser.declareString(SignificantTermsAggregationBuilder::executionHint, TermsAggregationBuilder.EXECUTION_HINT_FIELD_NAME);
 
-        parser.declareObject((b, v) -> { if (v.isPresent()) b.backgroundFilter(v.get()); },
+        parser.declareObject(SignificantTermsAggregationBuilder::backgroundFilter,
                 (p, context) -> context.parseInnerQueryBuilder(),
                 SignificantTermsAggregationBuilder.BACKGROUND_FILTER);
 

@@ -129,10 +129,10 @@ public class IndexingIT extends ESRestTestCase {
         }
     }
 
-    protected void assertSeqNoOnShards(Nodes nodes, boolean checkGlobalCheckpoints, int numDocs, RestClient newNodesClient) throws Exception {
+    private void assertSeqNoOnShards(Nodes nodes, boolean checkGlobalCheckpoints, int numDocs, RestClient client) throws Exception {
         assertBusy(() -> {
             try {
-                List<Shard> shards = buildShards(nodes, newNodesClient);
+                List<Shard> shards = buildShards(nodes, client);
                 Shard primaryShard = shards.stream().filter(Shard::isPrimary).findFirst().get();
                 assertNotNull("failed to find primary shard", primaryShard);
                 final long expectedGlobalCkp;

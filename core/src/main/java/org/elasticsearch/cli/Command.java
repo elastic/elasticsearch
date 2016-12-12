@@ -71,6 +71,7 @@ public abstract class Command implements Closeable {
                 } catch (final IOException impossible) {
                     // StringWriter#close declared a checked IOException from the Closeable interface but the Javadocs for StringWriter say
                     // that an exception here is impossible
+                    throw new AssertionError(impossible);
                 }
             }
         }));

@@ -11,7 +11,7 @@ has been removed in Elasticsearch 6.0.0.
 ==== Duplicate Keys in JSON
 
 In previous versions of Elasticsearch, JSON documents were allowed to contain duplicate keys. Elasticsearch 6.0.0
-will enforce that all keys are unique.
+ enforces that all keys are unique.
 
 ==== Analyze API changes
 

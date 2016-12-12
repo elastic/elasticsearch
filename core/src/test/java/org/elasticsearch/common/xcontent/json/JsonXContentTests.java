@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent.json;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.xcontent.BaseXContentTestCase;
 import org.elasticsearch.common.xcontent.XContentType;
 
@@ -38,5 +39,16 @@ public class JsonXContentTests extends BaseXContentTestCase {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         JsonGenerator generator = new JsonFactory().createGenerator(os);
         doTestBigInteger(generator, os);
+    }
+
+    public void testChecksForDuplicates() throws Exception {
+        if (JsonXContent.isStrictDuplicateDetectionEnabled() == false) {
+            logger.info("Skipping test as it is only effective is strict duplicate detection is enabled");
+            return;
+        }
+
+        JsonParseException pex = expectThrows(JsonParseException.class,
+            () -> XContentType.JSON.xContent().createParser("{ \"key\": 1, \"key\": 2 }").map());
+        assertEquals("Duplicate field 'key'", pex.getMessage());
     }
 }

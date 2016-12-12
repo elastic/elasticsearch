@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.AbstractObjectParser.NoContextParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -169,16 +169,20 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testRepeatedConstructorParam() throws IOException {
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+            return;
+        }
         XContentParser parser = XContentType.JSON.xContent().createParser(
                   "{\n"
                 + "  \"vegetable\": 1,\n"
                 + "  \"vegetable\": 2\n"
                 + "}");
         Throwable e = expectThrows(ParsingException.class, () -> randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, MATCHER));
-        assertEquals("[has_required_arguments] failed to parse object", e.getMessage());
+        assertEquals("[has_required_arguments] failed to parse field [vegetable]", e.getMessage());
         e = e.getCause();
-        assertThat(e, instanceOf(JsonParseException.class));
-        assertEquals("Duplicate field 'vegetable'", e.getMessage());
+        assertThat(e, instanceOf(IllegalArgumentException.class));
+        assertEquals("Can't repeat param [vegetable]", e.getMessage());
     }
 
     public void testBadParam() throws IOException {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
@@ -105,6 +104,10 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     public void testTwoAggs() throws Exception {
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+            return;
+        }
         String source = JsonXContent.contentBuilder()
                 .startObject()
                     .startObject("by_date")
@@ -134,8 +137,8 @@ public class AggregatorParsingTests extends ESTestCase {
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
             fail();
-        } catch (JsonParseException e) {
-            assertThat(e.toString(), containsString("Duplicate field 'aggs'"));
+        } catch (ParsingException e) {
+            assertThat(e.toString(), containsString("Found two sub aggregation definitions under [by_date]"));
         }
     }
 
@@ -179,6 +182,10 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     public void testSameAggregationName() throws Exception {
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+            return;
+        }
         final String name = randomAsciiOfLengthBetween(1, 10);
         String source = JsonXContent.contentBuilder()
                 .startObject()
@@ -199,8 +206,8 @@ public class AggregatorParsingTests extends ESTestCase {
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
             fail();
-        } catch (JsonParseException e) {
-            assertThat(e.toString(), containsString("Duplicate field '" + name + "'"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.toString(), containsString("Two sibling aggregations cannot have the same name: [" + name + "]"));
         }
     }
 

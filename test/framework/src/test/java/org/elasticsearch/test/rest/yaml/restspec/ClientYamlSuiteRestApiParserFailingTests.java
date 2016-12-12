@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
@@ -72,6 +71,10 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     }
 
     public void testDuplicateParts() throws Exception {
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+            return;
+        }
         parseAndExpectFailure("{\n" +
                 "  \"ping\": {" +
                 "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
@@ -100,10 +103,14 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
                 "    }," +
                 "    \"body\": null" +
                 "  }" +
-                "}", JsonParseException.class,"Duplicate field 'index'");
+                "}", "Found duplicate part [index]");
     }
 
     public void testDuplicateParams() throws Exception {
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+            return;
+        }
         parseAndExpectFailure("{\n" +
                 "  \"ping\": {" +
                 "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
@@ -130,7 +137,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
                 "    }," +
                 "    \"body\": null" +
                 "  }" +
-                "}", JsonParseException.class, "Duplicate field 'timeout'");
+                "}", "Found duplicate param [timeout]");
     }
 
     public void testBrokenSpecShouldThrowUsefulExceptionWhenParsingFailsOnParams() throws Exception {
@@ -142,15 +149,10 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     }
 
     private void parseAndExpectFailure(String brokenJson, String expectedErrorMessage) throws Exception {
-        parseAndExpectFailure(brokenJson, IllegalArgumentException.class, expectedErrorMessage);
-    }
-
-    private <T extends Throwable> void parseAndExpectFailure(String brokenJson, Class<T> expectedExceptionClass,
-                                                             String expectedErrorMessage) throws Exception {
         XContentParser parser = JsonXContent.jsonXContent.createParser(brokenJson);
         ClientYamlSuiteRestApiParser restApiParser = new ClientYamlSuiteRestApiParser();
 
-        Throwable e = expectThrows(expectedExceptionClass, () -> restApiParser.parse("location", parser));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> restApiParser.parse("location", parser));
         assertThat(e.getMessage(), containsString(expectedErrorMessage));
     }
 

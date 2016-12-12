@@ -19,13 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -68,15 +68,19 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     /**
-     * test that multiple "filter" elements causes {@link JsonParseException}
+     * test that multiple "filter" elements causes {@link ParsingException}
      */
     public void testMultipleFilterElements() throws IOException {
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+            return;
+        }
         String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {\n" +
                                     "\"filter\" : { \"term\": { \"foo\": \"a\" } },\n" +
                                     "\"filter\" : { \"term\": { \"foo\": \"x\" } },\n" +
                             "} }";
-        JsonParseException e = expectThrows(JsonParseException.class, () -> parseQuery(queryString));
-        assertThat(e.getMessage(), containsString("Duplicate field 'filter'"));
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryString));
+        assertThat(e.getMessage(), containsString("accepts only one 'filter' element"));
     }
 
     /**

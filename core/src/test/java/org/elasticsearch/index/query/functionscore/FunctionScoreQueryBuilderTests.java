@@ -36,6 +36,7 @@ import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -722,6 +723,10 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testMalformedQueryMultipleQueryElements() throws IOException {
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+            return;
+        }
         String json = "{\n" +
                 "    \"function_score\":{\n" +
                 "        \"query\":{\n" +
@@ -737,16 +742,12 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "        }\n" +
                 "    }\n" +
                 "}";
-        expectException(json, JsonParseException.class, equalTo("Duplicate field 'query'"));
-    }
-
-    private static <T extends Throwable> void expectException(String json, Class<T> expectedException, Matcher<String> messageMatcher) {
-        Throwable e = expectThrows(expectedException, () -> parseQuery(json));
-        assertThat(e.getMessage(), messageMatcher);
+        expectParsingException(json, "[query] is already defined.");
     }
 
     private static void expectParsingException(String json, Matcher<String> messageMatcher) {
-        expectException(json, ParsingException.class, messageMatcher);
+        ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
+        assertThat(e.getMessage(), messageMatcher);
     }
 
     private static void expectParsingException(String json, String message) {

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
@@ -149,9 +150,13 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
                 "Required [field]");
 
         // test two fieldnames
-        directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
-        assertIllegalXContent(directGenerator, ParsingException.class,
-                "[direct_generator] failed to parse object");
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+        } else {
+            directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
+            assertIllegalXContent(directGenerator, ParsingException.class,
+                "[direct_generator] failed to parse field [field]");
+        }
 
         // test unknown field
         directGenerator = "{ \"unknown_param\" : \"f1\" }";

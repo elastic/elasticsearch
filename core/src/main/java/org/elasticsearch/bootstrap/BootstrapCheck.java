@@ -62,10 +62,14 @@ final class BootstrapCheck {
      * @param settings              the current node settings
      * @param boundTransportAddress the node network bindings
      */
-    static void check(final Settings settings, final BoundTransportAddress boundTransportAddress) throws NodeValidationException {
+    static void check(final Settings settings, final BoundTransportAddress boundTransportAddress, List<Check> additionalChecks)
+        throws NodeValidationException {
+        final List<Check> builtInChecks = checks(settings);
+        final List<Check> combinedChecks = new ArrayList<>(builtInChecks);
+        combinedChecks.addAll(additionalChecks);
         check(
                 enforceLimits(boundTransportAddress),
-                checks(settings),
+                Collections.unmodifiableList(combinedChecks),
                 Node.NODE_NAME_SETTING.get(settings));
     }
 
@@ -169,32 +173,7 @@ final class BootstrapCheck {
         return Collections.unmodifiableList(checks);
     }
 
-    /**
-     * Encapsulates a bootstrap check.
-     */
-    interface Check {
-
-        /**
-         * Test if the node fails the check.
-         *
-         * @return {@code true} if the node failed the check
-         */
-        boolean check();
-
-        /**
-         * The error message for a failed check.
-         *
-         * @return the error message on check failure
-         */
-        String errorMessage();
-
-        default boolean alwaysEnforce() {
-            return false;
-        }
-
-    }
-
-    static class HeapSizeCheck implements BootstrapCheck.Check {
+    static class HeapSizeCheck implements Check {
 
         @Override
         public boolean check() {
@@ -422,7 +401,7 @@ final class BootstrapCheck {
 
     }
 
-    static class ClientJvmCheck implements BootstrapCheck.Check {
+    static class ClientJvmCheck implements Check {
 
         @Override
         public boolean check() {
@@ -448,7 +427,7 @@ final class BootstrapCheck {
      * Checks if the serial collector is in use. This collector is single-threaded and devastating
      * for performance and should not be used for a server application like Elasticsearch.
      */
-    static class UseSerialGCCheck implements BootstrapCheck.Check {
+    static class UseSerialGCCheck implements Check {
 
         @Override
         public boolean check() {
@@ -474,7 +453,7 @@ final class BootstrapCheck {
     /**
      * Bootstrap check that if system call filters are enabled, then system call filters must have installed successfully.
      */
-    static class SystemCallFilterCheck implements BootstrapCheck.Check {
+    static class SystemCallFilterCheck implements Check {
 
         private final boolean areSystemCallFiltersEnabled;
 
@@ -500,7 +479,7 @@ final class BootstrapCheck {
 
     }
 
-    abstract static class MightForkCheck implements BootstrapCheck.Check {
+    abstract static class MightForkCheck implements Check {
 
         @Override
         public boolean check() {
@@ -575,7 +554,7 @@ final class BootstrapCheck {
     /**
      * Bootstrap check for versions of HotSpot that are known to have issues that can lead to index corruption when G1GC is enabled.
      */
-    static class G1GCCheck implements BootstrapCheck.Check {
+    static class G1GCCheck implements Check {
 
         @Override
         public boolean check() {

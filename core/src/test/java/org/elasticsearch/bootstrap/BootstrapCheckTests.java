@@ -63,7 +63,7 @@ public class BootstrapCheckTests extends ESTestCase {
         BoundTransportAddress boundTransportAddress = mock(BoundTransportAddress.class);
         when(boundTransportAddress.boundAddresses()).thenReturn(transportAddresses.toArray(new TransportAddress[0]));
         when(boundTransportAddress.publishAddress()).thenReturn(publishAddress);
-        BootstrapCheck.check(Settings.EMPTY, boundTransportAddress);
+        BootstrapCheck.check(Settings.EMPTY, boundTransportAddress, Collections.emptyList());
     }
 
     public void testNoLogMessageInNonProductionMode() throws NodeValidationException {
@@ -118,8 +118,8 @@ public class BootstrapCheckTests extends ESTestCase {
     }
 
     public void testExceptionAggregation() {
-        final List<BootstrapCheck.Check> checks = Arrays.asList(
-                new BootstrapCheck.Check() {
+        final List<Check> checks = Arrays.asList(
+                new Check() {
                     @Override
                     public boolean check() {
                         return true;
@@ -130,7 +130,7 @@ public class BootstrapCheckTests extends ESTestCase {
                         return "first";
                     }
                 },
-                new BootstrapCheck.Check() {
+                new Check() {
                     @Override
                     public boolean check() {
                         return true;
@@ -368,7 +368,7 @@ public class BootstrapCheckTests extends ESTestCase {
 
     public void testClientJvmCheck() throws NodeValidationException {
         final AtomicReference<String> vmName = new AtomicReference<>("Java HotSpot(TM) 32-Bit Client VM");
-        final BootstrapCheck.Check check = new BootstrapCheck.ClientJvmCheck() {
+        final Check check = new BootstrapCheck.ClientJvmCheck() {
             @Override
             String getVmName() {
                 return vmName.get();
@@ -389,7 +389,7 @@ public class BootstrapCheckTests extends ESTestCase {
 
     public void testUseSerialGCCheck() throws NodeValidationException {
         final AtomicReference<String> useSerialGC = new AtomicReference<>("true");
-        final BootstrapCheck.Check check = new BootstrapCheck.UseSerialGCCheck() {
+        final Check check = new BootstrapCheck.UseSerialGCCheck() {
             @Override
             String getUseSerialGC() {
                 return useSerialGC.get();
@@ -634,7 +634,7 @@ public class BootstrapCheckTests extends ESTestCase {
     }
 
     public void testAlwaysEnforcedChecks() {
-        final BootstrapCheck.Check check = new BootstrapCheck.Check() {
+        final Check check = new Check() {
             @Override
             public boolean check() {
                 return true;

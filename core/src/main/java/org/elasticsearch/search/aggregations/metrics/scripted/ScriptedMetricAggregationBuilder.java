@@ -35,7 +35,8 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
+
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
@@ -185,10 +186,10 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    protected ScriptedMetricAggregatorFactory doBuild(AggregationContext context, AggregatorFactory<?> parent,
+    protected ScriptedMetricAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent,
             Builder subfactoriesBuilder) throws IOException {
 
-        QueryShardContext queryShardContext = context.searchContext().getQueryShardContext();
+        QueryShardContext queryShardContext = context.getQueryShardContext();
         Function<Map<String, Object>, ExecutableScript> executableInitScript;
         if (initScript != null) {
             executableInitScript = queryShardContext.getLazyExecutableScript(initScript, ScriptContext.Standard.AGGS);

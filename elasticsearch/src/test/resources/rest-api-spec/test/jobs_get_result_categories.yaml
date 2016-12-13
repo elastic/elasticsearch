@@ -43,3 +43,54 @@ setup:
 
   - match: { categories.0.job_id: farequote }
   - match: { categories.0.category_id: 1 }
+
+---
+"Test with invalid param combinations":
+  - do:
+      catch: request
+      xpack.prelert.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        from: 0
+
+  - do:
+      catch: request
+      xpack.prelert.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        size: 1
+
+  - do:
+      catch: request
+      xpack.prelert.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        from: 0
+        size: 1
+
+---
+"Test with invalid param combinations (via body)":
+  - do:
+      catch: request
+      xpack.prelert.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        body:
+          from: 0
+
+  - do:
+      catch: request
+      xpack.prelert.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        body:
+          size: 1
+
+  - do:
+      catch: request
+      xpack.prelert.get_categories:
+        job_id: "farequote"
+        category_id: "1"
+        body:
+          from: 0
+          size: 1

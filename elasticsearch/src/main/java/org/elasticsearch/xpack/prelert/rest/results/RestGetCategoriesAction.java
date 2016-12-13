@@ -6,8 +6,12 @@
 package org.elasticsearch.xpack.prelert.rest.results;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -44,17 +48,30 @@ public class RestGetCategoriesAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        Request request = new Request(restRequest.param(Job.ID.getPreferredName()));
-
+        Request request;
+        String jobId = restRequest.param(Job.ID.getPreferredName());
         String categoryId = restRequest.param(Request.CATEGORY_ID.getPreferredName());
-        if (categoryId != null && !categoryId.isEmpty()) {
+        BytesReference bodyBytes = restRequest.content();
+
+        if (bodyBytes != null && bodyBytes.length() > 0) {
+            XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
+            request = GetCategoriesDefinitionAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
             request.setCategoryId(categoryId);
         } else {
-            PageParams pageParams = new PageParams(
-                    restRequest.paramAsInt(Request.FROM.getPreferredName(), 0),
-                    restRequest.paramAsInt(Request.SIZE.getPreferredName(), 100)
-            );
-            request.setPageParams(pageParams);
+
+            request = new Request(jobId);
+            if (!Strings.isNullOrEmpty(categoryId)) {
+                request.setCategoryId(categoryId);
+            }
+            if (restRequest.hasParam(Request.FROM.getPreferredName())
+                    || restRequest.hasParam(Request.SIZE.getPreferredName())
+                    || Strings.isNullOrEmpty(categoryId)){
+
+                request.setPageParams(new PageParams(
+                        restRequest.paramAsInt(Request.FROM.getPreferredName(), 0),
+                        restRequest.paramAsInt(Request.SIZE.getPreferredName(), 100)
+                ));
+            }
         }
 
         return channel -> transportAction.execute(request, new RestToXContentListener<>(channel));

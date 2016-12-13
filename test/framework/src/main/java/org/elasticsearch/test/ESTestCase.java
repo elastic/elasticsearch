@@ -902,6 +902,10 @@ public abstract class ESTestCase extends LuceneTestCase {
         return xContentForParser(data).createParser(data);
     }
 
+    /**
+     * Pick the appropriate {@link XContent} for some data. Usually delegates to {@link XContentFactory#xContent(BytesReference))} but can
+     * be overridden by subclasses to work around detection problems.
+     */
     protected XContent xContentForParser(BytesReference data) {
         return XContentFactory.xContent(data);
     }

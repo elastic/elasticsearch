@@ -354,6 +354,11 @@ setup:
 
 ---
 "Partitioned string test":
+
+  - skip:
+    version: " - 5.1.99"
+    reason:  Partitioning is a 5.2.0 feature
+    
   - do:
       index:
         index: test_1
@@ -408,6 +413,11 @@ setup:
 
 ---
 "Partitioned integer test":
+
+  - skip:
+    version: " - 5.1.99"
+    reason:  Partitioning is a 5.2.0 feature
+
   - do:
       index:
         index: test_1

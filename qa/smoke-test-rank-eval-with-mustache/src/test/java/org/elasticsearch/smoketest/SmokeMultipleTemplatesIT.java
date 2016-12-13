@@ -28,6 +28,7 @@ import org.elasticsearch.index.rankeval.RankEvalResponse;
 import org.elasticsearch.index.rankeval.RankEvalSpec;
 import org.elasticsearch.index.rankeval.RatedDocument;
 import org.elasticsearch.index.rankeval.RatedRequest;
+import org.elasticsearch.index.rankeval.RankEvalSpec.ScriptWithId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -39,8 +40,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 
 public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
@@ -82,7 +85,8 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         List<RatedRequest> specifications = new ArrayList<>();
         Map<String, Object> ams_params = new HashMap<>();
         ams_params.put("querystring", "amsterdam");
-        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", createRelevant("2", "3", "4", "5"), ams_params);
+        RatedRequest amsterdamRequest = new RatedRequest(
+                "amsterdam_query", createRelevant("2", "3", "4", "5"), ams_params, "match_template");
         amsterdamRequest.setIndices(indices);
         amsterdamRequest.setTypes(types);
 
@@ -90,19 +94,24 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
 
         Map<String, Object> berlin_params = new HashMap<>();
         berlin_params.put("querystring", "berlin");
-        RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("1"), berlin_params);
+        RatedRequest berlinRequest = new RatedRequest(
+                "berlin_query", createRelevant("1"), berlin_params, "match_template");
         berlinRequest.setIndices(indices);
         berlinRequest.setTypes(types);
         specifications.add(berlinRequest);
 
         Precision metric = new Precision();
 
-        Script template = 
-                new Script(
-                        ScriptType.INLINE,
-                        "mustache", "{\"query\": {\"match\": {\"text\": \"{{querystring}}\"}}}",
-                        new HashMap<>());
-        RankEvalSpec task = new RankEvalSpec(specifications, metric, template);
+        ScriptWithId template = 
+                new ScriptWithId(
+                        "match_template",
+                        new Script(
+                                ScriptType.INLINE,
+                                "mustache", "{\"query\": {\"match\": {\"text\": \"{{querystring}}\"}}}",
+                                new HashMap<>()));
+        Set<ScriptWithId> templates = new HashSet<>();
+        templates.add(template);
+        RankEvalSpec task = new RankEvalSpec(specifications, metric, templates);
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 

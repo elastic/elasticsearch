@@ -12,6 +12,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -22,6 +25,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,13 +36,18 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
+import org.elasticsearch.xpack.prelert.job.results.PageParams;
 import org.elasticsearch.xpack.prelert.lists.ListDocument;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -66,11 +75,16 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
     public static class Request extends MasterNodeReadRequest<Request> {
 
         private String listId;
+        private PageParams pageParams;
 
-        Request() {
+        public Request() {
         }
 
-        public Request(String listId) {
+        public void setListId(String listId) {
+            if (pageParams != null) {
+                throw new IllegalArgumentException("Param [" + ListDocument.ID.getPreferredName() + "] is incompatible with ["
+                        + PageParams.FROM.getPreferredName()+ ", " + PageParams.SIZE.getPreferredName() + "].");
+            }
             this.listId = listId;
         }
 
@@ -78,11 +92,26 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
             return listId;
         }
 
+        public PageParams getPageParams() {
+            return pageParams;
+        }
+
+        public void setPageParams(PageParams pageParams) {
+            if (listId != null) {
+                throw new IllegalArgumentException("Param [" + PageParams.FROM.getPreferredName()
+                        + ", " + PageParams.SIZE.getPreferredName() + "] is incompatible with ["
+                        + ListDocument.ID.getPreferredName() + "].");
+            }
+            this.pageParams = pageParams;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (listId == null) {
-                validationException = addValidationError("List ID is required for GetList API.", validationException);
+            if (pageParams == null && listId == null) {
+                validationException = addValidationError("Both [" + ListDocument.ID.getPreferredName() + "] and ["
+                        + PageParams.FROM.getPreferredName() + ", " + PageParams.SIZE.getPreferredName() + "] "
+                        + "cannot be null" , validationException);
             }
             return validationException;
         }
@@ -196,6 +225,7 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
     public static class TransportAction extends TransportMasterNodeReadAction<Request, Response> {
 
         private final TransportGetAction transportGetAction;
+        private final TransportSearchAction transportSearchAction;
 
         // TODO these need to be moved to a settings object later
         // See #20
@@ -203,12 +233,13 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                ThreadPool threadPool, ActionFilters actionFilters,
-                IndexNameExpressionResolver indexNameExpressionResolver,
-                TransportGetAction transportGetAction) {
+                               ThreadPool threadPool, ActionFilters actionFilters,
+                               IndexNameExpressionResolver indexNameExpressionResolver,
+                               TransportGetAction transportGetAction, TransportSearchAction transportSearchAction) {
             super(settings, GetListAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.transportGetAction = transportGetAction;
+            this.transportSearchAction = transportSearchAction;
         }
 
         @Override
@@ -224,6 +255,21 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
         @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             final String listId = request.getListId();
+            if (!Strings.isNullOrEmpty(listId)) {
+                getList(listId, listener);
+            } else if (request.getPageParams() != null) {
+                getLists(request.getPageParams(), listener);
+            } else {
+                throw new IllegalStateException("Both listId and pageParams are null");
+            }
+        }
+
+        @Override
+        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
+            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        }
+
+        private void getList(String listId, ActionListener<Response> listener) {
             GetRequest getRequest = new GetRequest(PRELERT_INFO_INDEX, ListDocument.TYPE.getPreferredName(), listId);
             transportGetAction.execute(getRequest, new ActionListener<GetResponse>() {
                 @Override
@@ -255,9 +301,47 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
             });
         }
 
-        @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        private void getLists(PageParams pageParams, ActionListener<Response> listener) {
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+                    .from(pageParams.getFrom())
+                    .size(pageParams.getSize());
+
+            SearchRequest searchRequest = new SearchRequest(new String[]{PRELERT_INFO_INDEX}, sourceBuilder)
+                    .types(ListDocument.TYPE.getPreferredName());
+
+            transportSearchAction.execute(searchRequest, new ActionListener<SearchResponse>() {
+                @Override
+                public void onResponse(SearchResponse response) {
+
+                    try {
+                        QueryPage<ListDocument> responseBody;
+                        if (response.getHits().hits().length > 0) {
+                            List<ListDocument> docs = new ArrayList<>(response.getHits().hits().length);
+                            for (SearchHit hit : response.getHits().getHits()) {
+                                BytesReference docSource = hit.sourceRef();
+                                XContentParser parser = XContentFactory.xContent(docSource).createParser(docSource);
+                                docs.add(ListDocument.PARSER.apply(parser, () -> parseFieldMatcher));
+                            }
+
+                            responseBody = new QueryPage<>(docs, docs.size(), ListDocument.RESULTS_FIELD);
+
+                            Response listResponse = new Response(responseBody);
+                            listener.onResponse(listResponse);
+                        } else {
+                            this.onFailure(QueryPage.emptyQueryPage(ListDocument.RESULTS_FIELD));
+                        }
+
+                    } catch (Exception e) {
+                        this.onFailure(e);
+                    }
+                }
+
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
+            });
         }
     }
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.prelert.action;
 
 import org.elasticsearch.xpack.prelert.action.GetListAction.Request;
+import org.elasticsearch.xpack.prelert.job.results.PageParams;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
 public class GetListActionRequestTests extends AbstractStreamableTestCase<GetListAction.Request> {
@@ -13,7 +14,18 @@ public class GetListActionRequestTests extends AbstractStreamableTestCase<GetLis
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAsciiOfLengthBetween(1, 20));
+        Request request = new Request();
+        if (randomBoolean()) {
+            request.setListId(randomAsciiOfLengthBetween(1, 20));
+        } else {
+            if (randomBoolean()) {
+                int from = randomInt(PageParams.MAX_FROM_SIZE_SUM);
+                int maxSize = PageParams.MAX_FROM_SIZE_SUM - from;
+                int size = randomInt(maxSize);
+                request.setPageParams(new PageParams(from, size));
+            }
+        }
+        return request;
     }
 
     @Override

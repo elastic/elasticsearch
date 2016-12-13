@@ -3,12 +3,21 @@
     "methods": [ "GET" ],
     "url": {
       "path": "/_xpack/prelert/lists/{list_id}",
-      "paths": [ "/_xpack/prelert/lists/{list_id}" ],
+      "paths": [ "/_xpack/prelert/lists/", "/_xpack/prelert/lists/{list_id}" ],
       "parts": {
         "list_id": {
           "type" : "string",
-          "required" : true,
           "description" : "The ID of the list to fetch"
+        }
+      },
+      "params": {
+        "from": {
+          "type": "int",
+          "description": "skips a number of lists"
+        },
+        "size": {
+          "type": "int",
+          "description": "specifies a max number of lists to get"
         }
       }
     },

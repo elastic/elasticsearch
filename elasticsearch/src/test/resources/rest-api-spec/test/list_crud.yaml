@@ -9,6 +9,14 @@ setup:
           }
 
   - do:
+      xpack.prelert.put_list:
+        body:  >
+          {
+            "id": "foo2",
+            "items": ["123", "lmnop"]
+          }
+
+  - do:
       indices.refresh: {}
 
 ---
@@ -33,6 +41,51 @@ setup:
         items: ["abc", "xyz"]
 
 ---
+"Test get lists API":
+
+  - do:
+      xpack.prelert.get_lists: {}
+
+  - match: { count:   2 }
+  - match:
+      lists.0:
+        id: "foo"
+        items: ["abc", "xyz"]
+
+  - match:
+      lists.1:
+        id: "foo2"
+        items: ["123", "lmnop"]
+
+  - do:
+      xpack.prelert.get_lists:
+        from: 1
+        size: 1
+
+  - match: { count:   1 }
+
+---
+"Test invalid param combinations":
+
+  - do:
+      catch: request
+      xpack.prelert.get_lists:
+        list_id: "foo"
+        from: 0
+
+  - do:
+        catch: request
+        xpack.prelert.get_lists:
+          list_id: "foo"
+          size: 1
+
+  - do:
+        catch: request
+        xpack.prelert.get_lists:
+          list_id: "foo"
+          from: 0
+          size: 1
+---
 "Test create list api":
   - do:
       xpack.prelert.put_list:
@@ -41,6 +94,7 @@ setup:
             "id": "foo2",
             "items": ["abc", "xyz"]
           }
+
   - match: { acknowledged: true }
 
   - do:

@@ -42,10 +42,8 @@ public class JsonXContentTests extends BaseXContentTestCase {
     }
 
     public void testChecksForDuplicates() throws Exception {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled() == false) {
-            logger.info("Skipping test as it is only effective is strict duplicate detection is enabled");
-            return;
-        }
+        assumeTrue("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
 
         JsonParseException pex = expectThrows(JsonParseException.class,
             () -> XContentType.JSON.xContent().createParser("{ \"key\": 1, \"key\": 2 }").map());

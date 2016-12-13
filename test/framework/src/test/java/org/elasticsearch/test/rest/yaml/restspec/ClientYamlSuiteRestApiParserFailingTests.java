@@ -71,10 +71,8 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     }
 
     public void testDuplicateParts() throws Exception {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         parseAndExpectFailure("{\n" +
                 "  \"ping\": {" +
                 "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
@@ -107,10 +105,8 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     }
 
     public void testDuplicateParams() throws Exception {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         parseAndExpectFailure("{\n" +
                 "  \"ping\": {" +
                 "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +

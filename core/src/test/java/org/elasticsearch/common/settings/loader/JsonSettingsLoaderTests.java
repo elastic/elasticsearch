@@ -49,10 +49,8 @@ public class JsonSettingsLoaderTests extends ESTestCase {
     }
 
     public void testDuplicateKeysThrowsException() {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         final String json = "{\"foo\":\"bar\",\"foo\":\"baz\"}";
         final SettingsException e = expectThrows(SettingsException.class, () -> Settings.builder().loadFromSource(json).build());
         assertEquals(e.getCause().getClass(), ElasticsearchParseException.class);

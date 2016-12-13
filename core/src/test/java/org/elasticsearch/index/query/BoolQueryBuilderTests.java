@@ -344,10 +344,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
      * test that two queries in object throws error
      */
     public void testTooManyQueriesInObject() throws IOException {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         String clauseType = randomFrom("must", "should", "must_not", "filter");
         // should also throw error if invalid query is preceded by a valid one
         String query = "{\n" +

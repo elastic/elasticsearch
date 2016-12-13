@@ -104,10 +104,8 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     public void testTwoAggs() throws Exception {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         String source = JsonXContent.contentBuilder()
                 .startObject()
                     .startObject("by_date")
@@ -182,10 +180,8 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     public void testSameAggregationName() throws Exception {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         final String name = randomAsciiOfLengthBetween(1, 10);
         String source = JsonXContent.contentBuilder()
                 .startObject()

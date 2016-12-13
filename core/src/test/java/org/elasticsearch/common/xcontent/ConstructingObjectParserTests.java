@@ -169,10 +169,8 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testRepeatedConstructorParam() throws IOException {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         XContentParser parser = XContentType.JSON.xContent().createParser(
                   "{\n"
                 + "  \"vegetable\": 1,\n"

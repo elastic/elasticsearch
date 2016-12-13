@@ -66,10 +66,8 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
      * test that multiple "filter" elements causes {@link ParsingException}
      */
     public void testMultipleFilterElements() throws IOException {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {\n" +
                                     "\"filter\" : { \"term\": { \"foo\": \"a\" } },\n" +
                                     "\"filter\" : { \"term\": { \"foo\": \"x\" } },\n" +

@@ -23,6 +23,7 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.xcontent.XContent;
@@ -67,7 +68,7 @@ public class JsonXContent implements XContent {
      */
     public static boolean isStrictDuplicateDetectionEnabled() {
         // Don't allow duplicate keys in JSON content by default but let the user opt out
-        return Boolean.valueOf(System.getProperty("es.json.strict_duplicate_detection", "true"));
+        return Booleans.parseBooleanExact(System.getProperty("es.json.strict_duplicate_detection", "true"));
     }
 
     static {
@@ -77,12 +78,7 @@ public class JsonXContent implements XContent {
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
-        try {
-            jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, isStrictDuplicateDetectionEnabled());
-        } catch (Exception ex) {
-            // don't be lenient if the user specified an invalid value
-            throw new ExceptionInInitializerError(ex);
-        }
+        jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, isStrictDuplicateDetectionEnabled());
         jsonXContent = new JsonXContent();
     }
 

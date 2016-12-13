@@ -18,13 +18,22 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.DocValueFormat;
 
 public class BinaryFieldTypeTests extends FieldTypeTestCase {
 
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new BinaryFieldMapper.BinaryFieldType();
+    }
+
+    public void testValueFormat() {
+        MappedFieldType ft = createDefaultFieldType();
+        DocValueFormat format = ft.docValueFormat(null, null);
+        assertEquals("ACoB", format.format(new BytesRef(new byte[] {0, 42, 1})));
+        assertEquals(new BytesRef(new byte[] {0, 42, 1}), format.parseBytesRef("ACoB"));
     }
 }

@@ -119,7 +119,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
                 double value = value(keys[i]);
                 builder.field(key, value);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(key + "_as_string", format.format(value));
+                    builder.field(key + "_as_string", format.format(value).toString());
                 }
             }
             builder.endObject();
@@ -131,7 +131,7 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
                 builder.field(CommonFields.KEY.getPreferredName(), keys[i]);
                 builder.field(CommonFields.VALUE.getPreferredName(), value);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value));
+                    builder.field(CommonFields.VALUE_AS_STRING.getPreferredName(), format.format(value).toString());
                 }
                 builder.endObject();
             }

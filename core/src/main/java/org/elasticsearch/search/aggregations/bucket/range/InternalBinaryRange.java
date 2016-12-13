@@ -122,9 +122,9 @@ public final class InternalBinaryRange
             if (keyed) {
                 if (key == null) {
                     StringBuilder keyBuilder = new StringBuilder();
-                    keyBuilder.append(from == null ? "*" : format.format(from));
+                    keyBuilder.append(from == null ? "*" : format.format(from).toString());
                     keyBuilder.append("-");
-                    keyBuilder.append(to == null ? "*" : format.format(to));
+                    keyBuilder.append(to == null ? "*" : format.format(to).toString());
                     key = keyBuilder.toString();
                 }
                 builder.startObject(key);
@@ -153,7 +153,7 @@ public final class InternalBinaryRange
 
         @Override
         public String getFromAsString() {
-            return from == null ? null : format.format(from);
+            return from == null ? null : format.format(from).toString();
         }
 
         @Override
@@ -163,7 +163,7 @@ public final class InternalBinaryRange
 
         @Override
         public String getToAsString() {
-            return to == null ? null : format.format(to);
+            return to == null ? null : format.format(to).toString();
         }
 
     }

@@ -44,6 +44,7 @@ public class DocValueFormatTests extends ESTestCase {
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP));
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW));
+        entries.add(new Entry(DocValueFormat.class, DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY));
         NamedWriteableRegistry registry = new NamedWriteableRegistry(entries);
 
         BytesStreamOutput out = new BytesStreamOutput();
@@ -85,20 +86,28 @@ public class DocValueFormatTests extends ESTestCase {
     }
 
     public void testRawFormat() {
-        assertEquals("0", DocValueFormat.RAW.format(0));
-        assertEquals("-1", DocValueFormat.RAW.format(-1));
-        assertEquals("1", DocValueFormat.RAW.format(1));
+        assertEquals(0L, DocValueFormat.RAW.format(0));
+        assertEquals(-1L, DocValueFormat.RAW.format(-1));
+        assertEquals(1L, DocValueFormat.RAW.format(1));
 
-        assertEquals("0.0", DocValueFormat.RAW.format(0d));
-        assertEquals("0.5", DocValueFormat.RAW.format(.5d));
-        assertEquals("-1.0", DocValueFormat.RAW.format(-1d));
+        assertEquals(0d, DocValueFormat.RAW.format(0d));
+        assertEquals(0.5, DocValueFormat.RAW.format(.5d));
+        assertEquals(-1d, DocValueFormat.RAW.format(-1d));
 
         assertEquals("abc", DocValueFormat.RAW.format(new BytesRef("abc")));
     }
 
+    public void testDecimalFormat() {
+        DocValueFormat format = new DocValueFormat.Decimal("00.0");
+        assertEquals("01.0", format.format(1L));
+        assertEquals(1, format.parseLong("01.0", randomBoolean(), () -> 42L));
+        assertEquals("01.4", format.format(1.43));
+        assertEquals(1.4, format.parseDouble("01.4", randomBoolean(), () -> 42L), 0d);
+    }
+
     public void testBooleanFormat() {
-        assertEquals("false", DocValueFormat.BOOLEAN.format(0));
-        assertEquals("true", DocValueFormat.BOOLEAN.format(1));
+        assertEquals(false, DocValueFormat.BOOLEAN.format(0));
+        assertEquals(true, DocValueFormat.BOOLEAN.format(1));
     }
 
     public void testIpFormat() {
@@ -144,5 +153,10 @@ public class DocValueFormatTests extends ESTestCase {
                 DocValueFormat.IP.parseBytesRef("192.168.1.7"));
         assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("::1"))),
                 DocValueFormat.IP.parseBytesRef("::1"));
+    }
+
+    public void testBinaryFormat() {
+        assertEquals("ACoB", DocValueFormat.BINARY.format(new BytesRef(new byte[] {0, 42, 1})));
+        assertEquals(new BytesRef(new byte[] {0, 42, 1}), DocValueFormat.BINARY.parseBytesRef("ACoB"));
     }
 }

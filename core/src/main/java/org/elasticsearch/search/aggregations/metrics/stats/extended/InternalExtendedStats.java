@@ -174,8 +174,8 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
                 .endObject();
 
         if (count != 0 && format != DocValueFormat.RAW) {
-            builder.field(Fields.SUM_OF_SQRS_AS_STRING, format.format(sumOfSqrs));
-            builder.field(Fields.VARIANCE_AS_STRING, format.format(getVariance()));
+            builder.field(Fields.SUM_OF_SQRS_AS_STRING, format.format(sumOfSqrs).toString());
+            builder.field(Fields.VARIANCE_AS_STRING, format.format(getVariance()).toString());
             builder.field(Fields.STD_DEVIATION_AS_STRING, getStdDeviationAsString());
 
             builder.startObject(Fields.STD_DEVIATION_BOUNDS_AS_STRING)

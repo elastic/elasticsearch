@@ -20,6 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -54,6 +55,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentParser.Token.END_OBJECT;
 
@@ -81,7 +83,9 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
                 SearchSourceBuilder.STORED_FIELDS_FIELD + "] to retrieve stored fields or _source filtering " +
                 "if the field is not stored");
         }, SearchSourceBuilder.FIELDS_FIELD, ObjectParser.ValueType.STRING_ARRAY);
-        PARSER.declareStringArray(InnerHitBuilder::setDocValueFields, SearchSourceBuilder.DOCVALUE_FIELDS_FIELD);
+        PARSER.declareObjectArray(InnerHitBuilder::setDocValueFields,
+                DocValueFieldsContext.Field::fromXContent,
+                DocValueFieldsContext.DOCVALUE_FIELDS_FIELD);
         PARSER.declareField((p, i, c) -> {
             try {
                 Set<ScriptField> scriptFields = new HashSet<>();
@@ -144,7 +148,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
     private StoredFieldsContext storedFieldsContext;
     private QueryBuilder query = DEFAULT_INNER_HIT_QUERY;
     private List<SortBuilder<?>> sorts;
-    private List<String> docValueFields;
+    private List<DocValueFieldsContext.Field> docValueFields;
     private Set<ScriptField> scriptFields;
     private HighlightBuilder highlightBuilder;
     private FetchSourceContext fetchSourceContext;
@@ -221,7 +225,21 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         version = in.readBoolean();
         trackScores = in.readBoolean();
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
-        docValueFields = (List<String>) in.readGenericValue();
+        if (in.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
+            List<String> fieldNameList = (List<String>) in.readGenericValue();
+            if (fieldNameList == null) {
+                docValueFields = null;
+            } else {
+                docValueFields = new ArrayList<>();
+                for (String name : fieldNameList) {
+                    docValueFields.add(new DocValueFieldsContext.Field(name, null));
+                }
+            }
+        } else if (in.readBoolean()) {
+            docValueFields = in.readList(DocValueFieldsContext.Field::new);
+        } else {
+            docValueFields = null;
+        }
         if (in.readBoolean()) {
             int size = in.readVInt();
             scriptFields = new HashSet<>(size);
@@ -262,7 +280,15 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
         out.writeBoolean(version);
         out.writeBoolean(trackScores);
         out.writeOptionalWriteable(storedFieldsContext);
-        out.writeGenericValue(docValueFields);
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            out.writeBoolean(docValueFields != null);
+            if (docValueFields != null) {
+                out.writeList(docValueFields);
+            }
+        } else {
+            out.writeGenericValue(docValueFields == null ? null : docValueFields.stream().map(
+                    DocValueFieldsContext.Field::getName).collect(Collectors.toList()));
+        }
         boolean hasScriptFields = scriptFields != null;
         out.writeBoolean(hasScriptFields);
         if (hasScriptFields) {
@@ -413,7 +439,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      * @deprecated Use {@link InnerHitBuilder#getDocValueFields()} instead.
      */
     @Deprecated
-    public List<String> getFieldDataFields() {
+    public List<DocValueFieldsContext.Field> getFieldDataFields() {
         return docValueFields;
     }
 
@@ -423,7 +449,7 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      * @deprecated Use {@link InnerHitBuilder#setDocValueFields(List)} instead.
      */
     @Deprecated
-    public InnerHitBuilder setFieldDataFields(List<String> fieldDataFields) {
+    public InnerHitBuilder setFieldDataFields(List<DocValueFieldsContext.Field> fieldDataFields) {
         this.docValueFields = fieldDataFields;
         return this;
     }
@@ -435,24 +461,20 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      */
     @Deprecated
     public InnerHitBuilder addFieldDataField(String field) {
-        if (docValueFields == null) {
-            docValueFields = new ArrayList<>();
-        }
-        docValueFields.add(field);
-        return this;
+        return addDocValueField(field);
     }
 
     /**
      * Gets the docvalue fields.
      */
-    public List<String> getDocValueFields() {
+    public List<DocValueFieldsContext.Field> getDocValueFields() {
         return docValueFields;
     }
 
     /**
      * Sets the stored fields to load from the docvalue and return.
      */
-    public InnerHitBuilder setDocValueFields(List<String> docValueFields) {
+    public InnerHitBuilder setDocValueFields(List<DocValueFieldsContext.Field> docValueFields) {
         this.docValueFields = docValueFields;
         return this;
     }
@@ -461,10 +483,19 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
      * Adds a field to load from the docvalue and return.
      */
     public InnerHitBuilder addDocValueField(String field) {
+        return addDocValueField(field, null);
+    }
+
+    /**
+     * Adds a field to load from the docvalue and return.
+     * @param name name of the field
+     * @param format how to format the field, or {@code null} to use the defaults
+     */
+    public InnerHitBuilder addDocValueField(String name, @Nullable String format) {
         if (docValueFields == null) {
             docValueFields = new ArrayList<>();
         }
-        docValueFields.add(field);
+        docValueFields.add(new DocValueFieldsContext.Field(name, format));
         return this;
     }
 
@@ -673,9 +704,9 @@ public final class InnerHitBuilder extends ToXContentToBytes implements Writeabl
             storedFieldsContext.toXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), builder);
         }
         if (docValueFields != null) {
-            builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
-            for (String fieldDataField : docValueFields) {
-                builder.value(fieldDataField);
+            builder.startArray(DocValueFieldsContext.DOCVALUE_FIELDS_FIELD.getPreferredName());
+            for (DocValueFieldsContext.Field fieldDataField : docValueFields) {
+                fieldDataField.toXContent(builder);
             }
             builder.endArray();
         }

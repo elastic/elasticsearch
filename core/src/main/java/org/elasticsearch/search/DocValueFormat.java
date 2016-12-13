@@ -30,6 +30,8 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -39,6 +41,7 @@ import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.LongSupplier;
@@ -46,32 +49,32 @@ import java.util.function.LongSupplier;
 /** A formatter for values as returned by the fielddata/doc-values APIs. */
 public interface DocValueFormat extends NamedWriteable {
 
-    /** Format a long value. This is used by terms and histogram aggregations
-     *  to format keys for fields that use longs as a doc value representation
-     *  such as the {@code long} and {@code date} fields. */
-    String format(long value);
+    /** Format a long value. This is used to convert the internal representation
+     *  that is used by doc values back to the original type of the object.
+     *  The return value must be supported by {@link XContentBuilder#value(Object)}. */
+    Object format(long value);
 
-    /** Format a double value. This is used by terms and stats aggregations
-     *  to format keys for fields that use numbers as a doc value representation
-     *  such as the {@code long}, {@code double} or {@code date} fields. */
-    String format(double value);
+    /** Format a double value. This is used to convert the internal representation
+     *  that is used by doc values back to the original type of the object.
+     *  The return value must be supported by {@link XContentBuilder#value(Object)}. */
+    Object format(double value);
 
-    /** Format a double value. This is used by terms aggregations to format
-     *  keys for fields that use binary doc value representations such as the
-     *  {@code keyword} and {@code ip} fields. */
-    String format(BytesRef value);
+    /** Format a binary value. This is used to convert the internal representation
+     *  that is used by doc values back to the original type of the object.
+     *  The return value must be supported by {@link XContentBuilder#value(Object)}. */
+    Object format(BytesRef value);
 
-    /** Parse a value that was formatted with {@link #format(long)} back to the
-     *  original long value. */
-    long parseLong(String value, boolean roundUp, LongSupplier now);
+    /** Parse a value that comes from {@link XContentParser#objectBytes()} to the
+     *  internal representation that is used by doc values. */
+    long parseLong(Object value, boolean roundUp, LongSupplier now);
 
-    /** Parse a value that was formatted with {@link #format(double)} back to
-     *  the original double value. */
-    double parseDouble(String value, boolean roundUp, LongSupplier now);
+    /** Parse a value that comes from {@link XContentParser#objectBytes()} to the
+     *  internal representation that is used by doc values. */
+    double parseDouble(Object value, boolean roundUp, LongSupplier now);
 
-    /** Parse a value that was formatted with {@link #format(BytesRef)} back
-     *  to the original BytesRef. */
-    BytesRef parseBytesRef(String value);
+    /** Parse a value that comes from {@link XContentParser#objectBytes()} to the
+     *  internal representation that is used by doc values. */
+    BytesRef parseBytesRef(Object value);
 
     DocValueFormat RAW = new DocValueFormat() {
 
@@ -85,13 +88,13 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public String format(long value) {
-            return Long.toString(value);
+        public Long format(long value) {
+            return value;
         }
 
         @Override
-        public String format(double value) {
-            return Double.toString(value);
+        public Double format(double value) {
+            return value;
         }
 
         @Override
@@ -100,8 +103,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            double d = Double.parseDouble(value);
+        public long parseLong(Object value, boolean roundUp, LongSupplier now) {
+            double d = parseDouble(value, roundUp, now);
             if (roundUp) {
                 d = Math.ceil(d);
             } else {
@@ -111,13 +114,17 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
-            return Double.parseDouble(value);
+        public double parseDouble(Object value, boolean roundUp, LongSupplier now) {
+            if (value instanceof Number) {
+                return ((Number) value).doubleValue();
+            } else {
+                return Double.parseDouble(value.toString());
+            }
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(value);
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(value.toString());
         }
     };
 
@@ -166,17 +173,17 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            return parser.parse(value, now, roundUp, timeZone);
+        public long parseLong(Object value, boolean roundUp, LongSupplier now) {
+            return parser.parse(value.toString(), now, roundUp, timeZone);
         }
 
         @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
+        public double parseDouble(Object value, boolean roundUp, LongSupplier now) {
             return parseLong(value, roundUp, now);
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
+        public BytesRef parseBytesRef(Object value) {
             throw new UnsupportedOperationException();
         }
     }
@@ -193,12 +200,12 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public String format(long value) {
+        public Object format(long value) {
             return GeoHashUtils.stringEncode(value);
         }
 
         @Override
-        public String format(double value) {
+        public Object format(double value) {
             return format((long) value);
         }
 
@@ -208,17 +215,17 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
+        public long parseLong(Object value, boolean roundUp, LongSupplier now) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
+        public double parseDouble(Object value, boolean roundUp, LongSupplier now) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
+        public BytesRef parseBytesRef(Object value) {
             throw new UnsupportedOperationException();
         }
     };
@@ -235,13 +242,13 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public String format(long value) {
-            return java.lang.Boolean.valueOf(value != 0).toString();
+        public Boolean format(long value) {
+            return java.lang.Boolean.valueOf(value != 0);
         }
 
         @Override
-        public String format(double value) {
-            return java.lang.Boolean.valueOf(value != 0).toString();
+        public Boolean format(double value) {
+            return java.lang.Boolean.valueOf(value != 0);
         }
 
         @Override
@@ -250,8 +257,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
-            switch (value) {
+        public long parseLong(Object value, boolean roundUp, LongSupplier now) {
+            switch (value.toString()) {
             case "false":
                 return 0;
             case "true":
@@ -261,12 +268,12 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
+        public double parseDouble(Object value, boolean roundUp, LongSupplier now) {
             return parseLong(value, roundUp, now);
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
+        public BytesRef parseBytesRef(Object value) {
             throw new UnsupportedOperationException();
         }
     };
@@ -296,22 +303,24 @@ public interface DocValueFormat extends NamedWriteable {
         public String format(BytesRef value) {
             byte[] bytes = Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length);
             InetAddress inet = InetAddressPoint.decode(bytes);
+            // We do not return the inet address directly since XContentBuilder does not know
+            // how to deal with it
             return NetworkAddress.format(inet);
         }
 
         @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
+        public long parseLong(Object value, boolean roundUp, LongSupplier now) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
+        public double parseDouble(Object value, boolean roundUp, LongSupplier now) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value.toString())));
         }
     };
 
@@ -358,10 +367,10 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public long parseLong(String value, boolean roundUp, LongSupplier now) {
+        public long parseLong(Object value, boolean roundUp, LongSupplier now) {
             Number n;
             try {
-                n = format.parse(value);
+                n = format.parse(value.toString());
             } catch (ParseException e) {
                 throw new RuntimeException(e);
             }
@@ -379,10 +388,10 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
+        public double parseDouble(Object value, boolean roundUp, LongSupplier now) {
             Number n;
             try {
-                n = format.parse(value);
+                n = format.parse(value.toString());
             } catch (ParseException e) {
                 throw new RuntimeException(e);
             }
@@ -390,8 +399,51 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
+        public BytesRef parseBytesRef(Object value) {
             throw new UnsupportedOperationException();
         }
     }
+
+    DocValueFormat BINARY = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "binary";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+        }
+
+        @Override
+        public Long format(long value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Double format(double value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String format(BytesRef value) {
+            return Base64.getEncoder().encodeToString(
+                    Arrays.copyOfRange(value.bytes, value.offset, value.offset + value.length));
+        }
+
+        @Override
+        public long parseLong(Object value, boolean roundUp, LongSupplier now) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public double parseDouble(Object value, boolean roundUp, LongSupplier now) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(Base64.getDecoder().decode(value.toString()));
+        }
+    };
 }

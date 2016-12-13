@@ -36,6 +36,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.search.DocValueFormat;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -121,6 +123,11 @@ public class BinaryFieldMapper extends FieldMapper {
                 bytes = new BytesArray(Base64.getDecoder().decode(value.toString()));
             }
             return bytes;
+        }
+
+        @Override
+        public DocValueFormat docValueFormat(String format, DateTimeZone timeZone) {
+            return DocValueFormat.BINARY;
         }
 
         @Override

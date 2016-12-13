@@ -735,7 +735,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(fields.get("test_field").value(), equalTo("foobar"));
     }
 
-    public void testFieldsPulledFromFieldData() throws Exception {
+    public void testFieldsPulledFromDocValues() throws Exception {
         createIndex("test");
 
         String mapping = XContentFactory.jsonBuilder()
@@ -778,6 +778,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                             .endObject()
                             .startObject("binary_field")
                                 .field("type", "binary")
+                                .field("doc_values", true)
                             .endObject()
                             .startObject("ip_field")
                                 .field("type", "ip")
@@ -800,6 +801,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .field("double_field", 6.0d)
                 .field("date_field", Joda.forPattern("dateOptionalTime").printer().print(new DateTime(2012, 3, 22, 0, 0, DateTimeZone.UTC)))
                 .field("boolean_field", true)
+                .field("binary_field", "ACoB") // this is base 64
                 .field("ip_field", "::1")
                 .endObject()).execute().actionGet();
 
@@ -816,6 +818,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
                 .addDocValueField("double_field")
                 .addDocValueField("date_field")
                 .addDocValueField("boolean_field")
+                .addDocValueField("binary_field")
                 .addDocValueField("ip_field");
         SearchResponse searchResponse = builder.execute().actionGet();
 
@@ -825,7 +828,7 @@ public class SearchFieldsIT extends ESIntegTestCase {
         fields.remove(TimestampFieldMapper.NAME); // randomly enabled via templates
         assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
                 "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field",
-                "ip_field")));
+                "binary_field", "ip_field")));
 
         assertThat(searchResponse.getHits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("short_field").value().toString(), equalTo("2"));
@@ -833,10 +836,81 @@ public class SearchFieldsIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).fields().get("long_field").value(), equalTo((Object) 4L));
         assertThat(searchResponse.getHits().getAt(0).fields().get("float_field").value(), equalTo((Object) 5.0));
         assertThat(searchResponse.getHits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
-        assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo((Object) 1332374400000L));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo("2012-03-22T00:00:00.000Z"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) true));
         assertThat(searchResponse.getHits().getAt(0).fields().get("text_field").value(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("keyword_field").value(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("binary_field").value(), equalTo("ACoB"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("ip_field").value(), equalTo("::1"));
+
+        builder = client().prepareSearch().setQuery(matchAllQuery())
+                .addDocValueField("text_field", null)
+                .addDocValueField("keyword_field", null)
+                .addDocValueField("byte_field", "#.0")
+                .addDocValueField("short_field", "#.0")
+                .addDocValueField("integer_field", "#.0")
+                .addDocValueField("long_field", "#.0")
+                .addDocValueField("float_field", "#.0")
+                .addDocValueField("double_field", "#.0")
+                .addDocValueField("date_field", "epoch_millis")
+                .addDocValueField("boolean_field", null)
+                .addDocValueField("binary_field", null)
+                .addDocValueField("ip_field", null);
+        searchResponse = builder.execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        fields = new HashSet<>(searchResponse.getHits().getAt(0).fields().keySet());
+        assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
+                "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field",
+                "binary_field", "ip_field")));
+
+        assertThat(searchResponse.getHits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1.0"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("short_field").value().toString(), equalTo("2.0"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("integer_field").value(), equalTo("3.0"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("long_field").value(), equalTo("4.0"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("float_field").value(), equalTo("5.0"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("double_field").value(), equalTo("6.0"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo("1332374400000"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) true));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("text_field").value(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("keyword_field").value(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("binary_field").value(), equalTo("ACoB"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("ip_field").value(), equalTo("::1"));
+
+        builder = client().prepareSearch().setQuery(matchAllQuery())
+                .addDocValueField("text_field", "use_field_mapping")
+                .addDocValueField("keyword_field", "use_field_mapping")
+                .addDocValueField("byte_field", "use_field_mapping")
+                .addDocValueField("short_field", "use_field_mapping")
+                .addDocValueField("integer_field", "use_field_mapping")
+                .addDocValueField("long_field", "use_field_mapping")
+                .addDocValueField("float_field", "use_field_mapping")
+                .addDocValueField("double_field", "use_field_mapping")
+                .addDocValueField("date_field", "use_field_mapping")
+                .addDocValueField("boolean_field", "use_field_mapping")
+                .addDocValueField("binary_field", "use_field_mapping")
+                .addDocValueField("ip_field", "use_field_mapping");
+        searchResponse = builder.execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1L));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        fields = new HashSet<>(searchResponse.getHits().getAt(0).fields().keySet());
+        assertThat(fields, equalTo(newHashSet("byte_field", "short_field", "integer_field", "long_field",
+                "float_field", "double_field", "date_field", "boolean_field", "text_field", "keyword_field",
+                "binary_field", "ip_field")));
+
+        assertThat(searchResponse.getHits().getAt(0).fields().get("byte_field").value().toString(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("short_field").value().toString(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("integer_field").value(), equalTo((Object) 3L));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("long_field").value(), equalTo((Object) 4L));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("float_field").value(), equalTo((Object) 5.0));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("double_field").value(), equalTo((Object) 6.0d));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("date_field").value(), equalTo("2012-03-22T00:00:00.000Z"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("boolean_field").value(), equalTo((Object) true));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("text_field").value(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("keyword_field").value(), equalTo("foo"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("binary_field").value(), equalTo("ACoB"));
         assertThat(searchResponse.getHits().getAt(0).fields().get("ip_field").value(), equalTo("::1"));
     }
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -37,6 +38,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
+import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -67,7 +69,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     private List<SortBuilder<?>> sorts = null;
     private HighlightBuilder highlightBuilder;
     private StoredFieldsContext storedFieldsContext;
-    private List<String> fieldDataFields;
+    private List<DocValueFieldsContext.Field> fieldDataFields;
     private Set<ScriptField> scriptFields;
     private FetchSourceContext fetchSourceContext;
 
@@ -82,12 +84,16 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         super(in);
         explain = in.readBoolean();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
-        if (in.readBoolean()) {
-            int size = in.readVInt();
-            fieldDataFields = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                fieldDataFields.add(in.readString());
+        if (in.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
+            if (in.readBoolean()) {
+                int size = in.readVInt();
+                fieldDataFields = new ArrayList<>(size);
+                for (int i = 0; i < size; i++) {
+                    fieldDataFields.add(new DocValueFieldsContext.Field(in.readString(), null));
+                }
             }
+        } else if (in.readBoolean()) {
+            fieldDataFields = in.readList(DocValueFieldsContext.Field::new);
         }
         storedFieldsContext = in.readOptionalWriteable(StoredFieldsContext::new);
         from = in.readVInt();
@@ -118,9 +124,13 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasFieldDataFields = fieldDataFields != null;
         out.writeBoolean(hasFieldDataFields);
         if (hasFieldDataFields) {
-            out.writeVInt(fieldDataFields.size());
-            for (String fieldName : fieldDataFields) {
-                out.writeString(fieldName);
+            if (out.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
+                out.writeVInt(fieldDataFields.size());
+                for (DocValueFieldsContext.Field field : fieldDataFields) {
+                    out.writeString(field.getName());
+                }
+            } else {
+                out.writeList(fieldDataFields);
             }
         }
         out.writeOptionalWriteable(storedFieldsContext);
@@ -380,13 +390,21 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      * the search request.
      */
     public TopHitsAggregationBuilder fieldDataField(String fieldDataField) {
+        return fieldDataField(fieldDataField, null);
+    }
+
+    /**
+     * Adds a field to load from the field data cache and return as part of
+     * the search request.
+     */
+    public TopHitsAggregationBuilder fieldDataField(String fieldDataField, String format) {
         if (fieldDataField == null) {
             throw new IllegalArgumentException("[fieldDataField] must not be null: [" + name + "]");
         }
         if (fieldDataFields == null) {
             fieldDataFields = new ArrayList<>();
         }
-        fieldDataFields.add(fieldDataField);
+        fieldDataFields.add(new DocValueFieldsContext.Field(fieldDataField, format));
         return this;
     }
 
@@ -394,7 +412,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      * Adds fields to load from the field data cache and return as part of
      * the search request.
      */
-    public TopHitsAggregationBuilder fieldDataFields(List<String> fieldDataFields) {
+    public TopHitsAggregationBuilder fieldDataFields(List<DocValueFieldsContext.Field> fieldDataFields) {
         if (fieldDataFields == null) {
             throw new IllegalArgumentException("[fieldDataFields] must not be null: [" + name + "]");
         }
@@ -408,7 +426,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     /**
      * Gets the field-data fields.
      */
-    public List<String> fieldDataFields() {
+    public List<DocValueFieldsContext.Field> fieldDataFields() {
         return fieldDataFields;
     }
 
@@ -564,9 +582,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             storedFieldsContext.toXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), builder);
         }
         if (fieldDataFields != null) {
-            builder.startArray(SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.getPreferredName());
-            for (String fieldDataField : fieldDataFields) {
-                builder.value(fieldDataField);
+            builder.startArray(DocValueFieldsContext.DOCVALUE_FIELDS_FIELD.getPreferredName());
+            for (DocValueFieldsContext.Field fieldDataField : fieldDataFields) {
+                fieldDataField.toXContent(builder);
             }
             builder.endArray();
         }
@@ -682,15 +700,10 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                 if (SearchSourceBuilder.STORED_FIELDS_FIELD.match(currentFieldName)) {
                     factory.storedFieldsContext =
                         StoredFieldsContext.fromXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), context);
-                } else if (SearchSourceBuilder.DOCVALUE_FIELDS_FIELD.match(currentFieldName)) {
-                    List<String> fieldDataFields = new ArrayList<>();
+                } else if (DocValueFieldsContext.DOCVALUE_FIELDS_FIELD.match(currentFieldName)) {
+                    List<DocValueFieldsContext.Field> fieldDataFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        if (token == XContentParser.Token.VALUE_STRING) {
-                            fieldDataFields.add(parser.text());
-                        } else {
-                            throw new ParsingException(parser.getTokenLocation(), "Expected [" + XContentParser.Token.VALUE_STRING
-                                    + "] in [" + currentFieldName + "] but found [" + token + "]", parser.getTokenLocation());
-                        }
+                        fieldDataFields.add(DocValueFieldsContext.Field.fromXContent(parser, context));
                     }
                     factory.fieldDataFields(fieldDataFields);
                 } else if (SearchSourceBuilder.SORT_FIELD.match(currentFieldName)) {

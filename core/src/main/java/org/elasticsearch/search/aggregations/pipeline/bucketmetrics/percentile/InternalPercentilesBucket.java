@@ -82,7 +82,7 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
 
     @Override
     public String percentileAsString(double percent) {
-        return format.format(percentile(percent));
+        return format.format(percentile(percent)).toString();
     }
 
     @Override

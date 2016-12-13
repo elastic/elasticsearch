@@ -93,8 +93,6 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         this.aliasFilter = aliasFilter;
     }
 
-
-
     public void start() {
         if (expectedSuccessfulOps == 0) {
             //no search shards to search on, bail with empty response
@@ -125,7 +123,8 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             if (node == null) {
                 onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
             } else {
-                AliasFilter filter = this.aliasFilter.get(shard.index().getName());
+                AliasFilter filter = this.aliasFilter.get(shard.index().getUUID());
+                assert filter != null;
                 ShardSearchTransportRequest transportRequest = new ShardSearchTransportRequest(request, shardIt.shardId(), shardsIts.size(),
                     filter, startTime());
                 sendExecuteFirstPhase(node, transportRequest , new ActionListener<FirstResult>() {

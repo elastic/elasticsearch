@@ -125,6 +125,7 @@ public class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Servic
             10,
             false);
         clientConfiguration.setRetryPolicy(retryPolicy);
+        clientConfiguration.setSocketTimeout((int) CLOUD_EC2.READ_TIMEOUT.get(settings).millis());
 
         return clientConfiguration;
     }
@@ -141,6 +142,9 @@ public class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Servic
                 case "us-east":
                     endpoint = "ec2.us-east-1.amazonaws.com";
                     break;
+                case "us-east-2":
+                    endpoint = "ec2.us-east-2.amazonaws.com";
+                    break;
                 case "us-west":
                 case "us-west-1":
                     endpoint = "ec2.us-west-1.amazonaws.com";
@@ -152,6 +156,7 @@ public class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Servic
                 case "ap-southeast-1":
                     endpoint = "ec2.ap-southeast-1.amazonaws.com";
                     break;
+                case "ap-south":
                 case "ap-south-1":
                     endpoint = "ec2.ap-south-1.amazonaws.com";
                     break;

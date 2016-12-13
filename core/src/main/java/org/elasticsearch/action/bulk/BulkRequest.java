@@ -48,9 +48,10 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -73,6 +74,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * the one with the least casts.
      */
     final List<DocWriteRequest> requests = new ArrayList<>();
+    private final Set<String> indices = new HashSet<>();
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
@@ -114,6 +116,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         } else {
             throw new IllegalArgumentException("No support for request [" + request + "]");
         }
+        indices.add(request.index());
         return this;
     }
 
@@ -145,6 +148,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         addPayload(payload);
         // lack of source is validated in validate() method
         sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
+        indices.add(request.index());
         return this;
     }
 
@@ -172,6 +176,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         if (request.script() != null) {
             sizeInBytes += request.script().getIdOrCode().length() * 2;
         }
+        indices.add(request.index());
         return this;
     }
 
@@ -187,6 +192,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         requests.add(request);
         addPayload(payload);
         sizeInBytes += REQUEST_OVERHEAD;
+        indices.add(request.index());
         return this;
     }
 
@@ -209,11 +215,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public List<DocWriteRequest> requests() {
         return this.requests;
-    }
-
-    @Override
-    public List<? extends IndicesRequest> subRequests() {
-        return requests.stream().collect(Collectors.toList());
     }
 
     /**
@@ -305,8 +306,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                 String parent = null;
                 FetchSourceContext fetchSourceContext = defaultFetchSourceContext;
                 String[] fields = defaultFields;
-                String timestamp = null;
-                TimeValue ttl = null;
                 String opType = null;
                 long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
@@ -336,14 +335,6 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 routing = parser.text();
                             } else if ("_parent".equals(currentFieldName) || "parent".equals(currentFieldName)) {
                                 parent = parser.text();
-                            } else if ("_timestamp".equals(currentFieldName) || "timestamp".equals(currentFieldName)) {
-                                timestamp = parser.text();
-                            } else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
-                                if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                                    ttl = TimeValue.parseTimeValue(parser.text(), null, currentFieldName);
-                                } else {
-                                    ttl = new TimeValue(parser.longValue());
-                                }
                             } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
                                 opType = parser.text();
                             } else if ("_version".equals(currentFieldName) || "version".equals(currentFieldName)) {
@@ -394,15 +385,15 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                     // of index request.
                     if ("index".equals(action)) {
                         if (opType == null) {
-                            internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
+                            internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
                                     .setPipeline(pipeline).source(data.slice(from, nextMarker - from)), payload);
                         } else {
-                            internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
+                            internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
                                     .create("create".equals(opType)).setPipeline(pipeline)
                                     .source(data.slice(from, nextMarker - from)), payload);
                         }
                     } else if ("create".equals(action)) {
-                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
+                        internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).version(version).versionType(versionType)
                                 .create(true).setPipeline(pipeline)
                                 .source(data.slice(from, nextMarker - from)), payload);
                     } else if ("update".equals(action)) {
@@ -420,15 +411,11 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
-                            upsertRequest.timestamp(timestamp);
-                            upsertRequest.ttl(ttl);
                             upsertRequest.version(version);
                             upsertRequest.versionType(versionType);
                         }
                         IndexRequest doc = updateRequest.doc();
                         if (doc != null) {
-                            doc.timestamp(timestamp);
-                            doc.ttl(ttl);
                             doc.version(version);
                             doc.versionType(versionType);
                         }
@@ -567,4 +554,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         refreshPolicy.writeTo(out);
         timeout.writeTo(out);
     }
+
+    @Override
+    public String getDescription() {
+        return "requests[" + requests.size() + "], indices[" + Strings.collectionToDelimitedString(indices, ", ") + "]";
+    }
+
 }

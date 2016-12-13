@@ -556,7 +556,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         builder.endObject();
     }
 
-    public static Optional<MultiMatchQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static MultiMatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         Object value = null;
@@ -657,10 +657,10 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
 
         if (fuzziness != null && (type == Type.CROSS_FIELDS || type == Type.PHRASE || type == Type.PHRASE_PREFIX)) {
             throw new ParsingException(parser.getTokenLocation(),
-                    "Fuziness not allowed for type [" + type.parseField.getPreferredName() + "]");
+                    "Fuzziness not allowed for type [" + type.parseField.getPreferredName() + "]");
         }
 
-        return Optional.of(new MultiMatchQueryBuilder(value)
+        return new MultiMatchQueryBuilder(value)
                 .fields(fieldsBoosts)
                 .type(type)
                 .analyzer(analyzer)
@@ -677,7 +677,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 .tieBreaker(tieBreaker)
                 .zeroTermsQuery(zeroTermsQuery)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName);
     }
 
     private static void parseFieldAndBoost(XContentParser parser, Map<String, Float> fieldsBoosts) throws IOException {

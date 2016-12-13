@@ -195,7 +195,6 @@ public class RandomQueryGenerator {
         return q;
     }
 
-    @Deprecated
     private static QueryBuilder randomFuzzyQuery(List<String> fields) {
 
         QueryBuilder q = QueryBuilders.fuzzyQuery(randomField(fields), randomQueryString(1));

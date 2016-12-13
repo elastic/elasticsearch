@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -169,13 +171,12 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
 
     final class MockTransport implements Transport {
-
+        private final AtomicLong requestId = new AtomicLong();
         Set<DiscoveryNode> connectedNodes = ConcurrentCollections.newConcurrentSet();
         volatile boolean randomConnectionExceptions = false;
 
         @Override
         public void transportServiceAdapter(TransportServiceAdapter service) {
-
         }
 
         @Override
@@ -194,26 +195,18 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public boolean addressSupported(Class<? extends TransportAddress> address) {
-            return false;
-        }
-
-        @Override
         public boolean nodeConnected(DiscoveryNode node) {
             return connectedNodes.contains(node);
         }
 
         @Override
-        public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-            if (connectedNodes.contains(node) == false && randomConnectionExceptions && randomBoolean()) {
-                throw new ConnectTransportException(node, "simulated");
+        public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException {
+            if (connectionProfile == null) {
+                if (connectedNodes.contains(node) == false && randomConnectionExceptions && randomBoolean()) {
+                    throw new ConnectTransportException(node, "simulated");
+                }
+                connectedNodes.add(node);
             }
-            connectedNodes.add(node);
-        }
-
-        @Override
-        public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
-
         }
 
         @Override
@@ -222,9 +215,29 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException, TransportException {
+        public Connection getConnection(DiscoveryNode node) {
+            return new Connection() {
+                @Override
+                public DiscoveryNode getNode() {
+                    return node;
+                }
 
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    throws IOException, TransportException {
+
+                }
+
+                @Override
+                public void close() throws IOException {
+
+                }
+            };
+        }
+
+        @Override
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            return getConnection(node);
         }
 
         @Override
@@ -235,6 +248,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         @Override
         public List<String> getLocalAddresses() {
             return null;
+        }
+
+        @Override
+        public long newRequestId() {
+            return requestId.incrementAndGet();
         }
 
         @Override

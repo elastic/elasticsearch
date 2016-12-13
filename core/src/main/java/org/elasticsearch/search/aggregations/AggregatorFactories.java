@@ -24,9 +24,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 
@@ -81,7 +81,7 @@ public class AggregatorFactories {
             // aggs
             final boolean collectsFromSingleBucket = false;
             Aggregator factory = factories[i].create(parent, collectsFromSingleBucket);
-            Profilers profilers = factory.context().searchContext().getProfilers();
+            Profilers profilers = factory.context().getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
             }
@@ -97,7 +97,7 @@ public class AggregatorFactories {
             // top-level aggs only get called with bucket 0
             final boolean collectsFromSingleBucket = true;
             Aggregator factory = factories[i].create(null, collectsFromSingleBucket);
-            Profilers profilers = factory.context().searchContext().getProfilers();
+            Profilers profilers = factory.context().getProfilers();
             if (profilers != null) {
                 factory = new ProfilingAggregator(factory, profilers.getAggregationProfiler());
             }
@@ -193,7 +193,7 @@ public class AggregatorFactories {
             return this;
         }
 
-        public AggregatorFactories build(AggregationContext context, AggregatorFactory<?> parent) throws IOException {
+        public AggregatorFactories build(SearchContext context, AggregatorFactory<?> parent) throws IOException {
             if (aggregationBuilders.isEmpty() && pipelineAggregatorBuilders.isEmpty()) {
                 return EMPTY;
             }

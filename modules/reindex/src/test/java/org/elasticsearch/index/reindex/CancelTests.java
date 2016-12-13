@@ -32,6 +32,7 @@ import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -77,7 +78,8 @@ public class CancelTests extends ReindexTestCase {
     /**
      * Executes the cancellation test
      */
-    private void testCancel(String action, AbstractBulkByScrollRequestBuilder<?, ?> builder, CancelAssertion assertion) throws Exception {
+    private void testCancel(String action, AbstractBulkByScrollRequestBuilder<?, ?> builder, CancelAssertion assertion,
+                            Matcher<String> taskDescriptionMatcher) throws Exception {
         createIndex(INDEX);
 
         // Total number of documents created for this test (~10 per primary shard per shard)
@@ -111,6 +113,9 @@ public class CancelTests extends ReindexTestCase {
         TaskInfo mainTask = findTaskToCancel(action, builder.request().getSlices());
         BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.getStatus();
         assertNull(status.getReasonCancelled());
+
+        // Description shouldn't be empty
+        assertThat(mainTask.getDescription(), taskDescriptionMatcher);
 
         // Cancel the request while the reindex action is blocked by the indexing operation listeners.
         // This will prevent further requests from being sent.
@@ -185,7 +190,7 @@ public class CancelTests extends ReindexTestCase {
 
             refresh("dest");
             assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
-        });
+        }, equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
     }
 
     public void testUpdateByQueryCancel() throws Exception {
@@ -200,7 +205,7 @@ public class CancelTests extends ReindexTestCase {
         testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX), (response, total, modified) -> {
             assertThat(response, matcher().updated(modified).reasonCancelled(equalTo("by user request")));
             assertHitCount(client().prepareSearch(INDEX).setSize(0).setQuery(termQuery("processed", true)).get(), modified);
-        });
+        }, equalTo("update-by-query [" + INDEX + "]"));
 
         assertAcked(client().admin().cluster().deletePipeline(new DeletePipelineRequest("set-processed")).get());
     }
@@ -209,7 +214,7 @@ public class CancelTests extends ReindexTestCase {
         testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX), (response, total, modified) -> {
             assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")));
             assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), total - modified);
-        });
+        }, equalTo("delete-by-query [" + INDEX + "]"));
     }
 
     public void testReindexCancelWithWorkers() throws Exception {
@@ -218,7 +223,7 @@ public class CancelTests extends ReindexTestCase {
 
             refresh("dest");
             assertHitCount(client().prepareSearch("dest").setTypes(TYPE).setSize(0).get(), modified);
-        });
+        }, equalTo("reindex from [" + INDEX + "] to [dest][" + TYPE + "]"));
     }
 
     public void testUpdateByQueryCancelWithWorkers() throws Exception {
@@ -234,7 +239,7 @@ public class CancelTests extends ReindexTestCase {
                 (response, total, modified) -> {
                     assertThat(response, matcher().updated(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
                     assertHitCount(client().prepareSearch(INDEX).setSize(0).setQuery(termQuery("processed", true)).get(), modified);
-                });
+                }, equalTo("update-by-query [" + INDEX + "]"));
 
         assertAcked(client().admin().cluster().deletePipeline(new DeletePipelineRequest("set-processed")).get());
     }
@@ -243,7 +248,7 @@ public class CancelTests extends ReindexTestCase {
         testCancel(DeleteByQueryAction.NAME, deleteByQuery().source(INDEX).setSlices(5), (response, total, modified) -> {
             assertThat(response, matcher().deleted(modified).reasonCancelled(equalTo("by user request")).slices(hasSize(5)));
             assertHitCount(client().prepareSearch(INDEX).setSize(0).get(), total - modified);
-        });
+        }, equalTo("delete-by-query [" + INDEX + "]"));
     }
 
     /**

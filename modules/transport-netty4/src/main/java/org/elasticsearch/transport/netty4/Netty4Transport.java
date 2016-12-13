@@ -46,7 +46,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
@@ -55,6 +54,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -62,7 +62,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -140,7 +142,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
     protected volatile Bootstrap bootstrap;
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
 
-    @Inject
     public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("netty", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
@@ -202,7 +203,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         bootstrap.handler(getClientChannelInitializer());
 
-        bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(connectTimeout.millis()));
+        bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(defaultConnectionProfile.getConnectTimeout().millis()));
         bootstrap.option(ChannelOption.TCP_NODELAY, TCP_NO_DELAY.get(settings));
         bootstrap.option(ChannelOption.SO_KEEPALIVE, TCP_KEEP_ALIVE.get(settings));
 
@@ -268,8 +269,13 @@ public class Netty4Transport extends TcpTransport<Channel> {
             logger.debug("using profile[{}], worker_count[{}], port[{}], bind_host[{}], publish_host[{}], compress[{}], "
                     + "connect_timeout[{}], connections_per_node[{}/{}/{}/{}/{}], receive_predictor[{}->{}]",
                 name, workerCount, settings.get("port"), settings.get("bind_host"), settings.get("publish_host"), compress,
-                connectTimeout, connectionsPerNodeRecovery, connectionsPerNodeBulk, connectionsPerNodeReg, connectionsPerNodeState,
-                connectionsPerNodePing, receivePredictorMin, receivePredictorMax);
+                defaultConnectionProfile.getConnectTimeout(),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.RECOVERY),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.REG),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.STATE),
+                defaultConnectionProfile.getNumConnectionsPerType(TransportRequestOptions.Type.PING),
+                receivePredictorMin, receivePredictorMax);
         }
 
         final ThreadFactory workerFactory = daemonThreadFactory(this.settings, TRANSPORT_SERVER_WORKER_THREAD_NAME_PREFIX, name);
@@ -331,66 +337,41 @@ public class Netty4Transport extends TcpTransport<Channel> {
         return channels == null ? 0 : channels.numberOfOpenChannels();
     }
 
-    protected NodeChannels connectToChannelsLight(DiscoveryNode node) {
-        InetSocketAddress address = node.getAddress().address();
-        ChannelFuture connect = bootstrap.connect(address);
-        connect.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-        if (!connect.isSuccess()) {
-            throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", connect.cause());
-        }
-        Channel[] channels = new Channel[1];
-        channels[0] = connect.channel();
-        channels[0].closeFuture().addListener(new ChannelCloseListener(node));
-        NodeChannels nodeChannels = new NodeChannels(channels, channels, channels, channels, channels);
-        onAfterChannelsConnected(nodeChannels);
-        return nodeChannels;
-    }
-
-    protected NodeChannels connectToChannels(DiscoveryNode node) {
-        final NodeChannels nodeChannels =
-            new NodeChannels(
-                new Channel[connectionsPerNodeRecovery],
-                new Channel[connectionsPerNodeBulk],
-                new Channel[connectionsPerNodeReg],
-                new Channel[connectionsPerNodeState],
-                new Channel[connectionsPerNodePing]);
+    @Override
+    protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) {
+        final Channel[] channels = new Channel[profile.getNumConnections()];
+        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile);
         boolean success = false;
         try {
-            int numConnections =
-                connectionsPerNodeRecovery +
-                    connectionsPerNodeBulk +
-                    connectionsPerNodeReg +
-                    connectionsPerNodeState +
-                    connectionsPerNodeRecovery;
-            final ArrayList<ChannelFuture> connections = new ArrayList<>(numConnections);
+            final TimeValue connectTimeout;
+            final Bootstrap bootstrap;
+            final TimeValue defaultConnectTimeout = defaultConnectionProfile.getConnectTimeout();
+            if (profile.getConnectTimeout() != null && profile.getConnectTimeout().equals(defaultConnectTimeout) == false) {
+                bootstrap = this.bootstrap.clone(this.bootstrap.config().group());
+                bootstrap.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, Math.toIntExact(profile.getConnectTimeout().millis()));
+                connectTimeout = profile.getConnectTimeout();
+            } else {
+                connectTimeout = defaultConnectTimeout;
+                bootstrap = this.bootstrap;
+            }
+            final ArrayList<ChannelFuture> connections = new ArrayList<>(channels.length);
             final InetSocketAddress address = node.getAddress().address();
-            for (int i = 0; i < numConnections; i++) {
+            for (int i = 0; i < channels.length; i++) {
                 connections.add(bootstrap.connect(address));
             }
             final Iterator<ChannelFuture> iterator = connections.iterator();
             try {
-                for (Channel[] channels : nodeChannels.getChannelArrays()) {
-                    for (int i = 0; i < channels.length; i++) {
-                        assert iterator.hasNext();
-                        ChannelFuture future = iterator.next();
-                        future.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
-                        if (!future.isSuccess()) {
-                            throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.cause());
-                        }
-                        channels[i] = future.channel();
-                        channels[i].closeFuture().addListener(new ChannelCloseListener(node));
+                for (int i = 0; i < channels.length; i++) {
+                    assert iterator.hasNext();
+                    ChannelFuture future = iterator.next();
+                    future.awaitUninterruptibly((long) (connectTimeout.millis() * 1.5));
+                    if (!future.isSuccess()) {
+                        throw new ConnectTransportException(node, "connect_timeout[" + connectTimeout + "]", future.cause());
                     }
+                    channels[i] = future.channel();
+                    channels[i].closeFuture().addListener(new ChannelCloseListener(node));
                 }
-                if (nodeChannels.recovery.length == 0) {
-                    if (nodeChannels.bulk.length > 0) {
-                        nodeChannels.recovery = nodeChannels.bulk;
-                    } else {
-                        nodeChannels.recovery = nodeChannels.reg;
-                    }
-                }
-                if (nodeChannels.bulk.length == 0) {
-                    nodeChannels.bulk = nodeChannels.reg;
-                }
+                assert iterator.hasNext() == false : "not all created connection have been consumed";
             } catch (final RuntimeException e) {
                 for (final ChannelFuture future : Collections.unmodifiableList(connections)) {
                     FutureUtils.cancel(future);

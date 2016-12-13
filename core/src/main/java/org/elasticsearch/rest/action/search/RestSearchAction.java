@@ -25,10 +25,8 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -74,34 +72,29 @@ public class RestSearchAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
-        parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, restContent);
+        request.withContentOrSourceParamParserOrNull(parser ->
+            parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, parser));
 
         return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
 
     /**
-     * Parses the rest request on top of the SearchRequest, preserving values
-     * that are not overridden by the rest request.
+     * Parses the rest request on top of the SearchRequest, preserving values that are not overridden by the rest request.
      *
-     * @param restContent
-     *            override body content to use for the request. If null body
-     *            content is read from the request using
-     *            RestAction.hasBodyContent.
+     * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
+     *        parameter
      */
     public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request, SearchRequestParsers searchRequestParsers,
-                                          ParseFieldMatcher parseFieldMatcher, BytesReference restContent) throws IOException {
+                                          ParseFieldMatcher parseFieldMatcher, XContentParser requestContentParser) throws IOException {
 
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
-        if (restContent != null) {
-            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
-                QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
-                searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
-                        searchRequestParsers.searchExtParsers);
-            }
+        if (requestContentParser != null) {
+            QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, requestContentParser, parseFieldMatcher);
+            searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
+                    searchRequestParsers.searchExtParsers);
         }
 
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types

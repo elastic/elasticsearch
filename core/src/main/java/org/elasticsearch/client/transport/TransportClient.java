@@ -147,8 +147,8 @@ public abstract class TransportClient extends AbstractClient {
                 modules.add(pluginModule);
             }
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
-            ActionModule actionModule = new ActionModule(false, true, settings, null, settingsModule.getClusterSettings(),
-                pluginsService.filterPlugins(ActionPlugin.class));
+            ActionModule actionModule = new ActionModule(true, settings, null, settingsModule.getClusterSettings(),
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class));
             modules.add(actionModule);
 
             CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),

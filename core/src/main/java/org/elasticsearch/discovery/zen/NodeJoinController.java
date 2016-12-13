@@ -410,7 +410,6 @@ public class NodeJoinController extends AbstractComponent {
         @Override
         public BatchResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
             final BatchResult.Builder<DiscoveryNode> results = BatchResult.builder();
-
             final DiscoveryNodes currentNodes = currentState.nodes();
             boolean nodesChanged = false;
             ClusterState.Builder newState;
@@ -435,8 +434,10 @@ public class NodeJoinController extends AbstractComponent {
 
             assert nodesBuilder.isLocalNodeElectedMaster();
 
+            Version minNodeVersion = Version.CURRENT;
             // processing any joins
             for (final DiscoveryNode node : joiningNodes) {
+                minNodeVersion = Version.min(minNodeVersion, node.getVersion());
                 if (node.equals(BECOME_MASTER_TASK) || node.equals(FINISH_ELECTION_TASK)) {
                     // noop
                 } else if (currentNodes.nodeExists(node)) {
@@ -452,7 +453,9 @@ public class NodeJoinController extends AbstractComponent {
                 }
                 results.success(node);
             }
-
+            // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
+            // we have to reject nodes that don't support all indices we have in this cluster
+            MembershipAction.ensureIndexCompatibility(minNodeVersion.minimumIndexCompatibilityVersion(), currentState.getMetaData());
             if (nodesChanged) {
                 newState.nodes(nodesBuilder);
                 return results.build(allocationService.reroute(newState.build(), "node_join"));

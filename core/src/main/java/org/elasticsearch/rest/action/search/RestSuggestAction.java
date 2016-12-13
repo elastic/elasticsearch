@@ -24,11 +24,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -37,7 +35,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -70,14 +67,9 @@ public class RestSuggestAction extends BaseRestHandler {
         final SearchRequest searchRequest = new SearchRequest(
                 Strings.splitStringByCommaToArray(request.param("index")), new SearchSourceBuilder());
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-        if (RestActions.hasBodyContent(request)) {
-            final BytesReference sourceBytes = RestActions.getRestContent(request);
-            try (XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes)) {
-                final QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
-                searchRequest.source().suggest(SuggestBuilder.fromXContent(context, searchRequestParsers.suggesters));
-            }
-        } else {
-            throw new IllegalArgumentException("no content or source provided to execute suggestion");
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
+            final QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
+            searchRequest.source().suggest(SuggestBuilder.fromXContent(context, searchRequestParsers.suggesters));
         }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));

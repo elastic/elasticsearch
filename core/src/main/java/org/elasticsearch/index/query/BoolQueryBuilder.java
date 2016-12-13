@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
@@ -299,7 +298,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         builder.endArray();
     }
 
-    public static Optional<BoolQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
+    public static BoolQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException, ParsingException {
         XContentParser parser = parseContext.parser();
 
         boolean disableCoord = BoolQueryBuilder.DISABLE_COORD_DEFAULT;
@@ -323,17 +322,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 switch (currentFieldName) {
                 case MUST:
-                    parseContext.parseInnerQueryBuilder().ifPresent(mustClauses::add);
+                    mustClauses.add(parseContext.parseInnerQueryBuilder());
                     break;
                 case SHOULD:
-                    parseContext.parseInnerQueryBuilder().ifPresent(shouldClauses::add);
+                    shouldClauses.add(parseContext.parseInnerQueryBuilder());
                     break;
                 case FILTER:
-                    parseContext.parseInnerQueryBuilder().ifPresent(filterClauses::add);
+                    filterClauses.add(parseContext.parseInnerQueryBuilder());
                     break;
                 case MUST_NOT:
                 case MUSTNOT:
-                    parseContext.parseInnerQueryBuilder().ifPresent(mustNotClauses::add);
+                    mustNotClauses.add(parseContext.parseInnerQueryBuilder());
                     break;
                 default:
                     throw new ParsingException(parser.getTokenLocation(), "[bool] query does not support [" + currentFieldName + "]");
@@ -342,17 +341,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                     switch (currentFieldName) {
                     case MUST:
-                        parseContext.parseInnerQueryBuilder().ifPresent(mustClauses::add);
+                        mustClauses.add(parseContext.parseInnerQueryBuilder());
                         break;
                     case SHOULD:
-                        parseContext.parseInnerQueryBuilder().ifPresent(shouldClauses::add);
+                        shouldClauses.add(parseContext.parseInnerQueryBuilder());
                         break;
                     case FILTER:
-                        parseContext.parseInnerQueryBuilder().ifPresent(filterClauses::add);
+                        filterClauses.add(parseContext.parseInnerQueryBuilder());
                         break;
                     case MUST_NOT:
                     case MUSTNOT:
-                        parseContext.parseInnerQueryBuilder().ifPresent(mustNotClauses::add);
+                        mustNotClauses.add(parseContext.parseInnerQueryBuilder());
                         break;
                     default:
                         throw new ParsingException(parser.getTokenLocation(), "bool query does not support [" + currentFieldName + "]");
@@ -394,7 +393,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         boolQuery.adjustPureNegative(adjustPureNegative);
         boolQuery.minimumNumberShouldMatch(minimumShouldMatch);
         boolQuery.queryName(queryName);
-        return Optional.of(boolQuery);
+        return boolQuery;
     }
 
     @Override

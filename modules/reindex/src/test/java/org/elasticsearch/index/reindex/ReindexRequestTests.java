@@ -28,25 +28,19 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.slice.SliceBuilder;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
  */
 public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<ReindexRequest> {
-    public void testTimestampAndTtlNotAllowed() {
-        ReindexRequest reindex = newRequest();
-        reindex.getDestination().ttl("1s").timestamp("now");
-        ActionRequestValidationException e = reindex.validate();
-        assertEquals("Validation Failed: 1: setting ttl on destination isn't supported. use scripts instead.;"
-                + "2: setting timestamp on destination isn't supported. use scripts instead.;",
-                e.getMessage());
-    }
 
     public void testReindexFromRemoteDoesNotSupportSearchQuery() {
         ReindexRequest reindex = newRequest();
-        reindex.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, Integer.MAX_VALUE),
-                new BytesArray("real_query"), null, null, emptyMap()));
+        reindex.setRemoteInfo(
+                new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
+                        null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.getSearchRequest().source().query(matchAllQuery()); // Unsupported place to put query
         ActionRequestValidationException e = reindex.validate();
         assertEquals("Validation Failed: 1: reindex from remote sources should use RemoteInfo's query instead of source's query;",
@@ -55,8 +49,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
 
     public void testReindexFromRemoteDoesNotSupportWorkers() {
         ReindexRequest reindex = newRequest();
-        reindex.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, Integer.MAX_VALUE),
-                new BytesArray("real_query"), null, null, emptyMap()));
+        reindex.setRemoteInfo(
+                new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, Integer.MAX_VALUE), new BytesArray("real_query"),
+                        null, null, emptyMap(), RemoteInfo.DEFAULT_SOCKET_TIMEOUT, RemoteInfo.DEFAULT_CONNECT_TIMEOUT));
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
@@ -79,7 +74,9 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         }
         if (randomBoolean()) {
             original.setRemoteInfo(new RemoteInfo(randomAsciiOfLength(5), randomAsciiOfLength(5), between(1, 10000),
-                    new BytesArray(randomAsciiOfLength(5)), null, null, emptyMap()));
+                    new BytesArray(randomAsciiOfLength(5)), null, null, emptyMap(),
+                    parseTimeValue(randomPositiveTimeValue(), "socket_timeout"),
+                    parseTimeValue(randomPositiveTimeValue(), "connect_timeout")));
         }
     }
 

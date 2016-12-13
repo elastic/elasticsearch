@@ -111,9 +111,10 @@ The `cloud.aws.region` can be set to a region and will automatically use the rel
 The available values are:
 
 * `us-east` (`us-east-1`) for US East (N. Virginia)
+* `us-east-2` for US East (Ohio)
 * `us-west` (`us-west-1`) for US West (N. California)
 * `us-west-2` for US West (Oregon)
-* `ap-south-1` for Asia Pacific (Mumbai)
+* `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
 * `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
 * `ap-southeast-2` for Asia Pacific (Sydney)
 * `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
@@ -129,6 +130,17 @@ The available values are:
 If you are using a compatible EC2 service, they might be using an older API to sign the requests.
 You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.ec2.signer`)
 with the right signer to use.
+
+===== Read timeout
+
+Read timeout determines the amount of time to wait for data to be transferred over an established,
+open connection before the connection is timed out. Defaults to AWS SDK default value (`50 s`).
+It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.ec2.read_timeout`) setting:
+
+[source, yaml]
+----
+cloud.aws.read_timeout: 30s
+----
 
 [[discovery-ec2-discovery]]
 ==== EC2 Discovery
@@ -177,7 +189,6 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
 
     How long the list of hosts is cached to prevent further requests to the AWS API.
     Defaults to `10s`.
-
 
 [IMPORTANT]
 .Binding the network host

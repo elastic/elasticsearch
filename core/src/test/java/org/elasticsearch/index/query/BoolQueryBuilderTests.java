@@ -26,7 +26,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -46,7 +45,6 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.startsWith;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
     @Override
@@ -174,25 +172,25 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     // https://github.com/elastic/elasticsearch/issues/7240
     public void testEmptyBooleanQuery() throws Exception {
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
-        BytesReference query = contentBuilder.startObject().startObject("bool").endObject().endObject().bytes();
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        contentBuilder.startObject().startObject("bool").endObject().endObject();
+        Query parsedQuery = parseQuery(createParser(contentBuilder)).toQuery(createShardContext());
         assertThat(parsedQuery, Matchers.instanceOf(MatchAllDocsQuery.class));
     }
 
     public void testDefaultMinShouldMatch() throws Exception {
         // Queries have a minShouldMatch of 0
-        BooleanQuery bq = (BooleanQuery) parseQuery(boolQuery().must(termQuery("foo", "bar")).buildAsBytes()).toQuery(createShardContext());
+        BooleanQuery bq = (BooleanQuery) parseQuery(boolQuery().must(termQuery("foo", "bar"))).toQuery(createShardContext());
         assertEquals(0, bq.getMinimumNumberShouldMatch());
 
-        bq = (BooleanQuery) parseQuery(boolQuery().should(termQuery("foo", "bar")).buildAsBytes()).toQuery(createShardContext());
+        bq = (BooleanQuery) parseQuery(boolQuery().should(termQuery("foo", "bar"))).toQuery(createShardContext());
         assertEquals(0, bq.getMinimumNumberShouldMatch());
 
         // Filters have a minShouldMatch of 0/1
-        ConstantScoreQuery csq = (ConstantScoreQuery) parseQuery(constantScoreQuery(boolQuery().must(termQuery("foo", "bar"))).buildAsBytes()).toQuery(createShardContext());
+        ConstantScoreQuery csq = (ConstantScoreQuery) parseQuery(constantScoreQuery(boolQuery().must(termQuery("foo", "bar")))).toQuery(createShardContext());
         bq = (BooleanQuery) csq.getQuery();
         assertEquals(0, bq.getMinimumNumberShouldMatch());
 
-        csq = (ConstantScoreQuery) parseQuery(constantScoreQuery(boolQuery().should(termQuery("foo", "bar"))).buildAsBytes()).toQuery(createShardContext());
+        csq = (ConstantScoreQuery) parseQuery(constantScoreQuery(boolQuery().should(termQuery("foo", "bar")))).toQuery(createShardContext());
         bq = (BooleanQuery) csq.getQuery();
         assertEquals(1, bq.getMinimumNumberShouldMatch());
     }
@@ -245,16 +243,14 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             boolQuery()
                 .should(termQuery("foo", "bar"))
                 .should(termQuery("foo2", "bar2"))
-                .minimumNumberShouldMatch("3")
-                .buildAsBytes()).toQuery(createShardContext());
+                .minimumNumberShouldMatch("3")).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
 
         bq = (BooleanQuery) parseQuery(
             boolQuery()
                 .should(termQuery("foo", "bar"))
                 .should(termQuery("foo2", "bar2"))
-                .minimumNumberShouldMatch(3)
-                .buildAsBytes()).toQuery(createShardContext());
+                .minimumNumberShouldMatch(3)).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
     }
 
@@ -264,8 +260,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                         .should(termQuery("foo", "bar"))
                         .should(termQuery("foo2", "bar2"))
                         .minimumNumberShouldMatch("3")
-                        .disableCoord(true)
-                        .buildAsBytes()).toQuery(createShardContext());
+                        .disableCoord(true)).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
     }
 
@@ -328,34 +323,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(query, 42, queryBuilder.boost, 0.00001);
         assertEquals(query, "23", queryBuilder.minimumShouldMatch());
         assertEquals(query, "kimchy", ((TermQueryBuilder)queryBuilder.must().get(0)).value());
-    }
-
-    /**
-     * we ignore empty query bodies if we are not in strict mode
-     */
-    public void testFromJsonEmptyQueryBody() throws IOException {
-        String query =
-                "{" +
-                "\"bool\" : {" +
-                "  \"must\" : [ { } ]," +
-                "  \"filter\" : { }," +
-                "  \"must_not\" : [ { \"constant_score\" : {\"filter\" : { } } } ]" +
-                "}" +
-              "}";
-
-        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
-        assertEquals(query, 0, queryBuilder.must().size());
-        assertEquals(query, 0, queryBuilder.filter().size());
-        assertEquals(query, 0, queryBuilder.mustNot().size());
-        assertEquals(query, 0, queryBuilder.should().size());
-        // we should have deprecation warning headers regardless of throwing an exception
-        checkWarningHeaders("query malformed, empty clause found at [1:27]",
-                "query malformed, empty clause found at [1:46]",
-                "query malformed, empty clause found at [1:100]");
-
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseQuery(query, ParseFieldMatcher.STRICT));
-        assertThat(ex.getMessage(), startsWith("query malformed, empty clause found at"));
-        checkWarningHeaders("query malformed, empty clause found at [1:27]");
     }
 
     /**

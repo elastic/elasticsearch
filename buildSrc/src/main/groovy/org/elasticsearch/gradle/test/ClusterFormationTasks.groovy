@@ -286,6 +286,9 @@ class ClusterFormationTasks {
         esConfig['node.max_local_storage_nodes'] = node.config.numNodes
         esConfig['http.port'] = node.config.httpPort
         esConfig['transport.tcp.port'] =  node.config.transportPort
+        // Default the watermarks to absurdly low to prevent the tests from failing on nodes without enough disk space
+        esConfig['cluster.routing.allocation.disk.watermark.low'] = '1b'
+        esConfig['cluster.routing.allocation.disk.watermark.high'] = '1b'
         esConfig.putAll(node.config.settings)
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)

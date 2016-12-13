@@ -19,59 +19,256 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.util.Objects;
+import java.io.IOException;
+import java.util.Comparator;
+
+import static org.elasticsearch.cluster.routing.allocation.AbstractAllocationDecision.discoveryNodeToXContent;
 
 /**
- * This class represents the shard allocation decision for a single node,
- * including the {@link Decision} whether to allocate to the node and other
- * information related to obtaining the decision for the node.
+ * This class represents the shard allocation decision and its explanation for a single node.
  */
-public final class NodeAllocationResult {
+public class NodeAllocationResult implements ToXContent, Writeable, Comparable<NodeAllocationResult> {
 
-    private final Decision decision;
-    private final float weight;
+    private static final Comparator<NodeAllocationResult> nodeResultComparator =
+        Comparator.comparing(NodeAllocationResult::getNodeDecision)
+            .thenComparingInt(NodeAllocationResult::getWeightRanking)
+            .thenComparing(r -> r.getNode().getId());
 
-    public NodeAllocationResult(Decision decision) {
-        this.decision = Objects.requireNonNull(decision);
-        this.weight = Float.POSITIVE_INFINITY;
+    private final DiscoveryNode node;
+    @Nullable
+    private final ShardStoreInfo shardStoreInfo;
+    private final AllocationDecision nodeDecision;
+    private final Decision canAllocateDecision;
+    private final int weightRanking;
+
+    public NodeAllocationResult(DiscoveryNode node, ShardStoreInfo shardStoreInfo, Decision decision) {
+        this.node = node;
+        this.shardStoreInfo = shardStoreInfo;
+        this.canAllocateDecision = decision;
+        this.nodeDecision = AllocationDecision.fromDecisionType(canAllocateDecision.type());
+        this.weightRanking = 0;
     }
 
-    public NodeAllocationResult(Decision decision, float weight) {
-        this.decision = Objects.requireNonNull(decision);
-        this.weight = Objects.requireNonNull(weight);
+    public NodeAllocationResult(DiscoveryNode node, AllocationDecision nodeDecision, Decision canAllocate, int weightRanking) {
+        this.node = node;
+        this.shardStoreInfo = null;
+        this.canAllocateDecision = canAllocate;
+        this.nodeDecision = nodeDecision;
+        this.weightRanking = weightRanking;
     }
 
-    /**
-     * The decision for allocating to the node.
-     */
-    public Decision getDecision() {
-        return decision;
+    public NodeAllocationResult(DiscoveryNode node, Decision decision, int weightRanking) {
+        this.node = node;
+        this.shardStoreInfo = null;
+        this.canAllocateDecision = decision;
+        this.nodeDecision = AllocationDecision.fromDecisionType(decision.type());
+        this.weightRanking = weightRanking;
     }
 
-    /**
-     * The calculated weight for allocating a shard to the node.  A value of {@link Float#POSITIVE_INFINITY}
-     * means the weight was not calculated or factored into the decision.
-     */
-    public float getWeight() {
-        return weight;
+    public NodeAllocationResult(StreamInput in) throws IOException {
+        node = new DiscoveryNode(in);
+        shardStoreInfo = in.readOptionalWriteable(ShardStoreInfo::new);
+        canAllocateDecision = Decision.readFrom(in);
+        nodeDecision = AllocationDecision.readFrom(in);
+        weightRanking = in.readVInt();
     }
 
     @Override
-    public boolean equals(Object other) {
-        if (this == other) {
-            return true;
-        }
-        if (other == null || getClass() != other.getClass()) {
-            return false;
-        }
-        NodeAllocationResult that = (NodeAllocationResult) other;
-        return decision.equals(that.decision) && Float.compare(weight, that.weight) == 0;
+    public void writeTo(StreamOutput out) throws IOException {
+        node.writeTo(out);
+        out.writeOptionalWriteable(shardStoreInfo);
+        canAllocateDecision.writeTo(out);
+        nodeDecision.writeTo(out);
+        out.writeVInt(weightRanking);
+    }
+
+    /**
+     * Get the node that this decision is for.
+     */
+    public DiscoveryNode getNode() {
+        return node;
+    }
+
+    /**
+     * Get the shard store information for the node, if it exists.
+     */
+    @Nullable
+    public ShardStoreInfo getShardStoreInfo() {
+        return shardStoreInfo;
+    }
+
+    /**
+     * The decision details for allocating to this node.
+     */
+    public Decision getCanAllocateDecision() {
+        return canAllocateDecision;
+    }
+
+    /**
+     * Is the weight assigned for the node?
+     */
+    public boolean isWeightRanked() {
+        return weightRanking > 0;
+    }
+
+    /**
+     * The weight ranking for allocating a shard to the node.  Each node will have
+     * a unique weight ranking that is relative to the other nodes against which the
+     * deciders ran.  For example, suppose there are 3 nodes which the allocation deciders
+     * decided upon: node1, node2, and node3.  If node2 had the best weight for holding the
+     * shard, followed by node3, followed by node1, then node2's weight will be 1, node3's
+     * weight will be 2, and node1's weight will be 1.  A value of 0 means the weight was
+     * not calculated or factored into the decision.
+     */
+    public int getWeightRanking() {
+        return weightRanking;
+    }
+
+    /**
+     * Gets the {@link AllocationDecision} for allocating to this node.
+     */
+    public AllocationDecision getNodeDecision() {
+        return nodeDecision;
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(decision, weight);
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        {
+            discoveryNodeToXContent(node, false, builder);
+            builder.field("node_decision", nodeDecision);
+            if (shardStoreInfo != null) {
+                shardStoreInfo.toXContent(builder, params);
+            }
+            if (isWeightRanked()) {
+                builder.field("weight_ranking", getWeightRanking());
+            }
+            if (canAllocateDecision.getDecisions().isEmpty() == false) {
+                builder.startArray("deciders");
+                canAllocateDecision.toXContent(builder, params);
+                builder.endArray();
+            }
+        }
+        builder.endObject();
+        return builder;
     }
+
+    @Override
+    public int compareTo(NodeAllocationResult other) {
+        return nodeResultComparator.compare(this, other);
+    }
+
+    /** A class that captures metadata about a shard store on a node. */
+    public static final class ShardStoreInfo implements ToXContent, Writeable {
+        private final boolean inSync;
+        @Nullable
+        private final String allocationId;
+        private final long matchingBytes;
+        @Nullable
+        private final Exception storeException;
+
+        public ShardStoreInfo(String allocationId, boolean inSync, Exception storeException) {
+            this.inSync = inSync;
+            this.allocationId = allocationId;
+            this.matchingBytes = -1;
+            this.storeException = storeException;
+        }
+
+        public ShardStoreInfo(long matchingBytes) {
+            this.inSync = false;
+            this.allocationId = null;
+            this.matchingBytes = matchingBytes;
+            this.storeException = null;
+        }
+
+        public ShardStoreInfo(StreamInput in) throws IOException {
+            this.inSync = in.readBoolean();
+            this.allocationId = in.readOptionalString();
+            this.matchingBytes = in.readLong();
+            this.storeException = in.readException();
+        }
+
+        /**
+         * Returns {@code true} if the shard copy is in-sync and contains the latest data.
+         * Returns {@code false} if the shard copy is stale or if the shard copy being examined
+         * is for a replica shard allocation.
+         */
+        public boolean isInSync() {
+            return inSync;
+        }
+
+        /**
+         * Gets the allocation id for the shard copy, if it exists.
+         */
+        @Nullable
+        public String getAllocationId() {
+            return allocationId;
+        }
+
+        /**
+         * Returns {@code true} if the shard copy has a matching sync id with the primary shard.
+         * Returns {@code false} if the shard copy does not have a matching sync id with the primary
+         * shard, or this explanation pertains to the allocation of a primary shard, in which case
+         * matching sync ids are irrelevant.
+         */
+        public boolean hasMatchingSyncId() {
+            return matchingBytes == Long.MAX_VALUE;
+        }
+
+        /**
+         * Gets the number of matching bytes the shard copy has with the primary shard.
+         * Returns {@code Long.MAX_VALUE} if {@link #hasMatchingSyncId()} returns {@code true}.
+         * Returns -1 if not applicable (this value only applies to assigning replica shards).
+         */
+        public long getMatchingBytes() {
+            return matchingBytes;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(inSync);
+            out.writeOptionalString(allocationId);
+            out.writeLong(matchingBytes);
+            out.writeException(storeException);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject("store");
+            {
+                if (matchingBytes < 0) {
+                    // dealing with a primary shard
+                    builder.field("in_sync", inSync);
+                }
+                if (allocationId != null) {
+                    builder.field("allocation_id", allocationId);
+                }
+                if (matchingBytes >= 0) {
+                    if (hasMatchingSyncId()) {
+                        builder.field("matching_sync_id", true);
+                    } else {
+                        builder.byteSizeField("matching_size_in_bytes", "matching_size", matchingBytes);
+                    }
+                }
+                if (storeException != null) {
+                    builder.startObject("store_exception");
+                    ElasticsearchException.toXContent(builder, params, storeException);
+                    builder.endObject();
+                }
+            }
+            builder.endObject();
+            return builder;
+        }
+    }
+
 }

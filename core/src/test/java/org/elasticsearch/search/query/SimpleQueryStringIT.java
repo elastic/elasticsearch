@@ -345,7 +345,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                 .startObject("type1")
                 .startObject("properties")
                 .startObject("body")
-                .field("type", "string")
+                .field("type", "text")
                 .field("analyzer", "stop")
                 .endObject()
                 .endObject()

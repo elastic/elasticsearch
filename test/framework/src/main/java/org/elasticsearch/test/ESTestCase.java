@@ -29,6 +29,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -61,6 +62,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -98,6 +100,7 @@ import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -245,9 +248,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         Requests.INDEX_CONTENT_TYPE = XContentType.JSON;
     }
 
+    @Before
+    public final void before()  {
+        logger.info("[{}]: before test", getTestName());
+    }
+
     @After
-    public final void ensureCleanedUp() throws Exception {
+    public final void after() throws Exception {
         checkStaticState();
+        ensureAllSearchContextsReleased();
+        ensureCheckIndexPassed();
+        logger.info("[{}]: after test", getTestName());
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();
@@ -293,7 +304,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     // this must be a separate method from other ensure checks above so suite scoped integ tests can call...TODO: fix that
-    @After
     public final void ensureAllSearchContextsReleased() throws Exception {
         assertBusy(() -> MockSearchService.assertNoInFlightContext());
     }
@@ -309,7 +319,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         checkIndexFailed = false;
     }
 
-    @After
     public final void ensureCheckIndexPassed() throws Exception {
         assertFalse("at least one shard failed CheckIndex", checkIndexFailed);
     }
@@ -870,6 +879,41 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         sb.append("]");
         assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(XContentBuilder builder) throws IOException {
+        return builder.generator().contentType().xContent().createParser(builder.bytes());
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(XContent xContent, String data) throws IOException {
+        return xContent.createParser(data);
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(XContent xContent, InputStream data) throws IOException {
+        return xContent.createParser(data);
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(XContent xContent, byte[] data) throws IOException {
+        return xContent.createParser(data);
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
+        return xContent.createParser(data);
     }
 
     /** Returns the suite failure marker: internal use only! */

@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -113,7 +114,7 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder());
 
         // Test request without any fields
-        Version remoteVersion = Version.fromId(between(Version.V_2_0_0_beta1_ID, Version.CURRENT.id));
+        Version remoteVersion = VersionUtils.randomVersion(random());
         assertThat(initialSearchParams(searchRequest, remoteVersion),
                 not(either(hasKey("stored_fields")).or(hasKey("fields"))));
 
@@ -121,16 +122,12 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         searchRequest.source().storedField("_source").storedField("_id");
 
         // Test stored_fields for versions that support it
-        remoteVersion = Version.fromId(between(Version.V_5_0_0_alpha4_ID, Version.CURRENT.id));
+        remoteVersion = VersionUtils.randomVersionBetween(random(), Version.V_5_0_0_alpha4, null);
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("stored_fields", "_source,_id"));
 
         // Test fields for versions that support it
-        remoteVersion = Version.fromId(between(Version.V_2_0_0_beta1_ID, Version.V_5_0_0_alpha4_ID - 1));
+        remoteVersion = VersionUtils.randomVersionBetween(random(), null, Version.V_5_0_0_alpha3);
         assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("fields", "_source,_id"));
-
-        // Test extra fields for versions that need it
-        remoteVersion = Version.fromId(between(0, Version.V_2_0_0_beta1_ID - 1));
-        assertThat(initialSearchParams(searchRequest, remoteVersion), hasEntry("fields", "_source,_id,_parent,_routing,_ttl"));
     }
 
     public void testInitialSearchParamsMisc() {

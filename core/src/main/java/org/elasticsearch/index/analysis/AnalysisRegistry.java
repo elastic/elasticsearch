@@ -158,11 +158,12 @@ public final class AnalysisRegistry implements Closeable {
         final Map<String, Settings> tokenFiltersSettings = indexSettings.getSettings().getGroups(INDEX_ANALYSIS_FILTER);
         Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> tokenFilters = new HashMap<>(this.tokenFilters);
         /*
-         * synonym is different than everything else since it needs access to the tokenizer factories for this index.
+         * synonym and synonym_graph are different than everything else since they need access to the tokenizer factories for the index.
          * instead of building the infrastructure for plugins we rather make it a real exception to not pollute the general interface and
          * hide internal data-structures as much as possible.
          */
         tokenFilters.put("synonym", requriesAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings)));
+        tokenFilters.put("synonym_graph", requriesAnalysisSettings((is, env, name, settings) -> new SynonymGraphFilterFactory(is, env, this, name, settings)));
         return buildMapping(false, "tokenfilter", indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.tokenFilterFactories);
     }
 
@@ -213,12 +214,14 @@ public final class AnalysisRegistry implements Closeable {
             Settings currentSettings = tokenFilterSettings.get(tokenFilter);
             String typeName = currentSettings.get("type");
             /*
-             * synonym is different than everything else since it needs access to the tokenizer factories for this index.
+             * synonym and synonym_graph are different than everything else since they need access to the tokenizer factories for the index.
              * instead of building the infrastructure for plugins we rather make it a real exception to not pollute the general interface and
              * hide internal data-structures as much as possible.
              */
             if ("synonym".equals(typeName)) {
                 return requriesAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings));
+            } else if ("synonym_graph".equals(typeName)) {
+                return requriesAnalysisSettings((is, env, name, settings) -> new SynonymGraphFilterFactory(is, env, this, name, settings));
             } else {
                 return getAnalysisProvider("tokenfilter", tokenFilters, tokenFilter, typeName);
             }

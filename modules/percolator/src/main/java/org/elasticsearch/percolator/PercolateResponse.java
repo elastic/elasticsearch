@@ -136,16 +136,7 @@ public class PercolateResponse extends BroadcastResponse implements Iterable<Per
                     if (match.getHighlightFields().isEmpty() == false) {
                         builder.startObject(Fields.HIGHLIGHT);
                         for (HighlightField field : match.getHighlightFields().values()) {
-                            builder.field(field.name());
-                            if (field.fragments() == null) {
-                                builder.nullValue();
-                            } else {
-                                builder.startArray();
-                                for (Text fragment : field.fragments()) {
-                                    builder.value(fragment);
-                                }
-                                builder.endArray();
-                            }
+                            field.toXContent(builder, params);
                         }
                         builder.endObject();
                     }

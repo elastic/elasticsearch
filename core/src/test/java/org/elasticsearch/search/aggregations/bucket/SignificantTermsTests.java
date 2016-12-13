@@ -88,7 +88,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
             case 2:
             case 3:
             case 4:
-                minDocCount = randomInt();
+                minDocCount = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             }
             factory.bucketCountThresholds().setMinDocCount(minDocCount);
@@ -102,7 +102,7 @@ public class SignificantTermsTests extends BaseAggregationTestCase<SignificantTe
             case 2:
             case 3:
             case 4:
-                shardMinDocCount = randomInt();
+                shardMinDocCount = randomIntBetween(0, Integer.MAX_VALUE);
                 break;
             default:
                 fail();

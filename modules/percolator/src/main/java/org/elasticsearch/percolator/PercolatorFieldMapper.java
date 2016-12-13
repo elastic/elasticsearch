@@ -23,6 +23,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
@@ -344,8 +345,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     private static QueryBuilder parseQueryBuilder(QueryParseContext context, XContentLocation location) {
         try {
-            return context.parseInnerQueryBuilder()
-                    .orElseThrow(() -> new ParsingException(location, "Failed to parse inner query, was empty"));
+            return context.parseInnerQueryBuilder();
         } catch (IOException e) {
             throw new ParsingException(location, "Failed to parse", e);
         }
@@ -357,7 +357,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
+    protected void parseCreateField(ParseContext context, List<IndexableField> fields) throws IOException {
         throw new UnsupportedOperationException("should not be invoked");
     }
 

@@ -47,8 +47,8 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRIN
 
 /**
  * A declarative, stateless parser that turns XContent into setter calls. A single parser should be defined for each object being parsed,
- * nested elements can be added via {@link #declareObject(BiConsumer, BiFunction, ParseField)} which should be satisfied where possible by
- * passing another instance of {@link ObjectParser}, this one customized for that Object.
+ * nested elements can be added via {@link #declareObject(BiConsumer, ContextParser, ParseField)} which should be satisfied where possible
+ * by passing another instance of {@link ObjectParser}, this one customized for that Object.
  * <p>
  * This class works well for object that do have a constructor argument or that can be built using information available from earlier in the
  * XContent. For objects that have constructors with required arguments that are specified on the same level as other fields see
@@ -126,6 +126,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
      * @return a new value instance drawn from the provided value supplier on {@link #ObjectParser(String, Supplier)}
      * @throws IOException if an IOException occurs.
      */
+    @Override
     public Value parse(XContentParser parser, Context context) throws IOException {
         if (valueSupplier == null) {
             throw new NullPointerException("valueSupplier is not set");
@@ -463,6 +464,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         OBJECT_ARRAY(START_OBJECT, START_ARRAY),
         OBJECT_OR_BOOLEAN(START_OBJECT, VALUE_BOOLEAN),
         OBJECT_OR_STRING(START_OBJECT, VALUE_STRING),
+        OBJECT_ARRAY_OR_STRING(START_OBJECT, START_ARRAY, VALUE_STRING),
         VALUE(VALUE_BOOLEAN, VALUE_NULL, VALUE_EMBEDDED_OBJECT, VALUE_NUMBER, VALUE_STRING);
 
         private final EnumSet<XContentParser.Token> tokens;

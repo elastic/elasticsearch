@@ -55,7 +55,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (RestActions.hasBodyContent(request) == false) {
+        if (request.hasContentOrSourceParam() == false) {
             throw new ElasticsearchException("request body is required");
         }
 

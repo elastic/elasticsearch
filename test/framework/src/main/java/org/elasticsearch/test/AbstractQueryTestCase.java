@@ -506,7 +506,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    private static void queryWrappedInArrayTest(String queryName, String validQuery) throws IOException {
+    private void queryWrappedInArrayTest(String queryName, String validQuery) throws IOException {
         int i = validQuery.indexOf("\"" + queryName + "\"");
         assertThat(i, greaterThan(0));
 
@@ -544,11 +544,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Parses the query provided as string argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
-    protected static void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery) throws IOException {
+    protected void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery) throws IOException {
         assertParsedQuery(queryAsString, expectedQuery, ParseFieldMatcher.STRICT);
     }
 
-    protected static void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery, ParseFieldMatcher matcher)
+    protected void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery, ParseFieldMatcher matcher)
             throws IOException {
         QueryBuilder newQuery = parseQuery(queryAsString, matcher);
         assertNotSame(newQuery, expectedQuery);
@@ -559,11 +559,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Parses the query provided as bytes argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
-    private static void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery) throws IOException {
+    private void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery) throws IOException {
         assertParsedQuery(queryAsBytes, expectedQuery, ParseFieldMatcher.STRICT);
     }
 
-    private static void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery, ParseFieldMatcher matcher)
+    private void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery, ParseFieldMatcher matcher)
             throws IOException {
         QueryBuilder newQuery = parseQuery(queryAsBytes, matcher);
         assertNotSame(newQuery, expectedQuery);
@@ -571,25 +571,25 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
     }
 
-    protected static QueryBuilder parseQuery(String queryAsString) throws IOException {
+    protected QueryBuilder parseQuery(String queryAsString) throws IOException {
         return parseQuery(queryAsString, ParseFieldMatcher.STRICT);
     }
 
-    protected static QueryBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
-        XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
+    protected QueryBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
+        XContentParser parser = createParser(queryAsString);
         return parseQuery(parser, matcher);
     }
 
-    protected static QueryBuilder parseQuery(BytesReference queryAsBytes) throws IOException {
+    protected QueryBuilder parseQuery(BytesReference queryAsBytes) throws IOException {
         return parseQuery(queryAsBytes, ParseFieldMatcher.STRICT);
     }
 
-    protected static QueryBuilder parseQuery(BytesReference queryAsBytes, ParseFieldMatcher matcher) throws IOException {
-        XContentParser parser = XContentFactory.xContent(queryAsBytes).createParser(queryAsBytes);
+    protected QueryBuilder parseQuery(BytesReference queryAsBytes, ParseFieldMatcher matcher) throws IOException {
+        XContentParser parser = createParser(queryAsBytes);
         return parseQuery(parser, matcher);
     }
 
-    private static QueryBuilder parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
+    private QueryBuilder parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
         QueryParseContext context = createParseContext(parser, matcher);
         QueryBuilder parseInnerQueryBuilder = context.parseInnerQueryBuilder();
         assertNull(parser.nextToken());

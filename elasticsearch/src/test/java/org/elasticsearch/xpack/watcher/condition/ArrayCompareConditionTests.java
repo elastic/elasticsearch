@@ -194,10 +194,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
     }
 
     public void testParseContainsDuplicateOperator() throws IOException {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+                JsonXContent.isStrictDuplicateDetectionEnabled());
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
@@ -249,10 +247,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
     }
 
     public void testParseContainsDuplicateValue() throws IOException {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+                JsonXContent.isStrictDuplicateDetectionEnabled());
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
@@ -278,10 +274,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
     }
 
     public void testParseContainsDuplicateQuantifier() throws IOException {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+                JsonXContent.isStrictDuplicateDetectionEnabled());
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);

@@ -115,10 +115,8 @@ public class EmailAttachmentParsersTests extends ESTestCase {
     }
 
     public void testThatTwoAttachmentsWithTheSameIdThrowError() throws Exception {
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
-            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
-            return;
-        }
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+                JsonXContent.isStrictDuplicateDetectionEnabled());
         Map<String, EmailAttachmentParser> parsers = new HashMap<>();
         parsers.put("test", new TestEmailAttachmentParser());
         EmailAttachmentsParser parser = new EmailAttachmentsParser(parsers);

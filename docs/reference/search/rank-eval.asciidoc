@@ -78,7 +78,7 @@ GET /twitter/tweet/_rank_eval
 
 [source,js]
 --------------------------------
-GET /twitter/tweet/_rank_eval/template
+GET /twitter/tweet/_rank_eval
 {
   "template": {
         "inline": {

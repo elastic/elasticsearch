@@ -187,14 +187,11 @@ public class RestRankEvalAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         RankEvalRequest rankEvalRequest = new RankEvalRequest();
-        BytesReference restContent = RestActions.hasBodyContent(request) ? RestActions.getRestContent(request) : null;
-        try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
             QueryParseContext parseContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
-            if (restContent != null) {
-                parseRankEvalRequest(rankEvalRequest, request,
-                        // TODO can we get rid of aggregators parsers and suggesters?
-                        new RankEvalContext(parseFieldMatcher, parseContext, searchRequestParsers, scriptService));
-            }
+            // TODO can we get rid of aggregators parsers and suggesters?
+            parseRankEvalRequest(rankEvalRequest, request,
+                    new RankEvalContext(parseFieldMatcher, parseContext, searchRequestParsers, scriptService));
         }
         return channel -> client.executeLocally(RankEvalAction.INSTANCE, rankEvalRequest,
                 new RestToXContentListener<RankEvalResponse>(channel));

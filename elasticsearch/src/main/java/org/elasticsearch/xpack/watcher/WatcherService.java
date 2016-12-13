@@ -6,57 +6,67 @@
 package org.elasticsearch.xpack.watcher;
 
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
+import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchLockService;
-import org.elasticsearch.xpack.watcher.watch.WatchStatus;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
-import org.joda.time.DateTime;
+import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
-import java.io.IOException;
-import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
-import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
-import static org.joda.time.DateTimeZone.UTC;
+import static org.elasticsearch.xpack.watcher.watch.Watch.DOC_TYPE;
+import static org.elasticsearch.xpack.watcher.watch.Watch.INDEX;
 
 
 public class WatcherService extends AbstractComponent {
 
-    private final Clock clock;
     private final TriggerService triggerService;
-    private final Watch.Parser watchParser;
-    private final WatchStore watchStore;
     private final WatchLockService watchLockService;
     private final ExecutionService executionService;
     private final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry;
     // package-private for testing
     final AtomicReference<WatcherState> state = new AtomicReference<>(WatcherState.STOPPED);
+    private final TimeValue scrollTimeout;
+    private final int scrollSize;
+    private final Watch.Parser parser;
+    private final WatcherClientProxy client;
 
-    public WatcherService(Settings settings, Clock clock, TriggerService triggerService, WatchStore watchStore,
-                          Watch.Parser watchParser, ExecutionService executionService, WatchLockService watchLockService,
-                          WatcherIndexTemplateRegistry watcherIndexTemplateRegistry) {
+    public WatcherService(Settings settings, TriggerService triggerService,
+                          ExecutionService executionService, WatchLockService watchLockService,
+                          WatcherIndexTemplateRegistry watcherIndexTemplateRegistry, Watch.Parser parser, WatcherClientProxy client) {
         super(settings);
-        this.clock = clock;
         this.triggerService = triggerService;
-        this.watchStore = watchStore;
-        this.watchParser = watchParser;
         this.watchLockService = watchLockService;
         this.executionService = executionService;
         this.watcherIndexTemplateRegistry = watcherIndexTemplateRegistry;
+        this.scrollTimeout = settings.getAsTime("xpack.watcher.watch.scroll.timeout", TimeValue.timeValueSeconds(30));
+        this.scrollSize = settings.getAsInt("xpack.watcher.watch.scroll.size", 100);
+        this.parser = parser;
+        this.client = client;
     }
 
     public void start(ClusterState clusterState) throws Exception {
@@ -65,12 +75,9 @@ public class WatcherService extends AbstractComponent {
                 logger.debug("starting watch service...");
                 watcherIndexTemplateRegistry.addTemplatesIfMissing();
                 watchLockService.start();
-
-                // Try to load watch store before the execution service, b/c action depends on watch store
-                watchStore.start(clusterState);
                 executionService.start(clusterState);
+                triggerService.start(loadWatches(clusterState));
 
-                triggerService.start(watchStore.activeWatches());
                 state.set(WatcherState.STARTED);
                 logger.debug("watch service has started");
             } catch (Exception e) {
@@ -83,7 +90,7 @@ public class WatcherService extends AbstractComponent {
     }
 
     public boolean validate(ClusterState state) {
-        return watchStore.validate(state) && executionService.validate(state);
+        return executionService.validate(state);
     }
 
     public void stop() {
@@ -96,7 +103,6 @@ public class WatcherService extends AbstractComponent {
             } catch (ElasticsearchTimeoutException te) {
                 logger.warn("error stopping WatchLockService", te);
             }
-            watchStore.stop();
             state.set(WatcherState.STOPPED);
             logger.debug("watch service has stopped");
         } else {
@@ -104,151 +110,74 @@ public class WatcherService extends AbstractComponent {
         }
     }
 
-    public WatchStore.WatchDelete deleteWatch(String id) {
-        ensureStarted();
-        WatchStore.WatchDelete delete = watchStore.delete(id);
-        if (delete.deleteResponse().getResult() == DocWriteResponse.Result.DELETED) {
-            triggerService.remove(id);
-        }
-        return delete;
-    }
-
-    public IndexResponse putWatch(String id, BytesReference watchSource, boolean active) throws IOException {
-        ensureStarted();
-        DateTime now = new DateTime(clock.millis(), UTC);
-        Watch watch = watchParser.parseWithSecrets(id, false, watchSource, now);
-        watch.setState(active, now);
-        WatchStore.WatchPut result = watchStore.put(watch);
-
-        if (result.previous() == null) {
-            // this is a newly created watch, so we only need to schedule it if it's active
-            if (result.current().status().state().isActive()) {
-                triggerService.add(result.current());
-            }
-
-        } else if (result.current().status().state().isActive()) {
-
-            if (!result.previous().status().state().isActive()) {
-                // the replaced watch was inactive, which means it wasn't scheduled. The new watch is active
-                // so we need to schedule it
-                triggerService.add(result.current());
-
-            } else if (!result.previous().trigger().equals(result.current().trigger())) {
-                // the previous watch was active and its schedule is different than the schedule of the
-                // new watch, so we need to
-                triggerService.add(result.current());
-            }
-        } else {
-            // if the current is inactive, we'll just remove it from the trigger service
-            // just to be safe
-            triggerService.remove(result.current().id());
-        }
-        return result.indexResponse();
-    }
-
     /**
-     * TODO: add version, fields, etc support that the core get api has as well.
+     * This reads all watches from the .watches index/alias and puts them into memory for a short period of time,
+     * before they are fed into the trigger service.
+     *
+     * This is only invoked when a node becomes master, so either on start up or when a master node switches - while watcher is started up
      */
-    public Watch getWatch(String name) {
-        return watchStore.get(name);
+    private Collection<Watch> loadWatches(ClusterState clusterState) {
+        IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX, clusterState.metaData());
+
+        // no index exists, all good, we can start
+        if (indexMetaData == null) {
+            return Collections.emptyList();
+        }
+
+        RefreshResponse refreshResponse = client.refresh(new RefreshRequest(INDEX));
+        if (refreshResponse.getSuccessfulShards() < indexMetaData.getNumberOfShards()) {
+            throw illegalState("not all required shards have been refreshed");
+        }
+
+        List<Watch> watches = new ArrayList<>();
+        SearchRequest searchRequest = new SearchRequest(INDEX)
+                .types(DOC_TYPE)
+                .scroll(scrollTimeout)
+                .source(new SearchSourceBuilder()
+                        .size(scrollSize)
+                        .sort(SortBuilders.fieldSort("_doc"))
+                        .version(true));
+        SearchResponse response = client.search(searchRequest, null);
+        try {
+            if (response.getTotalShards() != response.getSuccessfulShards()) {
+                throw new ElasticsearchException("Partial response while loading watches");
+            }
+
+            while (response.getHits().hits().length != 0) {
+                for (SearchHit hit : response.getHits()) {
+                    String id = hit.getId();
+                    try {
+                        Watch watch = parser.parse(id, true, hit.getSourceRef());
+                        watch.version(hit.version());
+                        watches.add(watch);
+                    } catch (Exception e) {
+                        logger.error((Supplier<?>) () -> new ParameterizedMessage("couldn't load watch [{}], ignoring it...", id), e);
+                    }
+                }
+                response = client.searchScroll(response.getScrollId(), scrollTimeout);
+            }
+        } finally {
+            client.clearScroll(response.getScrollId());
+        }
+        return watches;
     }
+
+
 
     public WatcherState state() {
         return state.get();
     }
 
-    /**
-     * Acks the watch if needed
-     */
-    public WatchStatus ackWatch(String id, String[] actionIds) throws IOException {
-        ensureStarted();
-        if (actionIds == null || actionIds.length == 0) {
-            actionIds = new String[] { Watch.ALL_ACTIONS_ID };
-        }
-        Watch watch = watchStore.get(id);
-        if (watch == null) {
-            throw illegalArgument("watch [{}] does not exist", id);
-        }
-        // we need to create a safe copy of the status
-        if (watch.ack(new DateTime(clock.millis(), UTC), actionIds)) {
-            try {
-                watchStore.updateStatus(watch);
-            } catch (IOException ioe) {
-                throw ioException("failed to update the watch [{}] on ack", ioe, watch.id());
-            } catch (VersionConflictEngineException vcee) {
-                throw illegalState("failed to update the watch [{}] on ack, perhaps it was force deleted", vcee, watch.id());
-            }
-        }
-        return new WatchStatus(watch.status());
-    }
-
-    public WatchStatus activateWatch(String id) throws IOException {
-        return setWatchState(id, true);
-    }
-
-    public WatchStatus deactivateWatch(String id) throws IOException {
-        return setWatchState(id, false);
-    }
-
-    WatchStatus setWatchState(String id, boolean active) throws IOException {
-        ensureStarted();
-        // for now, when a watch is deactivated we don't remove its runtime representation
-        // that is, the store will still keep the watch in memory. We only mark the watch
-        // as inactive (both in runtime and also update the watch in the watches index)
-        // and remove the watch from the trigger service, such that it will not be triggered
-        // nor its trigger be evaluated.
-        //
-        // later on we can consider removing the watch runtime representation from memory
-        // as well. This will mean that the in-memory loaded watches will no longer be a
-        // complete representation of the watches in the index. This requires careful thought
-        // to make sure, such incompleteness doesn't hurt any other part of watcher (we need
-        // to run this exercise anyway... and make sure that nothing in watcher relies on the
-        // fact that the watch store holds all watches in memory.
-
-        Watch watch = watchStore.get(id);
-        if (watch == null) {
-            throw illegalArgument("watch [{}] does not exist", id);
-        }
-        if (watch.setState(active, new DateTime(clock.millis(), UTC))) {
-            try {
-                watchStore.updateStatus(watch);
-                if (active) {
-                    triggerService.add(watch);
-                } else {
-                    triggerService.remove(watch.id());
-                }
-            } catch (IOException ioe) {
-                throw ioException("failed to update the watch [{}] on ack", ioe, watch.id());
-            } catch (VersionConflictEngineException vcee) {
-                throw illegalState("failed to update the watch [{}] on ack, perhaps it was force deleted", vcee, watch.id());
-            }
-        }
-        // we need to create a safe copy of the status
-        return new WatchStatus(watch.status());
-    }
-
-    public long watchesCount() {
-        return watchStore.watches().size();
-    }
-
-    private void ensureStarted() {
-        if (state.get() != WatcherState.STARTED) {
-            throw new IllegalStateException("not started");
-        }
-    }
-
     public Map<String, Object> usageStats() {
         Map<String, Object> innerMap = executionService.usageStats();
-        innerMap.putAll(watchStore.usageStats());
         return innerMap;
     }
 
     /**
-     * Something deleted or closed the {@link WatchStore#INDEX} and thus we need to do some cleanup to prevent further execution of watches
+     * Something deleted or closed the {@link Watch#INDEX} and thus we need to do some cleanup to prevent further execution of watches
      * as those watches cannot be updated anymore
      */
     public void watchIndexDeletedOrClosed() {
-        watchStore.clearWatchesInMemory();
         executionService.clearExecutions();
     }
 }

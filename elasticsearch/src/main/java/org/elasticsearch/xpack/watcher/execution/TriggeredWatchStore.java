@@ -15,7 +15,6 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,7 +23,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -75,8 +73,9 @@ public class TriggeredWatchStore extends AbstractComponent {
     public boolean validate(ClusterState state) {
         try {
             IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX_NAME, state.metaData());
-            return state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
-        } catch (IndexNotFoundException e) {
+            if (indexMetaData != null) {
+                return state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
+            }
         } catch (IllegalStateException e) {
             logger.trace((Supplier<?>) () -> new ParameterizedMessage("error getting index meta data [{}]: ", INDEX_NAME), e);
             return false;
@@ -108,29 +107,20 @@ public class TriggeredWatchStore extends AbstractComponent {
         }
     }
 
-    public void put(final TriggeredWatch triggeredWatch, final ActionListener<Boolean> listener) throws Exception {
+    public void put(final TriggeredWatch triggeredWatch, final ActionListener<Boolean> listener) {
         ensureStarted();
         try {
             IndexRequest request = new IndexRequest(INDEX_NAME, DOC_TYPE, triggeredWatch.id().value())
                     .source(XContentFactory.jsonBuilder().value(triggeredWatch))
                     .opType(IndexRequest.OpType.CREATE);
-            client.index(request, new ActionListener<IndexResponse>() {
-                @Override
-                public void onResponse(IndexResponse response) {
-                    listener.onResponse(true);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            client.index(request, ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
         } catch (IOException e) {
-            throw ioException("failed to persist triggered watch [{}]", e, triggeredWatch);
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("could not index triggered watch [{}], ignoring it...",
+                    triggeredWatch.id()), e);
         }
     }
 
-    public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<BitSet> listener) throws Exception {
+    public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<BitSet> listener) {
 
         if (triggeredWatches.isEmpty()) {
             listener.onResponse(new BitSet(0));
@@ -138,55 +128,39 @@ public class TriggeredWatchStore extends AbstractComponent {
         }
 
         if (triggeredWatches.size() == 1) {
-            put(triggeredWatches.get(0), new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(Boolean success) {
-                    BitSet bitSet = new BitSet(1);
-                    bitSet.set(0);
-                    listener.onResponse(bitSet);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            put(triggeredWatches.get(0), ActionListener.wrap(success -> {
+                BitSet bitSet = new BitSet(1);
+                bitSet.set(0);
+                listener.onResponse(bitSet);
+            }, listener::onFailure));
             return;
         }
 
         ensureStarted();
-        try {
-            BulkRequest request = new BulkRequest();
-            for (TriggeredWatch triggeredWatch : triggeredWatches) {
+        BulkRequest request = new BulkRequest();
+        for (TriggeredWatch triggeredWatch : triggeredWatches) {
+            try {
                 IndexRequest indexRequest = new IndexRequest(INDEX_NAME, DOC_TYPE, triggeredWatch.id().value());
                 indexRequest.source(XContentFactory.jsonBuilder().value(triggeredWatch));
                 indexRequest.opType(IndexRequest.OpType.CREATE);
                 request.add(indexRequest);
+            } catch (IOException e) {
+                logger.warn("could not create JSON to store triggered watch [{}]", triggeredWatch.id().value());
             }
-            client.bulk(request, new ActionListener<BulkResponse>() {
-                @Override
-                public void onResponse(BulkResponse response) {
-                    BitSet successFullSlots = new BitSet(triggeredWatches.size());
-                    for (int i = 0; i < response.getItems().length; i++) {
-                        BulkItemResponse itemResponse = response.getItems()[i];
-                        if (itemResponse.isFailed()) {
-                            logger.error("could store triggered watch with id [{}], because failed [{}]", itemResponse.getId(),
-                                    itemResponse.getFailureMessage());
-                        } else {
-                            successFullSlots.set(i);
-                        }
-                    }
-                    listener.onResponse(successFullSlots);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-        } catch (IOException e) {
-            throw ioException("failed to persist triggered watches", e);
         }
+        client.bulk(request, ActionListener.wrap(response -> {
+            BitSet successFullSlots = new BitSet(triggeredWatches.size());
+            for (int i = 0; i < response.getItems().length; i++) {
+                BulkItemResponse itemResponse = response.getItems()[i];
+                if (itemResponse.isFailed()) {
+                    logger.error("could not store triggered watch with id [{}], failed [{}]", itemResponse.getId(),
+                            itemResponse.getFailureMessage());
+                } else {
+                    successFullSlots.set(i);
+                }
+            }
+            listener.onResponse(successFullSlots);
+        }, listener::onFailure));
     }
 
     public BitSet putAll(final List<TriggeredWatch> triggeredWatches) throws Exception {
@@ -229,10 +203,8 @@ public class TriggeredWatchStore extends AbstractComponent {
     }
 
     public Collection<TriggeredWatch> loadTriggeredWatches(ClusterState state) {
-        IndexMetaData indexMetaData;
-        try {
-            indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX_NAME, state.metaData());
-        } catch (IndexNotFoundException e) {
+        IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(INDEX_NAME, state.metaData());
+        if (indexMetaData == null) {
             return Collections.emptySet();
         }
 

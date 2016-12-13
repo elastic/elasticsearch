@@ -11,10 +11,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.common.secret.Secret;
-import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
-import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.notification.email.Authentication;
 import org.elasticsearch.xpack.notification.email.DataAttachment;
 import org.elasticsearch.xpack.notification.email.Email;
@@ -22,6 +19,9 @@ import org.elasticsearch.xpack.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.notification.email.Profile;
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachments;
 import org.elasticsearch.xpack.notification.email.attachment.EmailAttachmentsParser;
+import org.elasticsearch.xpack.watcher.actions.Action;
+import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
+import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -105,7 +105,7 @@ public class EmailAction implements Action {
         }
         if (auth != null) {
             builder.field(Field.USER.getPreferredName(), auth.user());
-            if (!WatcherParams.hideSecrets(params)) {
+            if (WatcherParams.hideSecrets(params) == false) {
                 builder.field(Field.PASSWORD.getPreferredName(), auth.password(), params);
             }
         }

@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.transport.actions.get;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -15,7 +13,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,36 +22,38 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.watcher.WatcherService;
+import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
+import org.joda.time.DateTime;
 
-import java.io.IOException;
+import java.time.Clock;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.joda.time.DateTimeZone.UTC;
 
-/**
- * Performs the get operation.
- */
 public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequest, GetWatchResponse> {
 
-    private final WatcherService watcherService;
+    private final Watch.Parser parser;
+    private final Clock clock;
+    private final WatcherClientProxy client;
 
     @Inject
     public TransportGetWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                    ThreadPool threadPool, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
-                                   XPackLicenseState licenseState) {
+                                   IndexNameExpressionResolver indexNameExpressionResolver, XPackLicenseState licenseState,
+                                   Watch.Parser parser, Clock clock, WatcherClientProxy client) {
         super(settings, GetWatchAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver, licenseState, GetWatchRequest::new);
-        this.watcherService = watcherService;
+                indexNameExpressionResolver, licenseState, GetWatchRequest::new);
+        this.parser = parser;
+        this.clock = clock;
+        this.client = client;
     }
 
     @Override
     protected String executor() {
-        return ThreadPool.Names.SAME; // Super lightweight operation, so don't fork
+        return ThreadPool.Names.MANAGEMENT;
     }
 
     @Override
@@ -70,32 +69,30 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
             return;
         }
 
-        try {
-            Watch watch = watcherService.getWatch(request.getId());
-            if (watch == null) {
+        client.getWatch(request.getId(), ActionListener.wrap(getResponse -> {
+            if (getResponse.isExists() == false) {
                 listener.onResponse(new GetWatchResponse(request.getId()));
-                return;
             }
 
             try (XContentBuilder builder = jsonBuilder()) {
-                // When we return the watch via the get api, we want to return the watch as was specified in the put api,
+                // When we return the watch via the Get Watch REST API, we want to return the watch as was specified in the put api,
                 // we don't include the status in the watch source itself, but as a separate top level field, so that
                 // it indicates the the status is managed by watcher itself.
-                watch.toXContent(builder, WatcherParams.builder().hideSecrets(true).build());
-                BytesReference watchSource = builder.bytes();
-                listener.onResponse(new GetWatchResponse(watch.id(), watch.status(), watchSource, XContentType.JSON));
-            } catch (IOException e) {
-                listener.onFailure(e);
+                DateTime now = new DateTime(clock.millis(), UTC);
+                Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now);
+                watch.toXContent(builder, WatcherParams.builder()
+                        .hideSecrets(true)
+                        .put(Watch.INCLUDE_STATUS_KEY, false)
+                        .build());
+                watch.version(getResponse.getVersion());
+                watch.status().version(getResponse.getVersion());
+                listener.onResponse(new GetWatchResponse(watch.id(), watch.status(), builder.bytes(), XContentType.JSON));
             }
-
-        } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to get watch [{}]", request.getId()), e);
-            throw e;
-        }
+        }, listener::onFailure));
     }
 
     @Override
     protected ClusterBlockException checkBlock(GetWatchRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, WatchStore.INDEX);
+        return state.blocks().indexBlockedException(ClusterBlockLevel.READ, Watch.INDEX);
     }
 }

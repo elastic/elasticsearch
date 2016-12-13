@@ -9,14 +9,12 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.watcher.trigger.Trigger;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
-import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
-import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.trigger.schedule.engine.BaseTriggerEngineTestCase;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 
@@ -59,7 +57,7 @@ public class ScheduleEngineTriggerBenchmark {
                 .build();
         List<TriggerEngine.Job> jobs = new ArrayList<>(numWatches);
         for (int i = 0; i < numWatches; i++) {
-            jobs.add(new SimpleJob("job_" + i, interval(interval + "s")));
+            jobs.add(new BaseTriggerEngineTestCase.SimpleJob("job_" + i, interval(interval + "s")));
         }
         ScheduleRegistry scheduleRegistry = new ScheduleRegistry(emptySet());
         List<String> impls = new ArrayList<>(Arrays.asList(new String[]{"schedule", "ticker"}));
@@ -140,28 +138,6 @@ public class ScheduleEngineTriggerBenchmark {
             if (delta < 0) {
                 tooEarlyMetric.inc(delta);
             }
-        }
-    }
-
-
-    static class SimpleJob implements TriggerEngine.Job {
-
-        private final String name;
-        private final ScheduleTrigger trigger;
-
-        public SimpleJob(String name, Schedule schedule) {
-            this.name = name;
-            this.trigger = new ScheduleTrigger(schedule);
-        }
-
-        @Override
-        public String id() {
-            return name;
-        }
-
-        @Override
-        public Trigger trigger() {
-            return trigger;
         }
     }
 

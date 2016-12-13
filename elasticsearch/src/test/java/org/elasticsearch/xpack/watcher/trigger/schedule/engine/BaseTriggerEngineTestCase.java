@@ -24,6 +24,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.daily;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
@@ -184,17 +185,42 @@ public abstract class BaseTriggerEngineTestCase extends ESTestCase {
         }
     }
 
-    public void testAddSameJobSeveralTimes() {
+    public void testAddSameJobSeveralTimesAndExecutedOnce() throws InterruptedException {
         engine.start(Collections.emptySet());
-        engine.register(events -> logger.info("triggered job"));
+
+        final CountDownLatch firstLatch = new CountDownLatch(1);
+        final CountDownLatch secondLatch = new CountDownLatch(1);
+        AtomicInteger counter = new AtomicInteger(0);
+        engine.register(events -> {
+            events.forEach(event -> {
+                if (counter.getAndIncrement() == 0) {
+                    firstLatch.countDown();
+                } else {
+                    secondLatch.countDown();
+                }
+            });
+        });
 
         int times = scaledRandomIntBetween(3, 30);
         for (int i = 0; i < times; i++) {
-            engine.add(new SimpleJob("_id", interval("10s")));
+            engine.add(new SimpleJob("_id", interval("1s")));
         }
+
+        advanceClockIfNeeded(new DateTime(clock.millis(), UTC).plusMillis(1100));
+        if (!firstLatch.await(3, TimeUnit.SECONDS)) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        advanceClockIfNeeded(new DateTime(clock.millis(), UTC).plusMillis(1100));
+        if (!secondLatch.await(3, TimeUnit.SECONDS)) {
+            fail("waiting too long for all watches to be triggered");
+        }
+
+        // ensure job was only called twice independent from its name
+        assertThat(counter.get(), is(2));
     }
 
-    static class SimpleJob implements TriggerEngine.Job {
+    public static class SimpleJob implements TriggerEngine.Job {
 
         private final String name;
         private final ScheduleTrigger trigger;

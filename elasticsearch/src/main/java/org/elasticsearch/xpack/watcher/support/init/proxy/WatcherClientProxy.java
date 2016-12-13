@@ -14,6 +14,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
@@ -21,13 +23,23 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.xpack.common.init.proxy.ClientProxy;
 import org.elasticsearch.xpack.security.InternalClient;
+import org.elasticsearch.xpack.watcher.watch.Watch;
+
+import java.io.IOException;
+import java.util.Collections;
 
 /**
  * A lazily initialized proxy to an elasticsearch {@link Client}. Inject this proxy whenever a client
@@ -63,6 +75,10 @@ public class WatcherClientProxy extends ClientProxy {
 
     public UpdateResponse update(UpdateRequest request) {
         return client.update(preProcess(request)).actionGet(defaultIndexTimeout);
+    }
+
+    public void update(UpdateRequest request, ActionListener<UpdateResponse> listener) {
+        client.update(preProcess(request), listener);
     }
 
     public BulkResponse bulk(BulkRequest request, TimeValue timeout) {
@@ -110,4 +126,47 @@ public class WatcherClientProxy extends ClientProxy {
         preProcess(request);
         client.admin().indices().putTemplate(request, listener);
     }
+
+    public GetResponse getWatch(String id) {
+        PlainActionFuture<GetResponse> future = PlainActionFuture.newFuture();
+        getWatch(id, future);
+        return future.actionGet();
+    }
+
+    public void getWatch(String id, ActionListener<GetResponse> listener) {
+        GetRequest getRequest = new GetRequest(Watch.INDEX, Watch.DOC_TYPE, id).preference(Preference.LOCAL.type()).realtime(true);
+        client.get(preProcess(getRequest), listener);
+    }
+
+    public void deleteWatch(String id, ActionListener<DeleteResponse> listener) {
+        DeleteRequest request = new DeleteRequest(Watch.INDEX, Watch.DOC_TYPE, id);
+        client.delete(preProcess(request), listener);
+    }
+
+    /**
+     * Updates and persists the status of the given watch
+     *
+     * If the watch is missing (because it might have been deleted by the user during an execution), then this method
+     * does nothing and just returns without throwing an exception
+     */
+    public void updateWatchStatus(Watch watch) throws IOException {
+        // at the moment we store the status together with the watch,
+        // so we just need to update the watch itself
+        ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(Watch.INCLUDE_STATUS_KEY, "true"));
+        XContentBuilder source = JsonXContent.contentBuilder().
+                startObject()
+                .field(Watch.Field.STATUS.getPreferredName(), watch.status(), params)
+                .endObject();
+
+        UpdateRequest updateRequest = new UpdateRequest(Watch.INDEX, Watch.DOC_TYPE, watch.id());
+        updateRequest.doc(source);
+        updateRequest.version(watch.version());
+        try {
+            this.update(updateRequest);
+        } catch (DocumentMissingException e) {
+            // do not rethrow this exception, otherwise the watch history will contain an exception
+            // even though the execution might have been fine
+        }
+    }
+
 }

@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.XPackPlugin;
 
 import java.io.IOException;
@@ -106,7 +106,7 @@ public class WatcherScheduleEngineBenchmark {
                 System.out.println("===============> indexing [" + numWatches + "] watches");
                 for (int i = 0; i < numWatches; i++) {
                     final String id = "_id_" + i;
-                    client.prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, id)
+                    client.prepareIndex(Watch.INDEX, Watch.DOC_TYPE, id)
                             .setSource(new WatchSourceBuilder()
                                             .trigger(schedule(interval(interval + "s")))
                                             .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
@@ -115,7 +115,7 @@ public class WatcherScheduleEngineBenchmark {
                                             .buildAsBytes(XContentType.JSON)
                             ).get();
                 }
-                client.admin().indices().prepareFlush(WatchStore.INDEX, "test").get();
+                client.admin().indices().prepareFlush(Watch.INDEX, "test").get();
                 System.out.println("===============> indexed [" + numWatches + "] watches");
             }
         }
@@ -137,7 +137,7 @@ public class WatcherScheduleEngineBenchmark {
                 try (final Client client = node.client()) {
                     client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                     client.admin().indices().prepareDelete(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*").get();
-                    client.admin().cluster().prepareHealth(WatchStore.INDEX, "test").setWaitForYellowStatus().get();
+                    client.admin().cluster().prepareHealth(Watch.INDEX, "test").setWaitForYellowStatus().get();
 
                     Clock clock = node.injector().getInstance(Clock.class);
                     WatcherClient watcherClient = node.injector().getInstance(WatcherClient.class);

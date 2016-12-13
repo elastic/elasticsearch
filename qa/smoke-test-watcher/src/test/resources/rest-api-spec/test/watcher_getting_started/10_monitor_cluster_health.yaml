@@ -65,6 +65,10 @@ teardown:
   - match: { created: true }
 
   - do:
+      indices.refresh:
+        index: .watches
+
+  - do:
       xpack.watcher.stats: {}
   - match: { "watch_count": 1 }
 
@@ -113,6 +117,9 @@ teardown:
         id: "cluster_health_watch"
   - match: { found: true }
 
+  - do:
+      indices.refresh:
+        index: .watches
 
   - do:
       xpack.watcher.stats: {}

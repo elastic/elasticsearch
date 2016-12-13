@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.transport.actions.delete;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
-import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -20,25 +19,28 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.watcher.WatcherService;
+import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.watcher.trigger.TriggerService;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 /**
  * Performs the delete operation.
  */
 public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWatchRequest, DeleteWatchResponse> {
 
-    private final WatcherService watcherService;
+    private final WatcherClientProxy client;
+    private final TriggerService triggerService;
 
     @Inject
     public TransportDeleteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters,
-                                      IndexNameExpressionResolver indexNameExpressionResolver, WatcherService watcherService,
-                                      XPackLicenseState licenseState) {
+                                      IndexNameExpressionResolver indexNameExpressionResolver, WatcherClientProxy client,
+                                      XPackLicenseState licenseState, TriggerService triggerService) {
         super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
                 licenseState, DeleteWatchRequest::new);
-        this.watcherService = watcherService;
+        this.client = client;
+        this.triggerService = triggerService;
     }
 
     @Override
@@ -54,20 +56,19 @@ public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWat
     @Override
     protected void masterOperation(DeleteWatchRequest request, ClusterState state, ActionListener<DeleteWatchResponse> listener) throws
             ElasticsearchException {
-        try {
-            DeleteResponse deleteResponse = watcherService.deleteWatch(request.getId()).deleteResponse();
-            boolean deleted = deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
-            DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleted);
-            listener.onResponse(response);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
+        client.deleteWatch(request.getId(), ActionListener.wrap(deleteResponse -> {
+                    boolean deleted = deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
+                    DeleteWatchResponse response = new DeleteWatchResponse(deleteResponse.getId(), deleteResponse.getVersion(), deleted);
+                    if (deleted) {
+                        triggerService.remove(request.getId());
+                    }
+                    listener.onResponse(response);
+                },
+                listener::onFailure));
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteWatchRequest request, ClusterState state) {
-        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, WatchStore.INDEX);
+        return state.blocks().indexBlockedException(ClusterBlockLevel.WRITE, Watch.INDEX);
     }
-
-
 }

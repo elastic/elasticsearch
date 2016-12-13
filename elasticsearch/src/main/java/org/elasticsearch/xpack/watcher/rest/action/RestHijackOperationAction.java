@@ -15,7 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 
@@ -33,18 +33,18 @@ public class RestHijackOperationAction extends WatcherRestHandler {
         super(settings);
         if (!settings.getAsBoolean(ALLOW_DIRECT_ACCESS_TO_WATCH_INDEX_SETTING, false)) {
             WatcherRestHandler unsupportedHandler = new UnsupportedHandler(settings);
-            controller.registerHandler(POST, WatchStore.INDEX + "/watch", this);
-            controller.registerHandler(POST, WatchStore.INDEX + "/watch/{id}", this);
-            controller.registerHandler(PUT, WatchStore.INDEX + "/watch/{id}", this);
-            controller.registerHandler(POST, WatchStore.INDEX + "/watch/{id}/_update", this);
-            controller.registerHandler(DELETE, WatchStore.INDEX + "/watch/_query", this);
-            controller.registerHandler(DELETE, WatchStore.INDEX + "/watch/{id}", this);
-            controller.registerHandler(GET, WatchStore.INDEX + "/watch/{id}", this);
-            controller.registerHandler(POST, WatchStore.INDEX + "/watch/_bulk", unsupportedHandler);
-            controller.registerHandler(POST, WatchStore.INDEX + "/_bulk", unsupportedHandler);
-            controller.registerHandler(PUT, WatchStore.INDEX + "/watch/_bulk", unsupportedHandler);
-            controller.registerHandler(PUT, WatchStore.INDEX + "/_bulk", unsupportedHandler);
-            controller.registerHandler(DELETE, WatchStore.INDEX, unsupportedHandler);
+            controller.registerHandler(POST, Watch.INDEX + "/watch", this);
+            controller.registerHandler(POST, Watch.INDEX + "/watch/{id}", this);
+            controller.registerHandler(PUT, Watch.INDEX + "/watch/{id}", this);
+            controller.registerHandler(POST, Watch.INDEX + "/watch/{id}/_update", this);
+            controller.registerHandler(DELETE, Watch.INDEX + "/watch/_query", this);
+            controller.registerHandler(DELETE, Watch.INDEX + "/watch/{id}", this);
+            controller.registerHandler(GET, Watch.INDEX + "/watch/{id}", this);
+            controller.registerHandler(POST, Watch.INDEX + "/watch/_bulk", unsupportedHandler);
+            controller.registerHandler(POST, Watch.INDEX + "/_bulk", unsupportedHandler);
+            controller.registerHandler(PUT, Watch.INDEX + "/watch/_bulk", unsupportedHandler);
+            controller.registerHandler(PUT, Watch.INDEX + "/_bulk", unsupportedHandler);
+            controller.registerHandler(DELETE, Watch.INDEX, unsupportedHandler);
         }
     }
 
@@ -56,7 +56,7 @@ public class RestHijackOperationAction extends WatcherRestHandler {
         }
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         jsonBuilder.startObject().field("error", "This endpoint is not supported for " +
-                request.method().name() + " on " + WatchStore.INDEX + " index. Please use " +
+                request.method().name() + " on " + Watch.INDEX + " index. Please use " +
                 request.method().name() + " " + URI_BASE + "/watch/<watch_id> instead");
         jsonBuilder.field("status", RestStatus.BAD_REQUEST.getStatus());
         jsonBuilder.endObject();
@@ -77,7 +77,7 @@ public class RestHijackOperationAction extends WatcherRestHandler {
             }
             XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
             jsonBuilder.startObject().field("error", "This endpoint is not supported for " +
-                    request.method().name() + " on " + WatchStore.INDEX + " index.");
+                    request.method().name() + " on " + Watch.INDEX + " index.");
             jsonBuilder.field("status", RestStatus.BAD_REQUEST.getStatus());
             jsonBuilder.endObject();
             return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.BAD_REQUEST, jsonBuilder));

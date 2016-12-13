@@ -95,6 +95,7 @@ public class LatchScriptEngine implements ScriptEngineService {
     }
 
     public static class LatchScriptPlugin extends Plugin implements ScriptPlugin {
+
         @Override
         public ScriptEngineService getScriptEngineService(Settings settings) {
             return INSTANCE;

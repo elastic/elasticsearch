@@ -36,10 +36,6 @@
   - match: { _id: "my_watch" }
 
   - do:
-      cluster.health:
-        wait_for_status: yellow
-
-  - do:
       xpack.watcher.get_watch:
         id: "my_watch"
 
@@ -51,7 +47,7 @@
       xpack.watcher.deactivate_watch:
         watch_id: "my_watch"
 
-  - match: { "_status.state.active" : false }
+  - match: { _status.state.active : false }
 
   - do:
       xpack.watcher.get_watch:
@@ -64,7 +60,7 @@
       xpack.watcher.activate_watch:
         watch_id: "my_watch"
 
-  - match: { "_status.state.active" : true }
+  - match: { _status.state.active : true }
 
   - do:
       xpack.watcher.get_watch:

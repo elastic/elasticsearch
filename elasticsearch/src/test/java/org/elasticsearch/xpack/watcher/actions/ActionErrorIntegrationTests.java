@@ -52,14 +52,11 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
         flush();
 
         // there should be a single history record with a failure status for the action:
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                long count = watchRecordCount(QueryBuilders.boolQuery()
-                        .must(termsQuery("result.actions.id", "_action"))
-                        .must(termsQuery("result.actions.status", "failure")));
-                assertThat(count, is(1L));
-            }
+        assertBusy(() -> {
+            long count = watchRecordCount(QueryBuilders.boolQuery()
+                    .must(termsQuery("result.actions.id", "_action"))
+                    .must(termsQuery("result.actions.status", "failure")));
+            assertThat(count, is(1L));
         });
 
         // now we'll trigger the watch again and make sure that it's not throttled and instead
@@ -72,14 +69,11 @@ public class ActionErrorIntegrationTests extends AbstractWatcherIntegrationTestC
         flush();
 
         // there should be a single history record with a failure status for the action:
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                long count = watchRecordCount(QueryBuilders.boolQuery()
-                        .must(termsQuery("result.actions.id", "_action"))
-                        .must(termsQuery("result.actions.status", "failure")));
-                assertThat(count, is(2L));
-            }
+        assertBusy(() -> {
+            long count = watchRecordCount(QueryBuilders.boolQuery()
+                    .must(termsQuery("result.actions.id", "_action"))
+                    .must(termsQuery("result.actions.status", "failure")));
+            assertThat(count, is(2L));
         });
 
         // now lets confirm that the ack status of the action is awaits_successful_execution

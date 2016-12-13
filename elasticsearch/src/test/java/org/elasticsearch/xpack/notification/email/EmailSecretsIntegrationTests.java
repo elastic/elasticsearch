@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRes
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -84,7 +84,7 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
                 .get();
 
         // verifying the email password is stored encrypted in the index
-        GetResponse response = client().prepareGet(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id").get();
+        GetResponse response = client().prepareGet(Watch.INDEX, Watch.DOC_TYPE, "_id").get();
         assertThat(response, notNullValue());
         assertThat(response.getId(), is("_id"));
         Map<String, Object> source = response.getSource();

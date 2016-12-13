@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.WatcherState;
-import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.CompareCondition;
+import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatch;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -36,6 +35,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -51,62 +51,11 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected boolean timeWarped() {
-        // timewarping isn't necessary here, because we aren't testing triggering or throttling
         return false;
     }
 
-    public void testLoadMalformedWatch() throws Exception {
-        // valid watch
-        client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id0")
-                .setSource(jsonBuilder().startObject()
-                            .startObject(Watch.Field.TRIGGER.getPreferredName())
-                                .startObject("schedule")
-                                    .field("interval", "1s")
-                                .endObject()
-                            .endObject()
-                            .startObject(Watch.Field.ACTIONS.getPreferredName())
-                            .endObject()
-                        .endObject())
-                .get();
-
-        // invalid interval
-        client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id2")
-                .setSource(jsonBuilder().startObject()
-                        .startObject(Watch.Field.TRIGGER.getPreferredName())
-                            .startObject("schedule")
-                                .field("interval", true)
-                            .endObject()
-                        .endObject()
-                        .startObject(Watch.Field.ACTIONS.getPreferredName())
-                        .endObject()
-                        .endObject())
-                .get();
-
-        // illegal top level field
-        client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id3")
-                .setSource(jsonBuilder().startObject()
-                        .startObject(Watch.Field.TRIGGER.getPreferredName())
-                            .startObject("schedule")
-                                .field("interval", "1s")
-                            .endObject()
-                            .startObject("illegal_field").endObject()
-                        .endObject()
-                        .startObject(Watch.Field.ACTIONS.getPreferredName()).endObject()
-                        .endObject())
-                .get();
-
-        stopWatcher();
-        startWatcher();
-
-        WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-        assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
-        // Only the valid watch should been loaded
-        assertThat(response.getWatchesCount(), equalTo(1L));
-        assertThat(watcherClient().prepareGetWatch("_id0").get().getId(), Matchers.equalTo("_id0"));
-    }
-
     public void testLoadMalformedWatchRecord() throws Exception {
-        client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id")
+        client().prepareIndex(Watch.INDEX, Watch.DOC_TYPE, "_id")
                 .setSource(jsonBuilder().startObject()
                         .startObject(Watch.Field.TRIGGER.getPreferredName())
                             .startObject("schedule")
@@ -185,6 +134,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testDeletedWhileQueued() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate(".watches"));
+
         DateTime now = DateTime.now(UTC);
         Wid wid = new Wid("_id", 1, now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -215,7 +166,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         WatcherSearchTemplateRequest request =
                 templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
         for (int i = 0; i < numWatches; i++) {
-            client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id" + i)
+            client().prepareIndex(Watch.INDEX, Watch.DOC_TYPE, "_id" + i)
                     .setSource(watchBuilder()
                                     .trigger(schedule(cron("0 0/5 * * * ? 2050")))
                                     .input(searchInput(request))
@@ -235,15 +186,19 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getWatchesCount(), equalTo((long) numWatches));
     }
 
-    @TestLogging("org.elasticsearch.watcher.actions:DEBUG")
     public void testTriggeredWatchLoading() throws Exception {
         createIndex("output");
+        client().prepareIndex("my-index", "foo", "bar")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .setSource("field", "value").get();
+
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
         assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
         assertThat(response.getWatchesCount(), equalTo(0L));
 
         WatcherSearchTemplateRequest request =
                 templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
+
         int numWatches = 8;
         for (int i = 0; i < numWatches; i++) {
             String watchId = "_id" + i;
@@ -273,27 +228,27 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         stopWatcher();
         startWatcher();
 
-        assertBusy(new Runnable() {
+        assertBusy(() -> {
+            // We need to wait until all the records are processed from the internal execution queue, only then we can assert
+            // that numRecords watch records have been processed as part of starting up.
+            WatcherStatsResponse response1 = watcherClient().prepareWatcherStats().get();
+            assertThat(response1.getWatcherState(), equalTo(WatcherState.STARTED));
+            assertThat(response1.getThreadPoolQueueSize(), equalTo(0L));
 
-            @Override
-            public void run() {
-                // We need to wait until all the records are processed from the internal execution queue, only then we can assert
-                // that numRecords watch records have been processed as part of starting up.
-                WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-                assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
-                assertThat(response.getThreadPoolQueueSize(), equalTo(0L));
-
-                // but even then since the execution of the watch record is async it may take a little bit before
-                // the actual documents are in the output index
-                refresh();
-                SearchResponse searchResponse = client().prepareSearch("output").get();
-                assertHitCount(searchResponse, numRecords);
-            }
+            // but even then since the execution of the watch record is async it may take a little bit before
+            // the actual documents are in the output index
+            refresh();
+            SearchResponse searchResponse = client().prepareSearch("output").get();
+            assertHitCount(searchResponse, numRecords);
         }, 30, TimeUnit.SECONDS);
     }
 
     public void testMixedTriggeredWatchLoading() throws Exception {
         createIndex("output");
+        client().prepareIndex("my-index", "foo", "bar")
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .setSource("field", "value").get();
+
         WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
         assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
         assertThat(response.getWatchesCount(), equalTo(0L));
@@ -324,21 +279,18 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         stopWatcher();
         startWatcher();
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                // We need to wait until all the records are processed from the internal execution queue, only then we can assert
-                // that numRecords watch records have been processed as part of starting up.
-                WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-                assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
-                assertThat(response.getThreadPoolQueueSize(), equalTo(0L));
+        assertBusy(() -> {
+            // We need to wait until all the records are processed from the internal execution queue, only then we can assert
+            // that numRecords watch records have been processed as part of starting up.
+            WatcherStatsResponse response1 = watcherClient().prepareWatcherStats().get();
+            assertThat(response1.getWatcherState(), equalTo(WatcherState.STARTED));
+            assertThat(response1.getThreadPoolQueueSize(), equalTo(0L));
 
-                // but even then since the execution of the watch record is async it may take a little bit before
-                // the actual documents are in the output index
-                refresh();
-                SearchResponse searchResponse = client().prepareSearch("output").get();
-                assertHitCount(searchResponse, numRecords);
-            }
+            // but even then since the execution of the watch record is async it may take a little bit before
+            // the actual documents are in the output index
+            refresh();
+            SearchResponse searchResponse = client().prepareSearch("output").get();
+            assertHitCount(searchResponse, numRecords);
         });
     }
 
@@ -353,10 +305,16 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getWatcherMetaData().manuallyStopped(), is(false));
     }
 
+    @Override
+    protected boolean enableSecurity() {
+        return false;
+    }
+
     public void testWatchRecordSavedTwice() throws Exception {
         // Watcher could prevent to start if a watch record tried to executed twice or more and the watch didn't exist
         // for that watch record or the execution threadpool rejected the watch record.
         // A watch record without a watch is the easiest to simulate, so that is what this test does.
+        assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
 
         DateTime triggeredTime = new DateTime(2015, 11, 5, 0, 0, 0, 0, DateTimeZone.UTC);
         final String watchRecordIndex = HistoryStore.getHistoryIndexNameForTime(triggeredTime);
@@ -380,24 +338,21 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
         stopWatcher();
         startWatcher();
-        assertBusy(new Runnable() {
 
-            @Override
-            public void run() {
-                // We need to wait until all the records are processed from the internal execution queue, only then we can assert
-                // that numRecords watch records have been processed as part of starting up.
-                WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
-                assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
-                assertThat(response.getThreadPoolQueueSize(), equalTo(0L));
+        assertBusy(() -> {
+            // We need to wait until all the records are processed from the internal execution queue, only then we can assert
+            // that numRecords watch records have been processed as part of starting up.
+            WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+            assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
+            assertThat(response.getThreadPoolQueueSize(), equalTo(0L));
 
-                // but even then since the execution of the watch record is async it may take a little bit before
-                // the actual documents are in the output index
-                refresh();
-                SearchResponse searchResponse = client().prepareSearch(watchRecordIndex).setSize(numRecords).get();
-                assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo((long) numRecords));
-                for (int i = 0; i < numRecords; i++) {
-                    assertThat(searchResponse.getHits().getAt(i).getSource().get("state"), Matchers.equalTo("executed_multiple_times"));
-                }
+            // but even then since the execution of the watch record is async it may take a little bit before
+            // the actual documents are in the output index
+            refresh();
+            SearchResponse searchResponse = client().prepareSearch(watchRecordIndex).setSize(numRecords).get();
+            assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo((long) numRecords));
+            for (int i = 0; i < numRecords; i++) {
+                assertThat(searchResponse.getHits().getAt(i).getSource().get("state"),  is(ExecutionState.EXECUTED_MULTIPLE_TIMES.id()));
             }
         });
     }

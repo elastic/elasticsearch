@@ -59,6 +59,8 @@ public class Watch implements TriggerEngine.Job, ToXContent {
 
     public static final String ALL_ACTIONS_ID = "_all";
     public static final String INCLUDE_STATUS_KEY = "include_status";
+    public static final String INDEX = ".watches";
+    public static final String DOC_TYPE = "watch";
 
     private final String id;
     private final Trigger trigger;
@@ -250,7 +252,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
          * This method is only called once - when the user adds a new watch. From that moment on, all representations
          * of the watch in the system will be use secrets for sensitive data.
          *
-         * @see org.elasticsearch.xpack.watcher.WatcherService#putWatch(String, BytesReference, boolean)
          */
         public Watch parseWithSecrets(String id, boolean includeStatus, BytesReference source, DateTime now) throws IOException {
             return parse(id, includeStatus, true, source, now);
@@ -317,7 +318,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     metatdata = parser.map();
                 } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.STATUS)) {
                     if (includeStatus) {
-                        status = WatchStatus.parse(id, parser);
+                        status = WatchStatus.parse(id, parser, clock);
                     } else {
                         parser.skipChildren();
                     }

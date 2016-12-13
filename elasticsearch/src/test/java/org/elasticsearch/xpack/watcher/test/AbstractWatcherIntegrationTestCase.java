@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -69,11 +70,10 @@ import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
+import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
-import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -91,6 +91,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -128,8 +129,8 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         if (securityEnabled == null) {
             securityEnabled = enableSecurity();
-            scheduleEngineName = randomFrom("ticker", "scheduler");
         }
+        scheduleEngineName = randomFrom("ticker", "scheduler");
         return super.buildTestCluster(scope, seed);
     }
 
@@ -327,7 +328,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
                     CreateIndexResponse response = client().admin().indices().prepareCreate(newIndex)
                             .setCause("Index to test aliases with .watches index")
-                            .addAlias(new Alias(WatchStore.INDEX))
+                            .addAlias(new Alias(Watch.INDEX))
                             .setSettings((Map<String, Object>) parserMap.get("settings"))
                             .addMapping("watch", (Map<String, Object>) allMappings.get("watch"))
                             .get();
@@ -393,18 +394,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
 
     protected Watch.Parser watchParser() {
         return getInstanceFromMaster(Watch.Parser.class);
-    }
-
-    protected ExecutionService executionService() {
-        return getInstanceFromMaster(ExecutionService.class);
-    }
-
-    protected WatcherService watchService() {
-        return getInstanceFromMaster(WatcherService.class);
-    }
-
-    protected TriggerService triggerService() {
-        return getInstanceFromMaster(TriggerService.class);
     }
 
     public AbstractWatcherIntegrationTestCase() {

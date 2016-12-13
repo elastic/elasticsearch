@@ -38,6 +38,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class DeleteWatchTests extends AbstractWatcherIntegrationTestCase {
+
     public void testDelete() throws Exception {
         ensureWatcherStarted();
         PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()

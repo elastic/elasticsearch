@@ -24,7 +24,7 @@ public class WatchStoreUtils {
     public static IndexMetaData getConcreteIndex(String name, MetaData metaData) {
         AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(name);
         if (aliasOrIndex == null) {
-            throw new IndexNotFoundException(name);
+            return null;
         }
 
         if (aliasOrIndex.isAlias() && aliasOrIndex.getIndices().size() > 1) {

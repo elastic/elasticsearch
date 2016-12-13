@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -38,12 +37,13 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
+
     @Override
     protected boolean timeWarped() {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/4002")
+    // FIXME not to be sleep based
     public void testDeactivateAndActivate() throws Exception {
         WatcherClient watcherClient = watcherClient();
 
@@ -52,7 +52,6 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
                         .input(simpleInput("foo", "bar"))
-                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("_a1", indexAction("actions", "action1"))
                         .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
                 .get();
@@ -109,7 +108,6 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0 0 0 1 1 ? 2050"))) // some time in 2050
                         .input(simpleInput("foo", "bar"))
-                        .condition(AlwaysCondition.INSTANCE)
                         .addAction("_a1", indexAction("actions", "action1"))
                         .defaultThrottlePeriod(new TimeValue(0, TimeUnit.SECONDS)))
                 .get();

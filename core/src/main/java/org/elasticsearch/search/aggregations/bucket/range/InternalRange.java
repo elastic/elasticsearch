@@ -97,7 +97,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             if (Double.isInfinite(from)) {
                 return null;
             } else {
-                return format.format(from);
+                return format.format(from).toString();
             }
         }
 
@@ -106,7 +106,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             if (Double.isInfinite(to)) {
                 return null;
             } else {
-                return format.format(to);
+                return format.format(to).toString();
             }
         }
 
@@ -146,13 +146,13 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             if (!Double.isInfinite(from)) {
                 builder.field(CommonFields.FROM.getPreferredName(), from);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), format.format(from));
+                    builder.field(CommonFields.FROM_AS_STRING.getPreferredName(), format.format(from).toString());
                 }
             }
             if (!Double.isInfinite(to)) {
                 builder.field(CommonFields.TO.getPreferredName(), to);
                 if (format != DocValueFormat.RAW) {
-                    builder.field(CommonFields.TO_AS_STRING.getPreferredName(), format.format(to));
+                    builder.field(CommonFields.TO_AS_STRING.getPreferredName(), format.format(to).toString());
                 }
             }
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);

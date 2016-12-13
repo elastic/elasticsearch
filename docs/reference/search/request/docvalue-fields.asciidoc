@@ -21,3 +21,67 @@ Doc value fields can work on fields that are not stored.
 Note that if the fields parameter specifies fields without docvalues it will try to load the value from the fielddata cache
 causing the terms for that field to be loaded to memory (cached), which will result in more memory consumption.
 
+For date fields, it is also possible to specify the format that should be used to format the date, eg.
+
+[source,js]
+--------------------------------------------------
+PUT index 
+{
+  "mappings": {
+    "type": {
+      "properties": {
+        "my_date": {
+          "type": "date"
+        }
+      }
+    }
+  }
+}
+
+PUT index/type/1?refresh=true
+{
+  "my_date": "2016-10-28T11:55:21.945Z"
+}
+
+GET index/_search 
+{
+    "docvalue_fields" : [ { "name": "my_date", "format": "epoch_second" } ]
+}
+--------------------------------------------------
+// CONSOLE
+
+which returns:
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 36,
+  "timed_out": false,
+  "_shards": {
+    "total": 5,
+    "successful": 5,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 1.0,
+    "hits": [
+      {
+        "_index": "index",
+        "_type": "type",
+        "_id": "1",
+        "_score": 1.0,
+        "_source": {
+          "my_date": "2016-10-28T11:55:21.945Z"
+        },
+        "fields": {
+          "my_date": [
+            "1477655721"
+          ]
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE[s/"took": 36,/"took": "$body.took",/]

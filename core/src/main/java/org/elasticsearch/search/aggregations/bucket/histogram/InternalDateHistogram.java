@@ -104,7 +104,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         @Override
         public String getKeyAsString() {
-            return format.format(key);
+            return format.format(key).toString();
         }
 
         @Override
@@ -135,7 +135,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            String keyAsString = format.format(key);
+            String keyAsString = format.format(key).toString();
             if (keyed) {
                 builder.startObject(keyAsString);
             } else {

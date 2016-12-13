@@ -71,7 +71,7 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
 
         @Override
         public String getKeyAsString() {
-            return format.format(termBytes);
+            return format.format(termBytes).toString();
         }
 
         @Override

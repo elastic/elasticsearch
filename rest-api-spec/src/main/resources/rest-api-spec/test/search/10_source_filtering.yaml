@@ -132,8 +132,18 @@ setup:
   - is_true:  hits.hits.0._source
 
 ---
-"fielddata_fields":
+"docvalue_fields":
   - do:
       search:
         docvalue_fields: [ "count" ]
   - match: { hits.hits.0.fields.count: [1] }
+
+
+---
+"docvalue_fields with format":
+  - do:
+      search:
+        body:
+          docvalue_fields: [ { name: "count", format: "#.0"} ]
+  - match: { hits.hits.0.fields.count: ["1.0"] }
+

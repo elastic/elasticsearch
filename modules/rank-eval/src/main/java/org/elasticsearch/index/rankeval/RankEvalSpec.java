@@ -26,7 +26,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
@@ -52,13 +52,31 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     @Nullable
     private Script template;
 
-    public RankEvalSpec() {
-        // TODO think if no args ctor is okay
+    public RankEvalSpec(Collection<RatedRequest> ratedRequests, RankedListQualityMetric metric, Script template) {
+        if (ratedRequests == null || ratedRequests.size() < 1) {
+            throw new IllegalStateException(
+                    "Cannot evaluate ranking if no search requests with rated results are provided. Seen: " + ratedRequests);
+        }
+        if (metric == null) {
+            throw new IllegalStateException(
+                    "Cannot evaluate ranking if no evaluation metric is provided.");
+        }
+        if (template == null) {
+            for (RatedRequest request : ratedRequests) {
+                if (request.getTestRequest() == null) {
+                    throw new IllegalStateException(
+                            "Cannot evaluate ranking if neither template nor test request is provided. Seen for request id: "
+                    + request.getId());
+                }
+            }
+        }
+        this.ratedRequests = ratedRequests;
+        this.metric = metric;
+        this.template = template;
     }
 
-    public RankEvalSpec(Collection<RatedRequest> specs, RankedListQualityMetric metric) {
-        this.ratedRequests = specs;
-        this.metric = metric;
+    public RankEvalSpec(Collection<RatedRequest> ratedRequests, RankedListQualityMetric metric) {
+        this(ratedRequests, metric, null);
     }
 
     public RankEvalSpec(StreamInput in) throws IOException {
@@ -88,29 +106,14 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         }
     }
 
-    /** Set the metric to use for quality evaluation. */
-    public void setMetric(RankedListQualityMetric metric) {
-        this.metric = metric;
-    }
-
     /** Returns the metric to use for quality evaluation.*/
     public RankedListQualityMetric getMetric() {
         return metric;
     }
 
     /** Returns a list of intent to query translation specifications to evaluate. */
-    public Collection<RatedRequest> getSpecifications() {
+    public Collection<RatedRequest> getRatedRequests() {
         return ratedRequests;
-    }
-
-    /** Set the list of intent to query translation specifications to evaluate. */
-    public void setSpecifications(Collection<RatedRequest> specifications) {
-        this.ratedRequests = specifications;
-    }
-
-    /** Set the template to base test requests on. */
-    public void setTemplate(Script script) {
-        this.template = script;
     }
 
     /** Returns the template to base test requests on. */
@@ -121,34 +124,37 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     private static final ParseField TEMPLATE_FIELD = new ParseField("template");
     private static final ParseField METRIC_FIELD = new ParseField("metric");
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
-    private static final ObjectParser<RankEvalSpec, RankEvalContext> PARSER = new ObjectParser<>("rank_eval", RankEvalSpec::new);
+    @SuppressWarnings("unchecked")
+    private static final ConstructingObjectParser<RankEvalSpec, RankEvalContext> PARSER =
+            new ConstructingObjectParser<>("rank_eval",
+            a -> new RankEvalSpec((Collection<RatedRequest>) a[0], (RankedListQualityMetric) a[1], (Script) a[2]));
 
     static {
-        PARSER.declareObject(RankEvalSpec::setMetric, (p, c) -> {
-            try {
-                return RankedListQualityMetric.fromXContent(p, c);
-            } catch (IOException ex) {
-                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
-            }
-        } , METRIC_FIELD);
-        PARSER.declareObject(RankEvalSpec::setTemplate, (p, c) -> {
-            try {
-                return Script.parse(p, c.getParseFieldMatcher(), "mustache");
-            } catch (IOException ex) {
-                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
-            }
-        }, TEMPLATE_FIELD);
-        PARSER.declareObjectArray(RankEvalSpec::setSpecifications, (p, c) -> {
+        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> {
             try {
                 return RatedRequest.fromXContent(p, c);
             } catch (IOException ex) {
                 throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
             }
         } , REQUESTS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            try {
+                return RankedListQualityMetric.fromXContent(p, c);
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
+            }
+        } , METRIC_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
+            try {
+                return Script.parse(p, c.getParseFieldMatcher(), "mustache");
+            } catch (IOException ex) {
+                throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
+            }
+        }, TEMPLATE_FIELD);
     }
 
-    public static RankEvalSpec parse(XContentParser parser, RankEvalContext context, boolean templated) throws IOException {
-        return PARSER.parse(parser, context);
+    public static RankEvalSpec parse(XContentParser parser, RankEvalContext context) throws IOException {
+        return PARSER.apply(parser, context);
     }
 
     @Override

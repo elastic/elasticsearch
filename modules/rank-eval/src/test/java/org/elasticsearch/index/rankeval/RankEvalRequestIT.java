@@ -76,11 +76,19 @@ public class RankEvalRequestIT  extends ESIntegTestCase {
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder testQuery = new SearchSourceBuilder();
         testQuery.query(new MatchAllQueryBuilder());
-        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", testQuery, indices, types, createRelevant("2", "3", "4", "5"));
+        RatedRequest amsterdamRequest = new RatedRequest(
+                "amsterdam_query", createRelevant("2", "3", "4", "5"), testQuery);
+        amsterdamRequest.setIndices(indices);
+        amsterdamRequest.setTypes(types);
         amsterdamRequest.setSummaryFields(Arrays.asList(new String[]{ "text", "title" }));
+
         specifications.add(amsterdamRequest);
-        RatedRequest berlinRequest = new RatedRequest("berlin_query", testQuery, indices, types, createRelevant("1"));
+        RatedRequest berlinRequest = new RatedRequest(
+                "berlin_query", createRelevant("1"), testQuery);
+        berlinRequest.setIndices(indices);
+        berlinRequest.setTypes(types);
         berlinRequest.setSummaryFields(Arrays.asList(new String[]{ "text", "title" }));
+        
         specifications.add(berlinRequest);
 
         Precision metric = new Precision();
@@ -135,11 +143,18 @@ public class RankEvalRequestIT  extends ESIntegTestCase {
         List<RatedRequest> specifications = new ArrayList<>();
         SearchSourceBuilder amsterdamQuery = new SearchSourceBuilder();
         amsterdamQuery.query(new MatchAllQueryBuilder());
-        specifications.add(new RatedRequest("amsterdam_query", amsterdamQuery, indices, types, createRelevant("2", "3", "4", "5")));
+        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", createRelevant("2", "3", "4", "5"), amsterdamQuery);
+        amsterdamRequest.setIndices(indices);
+        amsterdamRequest.setTypes(types);
+        specifications.add(amsterdamRequest);
+
         SearchSourceBuilder brokenQuery = new SearchSourceBuilder();
         RangeQueryBuilder brokenRangeQuery = new RangeQueryBuilder("text").timeZone("CET");
         brokenQuery.query(brokenRangeQuery);
-        specifications.add(new RatedRequest("broken_query", brokenQuery, indices, types, createRelevant("1")));
+        RatedRequest brokenRequest = new RatedRequest("broken_query", createRelevant("1"), brokenQuery);
+        brokenRequest.setIndices(indices);
+        brokenRequest.setTypes(types);
+        specifications.add(brokenRequest);
 
         RankEvalSpec task = new RankEvalSpec(specifications, new Precision());
 

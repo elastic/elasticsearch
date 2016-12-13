@@ -80,26 +80,29 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         List<String> types = Arrays.asList(new String[] { "testtype" });
 
         List<RatedRequest> specifications = new ArrayList<>();
-        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", null, indices, types, createRelevant("2", "3", "4", "5"));
         Map<String, Object> ams_params = new HashMap<>();
         ams_params.put("querystring", "amsterdam");
-        amsterdamRequest.setParams(ams_params);
+        RatedRequest amsterdamRequest = new RatedRequest("amsterdam_query", createRelevant("2", "3", "4", "5"), ams_params);
+        amsterdamRequest.setIndices(indices);
+        amsterdamRequest.setTypes(types);
+
         specifications.add(amsterdamRequest);
 
-        RatedRequest berlinRequest = new RatedRequest("berlin_query", null, indices, types, createRelevant("1"));
         Map<String, Object> berlin_params = new HashMap<>();
         berlin_params.put("querystring", "berlin");
-        berlinRequest.setParams(berlin_params);
+        RatedRequest berlinRequest = new RatedRequest("berlin_query", createRelevant("1"), berlin_params);
+        berlinRequest.setIndices(indices);
+        berlinRequest.setTypes(types);
         specifications.add(berlinRequest);
 
         Precision metric = new Precision();
-        RankEvalSpec task = new RankEvalSpec(specifications, metric);
-        task.setTemplate(
+
+        Script template = 
                 new Script(
                         ScriptType.INLINE,
                         "mustache", "{\"query\": {\"match\": {\"text\": \"{{querystring}}\"}}}",
-                        new HashMap<>()));
-
+                        new HashMap<>());
+        RankEvalSpec task = new RankEvalSpec(specifications, metric, template);
         RankEvalRequestBuilder builder = new RankEvalRequestBuilder(client(), RankEvalAction.INSTANCE, new RankEvalRequest());
         builder.setRankEvalSpec(task);
 

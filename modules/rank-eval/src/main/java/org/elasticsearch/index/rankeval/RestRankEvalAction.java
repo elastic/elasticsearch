@@ -175,13 +175,6 @@ public class RestRankEvalAction extends BaseRestHandler {
         controller.registerHandler(POST, "/{index}/_rank_eval", this);
         controller.registerHandler(GET, "/{index}/{type}/_rank_eval", this);
         controller.registerHandler(POST, "/{index}/{type}/_rank_eval", this);
-
-        controller.registerHandler(GET, "/_rank_eval/template", this);
-        controller.registerHandler(POST, "/_rank_eval/template", this);
-        controller.registerHandler(GET, "/{index}/_rank_eval/template", this);
-        controller.registerHandler(POST, "/{index}/_rank_eval/template", this);
-        controller.registerHandler(GET, "/{index}/{type}/_rank_eval/template", this);
-        controller.registerHandler(POST, "/{index}/{type}/_rank_eval/template", this);
     }
 
     @Override
@@ -202,9 +195,8 @@ public class RestRankEvalAction extends BaseRestHandler {
         List<String> indices = Arrays.asList(Strings.splitStringByCommaToArray(request.param("index")));
         List<String> types = Arrays.asList(Strings.splitStringByCommaToArray(request.param("type")));
         RankEvalSpec spec = null;
-        boolean containsTemplate = request.path().contains("template");
-        spec = RankEvalSpec.parse(context.parser(), context, containsTemplate);
-        for (RatedRequest specification : spec.getSpecifications()) {
+        spec = RankEvalSpec.parse(context.parser(), context);
+        for (RatedRequest specification : spec.getRatedRequests()) {
             specification.setIndices(indices);
             specification.setTypes(types);
         };

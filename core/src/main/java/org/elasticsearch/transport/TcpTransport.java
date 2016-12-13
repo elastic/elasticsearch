@@ -153,8 +153,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final int PING_DATA_SIZE = -1;
-    public static final int HANDSHAKE_REQUEST_DATA_SIZE = -2;
-    public static final int HANDSHAKE_RESPONSE_DATA_SIZE = -3;
     protected final boolean blockingClient;
     private final CircuitBreakerService circuitBreakerService;
     // package visibility for tests
@@ -392,7 +390,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             Channel channel = channel(options.type());
-            sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion (), (byte)0);
+            sendRequestToChannel(this.node, channel, requestId, action, request, options, getVersion(), (byte)0);
         }
     }
 
@@ -444,8 +442,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                             // the backport straight forward
                             nodeChannels = new NodeChannels(nodeChannels, version);
                         }
-
-
                     }
                     // we acquire a connection lock, so no way there is an existing connection
                     connectedNodes.put(node, nodeChannels);
@@ -1171,12 +1167,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 // and returning null
                 return false;
             }
-            if (dataLen == HANDSHAKE_REQUEST_DATA_SIZE) {
-                return true;
-            }
-            if (dataLen == HANDSHAKE_RESPONSE_DATA_SIZE) {
-                return true;
-            }
         }
 
         if (dataLen <= 0) {
@@ -1491,7 +1481,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
             @Override
             public void handleResponse(VersionHandshakeResponse response) {
-                versionRef.set(response.version);
+                final boolean success = versionRef.compareAndSet(null, response.version);
+                assert success;
                 latch.countDown();
             }
 
@@ -1505,7 +1496,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     && cause.getMessage().equals("No handler for action [internal:tcp/handshake]")) {
                         handshakeNotSupported.set(true);
                 } else {
-                    exceptionRef.set(exp);
+                    final boolean success = exceptionRef.compareAndSet(null, exp);
+                    assert success;
                 }
                 latch.countDown();
             }
@@ -1515,6 +1507,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 return ThreadPool.Names.SAME;
             }
         });
+        boolean success = false;
         try {
             // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
             // we also have no payload on the request but the response will contain the actual version of the node we talk
@@ -1525,6 +1518,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             if (latch.await(timeout.millis(), TimeUnit.MILLISECONDS) == false) {
                 throw new ConnectTransportException(node, "handshake_timeout[" + timeout + "]");
             }
+            success = true;
             if (handshakeNotSupported.get()) {
                 // this is a BWC layer, if we talk to a pre 5.2 node then the handshake is not supported
                 // this will go away in master once it's all ported to 5.2 but for now we keep this to make
@@ -1542,8 +1536,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 return version;
             }
         } finally {
-            // just in case we remove it so we won't leak any memory
-            pendingHandshakes.remove(requestId);
+            final TransportResponseHandler<?> removedHandler = pendingHandshakes.remove(requestId);
+            // in the case of a timeout or an exception on the send part the handshake has not been removed yet.
+            // but the timeout is tricky since it's basically a race condition so we only assert on the success case.
+            assert success && removedHandler == null || success == false : "handler for requestId [" + requestId + "] is not been removed";
         }
     }
 

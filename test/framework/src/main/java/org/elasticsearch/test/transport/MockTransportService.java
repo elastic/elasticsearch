@@ -696,7 +696,7 @@ public final class MockTransportService extends TransportService {
 
     public Transport getOriginalTransport() {
         Transport transport = transport();
-        while(transport instanceof DelegateTransport) {
+        while (transport instanceof DelegateTransport) {
             transport = ((DelegateTransport) transport).transport;
         }
         return transport;

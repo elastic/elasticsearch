@@ -1802,13 +1802,16 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testTcpHandshake() throws IOException, InterruptedException {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
+        TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, null,
             Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), true)) {
             // this acts like a node that doesn't have support for handshakes
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             serviceA.connectToNode(node);
-            Version version = ((TcpTransport) serviceA.getOriginalTransport()).executeHandshake(node, TimeValue.timeValueSeconds(10));
+            TcpTransport.NodeChannels connection = originalTransport.getConnection(node);
+            Version version = originalTransport.executeHandshake(node, connection.channel(TransportRequestOptions.Type.PING),
+                TimeValue.timeValueSeconds(10));
             assertNull(version);
             serviceA.disconnectFromNode(node);
         }
@@ -1817,11 +1820,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             serviceA.connectToNode(node);
-            if (serviceA.getOriginalTransport() instanceof TcpTransport) {
-                Version version = ((TcpTransport) serviceA.getOriginalTransport()).executeHandshake(node, TimeValue.timeValueSeconds(10));
-                assertEquals(version, Version.CURRENT);
-            }
-
+            TcpTransport.NodeChannels connection = originalTransport.getConnection(node);
+            Version version = originalTransport.executeHandshake(node, connection.channel(TransportRequestOptions.Type.PING),
+                TimeValue.timeValueSeconds(10));
+            assertEquals(version, Version.CURRENT);
         }
     }
 

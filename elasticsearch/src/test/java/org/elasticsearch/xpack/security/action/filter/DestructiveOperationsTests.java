@@ -21,25 +21,34 @@ public class DestructiveOperationsTests extends SecurityIntegTestCase {
     }
 
     public void testDeleteIndexDestructiveOperationsRequireName() {
+        createIndex("index1");
         Settings settings = Settings.builder().put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), true).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
         {
             IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
                     () -> client().admin().indices().prepareDelete("*").get());
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
+            String[] indices = client().admin().indices().prepareGetIndex().setIndices("index1").get().getIndices();
+            assertEquals(1, indices.length);
+            assertEquals("index1", indices[0]);
         }
         {
             IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
                     () -> client().admin().indices().prepareDelete("*", "-index1").get());
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
+            String[] indices = client().admin().indices().prepareGetIndex().setIndices("index1").get().getIndices();
+            assertEquals(1, indices.length);
+            assertEquals("index1", indices[0]);
         }
         {
             IllegalArgumentException illegalArgumentException = expectThrows(IllegalArgumentException.class,
                     () -> client().admin().indices().prepareDelete("_all").get());
             assertEquals("Wildcard expressions or all indices are not allowed", illegalArgumentException.getMessage());
+            String[] indices = client().admin().indices().prepareGetIndex().setIndices("index1").get().getIndices();
+            assertEquals(1, indices.length);
+            assertEquals("index1", indices[0]);
         }
 
-        createIndex("index1");
         assertAcked(client().admin().indices().prepareDelete("index1"));
     }
 

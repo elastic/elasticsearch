@@ -106,6 +106,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         filter.inbound(action, request, channel, listener);
         if (failDestructiveOperations) {
             verify(listener).onFailure(isA(IllegalArgumentException.class));
+            verifyNoMoreInteractions(authzService);
         } else {
             verify(authzService).authorize(authentication, action, request, Collections.emptyList(), Collections.emptyList());
         }

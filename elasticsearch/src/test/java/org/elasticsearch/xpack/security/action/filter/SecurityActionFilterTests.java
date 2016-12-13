@@ -133,6 +133,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         filter.apply(task, action, request, listener, chain);
         if (failDestructiveOperations) {
             verify(listener).onFailure(isA(IllegalArgumentException.class));
+            verifyNoMoreInteractions(authzService, chain);
         } else {
             verify(authzService).authorize(authentication, action, request, Collections.emptyList(), Collections.emptyList());
             verify(chain).proceed(eq(task), eq(action), eq(request), isA(ContextPreservingActionListener.class));

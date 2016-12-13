@@ -191,7 +191,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
 
     public void testQueryContextParsingBasic() throws Exception {
         XContentBuilder builder = jsonBuilder().value("context1");
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
+        XContentParser parser = createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
         List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(createParseContext(parser));
         assertThat(internalQueryContexts.size(), equalTo(1));
@@ -205,7 +205,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .value("context1")
                 .value("context2")
                 .endArray();
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
+        XContentParser parser = createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
         List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(createParseContext(parser));
         assertThat(internalQueryContexts.size(), equalTo(2));
@@ -223,7 +223,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .field("boost", 10)
                 .field("prefix", true)
                 .endObject();
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
+        XContentParser parser = createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
         List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(createParseContext(parser));
         assertThat(internalQueryContexts.size(), equalTo(1));
@@ -246,7 +246,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .field("prefix", false)
                 .endObject()
                 .endArray();
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
+        XContentParser parser = createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
         List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(createParseContext(parser));
         assertThat(internalQueryContexts.size(), equalTo(2));
@@ -271,7 +271,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .value("context2")
                 .endArray();
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
+        XContentParser parser = createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
         List<ContextMapping.InternalQueryContext> internalQueryContexts = mapping.parseQueryContext(createParseContext(parser));
         assertThat(internalQueryContexts.size(), equalTo(2));

@@ -179,7 +179,7 @@ public class TermVectorsUnitTests extends ESTestCase {
                 " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}");
 
         TermVectorsRequest tvr = new TermVectorsRequest(null, null, null);
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+        XContentParser parser = createParser(inputBytes);
         TermVectorsRequest.parseRequest(tvr, parser);
 
         Set<String> fields = tvr.selectedFields();
@@ -200,7 +200,7 @@ public class TermVectorsUnitTests extends ESTestCase {
 
         inputBytes = new BytesArray(" {\"offsets\":false, \"positions\":false, \"payloads\":true}");
         tvr = new TermVectorsRequest(null, null, null);
-        parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+        parser = createParser(inputBytes);
         TermVectorsRequest.parseRequest(tvr, parser);
         additionalFields = "";
         RestTermVectorsAction.addFieldStringsFromParameter(tvr, additionalFields);
@@ -217,7 +217,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         TermVectorsRequest tvr = new TermVectorsRequest(null, null, null);
         boolean threwException = false;
         try {
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+            XContentParser parser = createParser(inputBytes);
             TermVectorsRequest.parseRequest(tvr, parser);
         } catch (Exception e) {
             threwException = true;

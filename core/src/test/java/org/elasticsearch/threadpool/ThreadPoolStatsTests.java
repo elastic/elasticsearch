@@ -78,7 +78,7 @@ public class ThreadPoolStatsTests extends ESTestCase {
                 builder.endObject();
             }
 
-            try (XContentParser parser = XContentType.JSON.xContent().createParser(os.bytes())) {
+            try (XContentParser parser = createParser(os.bytes())) {
                 XContentParser.Token token = parser.currentToken();
                 assertNull(token);
 

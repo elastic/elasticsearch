@@ -69,7 +69,7 @@ public class IndexIdTests extends ESTestCase {
         IndexId indexId = new IndexId(randomAsciiOfLength(8), UUIDs.randomBase64UUID());
         XContentBuilder builder = JsonXContent.contentBuilder();
         indexId.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(builder.bytes());
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         String name = null;
         String id = null;

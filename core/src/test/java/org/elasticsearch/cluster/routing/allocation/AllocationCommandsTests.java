@@ -486,7 +486,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 "       ,{\"cancel\" : {\"index\" : \"test\", \"shard\" : 4, \"node\" : \"node5\", \"allow_primary\" : true}} \n" +
                 "    ]\n" +
                 "}\n";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(commands);
+        XContentParser parser = createParser(commands);
         // move two tokens, parser expected to be "on" `commands` field
         parser.nextToken();
         parser.nextToken();

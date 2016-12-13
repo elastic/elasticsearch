@@ -73,7 +73,7 @@ public class IndicesShardStoreResponseTests extends ESTestCase {
         contentBuilder.endObject();
         BytesReference bytes = contentBuilder.bytes();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(bytes)) {
+        try (XContentParser parser = createParser(bytes)) {
             Map<String, Object> map = parser.map();
             List failureList = (List) map.get("failures");
             assertThat(failureList.size(), equalTo(1));

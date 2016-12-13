@@ -173,7 +173,7 @@ public class MetaDataTests extends ESTestCase {
         builder.startObject();
         originalMeta.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(builder.bytes());
         final MetaData fromXContentMeta = MetaData.PROTO.fromXContent(parser, null);
         assertThat(fromXContentMeta.indexGraveyard(), equalTo(originalMeta.indexGraveyard()));
     }

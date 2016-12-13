@@ -69,7 +69,7 @@ public class IndexGraveyardTests extends ESTestCase {
         builder.startObject();
         graveyard.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(builder.bytes());
         parser.nextToken(); // the beginning of the parser
         assertThat(IndexGraveyard.PROTO.fromXContent(parser), equalTo(graveyard));
     }

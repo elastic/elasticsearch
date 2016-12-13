@@ -54,7 +54,7 @@ public class FileInfoTests extends ESTestCase {
             byte[] xcontent = BytesReference.toBytes(shuffleXContent(builder).bytes());
 
             final BlobStoreIndexShardSnapshot.FileInfo parsedInfo;
-            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xcontent)) {
+            try (XContentParser parser = createParser(xcontent)) {
                 parser.nextToken();
                 parsedInfo = BlobStoreIndexShardSnapshot.FileInfo.fromXContent(parser);
             }
@@ -115,7 +115,7 @@ public class FileInfoTests extends ESTestCase {
             if (failure == null) {
                 // No failures should read as usual
                 final BlobStoreIndexShardSnapshot.FileInfo parsedInfo;
-                try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContent)) {
+                try (XContentParser parser = createParser(xContent)) {
                     parser.nextToken();
                     parsedInfo = BlobStoreIndexShardSnapshot.FileInfo.fromXContent(parser);
                 }
@@ -126,14 +126,13 @@ public class FileInfoTests extends ESTestCase {
                 assertEquals("666", parsedInfo.metadata().checksum());
                 assertEquals(Version.LATEST, parsedInfo.metadata().writtenBy());
             } else {
-                try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContent)) {
+                try (XContentParser parser = createParser(xContent)) {
                     parser.nextToken();
                     BlobStoreIndexShardSnapshot.FileInfo.fromXContent(parser);
                     fail("Should have failed with [" + failure + "]");
                 } catch (ElasticsearchParseException ex) {
                     assertThat(ex.getMessage(), containsString(failure));
                 }
-
             }
         }
     }

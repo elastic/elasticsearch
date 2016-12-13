@@ -213,7 +213,7 @@ public class XContentBuilderTests extends ESTestCase {
 
         builder.field("fakefield", terms).endObject().endObject().endObject();
 
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
+        XContentParser parser = createParser(builder.bytes());
 
         XContentBuilder filterBuilder = null;
         XContentParser.Token token;
@@ -235,7 +235,7 @@ public class XContentBuilderTests extends ESTestCase {
         }
 
         assertNotNull(filterBuilder);
-        parser = XContentFactory.xContent(XContentType.JSON).createParser(filterBuilder.bytes());
+        parser = createParser(filterBuilder.bytes());
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
         assertThat(parser.currentName(), equalTo("terms"));

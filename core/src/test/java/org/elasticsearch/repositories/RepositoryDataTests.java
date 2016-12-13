@@ -56,7 +56,7 @@ public class RepositoryDataTests extends ESTestCase {
         RepositoryData repositoryData = generateRandomRepoData();
         XContentBuilder builder = JsonXContent.contentBuilder();
         repositoryData.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(builder.bytes());
         assertEquals(repositoryData, RepositoryData.fromXContent(parser));
     }
 

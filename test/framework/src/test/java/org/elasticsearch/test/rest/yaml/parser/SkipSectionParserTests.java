@@ -21,9 +21,6 @@ package org.elasticsearch.test.rest.yaml.parser;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParseContext;
-import org.elasticsearch.test.rest.yaml.parser.SkipSectionParser;
 import org.elasticsearch.test.rest.yaml.section.SkipSection;
 
 import java.util.Arrays;
@@ -35,7 +32,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class SkipSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseSkipSectionVersionNoFeature() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "version:     \" - 2.1.0\"\n" +
                 "reason:      Delete ignores the parent param"
         );
@@ -52,7 +49,7 @@ public class SkipSectionParserTests extends AbstractClientYamlTestFragmentParser
     }
 
     public void testParseSkipSectionAllVersions() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
             "version:     \" all \"\n" +
             "reason:      Delete ignores the parent param"
         );
@@ -69,7 +66,7 @@ public class SkipSectionParserTests extends AbstractClientYamlTestFragmentParser
     }
 
     public void testParseSkipSectionFeatureNoVersion() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "features:     regex"
         );
 
@@ -85,7 +82,7 @@ public class SkipSectionParserTests extends AbstractClientYamlTestFragmentParser
     }
 
     public void testParseSkipSectionFeaturesNoVersion() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "features:     [regex1,regex2,regex3]"
         );
 
@@ -103,7 +100,7 @@ public class SkipSectionParserTests extends AbstractClientYamlTestFragmentParser
     }
 
     public void testParseSkipSectionBothFeatureAndVersion() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "version:     \" - 0.90.2\"\n" +
                 "features:     regex\n" +
                 "reason:      Delete ignores the parent param"
@@ -118,7 +115,7 @@ public class SkipSectionParserTests extends AbstractClientYamlTestFragmentParser
     }
 
     public void testParseSkipSectionNoReason() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "version:     \" - 0.90.2\"\n"
         );
 
@@ -132,7 +129,7 @@ public class SkipSectionParserTests extends AbstractClientYamlTestFragmentParser
     }
 
     public void testParseSkipSectionNoVersionNorFeature() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "reason:      Delete ignores the parent param\n"
         );
 

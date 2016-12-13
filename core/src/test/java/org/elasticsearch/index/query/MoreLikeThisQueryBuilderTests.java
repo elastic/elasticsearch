@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.search.internal.SearchContext;
@@ -296,7 +297,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
     public void testItemFromXContent() throws IOException {
         Item expectedItem = generateRandomItem();
         String json = expectedItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS).string();
-        XContentParser parser = createParser(json);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         Item newItem = Item.parse(parser, ParseFieldMatcher.STRICT, new Item());
         assertEquals(expectedItem, newItem);
     }

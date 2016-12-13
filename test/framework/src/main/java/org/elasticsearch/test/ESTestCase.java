@@ -884,44 +884,29 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Create a new {@link XContentParser}.
      */
-    protected final XContentParser createParser(String data) throws IOException {
-        return xContentForParser(() -> XContentFactory.xContent(data)).createParser(data);
+    protected final XContentParser createParser(XContent xContent, String data) throws IOException {
+        return xContent.createParser(data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
-    protected final XContentParser createParser(InputStream data) throws IOException {
-        Supplier<XContent> infer = () -> {
-            try {
-                return XContentFactory.xContentType(data).xContent();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        };
-        return xContentForParser(infer).createParser(data);
+    protected final XContentParser createParser(XContent xContent, InputStream data) throws IOException {
+        return xContent.createParser(data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
-    protected final XContentParser createParser(byte[] data) throws IOException {
-        return xContentForParser(() -> XContentFactory.xContent(data)).createParser(data);
+    protected final XContentParser createParser(XContent xContent, byte[] data) throws IOException {
+        return xContent.createParser(data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
-    protected final XContentParser createParser(BytesReference data) throws IOException {
-        return xContentForParser(() -> XContentFactory.xContent(data)).createParser(data);
-    }
-
-    /**
-     * Pick the appropriate {@link XContent} for some data. Usually delegates to {@link XContentFactory#xContent(BytesReference)} but can
-     * be overridden by subclasses to work around detection problems.
-     */
-    protected XContent xContentForParser(Supplier<XContent> infer) {
-        return infer.get();
+    protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
+        return xContent.createParser(data);
     }
 
     /** Returns the suite failure marker: internal use only! */

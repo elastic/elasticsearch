@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -251,7 +252,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
      * create a new parser from the rescorer string representation and reset context with it
      */
     private QueryParseContext createContext(String rescoreElement) throws IOException {
-        XContentParser parser = createParser(rescoreElement);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, rescoreElement);
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         // move to first token, this is where the internal fromXContent
         assertTrue(parser.nextToken() == XContentParser.Token.START_OBJECT);

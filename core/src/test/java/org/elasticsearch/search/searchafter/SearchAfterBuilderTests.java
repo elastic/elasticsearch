@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
@@ -150,7 +151,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         }
         jsonBuilder.endArray();
         jsonBuilder.endObject();
-        XContentParser parser = createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, jsonBuilder.bytes());
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();

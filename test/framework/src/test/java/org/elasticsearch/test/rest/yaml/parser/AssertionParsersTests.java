@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.parser;
 
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.GreaterThanAssertion;
 import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
 import org.elasticsearch.test.rest.yaml.section.IsTrueAssertion;
@@ -34,7 +35,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseIsTrue() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "get.fields._timestamp"
         );
 
@@ -46,7 +47,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
     }
 
     public void testParseIsFalse() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "docs.1._source"
         );
 
@@ -58,7 +59,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
     }
 
     public void testParseGreaterThan() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "{ field: 3}"
         );
 
@@ -71,7 +72,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
     }
 
     public void testParseLessThan() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "{ field: 3}"
         );
 
@@ -84,7 +85,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
     }
 
     public void testParseLength() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "{ _id: 22}"
         );
 
@@ -97,7 +98,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
     }
 
     public void testParseMatchSimpleIntegerValue() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "{ field: 10 }"
         );
 
@@ -111,7 +112,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
     }
 
     public void testParseMatchSimpleStringValue() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "{ foo: bar }"
         );
 
@@ -125,7 +126,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
     }
 
     public void testParseMatchArray() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "{'matches': ['test_percolator_1', 'test_percolator_2']}"
         );
 
@@ -143,7 +144,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
 
     @SuppressWarnings("unchecked")
     public void testParseMatchSourceValues() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "{ _source: { responses.0.hits.total: 3, foo: bar  }}"
         );
 

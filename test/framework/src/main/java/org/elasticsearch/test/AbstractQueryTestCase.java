@@ -66,6 +66,7 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -576,7 +577,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
-        XContentParser parser = createParser(queryAsString);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, queryAsString);
         return parseQuery(parser, matcher);
     }
 
@@ -585,7 +586,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     protected QueryBuilder parseQuery(BytesReference queryAsBytes, ParseFieldMatcher matcher) throws IOException {
-        XContentParser parser = createParser(queryAsBytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, queryAsBytes);
         return parseQuery(parser, matcher);
     }
 

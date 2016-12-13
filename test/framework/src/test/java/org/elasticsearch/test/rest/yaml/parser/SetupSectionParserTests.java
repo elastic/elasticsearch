@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.yaml.parser;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.SetupSection;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -26,7 +27,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SetupSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseSetupSection() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "  - do:\n" +
                 "      index1:\n" +
                 "        index:  test_1\n" +
@@ -52,7 +53,7 @@ public class SetupSectionParserTests extends AbstractClientYamlTestFragmentParse
     }
 
     public void testParseSetupAndSkipSectionNoSkip() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "  - skip:\n" +
                         "      version:  \"2.0.0 - 2.3.0\"\n" +
                         "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n" +

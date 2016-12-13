@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class TeardownSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
 
     public void testParseTeardownSection() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "  - do:\n" +
                 "      delete:\n" +
                 "        index: foo\n" +
@@ -60,7 +60,7 @@ public class TeardownSectionParserTests extends AbstractClientYamlTestFragmentPa
     }
 
     public void testParseWithSkip() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
             "  - skip:\n" +
                 "      version:  \"2.0.0 - 2.3.0\"\n" +
                 "      reason:   \"there is a reason\"\n" +

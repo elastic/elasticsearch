@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.yaml.parser;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.GreaterThanAssertion;
@@ -39,7 +40,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TestSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseTestSectionWithDoSection() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "\"First test section\": \n" +
                 " - do :\n" +
                 "     catch: missing\n" +
@@ -78,7 +79,7 @@ public class TestSectionParserTests extends AbstractClientYamlTestFragmentParser
 
 
         ClientYamlTestSectionParser testSectionParser = new ClientYamlTestSectionParser();
-        parser = createParser(yaml);
+        parser = createParser(YamlXContent.yamlXContent,yaml);
         ClientYamlTestSection testSection = testSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
 
         assertThat(testSection, notNullValue());
@@ -100,7 +101,7 @@ public class TestSectionParserTests extends AbstractClientYamlTestFragmentParser
     }
 
     public void testParseTestSectionWithMultipleDoSections() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "\"Basic\":\n" +
                         "\n" +
                         "  - do:\n" +
@@ -138,7 +139,7 @@ public class TestSectionParserTests extends AbstractClientYamlTestFragmentParser
     }
 
     public void testParseTestSectionWithDoSectionsAndAssertions() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "\"Basic\":\n" +
                         "\n" +
                         "  - do:\n" +
@@ -232,7 +233,7 @@ public class TestSectionParserTests extends AbstractClientYamlTestFragmentParser
     }
 
     public void testSmallSection() throws Exception {
-        parser = createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "\"node_info test\":\n" +
                 "  - do:\n" +
                 "      cluster.node_info: {}\n" +

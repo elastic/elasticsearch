@@ -27,10 +27,10 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.internal.SearchContext;
 
 public class BinaryRangeAggregatorFactory
         extends ValuesSourceAggregatorFactory<ValuesSource.Bytes, BinaryRangeAggregatorFactory> {
@@ -41,7 +41,7 @@ public class BinaryRangeAggregatorFactory
     public BinaryRangeAggregatorFactory(String name, Type type,
             ValuesSourceConfig<ValuesSource.Bytes> config,
             List<BinaryRangeAggregator.Range> ranges, boolean keyed,
-            AggregationContext context,
+            SearchContext context,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder,
             Map<String, Object> metaData) throws IOException {
         super(name, type, config, context, parent, subFactoriesBuilder, metaData);

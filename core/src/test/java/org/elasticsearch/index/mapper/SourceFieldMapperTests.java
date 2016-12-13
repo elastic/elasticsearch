@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -94,7 +95,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
         Map<String, Object> sourceAsMap;
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
             sourceAsMap = parser.map();
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(true));
@@ -115,7 +116,7 @@ public class SourceFieldMapperTests extends ESSingleNodeTestCase {
 
         IndexableField sourceField = doc.rootDoc().getField("_source");
         Map<String, Object> sourceAsMap;
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(new BytesArray(sourceField.binaryValue()))) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, new BytesArray(sourceField.binaryValue()))) {
             sourceAsMap = parser.map();
         }
         assertThat(sourceAsMap.containsKey("path1"), equalTo(false));

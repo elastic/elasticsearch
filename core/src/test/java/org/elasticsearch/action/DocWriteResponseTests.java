@@ -57,7 +57,7 @@ public class DocWriteResponseTests extends ESTestCase {
             builder.startObject();
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes())) {
                 assertThat(parser.map(), not(hasKey("forced_refresh")));
             }
         }
@@ -66,7 +66,7 @@ public class DocWriteResponseTests extends ESTestCase {
             builder.startObject();
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes())) {
                 assertThat(parser.map(), hasEntry("forced_refresh", true));
             }
         }

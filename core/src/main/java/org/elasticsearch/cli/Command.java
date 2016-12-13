@@ -59,23 +59,25 @@ public abstract class Command implements Closeable {
 
     /** Parses options for this command from args and executes it. */
     public final int main(String[] args, Terminal terminal) throws Exception {
-        shutdownHookThread.set(new Thread(() -> {
-            try {
-                this.close();
-            } catch (final IOException e) {
-                try (
-                    final StringWriter sw = new StringWriter();
-                    final PrintWriter pw = new PrintWriter(sw)) {
-                    e.printStackTrace(pw);
-                    terminal.println(sw.toString());
-                } catch (final IOException impossible) {
-                    // StringWriter#close declares a checked IOException from the Closeable interface but the Javadocs for StringWriter say
-                    // that an exception here is impossible
-                    throw new AssertionError(impossible);
+        if (addShutdownHook()) {
+            shutdownHookThread.set(new Thread(() -> {
+                try {
+                    this.close();
+                } catch (final IOException e) {
+                    try (
+                        final StringWriter sw = new StringWriter();
+                        final PrintWriter pw = new PrintWriter(sw)) {
+                        e.printStackTrace(pw);
+                        terminal.println(sw.toString());
+                    } catch (final IOException impossible) {
+                        // StringWriter#close declares a checked IOException from the Closeable interface but the Javadocs for StringWriter
+                        // say that an exception here is impossible
+                        throw new AssertionError(impossible);
+                    }
                 }
-            }
-        }));
-        Runtime.getRuntime().addShutdownHook(shutdownHookThread.get());
+            }));
+            Runtime.getRuntime().addShutdownHook(shutdownHookThread.get());
+        }
 
         // initialize default for es.logger.level because we will not read the log4j2.properties
         final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
@@ -141,6 +143,16 @@ public abstract class Command implements Closeable {
      *
      * Any runtime user errors (like an input file that does not exist), should throw a {@link UserException}. */
     protected abstract void execute(Terminal terminal, OptionSet options) throws Exception;
+
+    /**
+     * Return whether or not to install the shutdown hook to cleanup resources on exit. This method should only be overridden in test
+     * classes.
+     *
+     * @return whether or not to install the shutdown hook
+     */
+    protected boolean addShutdownHook() {
+        return true;
+    }
 
     @Override
     public void close() throws IOException {

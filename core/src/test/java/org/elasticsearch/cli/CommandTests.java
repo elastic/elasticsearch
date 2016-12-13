@@ -23,39 +23,52 @@ import joptsimple.OptionException;
 import joptsimple.OptionSet;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.isEmptyString;
-
 public class CommandTests extends ESTestCase {
 
     static class UserErrorCommand extends Command {
+
         UserErrorCommand() {
             super("Throws a user error");
         }
+
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
             throw new UserException(ExitCodes.DATA_ERROR, "Bad input");
         }
+
+        @Override
+        protected boolean addShutdownHook() {
+            return false;
+        }
+
     }
 
     static class UsageErrorCommand extends Command {
+
         UsageErrorCommand() {
             super("Throws a usage error");
         }
+
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
             throw new UserException(ExitCodes.USAGE, "something was no good");
         }
+
+        @Override
+        protected boolean addShutdownHook() {
+            return false;
+        }
+
     }
 
     static class NoopCommand extends Command {
+
         boolean executed = false;
+
         NoopCommand() {
             super("Does nothing");
         }
+
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
             terminal.println("Normal output");
@@ -63,10 +76,17 @@ public class CommandTests extends ESTestCase {
             terminal.println(Terminal.Verbosity.VERBOSE, "Verbose output");
             executed = true;
         }
+
         @Override
         protected void printAdditionalHelp(Terminal terminal) {
             terminal.println("Some extra help");
         }
+
+        @Override
+        protected boolean addShutdownHook() {
+            return false;
+        }
+
     }
 
     public void testHelp() throws Exception {
@@ -98,7 +118,7 @@ public class CommandTests extends ESTestCase {
             command.mainWithoutErrorHandling(args, terminal);
         });
         assertTrue(e.getMessage(),
-                e.getMessage().contains("Option(s) [v/verbose] are unavailable given other options on the command line"));
+            e.getMessage().contains("Option(s) [v/verbose] are unavailable given other options on the command line"));
     }
 
     public void testSilentVerbosity() throws Exception {
@@ -148,42 +168,6 @@ public class CommandTests extends ESTestCase {
         assertEquals(output, ExitCodes.USAGE, status);
         assertTrue(output, output.contains("Throws a usage error"));
         assertTrue(output, output.contains("ERROR: something was no good"));
-    }
-
-    public void testCommandShutdownHook() throws Exception {
-        final AtomicBoolean closed = new AtomicBoolean();
-        final boolean shouldThrow = randomBoolean();
-        final Command command = new Command("test-shutdown-hook-installed") {
-            @Override
-            protected void execute(Terminal terminal, OptionSet options) throws Exception {
-
-            }
-
-            @Override
-            public void close() throws IOException {
-                closed.set(true);
-                if (shouldThrow) {
-                    throw new IOException("fail");
-                }
-            }
-        };
-        final MockTerminal terminal = new MockTerminal();
-        command.main(new String[0], terminal);
-        assertNotNull(command.shutdownHookThread.get());
-        // successful removal here asserts that the runtime hook was installed in Command#main
-        assertTrue(Runtime.getRuntime().removeShutdownHook(command.shutdownHookThread.get()));
-        command.shutdownHookThread.get().run();
-        command.shutdownHookThread.get().join();
-        assertTrue(closed.get());
-        final String output = terminal.getOutput();
-        if (shouldThrow) {
-            // ensure that we dump the exception
-            assertThat(output, containsString("java.io.IOException: fail"));
-            // ensure that we dump the stack trace too
-            assertThat(output, containsString("\tat org.elasticsearch.cli.CommandTests$1.close"));
-        } else {
-            assertThat(output, isEmptyString());
-        }
     }
 
 }

@@ -626,7 +626,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
                 try (XContentParser parser = XContentHelper.createParser(out.bytes())) {
-                    repositoryData = RepositoryData.fromXContent(parser);
+                    repositoryData = RepositoryData.fromXContent(parser, indexGen);
                 }
             }
             return repositoryData;
@@ -654,6 +654,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected void writeIndexGen(final RepositoryData repositoryData) throws IOException {
         assert isReadOnly() == false; // can not write to a read only repository
+        final long currentGen = latestIndexBlobId();
+        if (currentGen != repositoryData.getGenId()) {
+            // the index file was updated by a concurrent operation, so we were operating on stale
+            // repository data
+            throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +
+                                              repositoryData.getGenId() + "], actual current generation [" + currentGen +
+                                              "] - possibly due to simultaneous snapshot deletion requests");
+        }
+        final long newGen = currentGen + 1;
         final BytesReference snapshotsBytes;
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
             try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
@@ -663,12 +672,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             snapshotsBytes = bStream.bytes();
         }
-        final long gen = latestIndexBlobId() + 1;
         // write the index file
-        writeAtomic(INDEX_FILE_PREFIX + Long.toString(gen), snapshotsBytes);
+        writeAtomic(INDEX_FILE_PREFIX + Long.toString(newGen), snapshotsBytes);
         // delete the N-2 index file if it exists, keep the previous one around as a backup
-        if (isReadOnly() == false && gen - 2 >= 0) {
-            final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(gen - 2);
+        if (isReadOnly() == false && newGen - 2 >= 0) {
+            final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(newGen - 2);
             if (snapshotsBlobContainer.blobExists(oldSnapshotIndexFile)) {
                 snapshotsBlobContainer.deleteBlob(oldSnapshotIndexFile);
             }
@@ -681,7 +689,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // write the current generation to the index-latest file
         final BytesReference genBytes;
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
-            bStream.writeLong(gen);
+            bStream.writeLong(newGen);
             genBytes = bStream.bytes();
         }
         if (snapshotsBlobContainer.blobExists(INDEX_LATEST_BLOB)) {

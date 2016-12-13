@@ -1397,7 +1397,7 @@ public class IndexShardTests extends IndexShardTestCase {
         public RepositoryData getRepositoryData() {
             Map<IndexId, Set<SnapshotId>> map = new HashMap<>();
             map.put(new IndexId(indexName, "blah"), emptySet());
-            return new RepositoryData(Collections.emptyList(), map);
+            return RepositoryData.initRepositoryData(Collections.emptyList(), map);
         }
 
         @Override

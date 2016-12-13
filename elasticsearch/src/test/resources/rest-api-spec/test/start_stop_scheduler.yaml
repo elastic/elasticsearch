@@ -37,7 +37,6 @@ setup:
       xpack.prelert.stop_scheduler:
         "scheduler_id": "scheduler-1"
 
-
 ---
 "Test start non existing scheduler":
     - do:
@@ -79,3 +78,21 @@ setup:
       xpack.prelert.start_scheduler:
         "scheduler_id": "scheduler-1"
         "start": 0
+
+---
+"Test stop non existing scheduler":
+    - do:
+        catch: missing
+        xpack.prelert.stop_scheduler:
+          "scheduler_id": "non-existing-scheduler"
+
+---
+"Test stop already stopped scheduled job":
+  - do:
+      catch: conflict
+      xpack.prelert.stop_scheduler:
+        "scheduler_id": "scheduler-1"
+  - do:
+      catch: /scheduler already stopped, expected scheduler status \[STARTED\], but got \[STOPPED\]/
+      xpack.prelert.stop_scheduler:
+        "scheduler_id": "scheduler-1"

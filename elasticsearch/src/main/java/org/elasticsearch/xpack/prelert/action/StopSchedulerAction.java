@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionListener;
@@ -22,14 +23,20 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
+import org.elasticsearch.xpack.prelert.job.messages.Messages;
+import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.job.metadata.Scheduler;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -131,22 +138,27 @@ public class StopSchedulerAction
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final TransportCancelTasksAction cancelTasksAction;
+        private final ClusterService clusterService;
         private final TransportListTasksAction listTasksAction;
+        private final TransportCancelTasksAction cancelTasksAction;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
+        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                TransportCancelTasksAction cancelTasksAction, TransportListTasksAction listTasksAction) {
             super(settings, StopSchedulerAction.NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
-            this.cancelTasksAction = cancelTasksAction;
+            this.clusterService = clusterService;
             this.listTasksAction = listTasksAction;
+            this.cancelTasksAction = cancelTasksAction;
         }
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
             String schedulerId = request.getSchedulerId();
+            PrelertMetadata prelertMetadata = clusterService.state().metaData().custom(PrelertMetadata.TYPE);
+            validate(schedulerId, prelertMetadata);
+
             ListTasksRequest listTasksRequest = new ListTasksRequest();
             listTasksRequest.setActions(StartSchedulerAction.NAME);
             listTasksRequest.setDetailed(true);
@@ -180,6 +192,18 @@ public class StopSchedulerAction
                     listener.onFailure(e);
                 }
             });
+        }
+    }
+
+    static void validate(String schedulerId, PrelertMetadata prelertMetadata) {
+        Scheduler scheduler = prelertMetadata.getScheduler(schedulerId);
+        if (scheduler == null) {
+            throw new ResourceNotFoundException(Messages.getMessage(Messages.SCHEDULER_NOT_FOUND, schedulerId));
+        }
+
+        if (scheduler.getStatus() == SchedulerStatus.STOPPED) {
+            throw new ElasticsearchStatusException("scheduler already stopped, expected scheduler status [{}], but got [{}]",
+                    RestStatus.CONFLICT, SchedulerStatus.STARTED, scheduler.getStatus());
         }
     }
 }

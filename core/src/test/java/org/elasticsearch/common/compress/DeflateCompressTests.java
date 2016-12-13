@@ -21,6 +21,7 @@ package org.elasticsearch.common.compress;
 
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -426,5 +427,12 @@ public class DeflateCompressTests extends ESTestCase {
         uncompressedOut.close();
 
         assertArrayEquals(bytes, uncompressedOut.toByteArray());
+    }
+
+    public void testDecompressNonCompressedBinary() throws IOException {
+        NotCompressedException helloworld = expectThrows(NotCompressedException.class,
+            () -> compressor.streamInput(new BytesArray("helloworld").streamInput()));
+        assertEquals("Input stream is not compressed with DEFLATE! expected [44 46 4c 0] but got: [68 65 6c 6c]",
+            helloworld.getMessage());
     }
 }

@@ -22,10 +22,10 @@ package org.elasticsearch.common.compress;
 /** Exception indicating that we were expecting something compressed, which
  *  was not compressed or corrupted so that the compression format could not
  *  be detected. */
-public class NotCompressedException extends RuntimeException {
+public class NotCompressedException extends IllegalArgumentException {
 
-    public NotCompressedException() {
-        super();
+    public NotCompressedException(String msg) {
+        super(msg);
     }
 
 }

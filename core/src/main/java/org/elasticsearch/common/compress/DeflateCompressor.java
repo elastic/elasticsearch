@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.compress;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -79,7 +80,8 @@ public class DeflateCompressor implements Compressor {
             len += read;
         }
         if (len != HEADER.length || Arrays.equals(headerBytes, HEADER) == false) {
-            throw new IllegalArgumentException("Input stream is not compressed with DEFLATE!");
+            throw new NotCompressedException("Input stream is not compressed with DEFLATE! expected "
+                + new BytesRef(HEADER).toString() + " but got: " + new BytesRef(headerBytes));
         }
 
         final boolean nowrap = true;

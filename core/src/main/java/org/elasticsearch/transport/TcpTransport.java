@@ -34,7 +34,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.compress.NotCompressedException;
 import org.elasticsearch.common.io.ReleasableBytesStream;
@@ -1083,21 +1082,32 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     /**
-     * Validates the first N bytes of the message header and returns <code>false</code> if the message is
-     * a ping message and has no payload ie. isn't a real user level message.
+     * Validates the first N bytes of the message header and returns a positive message size if the stream contains a valid message.
+     * If the message is a ping message <code>-1</code> is returned instead. Ping requests are uni-directional and don't receive a response.
+     * The stream can be discarded if the case of a ping. Once this method returns with a positive message size the stream can passed on
+     * to {@link #messageReceived(StreamInput, Object, String, InetSocketAddress)}.
      *
      * @throws IllegalStateException if the message is too short, less than the header or less that the header plus the message size
      * @throws HttpOnTransportException if the message has no valid header and appears to be a HTTP message
      * @throws IllegalArgumentException if the message is greater that the maximum allowed frame size. This is dependent on the available
      * memory.
      */
-    public static boolean validateMessageHeader(BytesReference buffer) throws IOException {
-        final int sizeHeaderLength = TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
-        if (buffer.length() < sizeHeaderLength) {
+    public static int validateMessageHeader(StreamInput input) throws IOException {
+        assert input.markSupported();
+        final int available = input.available();
+        if (available < TcpHeader.MARKER_BYTES_SIZE ) {
             throw new IllegalStateException("message size must be >= to the header size");
         }
         int offset = 0;
-        if (buffer.get(offset) != 'E' || buffer.get(offset + 1) != 'S') {
+        byte firstByte = input.readByte();
+        byte secondByte = input.readByte();
+        if (firstByte != 'E' || secondByte != 'S') {
+            byte[] b = new byte[8];
+            b[0] = firstByte;
+            b[1] = secondByte;
+            int size = Math.min(input.available(), 6);
+            input.readBytes(b, 2, size);
+            BytesReference buffer = new BytesArray(b);
             // special handling for what is probably HTTP
             if (bufferStartsWith(buffer, offset, "GET ") ||
                     bufferStartsWith(buffer, offset, "POST ") ||
@@ -1118,17 +1128,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     + Integer.toHexString(buffer.get(offset + 2) & 0xFF) + ","
                     + Integer.toHexString(buffer.get(offset + 3) & 0xFF) + ")");
         }
-
-        final int dataLen;
-        try (StreamInput input = buffer.streamInput()) {
-            input.skip(TcpHeader.MARKER_BYTES_SIZE);
-            dataLen = input.readInt();
-            if (dataLen == PING_DATA_SIZE) {
-                // discard the messages we read and continue, this is achieved by skipping the bytes
-                // and returning null
-                return false;
-            }
+        input.mark(4);
+        final int dataLen = input.readInt();
+        if (dataLen == PING_DATA_SIZE) {
+            // discard the messages we read and continue, this is achieved by skipping the bytes
+            // and returning null
+            return PING_DATA_SIZE;
         }
+        input.reset();
         if (dataLen <= 0) {
             throw new StreamCorruptedException("invalid data length: " + dataLen);
         }
@@ -1137,11 +1144,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             throw new IllegalArgumentException("transport content length received [" + new ByteSizeValue(dataLen) + "] exceeded ["
                     + new ByteSizeValue(NINETY_PER_HEAP_SIZE) + "]");
         }
-
-        if (buffer.length() < dataLen + sizeHeaderLength) {
-            throw new IllegalStateException("buffer must be >= to the message size but wasn't");
-        }
-        return true;
+        return dataLen + TcpHeader.MESSAGE_LENGTH_SIZE;
     }
 
     private static boolean bufferStartsWith(BytesReference buffer, int offset, String method) {
@@ -1180,35 +1183,26 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     /**
      * This method handles the message receive part for both request and responses
      */
-    public final void messageReceived(BytesReference reference, Channel channel, String profileName,
-                                      InetSocketAddress remoteAddress, int messageLengthBytes) throws IOException {
+    public final void messageReceived(StreamInput streamIn, Channel channel, String profileName,
+                                      InetSocketAddress remoteAddress) throws IOException {
+        final int messageLengthBytes = streamIn.readInt();
         final int totalMessageSize = messageLengthBytes + TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE;
         transportServiceAdapter.addBytesReceived(totalMessageSize);
         // we have additional bytes to read, outside of the header
         boolean hasMessageBytesToRead = (totalMessageSize - TcpHeader.HEADER_SIZE) > 0;
-        StreamInput streamIn = reference.streamInput();
         boolean success = false;
         try (ThreadContext.StoredContext tCtx = threadPool.getThreadContext().stashContext()) {
             long requestId = streamIn.readLong();
             byte status = streamIn.readByte();
             Version version = Version.fromId(streamIn.readInt());
             if (TransportStatus.isCompress(status) && hasMessageBytesToRead && streamIn.available() > 0) {
-                Compressor compressor;
                 try {
-                    final int bytesConsumed = TcpHeader.REQUEST_ID_SIZE + TcpHeader.STATUS_SIZE + TcpHeader.VERSION_ID_SIZE;
-                    compressor = CompressorFactory.compressor(reference.slice(bytesConsumed, reference.length() - bytesConsumed));
+                    streamIn = CompressorFactory.uncompress(streamIn);
                 } catch (NotCompressedException ex) {
-                    int maxToRead = Math.min(reference.length(), 10);
-                    StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)
-                        .append("] content bytes out of [").append(reference.length())
-                        .append("] readable bytes with message size [").append(messageLengthBytes).append("] ").append("] are [");
-                    for (int i = 0; i < maxToRead; i++) {
-                        sb.append(reference.get(i)).append(",");
-                    }
-                    sb.append("]");
-                    throw new IllegalStateException(sb.toString());
+                    StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, " +
+                        "readable bytes with message size [").append(messageLengthBytes).append("] ").append("] are [");
+                    throw new IllegalStateException(sb.toString(), ex);
                 }
-                streamIn = compressor.streamInput(streamIn);
             }
             if (version.isCompatible(getCurrentVersion()) == false) {
                 throw new IllegalStateException("Received message from unsupported version: [" + version

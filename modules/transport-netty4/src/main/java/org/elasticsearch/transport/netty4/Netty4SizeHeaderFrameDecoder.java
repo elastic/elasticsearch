@@ -33,10 +33,19 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
         try {
-            boolean continueProcessing = TcpTransport.validateMessageHeader(Netty4Utils.toBytesReference(in));
-            final ByteBuf message = in.skipBytes(TcpHeader.MARKER_BYTES_SIZE + TcpHeader.MESSAGE_LENGTH_SIZE);
-            if (!continueProcessing) return;
-            out.add(message);
+            final ByteBufStreamInput input = new ByteBufStreamInput(in, in.readableBytes());
+            int size = TcpTransport.validateMessageHeader(input);
+            if (size == -1) { // that's a ping - we just ignore it.
+                return;
+            } else {
+                if (in.readableBytes() < size) {
+                    throw new IllegalStateException("buffer must be >= to the message size but wasn't");
+                }
+                // we have to make a copy here and limit it's size since the buffer might contain more
+                // data that will be processed later
+                final ByteBufStreamInput byteBufStreamInput = new ByteBufStreamInput(in, size);
+                out.add(byteBufStreamInput);
+            }
         } catch (IllegalArgumentException ex) {
             throw new TooLongFrameException(ex);
         } catch (IllegalStateException ex) {
@@ -46,5 +55,4 @@ final class Netty4SizeHeaderFrameDecoder extends ByteToMessageDecoder {
              */
         }
     }
-
 }

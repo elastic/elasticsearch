@@ -19,7 +19,10 @@
 
 package org.elasticsearch.test.rest.yaml.parser;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
@@ -36,5 +39,11 @@ public abstract class AbstractParserTestCase extends ESTestCase {
         //this is the way to make sure that we consumed the whole yaml
         assertThat(parser.currentToken(), nullValue());
         parser.close();
+    }
+
+    @Override
+    protected XContent xContentForParser(BytesReference data) {
+        // All subclasses always use YAML
+        return YamlXContent.yamlXContent;
     }
 }

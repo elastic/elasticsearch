@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TestSectionParserTests extends AbstractParserTestCase {
     public void testParseTestSectionWithDoSection() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(
                 "\"First test section\": \n" +
                 " - do :\n" +
                 "     catch: missing\n" +
@@ -81,7 +81,7 @@ public class TestSectionParserTests extends AbstractParserTestCase {
 
 
         ClientYamlTestSectionParser testSectionParser = new ClientYamlTestSectionParser();
-        parser = YamlXContent.yamlXContent.createParser(yaml);
+        parser = createParser(yaml);
         ClientYamlTestSection testSection = testSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
 
         assertThat(testSection, notNullValue());
@@ -103,7 +103,7 @@ public class TestSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseTestSectionWithMultipleDoSections() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(
                 "\"Basic\":\n" +
                         "\n" +
                         "  - do:\n" +
@@ -141,7 +141,7 @@ public class TestSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseTestSectionWithDoSectionsAndAssertions() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(
                 "\"Basic\":\n" +
                         "\n" +
                         "  - do:\n" +
@@ -235,7 +235,7 @@ public class TestSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testSmallSection() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(
                 "\"node_info test\":\n" +
                 "  - do:\n" +
                 "      cluster.node_info: {}\n" +

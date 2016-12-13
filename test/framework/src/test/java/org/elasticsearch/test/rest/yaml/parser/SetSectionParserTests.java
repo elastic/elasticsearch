@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SetSectionParserTests extends AbstractParserTestCase {
     public void testParseSetSectionSingleValue() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(
                         "{ _id: id }"
         );
 
@@ -45,7 +45,7 @@ public class SetSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseSetSectionMultipleValues() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(
                 "{ _id: id, _type: type, _index: index }"
         );
 
@@ -62,7 +62,7 @@ public class SetSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseSetSectionNoValues() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(
                 "{ }"
         );
 

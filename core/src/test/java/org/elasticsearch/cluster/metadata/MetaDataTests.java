@@ -129,7 +129,7 @@ public class MetaDataTests extends ESTestCase {
                     .field("random", "value")
                 .endObject()
             .endObject().bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(metadata);
+        XContentParser parser = createParser(metadata);
         try {
             MetaData.Builder.fromXContent(parser);
             fail();
@@ -145,7 +145,7 @@ public class MetaDataTests extends ESTestCase {
                     .field("random", "value")
                 .endObject()
             .endObject().bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(metadata);
+        XContentParser parser = createParser(metadata);
         try {
             IndexMetaData.Builder.fromXContent(parser);
             fail();

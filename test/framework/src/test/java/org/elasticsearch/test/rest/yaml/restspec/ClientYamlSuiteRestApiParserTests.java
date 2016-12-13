@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class ClientYamlSuiteRestApiParserTests extends AbstractParserTestCase {
     public void testParseRestSpecIndexApi() throws Exception {
-        parser = JsonXContent.jsonXContent.createParser(REST_SPEC_INDEX_API);
+        parser = createParser(REST_SPEC_INDEX_API);
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
 
         assertThat(restApi, notNullValue());
@@ -51,7 +51,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractParserTestCase {
     }
 
     public void testParseRestSpecGetTemplateApi() throws Exception {
-        parser = JsonXContent.jsonXContent.createParser(REST_SPEC_GET_TEMPLATE_API);
+        parser = createParser(REST_SPEC_GET_TEMPLATE_API);
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("indices.get_template"));
@@ -68,7 +68,7 @@ public class ClientYamlSuiteRestApiParserTests extends AbstractParserTestCase {
     }
 
     public void testParseRestSpecCountApi() throws Exception {
-        parser = JsonXContent.jsonXContent.createParser(REST_SPEC_COUNT_API);
+        parser = createParser(REST_SPEC_COUNT_API);
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);
         assertThat(restApi, notNullValue());
         assertThat(restApi.getName(), equalTo("count"));

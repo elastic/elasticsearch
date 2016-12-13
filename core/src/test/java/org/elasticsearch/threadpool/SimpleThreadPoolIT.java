@@ -136,7 +136,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
         builder.endObject();
         builder.close();
         Map<String, Object> poolsMap;
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.string())) {
+        try (XContentParser parser = createParser(builder.string())) {
             poolsMap = parser.map();
         }
         return (Map<String, Object>) ((Map<String, Object>) poolsMap.get("thread_pool")).get(poolName);

@@ -21,11 +21,12 @@ package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -355,4 +356,9 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
     private static QueryParseContext createParseContext(XContentParser parser) {
         return new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
     };
+
+    @Override
+    protected XContent xContentForParser(BytesReference data) {
+        return JsonXContent.jsonXContent;
+    }
 }

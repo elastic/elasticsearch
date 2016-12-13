@@ -164,7 +164,7 @@ public class ExtendedBoundsTests extends ESTestCase {
             orig.toXContent(out, ToXContent.EMPTY_PARAMS);
             out.endObject();
 
-            try (XContentParser in = JsonXContent.jsonXContent.createParser(out.bytes())) {
+            try (XContentParser in = createParser(out.bytes())) {
                 XContentParser.Token token = in.currentToken();
                 assertNull(token);
 

@@ -168,8 +168,8 @@ public class HighlightBuilderTests extends ESTestCase {
         }
     }
 
-    private static <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+    private <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
+        XContentParser parser = createParser(highlightElement);
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         return expectThrows(exceptionClass, () -> HighlightBuilder.fromXContent(context));
     }
@@ -378,7 +378,7 @@ public class HighlightBuilderTests extends ESTestCase {
         String highlightElement = "{\n" +
                 "    \"tags_schema\" : \"styled\"\n" +
                 "}\n";
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        XContentParser parser = createParser(highlightElement);
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
@@ -390,7 +390,7 @@ public class HighlightBuilderTests extends ESTestCase {
         highlightElement = "{\n" +
                 "    \"tags_schema\" : \"default\"\n" +
                 "}\n";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(highlightElement);
 
         context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);
@@ -411,21 +411,21 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testParsingEmptyStructure() throws IOException {
         String highlightElement = "{ }";
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        XContentParser parser = createParser(highlightElement);
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { } }";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(highlightElement);
 
         context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { \"foo\" : { } } }";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(highlightElement);
 
         context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);

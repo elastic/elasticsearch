@@ -101,7 +101,7 @@ public class QueryParseContextTests extends ESTestCase {
 
     public void testParseInnerQueryBuilderExceptions() throws IOException {
         String source = "{ \"foo\": \"bar\" }";
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(source)) {
+        try (XContentParser parser = createParser(source)) {
             parser.nextToken();
             parser.nextToken(); // don't start with START_OBJECT to provoke exception
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
@@ -110,21 +110,21 @@ public class QueryParseContextTests extends ESTestCase {
         }
 
         source = "{}";
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(source)) {
+        try (XContentParser parser = createParser(source)) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->  context.parseInnerQueryBuilder());
             assertEquals("query malformed, empty clause found at [1:2]", exception.getMessage());
         }
 
         source = "{ \"foo\" : \"bar\" }";
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(source)) {
+        try (XContentParser parser = createParser(source)) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
             ParsingException exception = expectThrows(ParsingException.class, () ->  context.parseInnerQueryBuilder());
             assertEquals("[foo] query malformed, no start_object after query name", exception.getMessage());
         }
 
         source = "{ \"foo\" : {} }";
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(source)) {
+        try (XContentParser parser = createParser(source)) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
             ParsingException exception = expectThrows(ParsingException.class, () ->  context.parseInnerQueryBuilder());
             assertEquals("no [query] registered for [foo]", exception.getMessage());

@@ -250,8 +250,8 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     /**
      * create a new parser from the rescorer string representation and reset context with it
      */
-    private static QueryParseContext createContext(String rescoreElement) throws IOException {
-        XContentParser parser = XContentFactory.xContent(rescoreElement).createParser(rescoreElement);
+    private QueryParseContext createContext(String rescoreElement) throws IOException {
+        XContentParser parser = createParser(rescoreElement);
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         // move to first token, this is where the internal fromXContent
         assertTrue(parser.nextToken() == XContentParser.Token.START_OBJECT);

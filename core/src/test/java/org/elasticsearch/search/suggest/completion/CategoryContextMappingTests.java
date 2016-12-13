@@ -24,11 +24,12 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -202,8 +203,8 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
 
     public void testQueryContextParsingArray() throws Exception {
         XContentBuilder builder = jsonBuilder().startArray()
-                .value("context1")
-                .value("context2")
+                    .value("context1")
+                    .value("context2")
                 .endArray();
         XContentParser parser = createParser(builder.bytes());
         CategoryContextMapping mapping = ContextBuilder.category("cat").build();
@@ -300,5 +301,11 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
             }
         }
         assertThat(actualFieldCount, equalTo(expected));
+    }
+
+    @Override
+    protected XContent xContentForParser(BytesReference data) {
+        // XContent detection doesn't work particularly well for this class because it tries to parse bare json arrays.
+        return JsonXContent.jsonXContent;
     }
 }

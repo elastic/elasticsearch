@@ -48,6 +48,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -62,6 +63,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -882,22 +884,26 @@ public abstract class ESTestCase extends LuceneTestCase {
     /**
      * Create a new {@link XContentParser}.
      */
-    protected final XContentParser createParser(String string) throws IOException {
-        return XContentFactory.xContent(string).createParser(string);
+    protected final XContentParser createParser(String data) throws IOException {
+        return xContentForParser(new BytesArray(data)).createParser(data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(byte[] data) throws IOException {
-        return XContentFactory.xContent(data).createParser(data);
+        return xContentForParser(new BytesArray(data)).createParser(data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(BytesReference data) throws IOException {
-        return XContentFactory.xContent(data).createParser(data);
+        return xContentForParser(data).createParser(data);
+    }
+
+    protected XContent xContentForParser(BytesReference data) {
+        return XContentFactory.xContent(data);
     }
 
     /** Returns the suite failure marker: internal use only! */

@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SetupSectionParserTests extends AbstractParserTestCase {
     public void testParseSetupSection() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(
                 "  - do:\n" +
                 "      index1:\n" +
                 "        index:  test_1\n" +
@@ -55,7 +55,7 @@ public class SetupSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseSetupAndSkipSectionNoSkip() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(
                 "  - skip:\n" +
                         "      version:  \"2.0.0 - 2.3.0\"\n" +
                         "      reason:   \"Update doesn't return metadata fields, waiting for #3259\"\n" +

@@ -9,6 +9,10 @@
 # user/group and also many directories. Do not execute this file
 # unless you know exactly what you are doing.
 
+# NOTE: This test does not need any locally compiled version of elasticsearch
+# Instead this test will use the latest stable version, and one version
+# from a remote package repository that needs to be specified
+
 # The test case can be executed with the Bash Automated
 # Testing System tool available at https://github.com/sstephenson/bats
 # Thanks to Sam Stephenson!

@@ -395,6 +395,9 @@ class VagrantTestPlugin implements Plugin<Project> {
                 'VAGRANT_PROJECT_DIR'   : "${project.projectDir.absolutePath}"
         ]
 
+        // one single repo test task to test all configured boxes
+        Task vagrantRepositoryTestTask = project.tasks.create('vagrantRepositoryTest')
+
         // Each box gets it own set of tasks
         for (String box : BOXES) {
             String boxTask = box.capitalize().replace('-', '')
@@ -455,8 +458,6 @@ class VagrantTestPlugin implements Plugin<Project> {
             }
             packagingTest.dependsOn(packaging)
 
-            String task = "vagrant${boxTask}#repositoryTest"
-
             String expectedRepoVersion = project.getProperties().get('repo.version')
             String url = project.getProperties().get('repo.url')
 
@@ -470,6 +471,7 @@ class VagrantTestPlugin implements Plugin<Project> {
                 contents expectedRepoVersion
             }
 
+            String task = "vagrant${boxTask}#repositoryTest"
             Task repotest = project.tasks.create(task, BatsOverVagrantTask) {
                 boxName box
                 environmentVars vagrantEnvVars
@@ -484,11 +486,7 @@ class VagrantTestPlugin implements Plugin<Project> {
             }
 
             repotest.dependsOn 'vagrantSetUp', createUrlFileTask, createRepoVersionFileTask
+            vagrantRepositoryTestTask.dependsOn "vagrant${boxTask}#repositoryTest"
         }
-
-        // one single repo test task to test all configured boxes
-        Task repotest = project.tasks.create('vagrantRepositoryTest')
-        List<String> boxes = listVagrantBoxes(project)
-        repotest.dependsOn boxes.collect { box -> 'vagrant' + box.capitalize().replace('-', '') + '#repositoryTest' }
     }
 }

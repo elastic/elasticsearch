@@ -103,8 +103,11 @@ public class IncludeExclude implements Writeable, ToXContent {
             String currentFieldName = null;
             Integer partition = null, numPartitions = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else
                 // This "include":{"pattern":"foo.*"} syntax is undocumented since 2.0
-                // Regexes should be "include":"foo.*" 
+                // Regexes should be "include":"foo.*"
                 if (parseFieldMatcher.match(currentFieldName, PATTERN_FIELD)) {
                     return new IncludeExclude(parser.text(), null);
                 } else if (parseFieldMatcher.match(currentFieldName, NUM_PARTITIONS_FIELD)) {
@@ -146,12 +149,10 @@ public class IncludeExclude implements Writeable, ToXContent {
     // in the index.
     public abstract static class LongFilter {
         public abstract boolean accept(long value);
-   
-    }
-    
-    public class PartitionedLongFilter extends LongFilter {
-        private final ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES);
 
+    }
+
+    public class PartitionedLongFilter extends LongFilter {
         @Override
         public boolean accept(long value) {
             // hash the value to keep even distributions
@@ -159,8 +160,8 @@ public class IncludeExclude implements Writeable, ToXContent {
             return Math.floorMod(hashCode, incNumPartitions) == incZeroBasedPartition;
         }
     }
-    
-    
+
+
     public static class SetBackedLongFilter extends LongFilter {
         private LongSet valids;
         private LongSet invalids;
@@ -197,8 +198,8 @@ public class IncludeExclude implements Writeable, ToXContent {
         public boolean accept(BytesRef value) {
             return Math.floorMod(value.hashCode(), incNumPartitions) == incZeroBasedPartition;
         }
-    }    
-    
+    }
+
     static class AutomatonBackedStringFilter extends StringFilter {
 
         private final ByteRunAutomaton runAutomaton;
@@ -361,7 +362,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         this.include = null;
         this.exclude = null;
         this.incZeroBasedPartition = 0;
-        this.incNumPartitions = 0;        
+        this.incNumPartitions = 0;
         this.includeValues = includeValues;
         this.excludeValues = excludeValues;
     }
@@ -388,11 +389,11 @@ public class IncludeExclude implements Writeable, ToXContent {
         this.exclude = null;
         this.includeValues = null;
         this.excludeValues = null;
-        
+
     }
 
-    
-    
+
+
     /**
      * Read from a stream.
      */
@@ -580,7 +581,7 @@ public class IncludeExclude implements Writeable, ToXContent {
     public boolean isPartitionBased() {
         return incNumPartitions > 0;
     }
-        
+
     private Automaton toAutomaton() {
         Automaton a = null;
         if (include != null) {
@@ -629,16 +630,16 @@ public class IncludeExclude implements Writeable, ToXContent {
         if (isPartitionBased()){
             return new PartitionedOrdinalsFilter();
         }
-        
+
         return new TermListBackedOrdinalsFilter(parseForDocValues(includeValues, format), parseForDocValues(excludeValues, format));
     }
 
     public LongFilter convertToLongFilter(DocValueFormat format) {
-        
+
         if(isPartitionBased()){
             return new PartitionedLongFilter();
         }
-        
+
         int numValids = includeValues == null ? 0 : includeValues.size();
         int numInvalids = excludeValues == null ? 0 : excludeValues.size();
         SetBackedLongFilter result = new SetBackedLongFilter(numValids, numInvalids);
@@ -659,7 +660,7 @@ public class IncludeExclude implements Writeable, ToXContent {
         if(isPartitionBased()){
             return new PartitionedLongFilter();
         }
-        
+
         int numValids = includeValues == null ? 0 : includeValues.size();
         int numInvalids = excludeValues == null ? 0 : excludeValues.size();
         SetBackedLongFilter result = new SetBackedLongFilter(numValids, numInvalids);
@@ -682,22 +683,21 @@ public class IncludeExclude implements Writeable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (include != null) {
             builder.field(INCLUDE_FIELD.getPreferredName(), include.getOriginalString());
-        }
-        if (includeValues != null) {
+        } else if (includeValues != null) {
             builder.startArray(INCLUDE_FIELD.getPreferredName());
             for (BytesRef value : includeValues) {
                 builder.value(value.utf8ToString());
             }
             builder.endArray();
-        }
-        if (isPartitionBased()) {
+        } else if (isPartitionBased()) {
+            builder.startObject(INCLUDE_FIELD.getPreferredName());
             builder.field(PARTITION_FIELD.getPreferredName(), incZeroBasedPartition);
             builder.field(NUM_PARTITIONS_FIELD.getPreferredName(), incNumPartitions);
+            builder.endObject();
         }
         if (exclude != null) {
             builder.field(EXCLUDE_FIELD.getPreferredName(), exclude.getOriginalString());
-        }
-        if (excludeValues != null) {
+        } else if (excludeValues != null) {
             builder.startArray(EXCLUDE_FIELD.getPreferredName());
             for (BytesRef value : excludeValues) {
                 builder.value(value.utf8ToString());

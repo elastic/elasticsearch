@@ -55,6 +55,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 
@@ -215,8 +216,8 @@ final class Bootstrap {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final Settings settings,
-                final BoundTransportAddress boundTransportAddress) throws NodeValidationException {
-                BootstrapCheck.check(settings, boundTransportAddress);
+                final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> checks) throws NodeValidationException {
+                BootstrapChecks.check(settings, boundTransportAddress, checks);
             }
         };
     }

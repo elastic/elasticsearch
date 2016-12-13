@@ -38,7 +38,6 @@ import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder> {
     public static final String NAME = "script";
@@ -84,7 +83,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         builder.endObject();
     }
 
-    public static Optional<ScriptQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static ScriptQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
         Script script = null;
@@ -122,9 +121,9 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             throw new ParsingException(parser.getTokenLocation(), "script must be provided with a [script] filter");
         }
 
-        return Optional.of(new ScriptQueryBuilder(script)
+        return new ScriptQueryBuilder(script)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName);
     }
 
     @Override

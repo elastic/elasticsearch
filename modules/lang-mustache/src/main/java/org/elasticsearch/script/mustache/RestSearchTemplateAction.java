@@ -26,18 +26,15 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
@@ -50,7 +47,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchTemplateAction extends BaseRestHandler {
 
-    private static ObjectParser<SearchTemplateRequest, ParseFieldMatcherSupplier> PARSER;
+    private static final ObjectParser<SearchTemplateRequest, ParseFieldMatcherSupplier> PARSER;
     static {
         PARSER = new ObjectParser<>("search_template");
         PARSER.declareField((parser, request, s) ->
@@ -97,7 +94,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (RestActions.hasBodyContent(request) == false) {
+        if (request.hasContentOrSourceParam() == false) {
             throw new ElasticsearchException("request body is required");
         }
 
@@ -106,15 +103,16 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         RestSearchAction.parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, null);
 
         // Creates the search template request
-        SearchTemplateRequest searchTemplateRequest = parse(RestActions.getRestContent(request));
+        SearchTemplateRequest searchTemplateRequest;
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
+            searchTemplateRequest = PARSER.parse(parser, new SearchTemplateRequest(), () -> ParseFieldMatcher.EMPTY);
+        }
         searchTemplateRequest.setRequest(searchRequest);
 
         return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
     }
 
-    public static SearchTemplateRequest parse(BytesReference bytes) throws IOException {
-        try (XContentParser parser = XContentHelper.createParser(bytes)) {
-            return PARSER.parse(parser, new SearchTemplateRequest(), () -> ParseFieldMatcher.STRICT);
-        }
+    public static SearchTemplateRequest parse(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new SearchTemplateRequest(), () -> ParseFieldMatcher.EMPTY);
     }
 }

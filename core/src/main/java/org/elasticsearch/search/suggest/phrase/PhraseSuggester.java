@@ -34,14 +34,11 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -54,7 +51,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 
 public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
@@ -125,8 +121,8 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     final ExecutableScript executable = collateScript.apply(vars);
                     final BytesReference querySource = (BytesReference) executable.run();
                     try (XContentParser parser = XContentFactory.xContent(querySource).createParser(querySource)) {
-                        Optional<QueryBuilder> innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();
-                        final ParsedQuery parsedQuery = shardContext.toQuery(innerQueryBuilder.orElse(new MatchNoneQueryBuilder()));
+                        QueryBuilder innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();
+                        final ParsedQuery parsedQuery = shardContext.toQuery(innerQueryBuilder);
                         collateMatch = Lucene.exists(searcher, parsedQuery.query());
                     }
                 }

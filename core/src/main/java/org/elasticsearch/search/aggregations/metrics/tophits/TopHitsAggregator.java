@@ -39,11 +39,11 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -68,7 +68,7 @@ public class TopHitsAggregator extends MetricsAggregator {
     final SubSearchContext subSearchContext;
     final LongObjectPagedHashMap<TopDocsAndLeafCollector> topDocsCollectors;
 
-    public TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, AggregationContext context,
+    public TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, pipelineAggregators, metaData);
         this.fetchPhase = fetchPhase;
@@ -115,7 +115,7 @@ public class TopHitsAggregator extends MetricsAggregator {
                     SortAndFormats sort = subSearchContext.sort();
                     int topN = subSearchContext.from() + subSearchContext.size();
                     if (sort == null) {
-                        for (RescoreSearchContext rescoreContext : context.searchContext().rescore()) {
+                        for (RescoreSearchContext rescoreContext : context.rescore()) {
                             topN = Math.max(rescoreContext.window(), topN);
                         }
                     }
@@ -142,9 +142,9 @@ public class TopHitsAggregator extends MetricsAggregator {
         } else {
             TopDocs topDocs = topDocsCollector.topLevelCollector.topDocs();
             if (subSearchContext.sort() == null) {
-                for (RescoreSearchContext ctx : context().searchContext().rescore()) {
+                for (RescoreSearchContext ctx : context().rescore()) {
                     try {
-                        topDocs = ctx.rescorer().rescore(topDocs, context.searchContext(), ctx);
+                        topDocs = ctx.rescorer().rescore(topDocs, context, ctx);
                     } catch (IOException e) {
                         throw new ElasticsearchException("Rescore TopHits Failed", e);
                     }

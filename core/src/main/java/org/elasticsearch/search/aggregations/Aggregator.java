@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -77,9 +77,9 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     public abstract String name();
 
     /**
-     * Return the {@link AggregationContext} attached with this {@link Aggregator}.
+     * Return the {@link SearchContext} attached with this {@link Aggregator}.
      */
-    public abstract AggregationContext context();
+    public abstract SearchContext context();
 
     /**
      * Return the parent aggregator.

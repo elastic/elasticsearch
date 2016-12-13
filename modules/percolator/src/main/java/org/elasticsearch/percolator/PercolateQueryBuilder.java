@@ -75,7 +75,6 @@ import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 import static org.elasticsearch.percolator.PercolatorFieldMapper.parseQuery;
@@ -233,7 +232,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         builder.endObject();
     }
 
-    public static Optional<PercolateQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static PercolateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
 
@@ -314,7 +313,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         queryBuilder.queryName(queryName);
         queryBuilder.boost(boost);
-        return Optional.of(queryBuilder);
+        return queryBuilder;
     }
 
     @Override

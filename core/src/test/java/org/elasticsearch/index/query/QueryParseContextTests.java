@@ -35,13 +35,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.Optional;
 
 import static java.util.Collections.emptyList;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 
 public class QueryParseContextTests extends ESTestCase {
 
@@ -99,20 +94,8 @@ public class QueryParseContextTests extends ESTestCase {
         String source = query.toString();
         try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
-            Optional<QueryBuilder> actual = context.parseInnerQueryBuilder();
-            assertEquals(query, actual.get());
-        }
-    }
-
-    public void testParseInnerQueryBuilderEmptyBody() throws IOException {
-        String source = "{}";
-        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
-            Optional<QueryBuilder> emptyQuery = context.parseInnerQueryBuilder();
-            assertFalse(emptyQuery.isPresent());
-            final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-            assertThat(warnings, hasSize(1));
-            assertThat(warnings, hasItem(equalTo("query malformed, empty clause found at [1:2]")));
+            QueryBuilder actual = context.parseInnerQueryBuilder();
+            assertEquals(query, actual);
         }
     }
 
@@ -128,12 +111,9 @@ public class QueryParseContextTests extends ESTestCase {
 
         source = "{}";
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(source)) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->  context.parseInnerQueryBuilder());
             assertEquals("query malformed, empty clause found at [1:2]", exception.getMessage());
-            final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-            assertThat(warnings, hasSize(1));
-            assertThat(warnings, hasItem(equalTo("query malformed, empty clause found at [1:2]")));
         }
 
         source = "{ \"foo\" : \"bar\" }";
@@ -149,9 +129,5 @@ public class QueryParseContextTests extends ESTestCase {
             ParsingException exception = expectThrows(ParsingException.class, () ->  context.parseInnerQueryBuilder());
             assertEquals("no [query] registered for [foo]", exception.getMessage());
         }
-        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-        assertThat(warnings, hasSize(1));
-        assertThat(warnings, hasItem(equalTo("query malformed, empty clause found at [1:2]")));
     }
-
 }

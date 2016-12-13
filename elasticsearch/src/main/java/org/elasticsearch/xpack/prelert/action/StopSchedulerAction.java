@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +39,7 @@ import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.metadata.Scheduler;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.prelert.utils.SchedulerStatusObserver;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -65,6 +67,7 @@ public class StopSchedulerAction
     public static class Request extends ActionRequest {
 
         private String schedulerId;
+        private TimeValue stopTimeout = TimeValue.timeValueSeconds(30);
 
         public Request(String jobId) {
             this.schedulerId = ExceptionsHelper.requireNonNull(jobId, SchedulerConfig.ID.getPreferredName());
@@ -75,6 +78,10 @@ public class StopSchedulerAction
 
         public String getSchedulerId() {
             return schedulerId;
+        }
+
+        public void setStopTimeout(TimeValue stopTimeout) {
+            this.stopTimeout = stopTimeout;
         }
 
         @Override
@@ -141,16 +148,19 @@ public class StopSchedulerAction
         private final ClusterService clusterService;
         private final TransportListTasksAction listTasksAction;
         private final TransportCancelTasksAction cancelTasksAction;
+        private final SchedulerStatusObserver schedulerStatusObserver;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool, ClusterService clusterService,
+        public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               TransportCancelTasksAction cancelTasksAction, TransportListTasksAction listTasksAction) {
+                               ClusterService clusterService, TransportCancelTasksAction cancelTasksAction,
+                               TransportListTasksAction listTasksAction) {
             super(settings, StopSchedulerAction.NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.clusterService = clusterService;
             this.listTasksAction = listTasksAction;
             this.cancelTasksAction = cancelTasksAction;
+            this.schedulerStatusObserver = new SchedulerStatusObserver(threadPool, clusterService);
         }
 
         @Override
@@ -173,7 +183,13 @@ public class StopSchedulerAction
                             cancelTasksAction.execute(cancelTasksRequest, new ActionListener<CancelTasksResponse>() {
                                 @Override
                                 public void onResponse(CancelTasksResponse cancelTasksResponse) {
-                                    listener.onResponse(new Response());
+                                    schedulerStatusObserver.waitForStatus(schedulerId, request.stopTimeout, SchedulerStatus.STOPPED, e -> {
+                                        if (e != null) {
+                                            listener.onFailure(e);
+                                        } else {
+                                            listener.onResponse(new Response());
+                                        }
+                                    });
                                 }
 
                                 @Override
@@ -193,6 +209,8 @@ public class StopSchedulerAction
                 }
             });
         }
+
+
     }
 
     static void validate(String schedulerId, PrelertMetadata prelertMetadata) {

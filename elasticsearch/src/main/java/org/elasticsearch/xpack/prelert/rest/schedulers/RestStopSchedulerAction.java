@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.prelert.rest.schedulers;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -35,6 +36,9 @@ public class RestStopSchedulerAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         StopSchedulerAction.Request jobSchedulerRequest = new StopSchedulerAction.Request(
                 restRequest.param(SchedulerConfig.ID.getPreferredName()));
+        if (restRequest.hasParam("stop_timeout")) {
+            jobSchedulerRequest.setStopTimeout(TimeValue.parseTimeValue(restRequest.param("stop_timeout"), "stop_timeout"));
+        }
         return channel -> transportJobSchedulerAction.execute(jobSchedulerRequest, new AcknowledgedRestListener<>(channel));
     }
 }

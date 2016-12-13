@@ -16,6 +16,8 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
@@ -42,7 +44,8 @@ public class RestStartJobSchedulerActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, prelertMetadata))
                 .build());
-        RestStartSchedulerAction action = new RestStartSchedulerAction(Settings.EMPTY, mock(RestController.class), clusterService);
+        RestStartSchedulerAction action = new RestStartSchedulerAction(Settings.EMPTY, mock(RestController.class),
+                mock(ThreadPool.class), clusterService);
 
         Map<String, String> params = new HashMap<>();
         params.put("start", "not-a-date");

@@ -11,6 +11,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -22,12 +23,15 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.StartSchedulerAction;
 import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunner;
+import org.elasticsearch.xpack.prelert.utils.SchedulerStatusObserver;
 
 import java.io.IOException;
 
@@ -36,11 +40,14 @@ public class RestStartSchedulerAction extends BaseRestHandler {
     private static final String DEFAULT_START = "0";
 
     private final ClusterService clusterService;
+    private final SchedulerStatusObserver schedulerStatusObserver;
 
     @Inject
-    public RestStartSchedulerAction(Settings settings, RestController controller, ClusterService clusterService) {
+    public RestStartSchedulerAction(Settings settings, RestController controller, ThreadPool threadPool,
+                                    ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
+        this.schedulerStatusObserver = new SchedulerStatusObserver(threadPool, clusterService);
         controller.registerHandler(RestRequest.Method.POST,
                 PrelertPlugin.BASE_PATH + "schedulers/{" + SchedulerConfig.ID.getPreferredName() + "}/_start", this);
     }
@@ -71,17 +78,28 @@ public class RestStartSchedulerAction extends BaseRestHandler {
             jobSchedulerRequest = new StartSchedulerAction.Request(schedulerId, startTimeMillis);
             jobSchedulerRequest.setEndTime(endTimeMillis);
         }
-        return sendTask(client.executeLocally(StartSchedulerAction.INSTANCE, jobSchedulerRequest, LoggingTaskListener.instance()));
-    }
-
-    private RestChannelConsumer sendTask(Task task) throws IOException {
+        TimeValue startTimeout = restRequest.paramAsTime("start_timeout", TimeValue.timeValueSeconds(30));
         return channel -> {
-            try (XContentBuilder builder = channel.newBuilder()) {
-                builder.startObject();
-                builder.field("task", clusterService.localNode().getId() + ":" + task.getId());
-                builder.endObject();
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
-            }
+            Task task = client.executeLocally(StartSchedulerAction.INSTANCE, jobSchedulerRequest, LoggingTaskListener.instance());
+            schedulerStatusObserver.waitForStatus(schedulerId, startTimeout, SchedulerStatus.STARTED, e -> {
+                if (e != null) {
+                    try {
+                        channel.sendResponse(new BytesRestResponse(channel, e));
+                    } catch (IOException ioe) {
+                        throw new RuntimeException(ioe);
+                    }
+                } else {
+                    try (XContentBuilder builder = channel.newBuilder()) {
+                        builder.startObject();
+                        builder.field("task", clusterService.localNode().getId() + ":" + task.getId());
+                        builder.endObject();
+                        channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+                    } catch (IOException ioe) {
+                        throw new RuntimeException(ioe);
+                    }
+                }
+
+            });
         };
     }
 

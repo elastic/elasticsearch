@@ -21,6 +21,10 @@
           "type": "string",
           "required": false,
           "description": "The end time when the scheduler should stop. When not set, the scheduler continues in real time"
+        },
+        "start_timeout": {
+          "type": "time",
+          "description": "Controls the time to wait until a scheduler has started. Default to 30 seconds"
         }
       }
     },

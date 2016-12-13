@@ -348,6 +348,10 @@ public class PrelertMetadata implements MetaData.Custom {
         }
 
         public Builder updateStatus(String jobId, JobStatus jobStatus, @Nullable String reason) {
+            if (jobs.containsKey(jobId) == false) {
+                throw ExceptionsHelper.missingJobException(jobId);
+            }
+
             Allocation previous = allocations.get(jobId);
             if (previous == null) {
                 throw new IllegalStateException("[" + jobId + "] no allocation exist to update the status to [" + jobStatus + "]");
@@ -367,6 +371,10 @@ public class PrelertMetadata implements MetaData.Custom {
         }
 
         public Builder setIgnoreDowntime(String jobId) {
+            if (jobs.containsKey(jobId) == false) {
+                throw ExceptionsHelper.missingJobException(jobId);
+            }
+
             Allocation allocation = allocations.get(jobId);
             if (allocation == null) {
                 throw new IllegalStateException("[" + jobId + "] no allocation to ignore downtime");

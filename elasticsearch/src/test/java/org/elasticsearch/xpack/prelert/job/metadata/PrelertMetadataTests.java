@@ -201,4 +201,13 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
         assertThat(prelertMetadata.getJobs().get("_job_id").getFinishedTime(), notNullValue());
     }
 
+    public void testUpdateStatus_failBecauseJobDoesNotExist() {
+        PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
+        expectThrows(ResourceNotFoundException.class, () -> builder.updateStatus("missing-job", JobStatus.CLOSED, "for testting"));
+    }
+
+    public void testSetIgnoreDowntime_failBecauseJobDoesNotExist() {
+        PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
+        expectThrows(ResourceNotFoundException.class, () -> builder.setIgnoreDowntime("missing-job"));
+    }
 }

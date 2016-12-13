@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Unit tests for the teardown section parser
  */
-public class TeardownSectionParserTests extends AbstractParserTestCase {
+public class TeardownSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
 
     public void testParseTeardownSection() throws Exception {
         parser = createParser(

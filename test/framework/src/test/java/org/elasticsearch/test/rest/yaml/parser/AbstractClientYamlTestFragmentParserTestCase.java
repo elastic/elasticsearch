@@ -19,16 +19,20 @@
 
 package org.elasticsearch.test.rest.yaml.parser;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
+import java.util.function.Supplier;
+
 import static org.hamcrest.Matchers.nullValue;
 
-public abstract class AbstractParserTestCase extends ESTestCase {
+/**
+ * Superclass for tests of subclasses of {@link ClientYamlTestFragmentParser}.
+ */
+public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTestCase {
 
     protected XContentParser parser;
 
@@ -42,7 +46,7 @@ public abstract class AbstractParserTestCase extends ESTestCase {
     }
 
     @Override
-    protected XContent xContentForParser(BytesReference data) {
+    protected XContent xContentForParser(Supplier<XContent> infer) {
         // All subclasses always use YAML
         return YamlXContent.yamlXContent;
     }

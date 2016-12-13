@@ -19,7 +19,7 @@
 package org.elasticsearch.test.rest.yaml.restspec;
 
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.rest.yaml.parser.AbstractParserTestCase;
+import org.elasticsearch.test.rest.yaml.parser.AbstractClientYamlTestFragmentParserTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApiParser;
 
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class ClientYamlSuiteRestApiParserTests extends AbstractParserTestCase {
+public class ClientYamlSuiteRestApiParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseRestSpecIndexApi() throws Exception {
         parser = createParser(REST_SPEC_INDEX_API);
         ClientYamlSuiteRestApi restApi = new ClientYamlSuiteRestApiParser().parse("location", parser);

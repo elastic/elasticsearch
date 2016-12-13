@@ -28,7 +28,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SetSectionParserTests extends AbstractParserTestCase {
+public class SetSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseSetSectionSingleValue() throws Exception {
         parser = createParser(
                         "{ _id: id }"

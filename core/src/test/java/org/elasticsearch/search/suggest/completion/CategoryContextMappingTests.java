@@ -24,7 +24,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,6 +43,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.List;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -304,7 +304,7 @@ public class CategoryContextMappingTests extends ESSingleNodeTestCase {
     }
 
     @Override
-    protected XContent xContentForParser(BytesReference data) {
+    protected XContent xContentForParser(Supplier<XContent> infer) {
         // XContent detection doesn't work particularly well for this class because it tries to parse bare json arrays.
         return JsonXContent.jsonXContent;
     }

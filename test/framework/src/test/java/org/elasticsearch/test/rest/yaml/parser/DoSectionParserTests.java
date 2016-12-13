@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DoSectionParserTests extends AbstractParserTestCase {
+public class DoSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseDoSectionNoBody() throws Exception {
         parser = createParser(
                 "get:\n" +

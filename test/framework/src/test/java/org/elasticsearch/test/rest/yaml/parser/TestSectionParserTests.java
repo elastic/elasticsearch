@@ -19,9 +19,7 @@
 package org.elasticsearch.test.rest.yaml.parser;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSectionParser;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParseContext;
+import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.GreaterThanAssertion;
 import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
@@ -31,7 +29,6 @@ import org.elasticsearch.test.rest.yaml.section.LessThanAssertion;
 import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 import org.elasticsearch.test.rest.yaml.section.SetSection;
 import org.elasticsearch.test.rest.yaml.section.SkipSection;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 
 import java.util.Map;
 
@@ -40,7 +37,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TestSectionParserTests extends AbstractParserTestCase {
+public class TestSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseTestSectionWithDoSection() throws Exception {
         parser = createParser(
                 "\"First test section\": \n" +

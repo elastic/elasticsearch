@@ -48,7 +48,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -101,6 +100,7 @@ import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -885,29 +885,43 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(String data) throws IOException {
-        return xContentForParser(new BytesArray(data)).createParser(data);
+        return xContentForParser(() -> XContentFactory.xContent(data)).createParser(data);
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(InputStream data) throws IOException {
+        Supplier<XContent> infer = () -> {
+            try {
+                return XContentFactory.xContentType(data).xContent();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        return xContentForParser(infer).createParser(data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(byte[] data) throws IOException {
-        return xContentForParser(new BytesArray(data)).createParser(data);
+        return xContentForParser(() -> XContentFactory.xContent(data)).createParser(data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(BytesReference data) throws IOException {
-        return xContentForParser(data).createParser(data);
+        return xContentForParser(() -> XContentFactory.xContent(data)).createParser(data);
     }
 
     /**
-     * Pick the appropriate {@link XContent} for some data. Usually delegates to {@link XContentFactory#xContent(BytesReference))} but can
+     * Pick the appropriate {@link XContent} for some data. Usually delegates to {@link XContentFactory#xContent(BytesReference)} but can
      * be overridden by subclasses to work around detection problems.
      */
-    protected XContent xContentForParser(BytesReference data) {
-        return XContentFactory.xContent(data);
+    protected XContent xContentForParser(Supplier<XContent> infer) {
+        return infer.get();
     }
 
     /** Returns the suite failure marker: internal use only! */

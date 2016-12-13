@@ -19,15 +19,12 @@
 package org.elasticsearch.test.rest.yaml.parser;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParseContext;
-import org.elasticsearch.test.rest.yaml.parser.SetupSectionParser;
 import org.elasticsearch.test.rest.yaml.section.SetupSection;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SetupSectionParserTests extends AbstractParserTestCase {
+public class SetupSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseSetupSection() throws Exception {
         parser = createParser(
                 "  - do:\n" +

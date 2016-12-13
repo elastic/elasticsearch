@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class SkipSectionParserTests extends AbstractParserTestCase {
+public class SkipSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseSkipSectionVersionNoFeature() throws Exception {
         parser = createParser(
                 "version:     \" - 2.1.0\"\n" +

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.search.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.XContent;
@@ -31,6 +30,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.geo.GeoHashUtils.stringEncode;
 import static org.hamcrest.Matchers.is;
@@ -202,7 +202,7 @@ public class GeoPointParsingTests  extends ESTestCase {
     }
 
     @Override
-    protected XContent xContentForParser(BytesReference data) {
+    protected XContent xContentForParser(Supplier<XContent> infer) {
         // XContent detection doesn't work particularly well for this class because it tries to parse bare json arrays.
         return JsonXContent.jsonXContent;
     }

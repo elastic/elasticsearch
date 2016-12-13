@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class AssertionParsersTests extends AbstractParserTestCase {
+public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseIsTrue() throws Exception {
         parser = createParser(
                 "get.fields._timestamp"

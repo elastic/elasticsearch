@@ -28,13 +28,13 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Map;
 
 public interface Transport extends LifecycleComponent {
-
 
     Setting<Boolean> TRANSPORT_TCP_COMPRESS = Setting.boolSetting("transport.tcp.compress", false, Property.NodeScope);
 
@@ -73,13 +73,6 @@ public interface Transport extends LifecycleComponent {
     void disconnectFromNode(DiscoveryNode node);
 
     /**
-     * Sends the request to the node.
-     * @throws NodeNotConnectedException if the given node is not connected
-     */
-    void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
-        IOException, TransportException;
-
-    /**
      * Returns count of currently open connections
      */
     long serverOpen();
@@ -88,5 +81,40 @@ public interface Transport extends LifecycleComponent {
 
     default CircuitBreaker getInFlightRequestBreaker() {
         return new NoopCircuitBreaker("in-flight-noop");
+    }
+
+    /**
+     * Returns a connection for the given node if the node is connected.
+     * Connections returned from this method must not be closed. The lifecylce of this connection is maintained by the Transport
+     * implementation.
+     *
+     * @throws NodeNotConnectedException if the node is not connected
+     * @see #connectToNode(DiscoveryNode, ConnectionProfile)
+     */
+    Connection getConnection(DiscoveryNode node);
+
+    /**
+     * Opens a new connection to the given node and returns it. In contrast to {@link #connectToNode(DiscoveryNode, ConnectionProfile)}
+     * the returned connection is not managed by the transport implementation. This connection must be closed once it's not needed anymore.
+     * This connection type can be used to execute a handshake between two nodes before the node will be published via
+     * {@link #connectToNode(DiscoveryNode, ConnectionProfile)}.
+     */
+    Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException;
+
+    /**
+     * A unidirectional connection to a {@link DiscoveryNode}
+     */
+    interface Connection extends Closeable {
+        /**
+         * The node this connection is associated with
+         */
+        DiscoveryNode getNode();
+
+        /**
+         * Sends the request to the node this connection is associated with
+         * @throws NodeNotConnectedException if the given node is not connected
+         */
+        void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws
+            IOException, TransportException;
     }
 }

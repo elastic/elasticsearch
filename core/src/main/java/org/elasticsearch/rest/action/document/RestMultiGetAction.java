@@ -24,10 +24,10 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
@@ -70,8 +70,10 @@ public class RestMultiGetAction extends BaseRestHandler {
         }
 
         FetchSourceContext defaultFetchSource = FetchSourceContext.parseFromRestRequest(request);
-        multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource,
-            request.param("routing"), RestActions.getRestContent(request), allowExplicitIndex);
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
+            multiGetRequest.add(request.param("index"), request.param("type"), sFields, defaultFetchSource,
+                request.param("routing"), parser, allowExplicitIndex);
+        }
 
         return channel -> client.multiGet(multiGetRequest, new RestToXContentListener<>(channel));
     }

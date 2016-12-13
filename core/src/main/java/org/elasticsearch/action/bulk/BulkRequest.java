@@ -48,9 +48,10 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -73,6 +74,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      * the one with the least casts.
      */
     final List<DocWriteRequest> requests = new ArrayList<>();
+    private final Set<String> indices = new HashSet<>();
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
@@ -114,6 +116,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         } else {
             throw new IllegalArgumentException("No support for request [" + request + "]");
         }
+        indices.add(request.index());
         return this;
     }
 
@@ -145,6 +148,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         addPayload(payload);
         // lack of source is validated in validate() method
         sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
+        indices.add(request.index());
         return this;
     }
 
@@ -172,6 +176,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         if (request.script() != null) {
             sizeInBytes += request.script().getIdOrCode().length() * 2;
         }
+        indices.add(request.index());
         return this;
     }
 
@@ -187,6 +192,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         requests.add(request);
         addPayload(payload);
         sizeInBytes += REQUEST_OVERHEAD;
+        indices.add(request.index());
         return this;
     }
 
@@ -548,4 +554,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         refreshPolicy.writeTo(out);
         timeout.writeTo(out);
     }
+
+    @Override
+    public String getDescription() {
+        return "requests[" + requests.size() + "], indices[" + Strings.collectionToDelimitedString(indices, ", ") + "]";
+    }
+
 }

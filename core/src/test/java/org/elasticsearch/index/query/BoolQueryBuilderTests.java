@@ -46,7 +46,6 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
-import static org.hamcrest.CoreMatchers.startsWith;
 
 public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilder> {
     @Override
@@ -328,34 +327,6 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(query, 42, queryBuilder.boost, 0.00001);
         assertEquals(query, "23", queryBuilder.minimumShouldMatch());
         assertEquals(query, "kimchy", ((TermQueryBuilder)queryBuilder.must().get(0)).value());
-    }
-
-    /**
-     * we ignore empty query bodies if we are not in strict mode
-     */
-    public void testFromJsonEmptyQueryBody() throws IOException {
-        String query =
-                "{" +
-                "\"bool\" : {" +
-                "  \"must\" : [ { } ]," +
-                "  \"filter\" : { }," +
-                "  \"must_not\" : [ { \"constant_score\" : {\"filter\" : { } } } ]" +
-                "}" +
-              "}";
-
-        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
-        assertEquals(query, 0, queryBuilder.must().size());
-        assertEquals(query, 0, queryBuilder.filter().size());
-        assertEquals(query, 0, queryBuilder.mustNot().size());
-        assertEquals(query, 0, queryBuilder.should().size());
-        // we should have deprecation warning headers regardless of throwing an exception
-        checkWarningHeaders("query malformed, empty clause found at [1:27]",
-                "query malformed, empty clause found at [1:46]",
-                "query malformed, empty clause found at [1:100]");
-
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parseQuery(query, ParseFieldMatcher.STRICT));
-        assertThat(ex.getMessage(), startsWith("query malformed, empty clause found at"));
-        checkWarningHeaders("query malformed, empty clause found at [1:27]");
     }
 
     /**

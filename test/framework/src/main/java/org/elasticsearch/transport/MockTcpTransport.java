@@ -161,7 +161,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     @Override
     protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) throws IOException {
         final MockChannel[] mockChannels = new MockChannel[1];
-        final NodeChannels nodeChannels = new NodeChannels(mockChannels, ConnectionProfile.LIGHT_PROFILE); // we always use light here
+        final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, ConnectionProfile.LIGHT_PROFILE); // we always use light here
         boolean success = false;
         final Socket socket = new Socket();
         try {

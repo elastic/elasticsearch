@@ -29,7 +29,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
-import org.apache.lucene.index.SlowCompositeReaderWrapper;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.RAMDirectory;
@@ -61,6 +60,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import static org.hamcrest.Matchers.equalTo;
@@ -73,8 +73,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     protected IndexFieldDataService ifdService;
     protected MapperService mapperService;
     protected IndexWriter writer;
-    protected LeafReaderContext readerContext;
-    protected DirectoryReader topLevelReader;
+    protected List<LeafReaderContext> readerContexts = null;
+    protected DirectoryReader topLevelReader = null;
     protected IndicesFieldDataCache indicesFieldDataCache;
     protected abstract String getFieldDataType();
 
@@ -146,22 +146,21 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy()));
     }
 
-    protected final LeafReaderContext refreshReader() throws Exception {
-        if (readerContext != null) {
-            readerContext.reader().close();
+    protected final List<LeafReaderContext> refreshReader() throws Exception {
+        if (readerContexts != null && topLevelReader != null) {
+            topLevelReader.close();
         }
         topLevelReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer), new ShardId("foo", "_na_", 1));
-        LeafReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader);
-        readerContext = reader.getContext();
-        return readerContext;
+        readerContexts = topLevelReader.leaves();
+        return readerContexts;
     }
 
     @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        if (readerContext != null) {
-            readerContext.reader().close();
+        if (topLevelReader != null) {
+            topLevelReader.close();
         }
         writer.close();
     }
@@ -179,14 +178,16 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
         IndexFieldData fieldData = getForField("non_existing_field");
         int max = randomInt(7);
-        AtomicFieldData previous = null;
-        for (int i = 0; i < max; i++) {
-            AtomicFieldData current = fieldData.load(readerContext);
-            assertThat(current.ramBytesUsed(), equalTo(0L));
-            if (previous != null) {
-                assertThat(current, not(sameInstance(previous)));
+        for (LeafReaderContext readerContext : readerContexts) {
+            AtomicFieldData previous = null;
+            for (int i = 0; i < max; i++) {
+                AtomicFieldData current = fieldData.load(readerContext);
+                assertThat(current.ramBytesUsed(), equalTo(0L));
+                if (previous != null) {
+                    assertThat(current, not(sameInstance(previous)));
+                }
+                previous = current;
             }
-            previous = current;
         }
     }
 }

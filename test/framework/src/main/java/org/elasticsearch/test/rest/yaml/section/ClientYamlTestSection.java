@@ -51,6 +51,15 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
     }
 
     public void addExecutableSection(ExecutableSection executableSection) {
+        if (executableSection instanceof DoSection) {
+            DoSection doSection = (DoSection) executableSection;
+            if (false == doSection.getExpectedWarningHeaders().isEmpty()
+                    && false == skipSection.getFeatures().contains("warnings")) {
+                throw new IllegalArgumentException("Attempted to add a [do] with a [warnings] section without a corresponding [skip] so "
+                        + "runners that do not support the [warnings] section can skip the test at line ["
+                        + doSection.getLocation().lineNumber + "]");
+            }
+        }
         this.executableSections.add(executableSection);
     }
 

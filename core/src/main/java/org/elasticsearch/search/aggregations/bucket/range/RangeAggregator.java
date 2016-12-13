@@ -38,7 +38,6 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -206,10 +205,10 @@ public class RangeAggregator extends BucketsAggregator {
     final double[] maxTo;
 
     public RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
-            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, AggregationContext aggregationContext,
+            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
         this.format = format;
@@ -338,7 +337,7 @@ public class RangeAggregator extends BucketsAggregator {
 
         @SuppressWarnings("unchecked")
         public Unmapped(String name, R[] ranges, boolean keyed, DocValueFormat format,
-                AggregationContext context,
+                SearchContext context,
                 Aggregator parent, InternalRange.Factory factory, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
 

@@ -396,7 +396,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(e.getMessage(), containsString("would result in more than 10000 states"));
     }
 
-    public void testToQueryFuzzyQueryAutoFuziness() throws Exception {
+    public void testToQueryFuzzyQueryAutoFuzziness() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
 
         int length = randomIntBetween(1, 10);

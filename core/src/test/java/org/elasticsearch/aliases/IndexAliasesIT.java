@@ -145,7 +145,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         ensureGreen();
 
         logger.info("--> aliasing index [test] with [alias1] and empty filter");
-        assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", "{}"));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> admin().indices().prepareAliases().addAlias("test", "alias1", "{}").get());
+        assertEquals("failed to parse filter for alias [alias1]", iae.getMessage());
     }
 
     public void testSearchingFilteringAliasesSingleIndex() throws Exception {

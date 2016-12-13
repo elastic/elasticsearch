@@ -42,7 +42,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSq
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipelineAggregationBuilder;
@@ -50,7 +49,6 @@ import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativePipel
 import org.elasticsearch.search.aggregations.pipeline.derivative.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -62,6 +60,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PostingsHighlighter;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.CustomSuggester;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
@@ -149,7 +148,8 @@ public class SearchModuleTests extends ModuleTestCase {
 
         SearchPlugin registersDupeAggregation = new SearchPlugin() {
             public List<AggregationSpec> getAggregations() {
-                return singletonList(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new, new TermsParser()));
+                return singletonList(new AggregationSpec(TermsAggregationBuilder.NAME, TermsAggregationBuilder::new,
+                        TermsAggregationBuilder::parse));
             }
         };
         expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
@@ -318,7 +318,7 @@ public class SearchModuleTests extends ModuleTestCase {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(AggregationContext context,
+        protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(SearchContext context,
                 ValuesSourceConfig<ValuesSource> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
             return null;
         }

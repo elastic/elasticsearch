@@ -38,8 +38,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -67,18 +67,18 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     private final LongObjectPagedHashMap<long[]> parentOrdToOtherBuckets;
     private boolean multipleBucketsPerParentOrd = false;
 
-    public ParentToChildrenAggregator(String name, AggregatorFactories factories, AggregationContext aggregationContext,
+    public ParentToChildrenAggregator(String name, AggregatorFactories factories, SearchContext context,
                                       Aggregator parent, String parentType, Query childFilter, Query parentFilter,
                                       ValuesSource.Bytes.WithOrdinals.ParentChild valuesSource,
             long maxOrd, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         this.parentType = parentType;
         // these two filters are cached in the parser
-        this.childFilter = aggregationContext.searchContext().searcher().createNormalizedWeight(childFilter, false);
-        this.parentFilter = aggregationContext.searchContext().searcher().createNormalizedWeight(parentFilter, false);
-        this.parentOrdToBuckets = aggregationContext.bigArrays().newLongArray(maxOrd, false);
+        this.childFilter = context.searcher().createNormalizedWeight(childFilter, false);
+        this.parentFilter = context.searcher().createNormalizedWeight(parentFilter, false);
+        this.parentOrdToBuckets = context.bigArrays().newLongArray(maxOrd, false);
         this.parentOrdToBuckets.fill(0, maxOrd, -1);
-        this.parentOrdToOtherBuckets = new LongObjectPagedHashMap<>(aggregationContext.bigArrays());
+        this.parentOrdToOtherBuckets = new LongObjectPagedHashMap<>(context.bigArrays());
         this.valuesSource = valuesSource;
     }
 
@@ -132,7 +132,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     @Override
     protected void doPostCollection() throws IOException {
-        IndexReader indexReader = context().searchContext().searcher().getIndexReader();
+        IndexReader indexReader = context().searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
             Scorer childDocsScorer = childFilter.scorer(ctx);
             if (childDocsScorer == null) {

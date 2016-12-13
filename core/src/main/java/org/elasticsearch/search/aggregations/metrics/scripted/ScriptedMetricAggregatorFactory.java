@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -48,7 +47,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
 
     public ScriptedMetricAggregatorFactory(String name, Type type, Function<Map<String, Object>, SearchScript> mapScript,
             Function<Map<String, Object>, ExecutableScript> initScript, Function<Map<String, Object>, ExecutableScript> combineScript,
-            Script reduceScript, Map<String, Object> params, AggregationContext context, AggregatorFactory<?> parent,
+            Script reduceScript, Map<String, Object> params, SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
         this.mapScript = mapScript;
@@ -66,7 +65,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         }
         Map<String, Object> params = this.params;
         if (params != null) {
-            params = deepCopyParams(params, context.searchContext());
+            params = deepCopyParams(params, context);
         } else {
             params = new HashMap<>();
             params.put("_agg", new HashMap<String, Object>());
@@ -76,7 +75,7 @@ public class ScriptedMetricAggregatorFactory extends AggregatorFactory<ScriptedM
         final SearchScript mapScript = this.mapScript.apply(params);
         final ExecutableScript combineScript = this.combineScript.apply(params);
 
-        final Script reduceScript = deepCopyScript(this.reduceScript, context.searchContext());
+        final Script reduceScript = deepCopyScript(this.reduceScript, context);
         if (initScript != null) {
             initScript.run();
         }

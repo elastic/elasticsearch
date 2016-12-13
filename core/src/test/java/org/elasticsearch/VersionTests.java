@@ -307,4 +307,19 @@ public class VersionTests extends ESTestCase {
             VersionUtils.allReleasedVersions().contains(version));
     }
 
+    public void testIsCompatible() {
+        assertTrue(isCompatible(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
+        assertTrue(isCompatible(Version.CURRENT, Version.fromString("6.0.0")));
+        assertFalse("only compatible with the latest minor",
+            isCompatible(VersionUtils.getPreviousVersion(), Version.fromString("6.0.0")));
+        assertFalse(isCompatible(Version.V_2_0_0, Version.fromString("6.0.0")));
+        assertFalse(isCompatible(Version.V_2_0_0, Version.V_5_0_0));
+    }
+
+    public boolean isCompatible(Version left, Version right) {
+        boolean result = left.isCompatible(right);
+        assert result == right.isCompatible(left);
+        return result;
+    }
+
 }

@@ -208,7 +208,7 @@ public class TCPTransportTests extends ESTestCase {
                 }
 
                 @Override
-                public Connection getConnection(DiscoveryNode node) {
+                public NodeChannels getConnection(DiscoveryNode node) {
                     return new NodeChannels(node, new Object[ConnectionProfile.LIGHT_PROFILE.getNumConnections()],
                         ConnectionProfile.LIGHT_PROFILE);
                 }

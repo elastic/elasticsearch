@@ -334,7 +334,16 @@ public class Version {
      * is a beta or RC release then the version itself is returned.
      */
     public Version minimumCompatibilityVersion() {
-        return Version.min(this, fromId(major * 1000000 + 99));
+        final int bwcMajor;
+        final int bwcMinor;
+        if (major >= 6) {
+            bwcMajor = major - 1;
+            bwcMinor = CURRENT.minor;
+        } else {
+            bwcMajor = major;
+            bwcMinor = 0;
+        }
+        return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor * 10000 + 99));
     }
 
     /**
@@ -360,6 +369,17 @@ public class Version {
         }
 
         return Version.min(this, fromId(bwcMajor * 1000000 + bwcMinor));
+    }
+
+    /**
+     * Returns <code>true</code> iff both version are compatible. Otherwise <code>false</code>
+     */
+    public boolean isCompatible(Version version) {
+        boolean compatible = onOrAfter(version.minimumCompatibilityVersion())
+            && version.onOrAfter(minimumCompatibilityVersion());
+
+        assert compatible == false || Math.max(major, version.major) - Math.min(major, version.major) <= 1;
+        return compatible;
     }
 
     @SuppressForbidden(reason = "System.out.*")
@@ -436,4 +456,5 @@ public class Version {
     public boolean isRelease() {
         return build == 99;
     }
+
 }

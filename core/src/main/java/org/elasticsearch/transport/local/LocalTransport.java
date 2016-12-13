@@ -86,6 +86,7 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
     private final ConcurrentMap<DiscoveryNode, LocalTransport> connectedNodes = newConcurrentMap();
     protected final NamedWriteableRegistry namedWriteableRegistry;
     private final CircuitBreakerService circuitBreakerService;
+    private final AtomicLong requestIdGenerator = new AtomicLong();
 
     public static final String TRANSPORT_LOCAL_ADDRESS = "transport.local.address";
     public static final String TRANSPORT_LOCAL_WORKERS = "transport.local.workers";
@@ -460,6 +461,11 @@ public class LocalTransport extends AbstractLifecycleComponent implements Transp
     @Override
     public List<String> getLocalAddresses() {
         return Collections.singletonList("0.0.0.0");
+    }
+
+    @Override
+    public long newRequestId() {
+        return requestIdGenerator.incrementAndGet();
     }
 
     protected Version getVersion() { // for tests

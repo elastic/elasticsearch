@@ -508,6 +508,11 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
+        public long newRequestId() {
+            return transport.newRequestId();
+        }
+
+        @Override
         public Connection getConnection(DiscoveryNode node) {
             return new FilteredConnection(transport.getConnection(node)) {
                 @Override
@@ -694,5 +699,13 @@ public final class MockTransportService extends TransportService {
         public void close() throws IOException {
             connection.close();
         }
+    }
+
+    public Transport getOriginalTransport() {
+        Transport transport = transport();
+        while (transport instanceof DelegateTransport) {
+            transport = ((DelegateTransport) transport).transport;
+        }
+        return transport;
     }
 }

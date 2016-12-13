@@ -53,11 +53,7 @@ public class RestShrinkIndexAction extends BaseRestHandler {
             throw new IllegalArgumentException("no source index");
         }
         ShrinkRequest shrinkIndexRequest = new ShrinkRequest(request.param("target"), request.param("index"));
-        if (request.hasContent()) {
-            try (XContentParser parser = request.contentParser()) {
-                ShrinkRequest.PARSER.parse(parser, shrinkIndexRequest, () -> ParseFieldMatcher.EMPTY);
-            }
-        }
+        request.applyContentParser(parser -> ShrinkRequest.PARSER.parse(parser, shrinkIndexRequest, () -> ParseFieldMatcher.EMPTY));
         shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
         shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));
         shrinkIndexRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));

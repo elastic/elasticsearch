@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -81,26 +80,23 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
 
 
-        // see if we have it in the body
-        if (request.hasContent()) {
-            try (XContentParser parser = request.contentParser()) {
-                updateRequest.fromXContent(parser);
-                IndexRequest upsertRequest = updateRequest.upsertRequest();
-                if (upsertRequest != null) {
-                    upsertRequest.routing(request.param("routing"));
-                    upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-                    upsertRequest.version(RestActions.parseVersion(request));
-                    upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
-                }
-                IndexRequest doc = updateRequest.doc();
-                if (doc != null) {
-                    doc.routing(request.param("routing"));
-                    doc.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
-                    doc.version(RestActions.parseVersion(request));
-                    doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
-                }
+        request.applyContentParser(parser -> {
+            updateRequest.fromXContent(parser);
+            IndexRequest upsertRequest = updateRequest.upsertRequest();
+            if (upsertRequest != null) {
+                upsertRequest.routing(request.param("routing"));
+                upsertRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                upsertRequest.version(RestActions.parseVersion(request));
+                upsertRequest.versionType(VersionType.fromString(request.param("version_type"), upsertRequest.versionType()));
             }
-        }
+            IndexRequest doc = updateRequest.doc();
+            if (doc != null) {
+                doc.routing(request.param("routing"));
+                doc.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
+                doc.version(RestActions.parseVersion(request));
+                doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
+            }
+        });
 
         return channel ->
             client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));

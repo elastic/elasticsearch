@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -41,6 +42,14 @@ public class RestRequestTests extends ESTestCase {
             new ContentRestRequest("", singletonMap("source", "{}")).contentParser());
         assertEquals("Body required", e.getMessage());
         assertEquals(emptyMap(), new ContentRestRequest("{}", emptyMap()).contentParser().map());
+    }
+
+    public void testApplyContentParser() throws IOException {
+        new ContentRestRequest("", emptyMap()).applyContentParser(p -> fail("Shouldn't have been called"));
+        new ContentRestRequest("", singletonMap("source", "{}")).applyContentParser(p -> fail("Shouldn't have been called"));
+        AtomicReference<Object> source = new AtomicReference<>();
+        new ContentRestRequest("{}", emptyMap()).applyContentParser(p -> source.set(p.map()));
+        assertEquals(emptyMap(), source.get());
     }
 
     public void testContentOrSourceParam() throws IOException {

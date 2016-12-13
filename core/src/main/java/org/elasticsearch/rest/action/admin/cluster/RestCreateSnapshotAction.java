@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -50,11 +49,7 @@ public class RestCreateSnapshotAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CreateSnapshotRequest createSnapshotRequest = createSnapshotRequest(request.param("repository"), request.param("snapshot"));
-        if (request.hasContent()) {
-            try (XContentParser parser = request.contentParser()) {
-                createSnapshotRequest.source(parser.mapOrdered());
-            }
-        }
+        request.applyContentParser(p -> createSnapshotRequest.source(p.mapOrdered()));
         createSnapshotRequest.masterNodeTimeout(request.paramAsTime("master_timeout", createSnapshotRequest.masterNodeTimeout()));
         createSnapshotRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         return channel -> client.admin().cluster().createSnapshot(createSnapshotRequest, new RestToXContentListener<>(channel));

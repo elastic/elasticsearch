@@ -230,7 +230,7 @@ public abstract class RestRequest implements ToXContent.Params {
 
     /**
      * A parser for the contents of this request if there is a body, otherwise throws an {@link ElasticsearchParseException}. Use
-     * {@link #hasContent()} if you want to gracefully handle when the request doesn't have any contents. Use
+     * {@link #applyContentParser(CheckedConsumer)} if you want to gracefully handle when the request doesn't have any contents. Use
      * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
      */
     public final XContentParser contentParser() throws IOException {
@@ -239,6 +239,17 @@ public abstract class RestRequest implements ToXContent.Params {
             throw new ElasticsearchParseException("Body required");
         }
         return XContentFactory.xContent(content).createParser(content);
+    }
+
+    /**
+     * If there is any content then call {@code applyParser} with the parser, otherwise do nothing.
+     */
+    public final void applyContentParser(CheckedConsumer<XContentParser, IOException> applyParser) throws IOException {
+        if (hasContent()) {
+            try (XContentParser parser = contentParser()) {
+                applyParser.accept(parser);
+            }
+        }
     }
 
     /**

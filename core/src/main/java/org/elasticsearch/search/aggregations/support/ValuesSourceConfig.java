@@ -27,16 +27,114 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 
+/**
+ * A configuration that tells aggregations how to retrieve data from the index
+ * in order to run a specific aggregation.
+ */
 public class ValuesSourceConfig<VS extends ValuesSource> {
+
+    /**
+     * Resolve a {@link ValuesSourceConfig} given configuration parameters.
+     */
+    public static <VS extends ValuesSource> ValuesSourceConfig<VS> resolve(
+            QueryShardContext context,
+            ValueType valueType,
+            String field, Script script,
+            Object missing,
+            DateTimeZone timeZone,
+            String format) {
+
+        if (field == null) {
+            if (script == null) {
+                @SuppressWarnings("unchecked")
+                ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(ValuesSourceType.ANY);
+                config.format(resolveFormat(null, valueType));
+                return config;
+            }
+            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
+            if (valuesSourceType == ValuesSourceType.ANY) {
+                // the specific value source type is undefined, but for scripts,
+                // we need to have a specific value source
+                // type to know how to handle the script values, so we fallback
+                // on Bytes
+                valuesSourceType = ValuesSourceType.BYTES;
+            }
+            ValuesSourceConfig<VS> config = new ValuesSourceConfig<VS>(valuesSourceType);
+            config.missing(missing);
+            config.timezone(timeZone);
+            config.format(resolveFormat(format, valueType));
+            config.script(createScript(script, context));
+            config.scriptValueType(valueType);
+            return config;
+        }
+
+        MappedFieldType fieldType = context.fieldMapper(field);
+        if (fieldType == null) {
+            ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : ValuesSourceType.ANY;
+            ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
+            config.missing(missing);
+            config.timezone(timeZone);
+            config.format(resolveFormat(format, valueType));
+            config.unmapped(true);
+            if (valueType != null) {
+                // todo do we really need this for unmapped?
+                config.scriptValueType(valueType);
+            }
+            return config;
+        }
+
+        IndexFieldData<?> indexFieldData = context.getForField(fieldType);
+
+        ValuesSourceConfig<VS> config;
+        if (valueType == null) {
+            if (indexFieldData instanceof IndexNumericFieldData) {
+                config = new ValuesSourceConfig<>(ValuesSourceType.NUMERIC);
+            } else if (indexFieldData instanceof IndexGeoPointFieldData) {
+                config = new ValuesSourceConfig<>(ValuesSourceType.GEOPOINT);
+            } else {
+                config = new ValuesSourceConfig<>(ValuesSourceType.BYTES);
+            }
+        } else {
+            config = new ValuesSourceConfig<>(valueType.getValuesSourceType());
+        }
+
+        config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
+        config.missing(missing);
+        config.timezone(timeZone);
+        config.script(createScript(script, context));
+        config.format(fieldType.docValueFormat(format, timeZone));
+        return config;
+    }
+
+    private static SearchScript createScript(Script script, QueryShardContext context) {
+        if (script == null) {
+            return null;
+        } else {
+            return context.getSearchScript(script, ScriptContext.Standard.AGGS);
+        }
+    }
+
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {
+        if (valueType == null) {
+            return DocValueFormat.RAW; // we can't figure it out
+        }
+        DocValueFormat valueFormat = valueType.defaultFormat;
+        if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
+            valueFormat = new DocValueFormat.Decimal(format);
+        }
+        return valueFormat;
+    }
 
     private final ValuesSourceType valueSourceType;
     private FieldContext fieldContext;
@@ -125,7 +223,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
     /** Get a value source given its configuration. A return value of null indicates that
      *  no value source could be built. */
     @Nullable
-    public VS toValuesSource(SearchContext context) throws IOException {
+    public VS toValuesSource(QueryShardContext context) throws IOException {
         if (!valid()) {
             throw new IllegalStateException(
                     "value source config is invalid; must have either a field context or a script or marked as unwrapped");
@@ -143,8 +241,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             } else if (valueSourceType() == ValuesSourceType.ANY || valueSourceType() == ValuesSourceType.BYTES) {
                 vs = (VS) ValuesSource.Bytes.WithOrdinals.EMPTY;
             } else {
-                throw new SearchParseException(context, "Can't deal with unmapped ValuesSource type "
-                    + valueSourceType(), null);
+                throw new IllegalArgumentException("Can't deal with unmapped ValuesSource type " + valueSourceType());
             }
         } else {
             vs = originalValuesSource();
@@ -162,17 +259,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
                 return (VS) MissingValues.replaceMissing((ValuesSource.Bytes) vs, missing);
             }
         } else if (vs instanceof ValuesSource.Numeric) {
-            Number missing = null;
-            if (missing() instanceof Number) {
-                missing = (Number) missing();
-            } else {
-                if (fieldContext() != null && fieldContext().fieldType() != null) {
-                    missing = fieldContext().fieldType().docValueFormat(null, DateTimeZone.UTC)
-                            .parseDouble(missing().toString(), false, context.getQueryShardContext()::nowInMillis);
-                } else {
-                    missing = Double.parseDouble(missing().toString());
-                }
-            }
+            Number missing = format.parseDouble(missing().toString(), false, context::nowInMillis);
             return (VS) MissingValues.replaceMissing((ValuesSource.Numeric) vs, missing);
         } else if (vs instanceof ValuesSource.GeoPoint) {
             // TODO: also support the structured formats of geo points
@@ -180,7 +267,7 @@ public class ValuesSourceConfig<VS extends ValuesSource> {
             return (VS) MissingValues.replaceMissing((ValuesSource.GeoPoint) vs, missing);
         } else {
             // Should not happen
-            throw new SearchParseException(context, "Can't apply missing values on a " + vs.getClass(), null);
+            throw new IllegalArgumentException("Can't apply missing values on a " + vs.getClass());
         }
     }
 

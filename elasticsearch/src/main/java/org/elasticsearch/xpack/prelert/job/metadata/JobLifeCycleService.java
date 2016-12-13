@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
-import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 
@@ -53,7 +52,11 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
         DiscoveryNode localNode = event.state().nodes().getLocalNode();
         for (Allocation allocation : prelertMetadata.getAllocations().values()) {
             if (localNode.getId().equals(allocation.getNodeId())) {
-                handleLocallyAllocatedJob(prelertMetadata, allocation);
+                if (localAssignedJobs.contains(allocation.getJobId()) == false) {
+                    if (allocation.getStatus() == JobStatus.OPENING) {
+                        startJob(allocation);
+                    }
+                }
             }
         }
 
@@ -65,15 +68,6 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
                 }
             } else {
                 stopJob(localAllocatedJob);
-            }
-        }
-    }
-
-    private void handleLocallyAllocatedJob(PrelertMetadata prelertMetadata, Allocation allocation) {
-        Job job = prelertMetadata.getJobs().get(allocation.getJobId());
-        if (localAssignedJobs.contains(allocation.getJobId()) == false) {
-            if (allocation.getStatus() == JobStatus.OPENING) {
-                startJob(allocation);
             }
         }
     }

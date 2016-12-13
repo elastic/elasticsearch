@@ -44,7 +44,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -66,6 +65,7 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -292,10 +292,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             QB testQuery = createTestQueryBuilder();
             XContentBuilder builder = toXContent(testQuery, randomFrom(XContentType.values()));
             XContentBuilder shuffled = shuffleXContent(builder, shuffleProtectedFields());
-            assertParsedQuery(shuffled.bytes(), testQuery);
+            assertParsedQuery(createParser(shuffled), testQuery);
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
                 String queryAsString = alternateVersion.getKey();
-                assertParsedQuery(new BytesArray(queryAsString), alternateVersion.getValue());
+                assertParsedQuery(createParser(JsonXContent.jsonXContent, queryAsString), alternateVersion.getValue());
             }
         }
     }
@@ -559,13 +559,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Parses the query provided as bytes argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
-    private void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery) throws IOException {
-        assertParsedQuery(queryAsBytes, expectedQuery, ParseFieldMatcher.STRICT);
+    private void assertParsedQuery(XContentParser parser, QueryBuilder expectedQuery) throws IOException {
+        assertParsedQuery(parser, expectedQuery, ParseFieldMatcher.STRICT);
     }
 
-    private void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery, ParseFieldMatcher matcher)
+    private void assertParsedQuery(XContentParser parser, QueryBuilder expectedQuery, ParseFieldMatcher matcher)
             throws IOException {
-        QueryBuilder newQuery = parseQuery(queryAsBytes, matcher);
+        QueryBuilder newQuery = parseQuery(parser, matcher);
         assertNotSame(newQuery, expectedQuery);
         assertEquals(expectedQuery, newQuery);
         assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
@@ -575,17 +575,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return parseQuery(queryAsString, ParseFieldMatcher.STRICT);
     }
 
+    protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
+        return parseQuery(parser, ParseFieldMatcher.STRICT);
+    }
+
+    protected QueryBuilder parseQuery(AbstractQueryBuilder<?> builder) throws IOException {
+        return parseQuery(createParser(JsonXContent.jsonXContent, builder.buildAsBytes(XContentType.JSON)), ParseFieldMatcher.STRICT);
+    }
+
     protected QueryBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
-        XContentParser parser = createParser(queryAsString);
-        return parseQuery(parser, matcher);
-    }
-
-    protected QueryBuilder parseQuery(BytesReference queryAsBytes) throws IOException {
-        return parseQuery(queryAsBytes, ParseFieldMatcher.STRICT);
-    }
-
-    protected QueryBuilder parseQuery(BytesReference queryAsBytes, ParseFieldMatcher matcher) throws IOException {
-        XContentParser parser = createParser(queryAsBytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, queryAsString);
         return parseQuery(parser, matcher);
     }
 

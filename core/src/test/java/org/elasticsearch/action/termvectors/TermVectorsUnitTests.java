@@ -41,10 +41,9 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -179,7 +178,7 @@ public class TermVectorsUnitTests extends ESTestCase {
                 " {\"fields\" : [\"a\",  \"b\",\"c\"], \"offsets\":false, \"positions\":false, \"payloads\":true}");
 
         TermVectorsRequest tvr = new TermVectorsRequest(null, null, null);
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
         TermVectorsRequest.parseRequest(tvr, parser);
 
         Set<String> fields = tvr.selectedFields();
@@ -200,7 +199,7 @@ public class TermVectorsUnitTests extends ESTestCase {
 
         inputBytes = new BytesArray(" {\"offsets\":false, \"positions\":false, \"payloads\":true}");
         tvr = new TermVectorsRequest(null, null, null);
-        parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+        parser = createParser(JsonXContent.jsonXContent, inputBytes);
         TermVectorsRequest.parseRequest(tvr, parser);
         additionalFields = "";
         RestTermVectorsAction.addFieldStringsFromParameter(tvr, additionalFields);
@@ -217,7 +216,7 @@ public class TermVectorsUnitTests extends ESTestCase {
         TermVectorsRequest tvr = new TermVectorsRequest(null, null, null);
         boolean threwException = false;
         try {
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(inputBytes);
+            XContentParser parser = createParser(JsonXContent.jsonXContent, inputBytes);
             TermVectorsRequest.parseRequest(tvr, parser);
         } catch (Exception e) {
             threwException = true;

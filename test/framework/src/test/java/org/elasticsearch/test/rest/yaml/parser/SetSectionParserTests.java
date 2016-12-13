@@ -19,18 +19,15 @@
 package org.elasticsearch.test.rest.yaml.parser;
 
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParseContext;
-import org.elasticsearch.test.rest.yaml.parser.SetSectionParser;
 import org.elasticsearch.test.rest.yaml.section.SetSection;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SetSectionParserTests extends AbstractParserTestCase {
+public class SetSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseSetSectionSingleValue() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                         "{ _id: id }"
         );
 
@@ -45,7 +42,7 @@ public class SetSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseSetSectionMultipleValues() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "{ _id: id, _type: type, _index: index }"
         );
 
@@ -62,7 +59,7 @@ public class SetSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseSetSectionNoValues() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "{ }"
         );
 

@@ -31,52 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ScheduledJobIT extends ESRestTestCase {
 
-    public void testStartJobScheduler_GivenMissingJob() {
-        ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/invalid-job/_start"));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-    }
-
-    public void testStartJobScheduler_GivenNonScheduledJob() throws Exception {
-        String jobId = "_id1";
-        createNonScheduledJob(jobId);
-
-        ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start"));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        String responseAsString = responseEntityToString(e.getResponse());
-        assertThat(responseAsString, containsString("\"reason\":\"job [" + jobId + "] is not a scheduled job\""));
-    }
-
-    public void testStartJobScheduler_jobNotOpened() throws Exception {
-        String jobId = "_id1";
-        createScheduledJob(jobId);
-
-        ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start"));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
-        String responseAsString = responseEntityToString(e.getResponse());
-        assertThat(responseAsString, containsString("\"reason\":\"cannot start scheduler, expected job status [OPENED], " +
-                "but got [CLOSED]\""));
-    }
-
-    public void testStartJobScheduler_schedulerAlreadyStarted() throws Exception {
-        String jobId = "_id1";
-        createScheduledJob(jobId);
-        openJob(client(), jobId);
-        Response startSchedulerRequest = client().performRequest("post",
-                PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start?start=2016-06-01T00:00:00Z");
-        assertThat(startSchedulerRequest.getStatusLine().getStatusCode(), equalTo(200));
-        assertThat(responseEntityToString(startSchedulerRequest), containsString("{\"task\":\""));
-
-        ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start"));
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(409));
-        String responseAsString = responseEntityToString(e.getResponse());
-        assertThat(responseAsString, containsString("\"reason\":\"scheduler already started, expected scheduler status " +
-                "[STOPPED], but got [STARTED]\""));
-    }
-
     public void testStartJobScheduler_GivenLookbackOnly() throws Exception {
         String jobId = "_id2";
         createAirlineDataIndex();
@@ -150,17 +104,6 @@ public class ScheduledJobIT extends ESRestTestCase {
                 new StringEntity("{\"time\":\"2016-06-01T01:59:00Z\",\"airline\":\"AAA\",\"responsetime\":541.76}"));
 
         client().performRequest("post", "airline-data/_refresh");
-    }
-
-    private Response createNonScheduledJob(String id) throws Exception {
-        String job = "{\n" + "    \"job_id\":\"" + id + "\",\n" + "    \"description\":\"Analysis of response time by airline\",\n"
-                + "    \"analysis_config\" : {\n" + "        \"bucket_span\":3600,\n"
-                + "        \"detectors\" :[{\"function\":\"mean\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
-                + "    },\n" + "    \"data_description\" : {\n" + "        \"field_delimiter\":\",\",\n" + "        " +
-                "\"time_field\":\"time\",\n"
-                + "        \"time_format\":\"yyyy-MM-dd'T'HH:mm:ssX\"\n" + "    }\n" + "}";
-
-        return client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors", Collections.emptyMap(), new StringEntity(job));
     }
 
     private Response createScheduledJob(String id) throws Exception {

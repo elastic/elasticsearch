@@ -1,0 +1,90 @@
+setup:
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "job_id":"non-scheduled-job",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"JSON",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "job_id":"scheduled-job",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"ELASTICSEARCH",
+                "time_field":"time",
+                "time_format":"epoch"
+            },
+            "scheduler_config" : {
+                "indexes" : "airline-data",
+                "types" : "response"
+            }
+          }
+
+---
+"Test start and stop scheduler happy path":
+  - do:
+      xpack.prelert.open_job:
+        job_id: "scheduled-job"
+  - do:
+      xpack.prelert.start_job_scheduler:
+        "job_id": "scheduled-job"
+        "start": 0
+  - do:
+      xpack.prelert.stop_job_scheduler:
+        "job_id": "scheduled-job"
+
+
+---
+"Test start non existing job":
+    - do:
+        catch: missing
+        xpack.prelert.start_job_scheduler:
+          "job_id": "non-existing-job"
+          "start": 0
+
+---
+"Test start non scheduled job":
+    - do:
+        catch: request
+        xpack.prelert.start_job_scheduler:
+          "job_id": "non-scheduled-job"
+          "start": 0
+
+---
+"Test start scheduled job, but not open":
+    - do:
+        catch: conflict
+        xpack.prelert.start_job_scheduler:
+          "job_id": "scheduled-job"
+          "start": 0
+
+---
+"Test start already started scheduled job":
+  - do:
+      xpack.prelert.open_job:
+        job_id: "scheduled-job"
+  - do:
+      xpack.prelert.start_job_scheduler:
+        "job_id": "scheduled-job"
+        "start": 0
+  - do:
+      catch: conflict
+      xpack.prelert.start_job_scheduler:
+        "job_id": "scheduled-job"
+        "start": 0

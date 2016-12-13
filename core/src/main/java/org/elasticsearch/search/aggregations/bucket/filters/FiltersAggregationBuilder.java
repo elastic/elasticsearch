@@ -29,10 +29,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,8 +40,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 
 public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder> {
     public static final String NAME = "filters";
@@ -171,12 +169,12 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
         List<KeyedFilter> rewrittenFilters = new ArrayList<>();
         for(KeyedFilter kf : filters) {
             rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(), 
-                    context.searchContext().getQueryShardContext())));
+                    context.getQueryShardContext())));
         }
         return new FiltersAggregatorFactory(name, type, rewrittenFilters, keyed, otherBucket, otherBucketKey, context, parent,
                 subFactoriesBuilder, metaData);
@@ -240,7 +238,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                         if (token == XContentParser.Token.FIELD_NAME) {
                             key = parser.currentName();
                         } else {
-                            QueryBuilder filter = context.parseInnerQueryBuilder().orElse(matchAllQuery());
+                            QueryBuilder filter = context.parseInnerQueryBuilder();
                             keyedFilters.add(new FiltersAggregator.KeyedFilter(key, filter));
                         }
                     }
@@ -252,7 +250,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
                 if (context.getParseFieldMatcher().match(currentFieldName, FILTERS_FIELD)) {
                     nonKeyedFilters = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        QueryBuilder filter = context.parseInnerQueryBuilder().orElse(matchAllQuery());
+                        QueryBuilder filter = context.parseInnerQueryBuilder();
                         nonKeyedFilters.add(filter);
                     }
                 } else {

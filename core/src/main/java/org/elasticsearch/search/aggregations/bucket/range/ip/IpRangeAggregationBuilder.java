@@ -40,7 +40,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
@@ -48,6 +47,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -369,7 +369,7 @@ public final class IpRangeAggregationBuilder
 
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource.Bytes, ?> innerBuild(
-            AggregationContext context, ValuesSourceConfig<ValuesSource.Bytes> config,
+            SearchContext context, ValuesSourceConfig<ValuesSource.Bytes> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder)
                     throws IOException {
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();

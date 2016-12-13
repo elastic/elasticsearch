@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -35,7 +36,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
 
     protected ValuesSourceConfig<VS> config;
 
-    public ValuesSourceAggregatorFactory(String name, Type type, ValuesSourceConfig<VS> config, AggregationContext context,
+    public ValuesSourceAggregatorFactory(String name, Type type, ValuesSourceConfig<VS> config, SearchContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactoriesBuilder, metaData);
         this.config = config;
@@ -48,7 +49,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource, AF 
     @Override
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        VS vs = context.valuesSource(config, context.searchContext());
+        VS vs = config.toValuesSource(context);
         if (vs == null) {
             return createUnmapped(parent, pipelineAggregators, metaData);
         }

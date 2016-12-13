@@ -26,7 +26,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -66,9 +65,8 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
         XContentParser aggParser = JsonXContent.jsonXContent.createParser(agg);
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, aggParser, ParseFieldMatcher.STRICT);
         aggParser.nextToken();
-        SearchContext searchContext = createSearchContext(index);
-        AggregationContext aggContext = new AggregationContext(searchContext);
-        final AggregatorFactories factories = parser.parseAggregators(parseContext).build(aggContext, null);
+        SearchContext context = createSearchContext(index);
+        final AggregatorFactories factories = parser.parseAggregators(parseContext).build(context, null);
         final Aggregator[] aggregators = factories.createTopLevelAggregators();
         assertEquals(1, aggregators.length);
         return aggregators[0].needsScores();

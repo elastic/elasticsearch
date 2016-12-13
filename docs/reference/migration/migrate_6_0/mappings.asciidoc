@@ -1,0 +1,8 @@
+[[breaking_60_mappings_changes]]
+=== Mapping changes
+
+==== Unrecognized `match_mapping_type` options not silently ignored
+
+Previously Elastiscearch would silently ignore any dynamic templates that
+included a `match_mapping_type` type that was unrecognized. An exception is now
+thrown on an unrecognized type.

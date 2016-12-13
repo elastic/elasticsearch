@@ -31,7 +31,6 @@ import org.elasticsearch.index.search.MatchQuery;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Match query is a query that analyzes the text and constructs a phrase query
@@ -162,7 +161,7 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         return Objects.hash(fieldName, value, analyzer, slop);
     }
 
-    public static Optional<MatchPhraseQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static MatchPhraseQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         String fieldName = null;
         Object value = null;
@@ -215,6 +214,6 @@ public class MatchPhraseQueryBuilder extends AbstractQueryBuilder<MatchPhraseQue
         matchQuery.slop(slop);
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
-        return Optional.of(matchQuery);
+        return matchQuery;
     }
 }

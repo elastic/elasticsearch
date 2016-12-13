@@ -40,7 +40,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 
 public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
@@ -291,22 +290,22 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
+    protected final ValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         ValuesSourceConfig<VS> config = resolveConfig(context);
         ValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
 
-    protected ValuesSourceConfig<VS> resolveConfig(AggregationContext context) {
+    protected ValuesSourceConfig<VS> resolveConfig(SearchContext context) {
         ValuesSourceConfig<VS> config = config(context);
         return config;
     }
 
-    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(AggregationContext context, ValuesSourceConfig<VS> config,
+    protected abstract ValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context, ValuesSourceConfig<VS> config,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
-    public ValuesSourceConfig<VS> config(AggregationContext context) {
+    public ValuesSourceConfig<VS> config(SearchContext context) {
 
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
 
@@ -329,12 +328,12 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
             config.missing(missing);
             config.timezone(timeZone);
             config.format(resolveFormat(format, valueType));
-            config.script(createScript(script, context.searchContext()));
+            config.script(createScript(script, context));
             config.scriptValueType(valueType);
             return config;
         }
 
-        MappedFieldType fieldType = context.searchContext().smartNameFieldType(field);
+        MappedFieldType fieldType = context.smartNameFieldType(field);
         if (fieldType == null) {
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
@@ -349,7 +348,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
             return config;
         }
 
-        IndexFieldData<?> indexFieldData = context.searchContext().fieldData().getForField(fieldType);
+        IndexFieldData<?> indexFieldData = context.fieldData().getForField(fieldType);
 
         ValuesSourceConfig<VS> config;
         if (valuesSourceType == ValuesSourceType.ANY) {
@@ -367,7 +366,7 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
         config.fieldContext(new FieldContext(field, indexFieldData, fieldType));
         config.missing(missing);
         config.timezone(timeZone);
-        config.script(createScript(script, context.searchContext()));
+        config.script(createScript(script, context));
         config.format(fieldType.docValueFormat(format, timeZone));
         return config;
     }

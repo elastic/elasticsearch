@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.common.text;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -13,9 +12,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.Watcher;
 import org.junit.Before;
@@ -115,7 +114,7 @@ public class TextTemplateTests extends ESTestCase {
         builder.field("params", template.getParams());
         builder.endObject();
         BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         TextTemplate parsed = TextTemplate.parse(parser);
         assertThat(parsed, notNullValue());
@@ -127,7 +126,7 @@ public class TextTemplateTests extends ESTestCase {
 
         XContentBuilder builder = jsonBuilder().value(template);
         BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         TextTemplate parsed = TextTemplate.parse(parser);
         assertThat(parsed, notNullValue());
@@ -139,7 +138,7 @@ public class TextTemplateTests extends ESTestCase {
                 .field("unknown_field", "value")
                 .endObject();
         BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         try {
             TextTemplate.parse(parser);
@@ -156,7 +155,7 @@ public class TextTemplateTests extends ESTestCase {
                 .startObject("params").endObject()
                 .endObject();
         BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         try {
             TextTemplate.parse(parser);
@@ -172,7 +171,7 @@ public class TextTemplateTests extends ESTestCase {
                 .startObject("params").endObject()
                 .endObject();
         BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
         try {
             TextTemplate.parse(parser);

@@ -76,7 +76,7 @@ public class JiraActionTests extends ESTestCase {
         BytesReference bytes = builder.bytes();
         logger.info("jira action json [{}]", bytes.utf8ToString());
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
         JiraAction action = JiraAction.parse("_watch", "_action", parser);
@@ -94,7 +94,7 @@ public class JiraActionTests extends ESTestCase {
         action.toXContent(builder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = builder.bytes();
         logger.info("{}", bytes.utf8ToString());
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
         JiraAction parsedAction = JiraAction.parse("_watch", "_action", parser);
@@ -108,7 +108,7 @@ public class JiraActionTests extends ESTestCase {
 
     public void testParserInvalid() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value").endObject();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
 
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> JiraAction.parse("_w", "_a", parser));

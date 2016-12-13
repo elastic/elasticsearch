@@ -9,7 +9,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.jira.JiraAccount;
@@ -42,7 +41,7 @@ public class JiraActionFactoryTests extends ESTestCase {
 
         JiraAction action = jiraAction("_account1", randomIssueDefaults()).build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
 
         JiraAction parsedAction = JiraAction.parse("_w1", "_a1", parser);
@@ -56,7 +55,7 @@ public class JiraActionFactoryTests extends ESTestCase {
 
         JiraAction action = jiraAction("_unknown", randomIssueDefaults()).build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> factory.parseExecutable("_w1", "_a1", parser));

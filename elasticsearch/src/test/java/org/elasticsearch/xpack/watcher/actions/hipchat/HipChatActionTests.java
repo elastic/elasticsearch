@@ -174,7 +174,7 @@ public class HipChatActionTests extends ESTestCase {
 
         BytesReference bytes = builder.bytes();
         logger.info("hipchat action json [{}]", bytes.utf8ToString());
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
         HipChatAction action = HipChatAction.parse("_watch", "_action", parser);
@@ -247,7 +247,7 @@ public class HipChatActionTests extends ESTestCase {
         action.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = builder.bytes();
         logger.info("{}", bytes.utf8ToString());
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
         HipChatAction parsedAction = HipChatAction.parse("_watch", "_action", parser);
@@ -258,7 +258,7 @@ public class HipChatActionTests extends ESTestCase {
 
     public void testParserInvalid() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value").endObject();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         try {
             HipChatAction.parse("_watch", "_action", parser);

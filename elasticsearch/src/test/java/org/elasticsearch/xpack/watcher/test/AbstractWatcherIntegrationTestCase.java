@@ -6,11 +6,11 @@
 package org.elasticsearch.xpack.watcher.test;
 
 import io.netty.util.internal.SystemPropertyUtil;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -65,12 +65,10 @@ import org.elasticsearch.xpack.watcher.WatcherLifeCycleService;
 import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
-import org.elasticsearch.xpack.watcher.execution.ExecutionService;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
 import org.elasticsearch.xpack.watcher.execution.TriggeredWatchStore;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
-import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.xpack.watcher.watch.Watch;
@@ -91,7 +89,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -322,7 +319,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             if (rarely()) {
                 String newIndex = ".watches-alias-index";
                 BytesReference bytesReference = TemplateUtils.load("/watches.json");
-                try (XContentParser parser = JsonXContent.jsonXContent.createParser(bytesReference.toBytesRef().bytes)) {
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytesReference.toBytesRef().bytes)) {
                     Map<String, Object> parserMap = parser.map();
                     Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
 
@@ -340,7 +337,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             if (rarely()) {
                 String newIndex = ".triggered-watches-alias-index";
                 BytesReference bytesReference = TemplateUtils.load("/triggered_watches.json");
-                try (XContentParser parser = JsonXContent.jsonXContent.createParser(bytesReference.toBytesRef().bytes)) {
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytesReference.toBytesRef().bytes)) {
                     Map<String, Object> parserMap = parser.map();
                     Map<String, Object> allMappings = (Map<String, Object>) parserMap.get("mappings");
 

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.trigger.schedule;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
@@ -26,7 +25,7 @@ public class ScheduleTriggerEventTests extends ESTestCase {
         jsonBuilder.field(ScheduleTriggerEvent.Field.TRIGGERED_TIME.getPreferredName(), triggeredTime);
         jsonBuilder.endObject();
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
 
         ScheduleTriggerEvent scheduleTriggerEvent = ScheduleTriggerEvent.parse(parser, "_id", "_context", Clock.systemUTC());

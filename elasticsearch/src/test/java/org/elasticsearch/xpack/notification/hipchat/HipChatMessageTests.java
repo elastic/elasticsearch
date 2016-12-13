@@ -45,7 +45,7 @@ public class HipChatMessageTests extends ESTestCase {
         }
         BytesReference bytes = builder.bytes();
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
         assertThat(parser.currentToken(), is(XContentParser.Token.START_OBJECT));
@@ -204,7 +204,7 @@ public class HipChatMessageTests extends ESTestCase {
         }
 
         BytesReference bytes = jsonBuilder.endObject().bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
         HipChatMessage.Template template = HipChatMessage.Template.parse(parser);
@@ -261,7 +261,7 @@ public class HipChatMessageTests extends ESTestCase {
         template.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         BytesReference bytes = jsonBuilder.bytes();
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
         HipChatMessage.Template parsed = HipChatMessage.Template.parse(parser);

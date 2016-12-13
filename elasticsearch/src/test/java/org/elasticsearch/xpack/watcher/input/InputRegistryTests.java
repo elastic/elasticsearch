@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.input;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import static java.util.Collections.emptyMap;
@@ -19,8 +18,7 @@ public class InputRegistryTests extends ESTestCase {
 
     public void testParseEmptyInput() throws Exception {
         InputRegistry registry = new InputRegistry(Settings.EMPTY, emptyMap());
-        XContentParser parser = JsonXContent.jsonXContent.createParser(
-                jsonBuilder().startObject().endObject().bytes());
+        XContentParser parser = createParser(jsonBuilder().startObject().endObject());
         parser.nextToken();
         try {
             registry.parse("_id", parser);
@@ -32,8 +30,7 @@ public class InputRegistryTests extends ESTestCase {
 
     public void testParseArrayInput() throws Exception {
         InputRegistry registry = new InputRegistry(Settings.EMPTY, emptyMap());
-        XContentParser parser = JsonXContent.jsonXContent.createParser(
-                jsonBuilder().startArray().endArray().bytes());
+        XContentParser parser = createParser(jsonBuilder().startArray().endArray());
         parser.nextToken();
         try {
             registry.parse("_id", parser);

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.email;
 
 import io.netty.handler.codec.http.HttpHeaders;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -287,7 +288,7 @@ public class EmailActionTests extends ESTestCase {
 
         BytesReference bytes = builder.bytes();
         logger.info("email action json [{}]", bytes.utf8ToString());
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
         ExecutableEmailAction executable = new EmailActionFactory(Settings.EMPTY, emailService, engine,
@@ -382,7 +383,7 @@ public class EmailActionTests extends ESTestCase {
         executable.toXContent(builder, params);
         BytesReference bytes = builder.bytes();
         logger.info("{}", bytes.utf8ToString());
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
         ExecutableEmailAction parsed = new EmailActionFactory(Settings.EMPTY, service, engine, emailAttachmentParser)
@@ -412,7 +413,7 @@ public class EmailActionTests extends ESTestCase {
         EmailAttachmentsParser emailAttachmentsParser = mock(EmailAttachmentsParser.class);
 
         XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value").endObject();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         try {
             new EmailActionFactory(Settings.EMPTY, emailService, engine, emailAttachmentsParser)
@@ -446,7 +447,7 @@ public class EmailActionTests extends ESTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         logger.info("JSON: {}", builder.string());
 
         parser.nextToken();
@@ -481,7 +482,7 @@ public class EmailActionTests extends ESTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         logger.info("JSON: {}", builder.string());
 
         parser.nextToken();
@@ -536,7 +537,7 @@ public class EmailActionTests extends ESTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
 
         parser.nextToken();
 

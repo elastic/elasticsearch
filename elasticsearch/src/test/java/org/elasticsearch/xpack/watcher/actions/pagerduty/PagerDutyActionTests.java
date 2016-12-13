@@ -183,7 +183,7 @@ public class PagerDutyActionTests extends ESTestCase {
 
         BytesReference bytes = builder.bytes();
         logger.info("pagerduty action json [{}]", bytes.utf8ToString());
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken();
 
         PagerDutyAction action = PagerDutyAction.parse("_watch", "_action", parser);
@@ -231,7 +231,7 @@ public class PagerDutyActionTests extends ESTestCase {
         PagerDutyAction action = pagerDutyAction(event).build();
         XContentBuilder jsonBuilder = jsonBuilder();
         action.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
 
         PagerDutyAction parsedAction = PagerDutyAction.parse("_w1", "_a1", parser);
@@ -242,7 +242,7 @@ public class PagerDutyActionTests extends ESTestCase {
     public void testParserInvalid() throws Exception {
         try {
             XContentBuilder builder = jsonBuilder().startObject().field("unknown_field", "value").endObject();
-            XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+            XContentParser parser = createParser(builder);
             parser.nextToken();
             PagerDutyAction.parse("_watch", "_action", parser);
             fail("Expected ElasticsearchParseException but did not happen");

@@ -69,7 +69,7 @@ public class WatcherSettingsFilterTests extends AbstractWatcherIntegrationTestCa
             headers = new Header[0];
         }
         Response response = getRestClient().performRequest("GET", "/_nodes/settings", headers);
-        Map<String, Object> responseMap = JsonXContent.jsonXContent.createParser(response.getEntity().getContent()).map();
+        Map<String, Object> responseMap = createParser(JsonXContent.jsonXContent, response.getEntity().getContent()).map();
         Map<String, Object> nodes = (Map<String, Object>) responseMap.get("nodes");
         for (Object node : nodes.values()) {
             Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) node).get("settings");

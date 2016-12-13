@@ -9,7 +9,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
@@ -112,7 +111,7 @@ public class SlackMessageTests extends ESTestCase {
             expected.toXContent(builder, ToXContent.EMPTY_PARAMS, includeTarget);
         }
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
 
         from = null;
@@ -336,7 +335,7 @@ public class SlackMessageTests extends ESTestCase {
         }
         jsonBuilder.endObject();
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
         assertThat(parser.currentToken(), is(XContentParser.Token.START_OBJECT));
 
@@ -365,7 +364,7 @@ public class SlackMessageTests extends ESTestCase {
         XContentBuilder jsonBuilder = jsonBuilder();
         template.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
 
         SlackMessage.Template parsed = SlackMessage.Template.parse(parser);

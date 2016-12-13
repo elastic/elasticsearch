@@ -9,7 +9,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
@@ -54,7 +53,7 @@ public class EmailTemplateTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         emailTemplate.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
 
         EmailTemplate.Parser emailTemplateParser = new EmailTemplate.Parser();

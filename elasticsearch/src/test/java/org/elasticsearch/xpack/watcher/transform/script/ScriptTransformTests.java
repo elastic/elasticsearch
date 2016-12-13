@@ -9,7 +9,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -147,7 +146,7 @@ public class ScriptTransformTests extends ESTestCase {
         builder.startObject("params").field("key", "value").endObject();
         builder.endObject();
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
         Script script = new Script(type, "_lang", "_script", singletonMap("key", "value"));
@@ -158,7 +157,7 @@ public class ScriptTransformTests extends ESTestCase {
         ScriptService service = mock(ScriptService.class);
         XContentBuilder builder = jsonBuilder().value("_script");
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         ExecutableScriptTransform transform = new ScriptTransformFactory(Settings.EMPTY, service).parseExecutable("_id", parser);
         assertThat(transform.transform().getScript(), equalTo(new Script("_script")));

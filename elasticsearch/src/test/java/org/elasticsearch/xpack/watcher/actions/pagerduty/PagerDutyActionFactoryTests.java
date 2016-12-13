@@ -9,7 +9,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.pagerduty.PagerDutyAccount;
@@ -42,7 +41,7 @@ public class PagerDutyActionFactoryTests extends ESTestCase {
 
         PagerDutyAction action = triggerPagerDutyAction("_account1", "_description").build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
 
         PagerDutyAction parsedAction = PagerDutyAction.parse("_w1", "_a1", parser);
@@ -54,7 +53,7 @@ public class PagerDutyActionFactoryTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, Collections.singleton(PagerDutyService.PAGERDUTY_ACCOUNT_SETTING))));
         PagerDutyAction action = triggerPagerDutyAction("_unknown", "_body").build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
         expectThrows(IllegalArgumentException.class, () ->
         factory.parseExecutable("_w1", "_a1", parser));

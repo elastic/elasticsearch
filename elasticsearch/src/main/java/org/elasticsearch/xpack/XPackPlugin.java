@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.action.XPackInfoAction;
 import org.elasticsearch.xpack.action.XPackUsageAction;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
+import org.elasticsearch.xpack.common.http.HttpSettings;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthFactory;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
@@ -316,7 +317,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     @Override
     public List<Setting<?>> getSettings() {
         ArrayList<Setting<?>> settings = new ArrayList<>();
-        settings.addAll(Security.getSettings(transportClientMode));
+        settings.addAll(Security.getSettings(transportClientMode, extensionsService));
         settings.addAll(MonitoringSettings.getSettings());
         settings.addAll(watcher.getSettings());
         settings.addAll(licensing.getSettings());
@@ -335,10 +336,7 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
         settings.add(ReportingAttachmentParser.INTERVAL_SETTING);
 
         // http settings
-        settings.add(Setting.simpleString("xpack.http.default_read_timeout", Setting.Property.NodeScope));
-        settings.add(Setting.simpleString("xpack.http.default_connection_timeout", Setting.Property.NodeScope));
-        settings.add(Setting.groupSetting("xpack.http.ssl.", Setting.Property.NodeScope));
-        settings.add(Setting.groupSetting("xpack.http.proxy.", Setting.Property.NodeScope));
+        settings.addAll(HttpSettings.getSettings());
         return settings;
     }
 

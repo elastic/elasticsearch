@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
@@ -234,6 +235,21 @@ public class SSLServiceTests extends ESTestCase {
         assertTrue(sslService.isSSLClientAuthEnabled(settings.getByPrefix("xpack.security.transport.ssl."), Settings.EMPTY));
         assertTrue(sslService.isSSLClientAuthEnabled(settings.getByPrefix("transport.profiles.foo.xpack.security.ssl."),
                 settings.getByPrefix("xpack.security.transport.ssl.")));
+    }
+
+    public void testThatHttpClientAuthDefaultsToNone() {
+        final Settings globalSettings = Settings.builder()
+                .put("xpack.security.http.ssl.enabled", true)
+                .put("xpack.ssl.client_authentication", SSLClientAuth.OPTIONAL.name())
+                .build();
+        final SSLService sslService = new SSLService(globalSettings, env);
+
+        final SSLConfiguration globalConfig = sslService.sslConfiguration(Settings.EMPTY);
+        assertThat(globalConfig.sslClientAuth(), is(SSLClientAuth.OPTIONAL));
+
+        final Settings httpSettings = SSLService.getHttpTransportSSLSettings(globalSettings);
+        final SSLConfiguration httpConfig = sslService.sslConfiguration(httpSettings);
+        assertThat(httpConfig.sslClientAuth(), is(SSLClientAuth.NONE));
     }
 
     public void testThatTruststorePasswordIsRequired() throws Exception {

@@ -12,8 +12,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
@@ -23,7 +26,12 @@ import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.text.MessageFormat;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.escapedRDNValue;
 
@@ -35,7 +43,8 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.esca
  */
 public class LdapSessionFactory extends SessionFactory {
 
-    public static final String USER_DN_TEMPLATES_SETTING = "user_dn_templates";
+    public static final Setting<List<String>> USER_DN_TEMPLATES_SETTING = Setting.listSetting("user_dn_templates",
+            Collections.emptyList(), Function.identity(), Setting.Property.NodeScope);
 
     private final String[] userDnTemplates;
     private final GroupsResolver groupResolver;
@@ -43,9 +52,10 @@ public class LdapSessionFactory extends SessionFactory {
     public LdapSessionFactory(RealmConfig config, SSLService sslService) {
         super(config, sslService);
         Settings settings = config.settings();
-        userDnTemplates = settings.getAsArray(USER_DN_TEMPLATES_SETTING);
-        if (userDnTemplates == null) {
-            throw new IllegalArgumentException("missing required LDAP setting [" + USER_DN_TEMPLATES_SETTING + "]");
+        userDnTemplates = USER_DN_TEMPLATES_SETTING.get(settings).toArray(Strings.EMPTY_ARRAY);
+        if (userDnTemplates.length == 0) {
+            throw new IllegalArgumentException("missing required LDAP setting ["
+                    + RealmSettings.getFullSettingKey(config, USER_DN_TEMPLATES_SETTING) + "]");
         }
         groupResolver = groupResolver(settings);
     }
@@ -116,10 +126,16 @@ public class LdapSessionFactory extends SessionFactory {
     }
 
     static GroupsResolver groupResolver(Settings settings) {
-        Settings searchSettings = settings.getAsSettings("group_search");
-        if (!searchSettings.names().isEmpty()) {
-            return new SearchGroupsResolver(searchSettings);
+        if (SearchGroupsResolver.BASE_DN.exists(settings)) {
+            return new SearchGroupsResolver(settings);
         }
         return new UserAttributeGroupsResolver(settings);
+    }
+
+    public static Set<Setting<?>> getSettings() {
+        Set<Setting<?>> settings = new HashSet<>();
+        settings.addAll(SessionFactory.getSettings());
+        settings.add(USER_DN_TEMPLATES_SETTING);
+        return settings;
     }
 }

@@ -39,7 +39,7 @@ public class SettingsFilterTests extends ESTestCase {
         configureUnfilteredSetting("xpack.security.authc.realms.ldap1.type", "ldap");
         configureUnfilteredSetting("xpack.security.authc.realms.ldap1.enabled", "false");
         configureUnfilteredSetting("xpack.security.authc.realms.ldap1.url", "ldap://host.domain");
-        configureFilteredSetting("xpack.security.authc.realms.ldap1.hostname_verification", randomAsciiOfLength(5));
+        configureFilteredSetting("xpack.security.authc.realms.ldap1.hostname_verification", randomBooleanSetting());
         configureFilteredSetting("xpack.security.authc.realms.ldap1.bind_dn", randomAsciiOfLength(5));
         configureFilteredSetting("xpack.security.authc.realms.ldap1.bind_password", randomAsciiOfLength(5));
 
@@ -47,7 +47,7 @@ public class SettingsFilterTests extends ESTestCase {
         configureUnfilteredSetting("xpack.security.authc.realms.ad1.type", "active_directory");
         configureUnfilteredSetting("xpack.security.authc.realms.ad1.enabled", "false");
         configureUnfilteredSetting("xpack.security.authc.realms.ad1.url", "ldap://host.domain");
-        configureFilteredSetting("xpack.security.authc.realms.ad1.hostname_verification", randomAsciiOfLength(5));
+        configureFilteredSetting("xpack.security.authc.realms.ad1.hostname_verification", randomBooleanSetting());
 
         // pki filtering
         configureUnfilteredSetting("xpack.security.authc.realms.pki1.type", "pki");
@@ -113,6 +113,10 @@ public class SettingsFilterTests extends ESTestCase {
         for (Map.Entry<String, Matcher> entry : settingsMatcherMap.entrySet()) {
             assertThat(filteredSettings.get(entry.getKey()), entry.getValue());
         }
+    }
+
+    private String randomBooleanSetting() {
+        return randomFrom("true", "1", "on", "yes", "false", "0", "off", "no");
     }
 
     private void configureUnfilteredSetting(String settingName, String value) {

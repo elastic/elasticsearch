@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
@@ -13,12 +14,13 @@ import com.unboundid.ldap.sdk.LDAPException;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapLoadBalancing;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
+import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
@@ -59,13 +61,27 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
             sessionFactory = new ActiveDirectorySessionFactory(config, sslService);
         } else {
             assert LDAP_TYPE.equals(type) : "type [" + type + "] is unknown. expected one of [" + AD_TYPE + ", " + LDAP_TYPE + "]";
-            Settings searchSettings = userSearchSettings(config);
-            if (searchSettings.names().isEmpty()) {
-                sessionFactory = new LdapSessionFactory(config, sslService);
-            } else if (config.settings().getAsArray(LdapSessionFactory.USER_DN_TEMPLATES_SETTING).length > 0) {
-                throw new IllegalArgumentException("settings were found for both user search and user template modes of operation. " +
-                            "Please remove the settings for the mode you do not wish to use. For more details refer to the ldap " +
+            final boolean hasSearchSettings = LdapUserSearchSessionFactory.hasUserSearchSettings(config);
+            final boolean hasTemplates = LdapSessionFactory.USER_DN_TEMPLATES_SETTING.exists(config.settings());
+            if (hasSearchSettings == false) {
+                if(hasTemplates == false) {
+                    throw new IllegalArgumentException("settings were not found for either user search [" +
+                            RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactory.SEARCH_PREFIX) +
+                            "] or user template [" +
+                            RealmSettings.getFullSettingKey(config, LdapSessionFactory.USER_DN_TEMPLATES_SETTING) +
+                            "] modes of operation. " +
+                            "Please provide the settings for the mode you wish to use. For more details refer to the ldap " +
                             "authentication section of the X-Pack guide.");
+                }
+                sessionFactory = new LdapSessionFactory(config, sslService);
+            } else if (hasTemplates) {
+                throw new IllegalArgumentException("settings were found for both user search [" +
+                        RealmSettings.getFullSettingKey(config, LdapUserSearchSessionFactory.SEARCH_PREFIX) +
+                        "] and user template [" +
+                        RealmSettings.getFullSettingKey(config, LdapSessionFactory.USER_DN_TEMPLATES_SETTING) +
+                        "] modes of operation. " +
+                        "Please remove the settings for the mode you do not wish to use. For more details refer to the ldap " +
+                        "authentication section of the X-Pack guide.");
             } else {
                 sessionFactory = new LdapUserSearchSessionFactory(config, sslService);
             }
@@ -73,8 +89,22 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         return sessionFactory;
     }
 
-    static Settings userSearchSettings(RealmConfig config) {
-        return config.settings().getAsSettings("user_search");
+    /**
+     * @return The {@link Setting setting configuration} for this realm type
+     * @param type Either {@link #AD_TYPE} or {@link #LDAP_TYPE}
+     */
+    public static Set<Setting<?>> getSettings(String type) {
+        Set<Setting<?>> settings = new HashSet<>();
+        settings.addAll(CachingUsernamePasswordRealm.getCachingSettings());
+        DnRoleMapper.getSettings(settings);
+        if (AD_TYPE.equals(type)) {
+            settings.addAll(ActiveDirectorySessionFactory.getSettings());
+        } else {
+            assert LDAP_TYPE.equals(type) : "type [" + type + "] is unknown. expected one of [" + AD_TYPE + ", " + LDAP_TYPE + "]";
+            settings.addAll(LdapSessionFactory.getSettings());
+            settings.addAll(LdapUserSearchSessionFactory.getSettings());
+        }
+        return settings;
     }
 
     /**
@@ -106,7 +136,7 @@ public final class LdapRealm extends CachingUsernamePasswordRealm {
         Map<String, Object> usage = super.usageStats();
         usage.put("load_balance_type", LdapLoadBalancing.resolve(config.settings()).toString());
         usage.put("ssl", sessionFactory.isSslUsed());
-        usage.put("user_search", userSearchSettings(config).isEmpty() == false);
+        usage.put("user_search", LdapUserSearchSessionFactory.hasUserSearchSettings(config));
         return usage;
     }
 

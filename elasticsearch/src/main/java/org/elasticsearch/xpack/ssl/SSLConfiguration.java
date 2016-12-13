@@ -5,21 +5,18 @@
  */
 package org.elasticsearch.xpack.ssl;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Function;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.XPackSettings;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.TrustManagerFactory;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 
 /**
  * Represents the configuration for an SSLContext
@@ -29,48 +26,7 @@ class SSLConfiguration {
     // These settings are never registered, but they exist so that we can parse the values defined under grouped settings. Also, some are
     // implemented as optional settings, which provides a declarative manner for fallback as we typically fallback to values from a
     // different configuration
-    private static final Setting<List<String>> CIPHERS_SETTING = Setting.listSetting("cipher_suites", Collections.emptyList(), s -> s);
-    private static final Setting<List<String>> SUPPORTED_PROTOCOLS_SETTING =
-            Setting.listSetting("supported_protocols", Collections.emptyList(), s -> s);
-    private static final Setting<Optional<String>> KEYSTORE_PATH_SETTING =
-            new Setting<>("keystore.path", (String) null, Optional::ofNullable);
-    private static final Setting<Optional<String>> KEYSTORE_PASSWORD_SETTING =
-            new Setting<>("keystore.password", (String) null, Optional::ofNullable);
-    private static final Setting<String> KEYSTORE_ALGORITHM_SETTING = new Setting<>("keystore.algorithm",
-            s -> System.getProperty("ssl.KeyManagerFactory.algorithm", KeyManagerFactory.getDefaultAlgorithm()), Function.identity());
-    private static final Setting<Optional<String>> KEYSTORE_KEY_PASSWORD_SETTING =
-            new Setting<>("keystore.key_password", KEYSTORE_PASSWORD_SETTING, Optional::ofNullable);
-    private static final Setting<Optional<String>> TRUSTSTORE_PATH_SETTING =
-            new Setting<>("truststore.path", (String) null, Optional::ofNullable);
-    private static final Setting<Optional<String>> TRUSTSTORE_PASSWORD_SETTING =
-            new Setting<>("truststore.password", (String) null, Optional::ofNullable);
-    private static final Setting<String> TRUSTSTORE_ALGORITHM_SETTING = new Setting<>("truststore.algorithm",
-            s -> System.getProperty("ssl.TrustManagerFactory.algorithm",
-                    TrustManagerFactory.getDefaultAlgorithm()), Function.identity());
-    private static final Setting<Optional<String>> KEY_PATH_SETTING =
-            new Setting<>("key", (String) null, Optional::ofNullable);
-    private static final Setting<Optional<String>> KEY_PASSWORD_SETTING =
-            new Setting<>("key_passphrase", (String) null, Optional::ofNullable);
-    private static final Setting<Optional<String>> CERT_SETTING =
-            new Setting<>("certificate", (String) null, Optional::ofNullable);
-    private static final Setting<List<String>> CA_PATHS_SETTING =
-            Setting.listSetting("certificate_authorities", Collections.emptyList(), s -> s);
-    private static final Setting<Optional<SSLClientAuth>> CLIENT_AUTH_SETTING =
-            new Setting<>("client_authentication", (String) null, s -> {
-                if (s == null) {
-                    return Optional.ofNullable(null);
-                } else {
-                    return Optional.of(SSLClientAuth.parse(s));
-                }
-            });
-    private static final Setting<Optional<VerificationMode>> VERIFICATION_MODE_SETTING = new Setting<>("verification_mode", (String) null,
-            s -> {
-                if (s == null) {
-                    return Optional.ofNullable(null);
-                } else {
-                    return Optional.of(VerificationMode.parse(s));
-                }
-            });
+    private static final SSLConfigurationSettings SETTINGS_PARSER = SSLConfigurationSettings.withoutPrefix();
 
     private final KeyConfig keyConfig;
     private final TrustConfig trustConfig;
@@ -87,10 +43,10 @@ class SSLConfiguration {
     SSLConfiguration(Settings settings) {
         this.keyConfig = createKeyConfig(settings, null);
         this.trustConfig = createTrustConfig(settings, keyConfig, null);
-        this.ciphers = getListOrDefault(CIPHERS_SETTING, settings, XPackSettings.DEFAULT_CIPHERS);
-        this.supportedProtocols = getListOrDefault(SUPPORTED_PROTOCOLS_SETTING, settings, XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS);
-        this.sslClientAuth = CLIENT_AUTH_SETTING.get(settings).orElse(XPackSettings.CLIENT_AUTH_DEFAULT);
-        this.verificationMode = VERIFICATION_MODE_SETTING.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
+        this.ciphers = getListOrDefault(SETTINGS_PARSER.ciphers, settings, XPackSettings.DEFAULT_CIPHERS);
+        this.supportedProtocols = getListOrDefault(SETTINGS_PARSER.supportedProtocols, settings, XPackSettings.DEFAULT_SUPPORTED_PROTOCOLS);
+        this.sslClientAuth = SETTINGS_PARSER.clientAuth.get(settings).orElse(XPackSettings.CLIENT_AUTH_DEFAULT);
+        this.verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(XPackSettings.VERIFICATION_MODE_DEFAULT);
     }
 
     /**
@@ -103,10 +59,11 @@ class SSLConfiguration {
         Objects.requireNonNull(globalSSLConfiguration);
         this.keyConfig = createKeyConfig(settings, globalSSLConfiguration);
         this.trustConfig = createTrustConfig(settings, keyConfig, globalSSLConfiguration);
-        this.ciphers = getListOrDefault(CIPHERS_SETTING, settings, globalSSLConfiguration.cipherSuites());
-        this.supportedProtocols = getListOrDefault(SUPPORTED_PROTOCOLS_SETTING, settings, globalSSLConfiguration.supportedProtocols());
-        this.sslClientAuth = CLIENT_AUTH_SETTING.get(settings).orElse(globalSSLConfiguration.sslClientAuth());
-        this.verificationMode = VERIFICATION_MODE_SETTING.get(settings).orElse(globalSSLConfiguration.verificationMode());
+        this.ciphers = getListOrDefault(SETTINGS_PARSER.ciphers, settings, globalSSLConfiguration.cipherSuites());
+        this.supportedProtocols = getListOrDefault(SETTINGS_PARSER.supportedProtocols, settings,
+                globalSSLConfiguration.supportedProtocols());
+        this.sslClientAuth = SETTINGS_PARSER.clientAuth.get(settings).orElse(globalSSLConfiguration.sslClientAuth());
+        this.verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElse(globalSSLConfiguration.verificationMode());
     }
 
     /**
@@ -216,8 +173,8 @@ class SSLConfiguration {
     }
 
     private static KeyConfig createKeyConfig(Settings settings, SSLConfiguration global) {
-        String keyStorePath = KEYSTORE_PATH_SETTING.get(settings).orElse(null);
-        String keyPath = KEY_PATH_SETTING.get(settings).orElse(null);
+        String keyStorePath = SETTINGS_PARSER.keystorePath.get(settings).orElse(null);
+        String keyPath = SETTINGS_PARSER.keyPath.get(settings).orElse(null);
         if (keyPath != null && keyStorePath != null) {
             throw new IllegalArgumentException("you cannot specify a keystore and key file");
         } else if (keyStorePath == null && keyPath == null) {
@@ -233,29 +190,29 @@ class SSLConfiguration {
         }
 
         if (keyPath != null) {
-            String keyPassword = KEY_PASSWORD_SETTING.get(settings).orElse(null);
-            String certPath = CERT_SETTING.get(settings).orElse(null);
+            String keyPassword = SETTINGS_PARSER.keyPassword.get(settings).orElse(null);
+            String certPath = SETTINGS_PARSER.cert.get(settings).orElse(null);
             if (certPath == null) {
                 throw new IllegalArgumentException("you must specify the certificates to use with the key");
             }
             return new PEMKeyConfig(keyPath, keyPassword, certPath);
         } else {
-            String keyStorePassword = KEYSTORE_PASSWORD_SETTING.get(settings).orElse(null);
-            String keyStoreAlgorithm = KEYSTORE_ALGORITHM_SETTING.get(settings);
-            String keyStoreKeyPassword = KEYSTORE_KEY_PASSWORD_SETTING.get(settings).orElse(keyStorePassword);
-            String trustStoreAlgorithm = TRUSTSTORE_ALGORITHM_SETTING.get(settings);
+            String keyStorePassword = SETTINGS_PARSER.keystorePassword.get(settings).orElse(null);
+            String keyStoreAlgorithm = SETTINGS_PARSER.keystoreAlgorithm.get(settings);
+            String keyStoreKeyPassword = SETTINGS_PARSER.keystoreKeyPassword.get(settings).orElse(keyStorePassword);
+            String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
             return new StoreKeyConfig(keyStorePath, keyStorePassword, keyStoreKeyPassword, keyStoreAlgorithm, trustStoreAlgorithm);
         }
     }
 
     private static TrustConfig createTrustConfig(Settings settings, KeyConfig keyConfig, SSLConfiguration global) {
-        String trustStorePath = TRUSTSTORE_PATH_SETTING.get(settings).orElse(null);
-        List<String> caPaths = getListOrNull(CA_PATHS_SETTING, settings);
+        String trustStorePath = SETTINGS_PARSER.truststorePath.get(settings).orElse(null);
+        List<String> caPaths = getListOrNull(SETTINGS_PARSER.caPaths, settings);
         if (trustStorePath != null && caPaths != null) {
             throw new IllegalArgumentException("you cannot specify a truststore and ca files");
         }
 
-        VerificationMode verificationMode = VERIFICATION_MODE_SETTING.get(settings).orElseGet(() -> {
+        VerificationMode verificationMode = SETTINGS_PARSER.verificationMode.get(settings).orElseGet(() -> {
             if (global != null) {
                 return global.verificationMode();
             }
@@ -266,8 +223,8 @@ class SSLConfiguration {
         } else if (caPaths != null) {
             return new PEMTrustConfig(caPaths);
         } else if (trustStorePath != null) {
-            String trustStorePassword = TRUSTSTORE_PASSWORD_SETTING.get(settings).orElse(null);
-            String trustStoreAlgorithm = TRUSTSTORE_ALGORITHM_SETTING.get(settings);
+            String trustStorePassword = SETTINGS_PARSER.truststorePassword.get(settings).orElse(null);
+            String trustStoreAlgorithm = SETTINGS_PARSER.truststoreAlgorithm.get(settings);
             return new StoreTrustConfig(trustStorePath, trustStorePassword, trustStoreAlgorithm);
         } else if (global == null && System.getProperty("javax.net.ssl.trustStore") != null) {
             return new StoreTrustConfig(System.getProperty("javax.net.ssl.trustStore"),

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -41,9 +43,12 @@ import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.rela
  */
 public class DnRoleMapper {
 
-    public static final String DEFAULT_FILE_NAME = "role_mapping.yml";
-    public static final String ROLE_MAPPING_FILE_SETTING = "files.role_mapping";
-    public static final String USE_UNMAPPED_GROUPS_AS_ROLES_SETTING = "unmapped_groups_as_roles";
+    private static final String DEFAULT_FILE_NAME = "role_mapping.yml";
+    public static final Setting<String> ROLE_MAPPING_FILE_SETTING = new Setting<>("files.role_mapping", DEFAULT_FILE_NAME,
+            Function.identity(), Setting.Property.NodeScope);
+
+    public static final Setting<Boolean> USE_UNMAPPED_GROUPS_AS_ROLES_SETTING = Setting.boolSetting("unmapped_groups_as_roles", false,
+            Setting.Property.NodeScope);
 
     protected final Logger logger;
     protected final RealmConfig config;
@@ -61,7 +66,7 @@ public class DnRoleMapper {
         this.logger = config.logger(getClass());
         this.listeners = new CopyOnWriteArrayList<>(Collections.singleton(listener));
 
-        useUnmappedGroupsAsRoles = config.settings().getAsBoolean(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false);
+        useUnmappedGroupsAsRoles = USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.get(config.settings());
         file = resolveFile(config.settings(), config.env());
         dnRoles = parseFileLenient(file, logger, realmType, config.name());
         FileWatcher watcher = new FileWatcher(file.getParent());
@@ -78,7 +83,7 @@ public class DnRoleMapper {
     }
 
     public static Path resolveFile(Settings settings, Environment env) {
-        String location = settings.get(ROLE_MAPPING_FILE_SETTING, DEFAULT_FILE_NAME);
+        String location = ROLE_MAPPING_FILE_SETTING.get(settings);
         return XPackPlugin.resolveConfigFile(env, location);
     }
 
@@ -183,6 +188,11 @@ public class DnRoleMapper {
 
     public void notifyRefresh() {
         listeners.forEach(Runnable::run);
+    }
+
+    public static void getSettings(Set<Setting<?>> settings) {
+        settings.add(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING);
+        settings.add(ROLE_MAPPING_FILE_SETTING);
     }
 
     private class FileListener implements FileChangesListener {

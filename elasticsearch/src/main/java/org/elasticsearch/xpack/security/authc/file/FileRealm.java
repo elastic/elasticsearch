@@ -5,9 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc.file;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
@@ -60,5 +63,12 @@ public class FileRealm extends CachingUsernamePasswordRealm {
         // here we can determine the size based on the in mem user store
         stats.put("size", userPasswdStore.usersCount());
         return stats;
+    }
+
+    /**
+     * @return The {@link Setting setting configuration} for this realm type
+     */
+    public static Set<Setting<?>> getSettings() {
+        return CachingUsernamePasswordRealm.getCachingSettings();
     }
 }

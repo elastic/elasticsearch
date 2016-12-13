@@ -47,6 +47,9 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class DnRoleMapperTests extends ESTestCase {
 
+    private static final String ROLE_MAPPING_FILE_SETTING = DnRoleMapper.ROLE_MAPPING_FILE_SETTING.getKey();
+    private static final String USE_UNMAPPED_GROUPS_AS_ROLES_SETTING_KEY = DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.getKey();
+
     private static final String[] STARK_GROUP_DNS = new String[] {
             //groups can be named by different attributes, depending on the directory,
             //we don't care what it is named by
@@ -230,7 +233,7 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testYaml() throws Exception {
         Path file = getDataPath("role_mapping.yml");
         Settings ldapSettings = Settings.builder()
-                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
+                .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
                 .build();
         RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings);
 
@@ -244,7 +247,7 @@ public class DnRoleMapperTests extends ESTestCase {
 
     public void testRelativeDN() {
         Settings ldapSettings = Settings.builder()
-                .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
+                .put(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING_KEY, true)
                 .build();
         RealmConfig config = new RealmConfig("ldap1", ldapSettings, settings);
 
@@ -257,8 +260,8 @@ public class DnRoleMapperTests extends ESTestCase {
     public void testUserDNMapping() throws Exception {
         Path file = getDataPath("role_mapping.yml");
         Settings ldapSettings = Settings.builder()
-                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
-                .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false)
+                .put(ROLE_MAPPING_FILE_SETTING, file.toAbsolutePath())
+                .put(USE_UNMAPPED_GROUPS_AS_ROLES_SETTING_KEY, false)
                 .build();
         RealmConfig config = new RealmConfig("ldap-userdn-role", ldapSettings, settings);
 

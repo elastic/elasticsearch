@@ -5,21 +5,27 @@
  */
 package org.elasticsearch.xpack.watcher.transport.action.get;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -41,7 +47,6 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.isFound(), is(true));
         assertThat(getResponse.getId(), is("_name"));
-        assertThat(getResponse.getStatus().version(), is(putResponse.getVersion()));
         Map<String, Object> source = getResponse.getSource().getAsMap();
         assertThat(source, notNullValue());
         assertThat(source, hasKey("trigger"));
@@ -51,7 +56,13 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
         assertThat(source, not(hasKey("status")));
     }
 
+    public void testGetNotFoundOnNonExistingIndex() throws Exception {
+        Exception e = expectThrows(Exception.class, () -> watcherClient().getWatch(new GetWatchRequest("_name")).get());
+        assertThat(e.getMessage(), containsString("no such index"));
+    }
+
     public void testGetNotFound() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
         GetWatchResponse getResponse = watcherClient().getWatch(new GetWatchRequest("_name")).get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getId(), is("_name"));

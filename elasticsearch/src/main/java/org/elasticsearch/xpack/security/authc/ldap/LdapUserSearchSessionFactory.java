@@ -17,9 +17,11 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsResolver;
@@ -29,6 +31,11 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.util.Arrays;
+
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 
 import static com.unboundid.ldap.sdk.Filter.createEqualityFilter;
 import static com.unboundid.ldap.sdk.Filter.encodeValue;
@@ -42,6 +49,30 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     static final String DEFAULT_USERNAME_ATTRIBUTE = "uid";
     static final TimeValue DEFAULT_HEALTH_CHECK_INTERVAL = TimeValue.timeValueSeconds(60L);
 
+    static final String SEARCH_PREFIX = "user_search.";
+
+    private static final Setting<String> SEARCH_BASE_DN = Setting.simpleString("user_search.base_dn", Setting.Property.NodeScope);
+    private static final Setting<String> SEARCH_ATTRIBUTE = new Setting<>("user_search.attribute", DEFAULT_USERNAME_ATTRIBUTE,
+            Function.identity(), Setting.Property.NodeScope);
+    private static final Setting<LdapSearchScope> SEARCH_SCOPE = new Setting<>("user_search.scope", (String) null,
+            s -> LdapSearchScope.resolve(s, LdapSearchScope.SUB_TREE), Setting.Property.NodeScope);
+
+    private static final Setting<Boolean> POOL_ENABLED = Setting.boolSetting("user_search.pool.enabled",
+            true, Setting.Property.NodeScope);
+    private static final Setting<Integer> POOL_INITIAL_SIZE = Setting.intSetting("user_search.pool.initial_size",
+            DEFAULT_CONNECTION_POOL_INITIAL_SIZE, 0, Setting.Property.NodeScope);
+    private static final Setting<Integer> POOL_SIZE = Setting.intSetting("user_search.pool.size",
+            DEFAULT_CONNECTION_POOL_SIZE, 1, Setting.Property.NodeScope);
+    private static final Setting<TimeValue> HEALTH_CHECK_INTERVAL = Setting.timeSetting("user_search.pool.health_check.interval",
+            DEFAULT_HEALTH_CHECK_INTERVAL, Setting.Property.NodeScope);
+    private static final Setting<Boolean> HEALTH_CHECK_ENABLED = Setting.boolSetting("user_search.pool.health_check.enabled",
+            true, Setting.Property.NodeScope);
+    private static final Setting<Optional<String>> HEALTH_CHECK_DN = new Setting<>("user_search.pool.health_check.dn", (String) null,
+            Optional::ofNullable, Setting.Property.NodeScope);
+
+    private static final Setting<String> BIND_DN = Setting.simpleString("bind_dn", Setting.Property.NodeScope);
+    private static final Setting<String> BIND_PASSWORD = Setting.simpleString("bind_password", Setting.Property.NodeScope);
+
     private final String userSearchBaseDn;
     private final LdapSearchScope scope;
     private final String userAttribute;
@@ -53,14 +84,15 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     LdapUserSearchSessionFactory(RealmConfig config, SSLService sslService) throws LDAPException {
         super(config, sslService);
         Settings settings = config.settings();
-        userSearchBaseDn = settings.get("user_search.base_dn");
-        if (userSearchBaseDn == null) {
-            throw new IllegalArgumentException("user_search base_dn must be specified");
+        if (SEARCH_BASE_DN.exists(settings)) {
+            userSearchBaseDn = SEARCH_BASE_DN.get(settings);
+        } else {
+            throw new IllegalArgumentException("[" + RealmSettings.getFullSettingKey(config, SEARCH_BASE_DN) + "] must be specified");
         }
-        scope = LdapSearchScope.resolve(settings.get("user_search.scope"), LdapSearchScope.SUB_TREE);
-        userAttribute = settings.get("user_search.attribute", DEFAULT_USERNAME_ATTRIBUTE);
-        groupResolver = groupResolver(config.settings());
-        useConnectionPool = settings.getAsBoolean("user_search.pool.enabled", true);
+        scope = SEARCH_SCOPE.get(settings);
+        userAttribute = SEARCH_ATTRIBUTE.get(settings);
+        groupResolver = groupResolver(settings);
+        useConnectionPool = POOL_ENABLED.get(settings);
         if (useConnectionPool) {
             connectionPool = createConnectionPool(config, serverSet, timeout, logger);
         } else {
@@ -72,17 +104,16 @@ class LdapUserSearchSessionFactory extends SessionFactory {
                                                     throws LDAPException {
         Settings settings = config.settings();
         SimpleBindRequest bindRequest = bindRequest(settings);
-        final int initialSize = settings.getAsInt("user_search.pool.initial_size", DEFAULT_CONNECTION_POOL_INITIAL_SIZE);
-        final int size = settings.getAsInt("user_search.pool.size", DEFAULT_CONNECTION_POOL_SIZE);
+        final int initialSize = POOL_INITIAL_SIZE.get(settings);
+        final int size = POOL_SIZE.get(settings);
         LDAPConnectionPool pool = null;
         boolean success = false;
         try {
             pool = new LDAPConnectionPool(serverSet, bindRequest, initialSize, size);
             pool.setRetryFailedOperationsDueToInvalidConnections(true);
-            if (settings.getAsBoolean("user_search.pool.health_check.enabled", true)) {
-                String entryDn = settings.get("user_search.pool.health_check.dn", (bindRequest == null) ? null : bindRequest.getBindDN());
-                final long healthCheckInterval =
-                        settings.getAsTime("user_search.pool.health_check.interval", DEFAULT_HEALTH_CHECK_INTERVAL).millis();
+            if (HEALTH_CHECK_ENABLED.get(settings)) {
+                String entryDn = HEALTH_CHECK_DN.get(settings).orElseGet(() -> bindRequest == null ? null : bindRequest.getBindDN());
+                final long healthCheckInterval = HEALTH_CHECK_INTERVAL.get(settings).millis();
                 if (entryDn != null) {
                     // Checks the status of the LDAP connection at a specified interval in the background. We do not check on
                     // on create as the LDAP server may require authentication to get an entry and a bind request has not been executed
@@ -93,7 +124,8 @@ class LdapUserSearchSessionFactory extends SessionFactory {
                     pool.setHealthCheck(healthCheck);
                     pool.setHealthCheckIntervalMillis(healthCheckInterval);
                 } else {
-                    logger.warn("[bind_dn] and [user_search.pool.health_check.dn] have not been specified so no " +
+                    logger.warn("[" + RealmSettings.getFullSettingKey(config, BIND_DN) + "] and [" +
+                            RealmSettings.getFullSettingKey(config, HEALTH_CHECK_DN) + "] have not been specified so no " +
                             "ldap query will be run as a health check");
                 }
             }
@@ -109,11 +141,14 @@ class LdapUserSearchSessionFactory extends SessionFactory {
 
     static SimpleBindRequest bindRequest(Settings settings) {
         SimpleBindRequest request = null;
-        String bindDn = settings.get("bind_dn");
-        if (bindDn != null) {
-            request = new SimpleBindRequest(bindDn, settings.get("bind_password"));
+        if (BIND_DN.exists(settings)) {
+            request = new SimpleBindRequest(BIND_DN.get(settings), BIND_PASSWORD.get(settings));
         }
         return request;
+    }
+
+    public static boolean hasUserSearchSettings(RealmConfig config) {
+        return config.settings().getByPrefix("user_search.").isEmpty() == false;
     }
 
     @Override
@@ -268,10 +303,30 @@ class LdapUserSearchSessionFactory extends SessionFactory {
     }
 
     static GroupsResolver groupResolver(Settings settings) {
-        Settings searchSettings = settings.getAsSettings("group_search");
-        if (!searchSettings.names().isEmpty()) {
-            return new SearchGroupsResolver(searchSettings);
+        if (SearchGroupsResolver.BASE_DN.exists(settings)) {
+            return new SearchGroupsResolver(settings);
         }
         return new UserAttributeGroupsResolver(settings);
+    }
+
+    public static Set<Setting<?>> getSettings() {
+        Set<Setting<?>> settings = new HashSet<>();
+        settings.addAll(SessionFactory.getSettings());
+        settings.add(SEARCH_BASE_DN);
+        settings.add(SEARCH_SCOPE);
+        settings.add(SEARCH_ATTRIBUTE);
+        settings.add(POOL_ENABLED);
+        settings.add(POOL_INITIAL_SIZE);
+        settings.add(POOL_SIZE);
+        settings.add(HEALTH_CHECK_ENABLED);
+        settings.add(HEALTH_CHECK_DN);
+        settings.add(HEALTH_CHECK_INTERVAL);
+        settings.add(BIND_DN);
+        settings.add(BIND_PASSWORD);
+
+        settings.addAll(SearchGroupsResolver.getSettings());
+        settings.addAll(UserAttributeGroupsResolver.getSettings());
+
+        return settings;
     }
 }

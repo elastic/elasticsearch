@@ -74,11 +74,7 @@ public class ActionStatus implements ToXContent {
 
     @Override
     public int hashCode() {
-        int result = ackStatus.hashCode();
-        result = 31 * result + (lastExecution != null ? lastExecution.hashCode() : 0);
-        result = 31 * result + (lastSuccessfulExecution != null ? lastSuccessfulExecution.hashCode() : 0);
-        result = 31 * result + (lastThrottle != null ? lastThrottle.hashCode() : 0);
-        return result;
+        return Objects.hash(ackStatus, lastExecution, lastSuccessfulExecution, lastThrottle);
     }
 
     public void update(DateTime timestamp, Action.Result result) {
@@ -238,15 +234,12 @@ public class ActionStatus implements ToXContent {
 
             AckStatus ackStatus = (AckStatus) o;
 
-            if (!timestamp.equals(ackStatus.timestamp)) return false;
-            return state == ackStatus.state;
+            return Objects.equals(timestamp, ackStatus.timestamp) &&  Objects.equals(state, ackStatus.state);
         }
 
         @Override
         public int hashCode() {
-            int result = timestamp.hashCode();
-            result = 31 * result + state.hashCode();
-            return result;
+            return Objects.hash(timestamp, state);
         }
 
         @Override

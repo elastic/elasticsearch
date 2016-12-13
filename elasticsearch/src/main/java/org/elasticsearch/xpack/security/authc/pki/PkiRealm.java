@@ -11,42 +11,48 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
 import org.elasticsearch.xpack.ssl.CertUtils;
+import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.Realm;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 
-import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509TrustManager;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.xpack.security.Security.setting;
 import static org.elasticsearch.xpack.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.XPackSettings.TRANSPORT_SSL_ENABLED;
+import static org.elasticsearch.xpack.security.Security.setting;
 
 public class PkiRealm extends Realm {
 
     public static final String PKI_CERT_HEADER_NAME = "__SECURITY_CLIENT_CERTIFICATE";
     public static final String TYPE = "pki";
-    public static final String DEFAULT_USERNAME_PATTERN = "CN=(.*?)(?:,|$)";
+
+    static final String DEFAULT_USERNAME_PATTERN = "CN=(.*?)(?:,|$)";
+    private static final Setting<Pattern> USERNAME_PATTERN_SETTING = new Setting<>("username_pattern", DEFAULT_USERNAME_PATTERN,
+            s -> Pattern.compile(s, Pattern.CASE_INSENSITIVE), Setting.Property.NodeScope);
+    private static final SSLConfigurationSettings SSL_SETTINGS = SSLConfigurationSettings.withoutPrefix();
 
     // For client based cert validation, the auth type must be specified but UNKNOWN is an acceptable value
     public static final String AUTH_TYPE = "UNKNOWN";
@@ -64,8 +70,7 @@ public class PkiRealm extends Realm {
     PkiRealm(RealmConfig config, DnRoleMapper roleMapper, SSLService sslService) {
         super(TYPE, config);
         this.trustManager = trustManagers(config);
-        this.principalPattern = Pattern.compile(config.settings().get("username_pattern", DEFAULT_USERNAME_PATTERN),
-                Pattern.CASE_INSENSITIVE);
+        this.principalPattern = USERNAME_PATTERN_SETTING.get(config.settings());
         this.roleMapper = roleMapper;
         checkSSLEnabled(config, sslService);
     }
@@ -149,31 +154,26 @@ public class PkiRealm extends Realm {
     static X509TrustManager trustManagers(RealmConfig realmConfig) {
         final Settings settings = realmConfig.settings();
         final Environment env = realmConfig.env();
-        String[] certificateAuthorities = settings.getAsArray("certificate_authorities", null);
-        String truststorePath = settings.get("truststore.path");
+        String[] certificateAuthorities = settings.getAsArray(SSL_SETTINGS.caPaths.getKey(), null);
+        String truststorePath = SSL_SETTINGS.truststorePath.get(settings).orElse(null);
         if (truststorePath == null && certificateAuthorities == null) {
             return null;
         } else if (truststorePath != null && certificateAuthorities != null) {
-            final String settingPrefix = Realms.REALMS_GROUPS_SETTINGS.getKey() + realmConfig.name() + ".";
-            throw new IllegalArgumentException("[" + settingPrefix + "truststore.path] and [" + settingPrefix + "certificate_authorities]" +
-                    " cannot be used at the same time");
+            final String pathKey = RealmSettings.getFullSettingKey(realmConfig, SSL_SETTINGS.truststorePath);
+            final String caKey = RealmSettings.getFullSettingKey(realmConfig, SSL_SETTINGS.caPaths);
+            throw new IllegalArgumentException("[" + pathKey + "] and [" + caKey + "] cannot be used at the same time");
         } else if (truststorePath != null) {
-            return trustManagersFromTruststore(realmConfig);
+            return trustManagersFromTruststore(truststorePath, realmConfig);
         }
         return trustManagersFromCAs(settings, env);
     }
 
-    private static X509TrustManager trustManagersFromTruststore(RealmConfig realmConfig) {
+    private static X509TrustManager trustManagersFromTruststore(String truststorePath, RealmConfig realmConfig) {
         final Settings settings = realmConfig.settings();
-        String truststorePath = settings.get("truststore.path");
-        String password = settings.get("truststore.password");
-        if (password == null) {
-            final String settingPrefix = Realms.REALMS_GROUPS_SETTINGS.getKey() + realmConfig.name() + ".";
-            throw new IllegalArgumentException("[" + settingPrefix + "truststore.password] is not configured");
-        }
-
-        String trustStoreAlgorithm = settings.get("truststore.algorithm", System.getProperty("ssl.TrustManagerFactory.algorithm",
-                TrustManagerFactory.getDefaultAlgorithm()));
+        String password = SSL_SETTINGS.truststorePassword.get(settings).orElseThrow(() -> new IllegalArgumentException(
+                "[" + RealmSettings.getFullSettingKey(realmConfig, SSL_SETTINGS.truststorePassword) + "] is not configured"
+        ));
+        String trustStoreAlgorithm = SSL_SETTINGS.truststoreAlgorithm.get(settings);
         try {
             return CertUtils.trustManager(truststorePath, password, trustStoreAlgorithm, realmConfig.env());
         } catch (Exception e) {
@@ -182,7 +182,7 @@ public class PkiRealm extends Realm {
     }
 
     private static X509TrustManager trustManagersFromCAs(Settings settings, Environment env) {
-        String[] certificateAuthorities = settings.getAsArray("certificate_authorities", null);
+        String[] certificateAuthorities = settings.getAsArray(SSL_SETTINGS.caPaths.getKey(), null);
         assert certificateAuthorities != null;
         try {
             Certificate[] certificates = CertUtils.readCertificates(Arrays.asList(certificateAuthorities), env);
@@ -231,5 +231,22 @@ public class PkiRealm extends Realm {
 
         throw new IllegalStateException("PKI realm [" + config.name() + "] is enabled but cannot be used as neither HTTP or Transport " +
                 "has SSL with client authentication enabled");
+    }
+
+    /**
+     * @return The {@link Setting setting configuration} for this realm type
+     */
+    public static Set<Setting<?>> getSettings() {
+        Set<Setting<?>> settings = new HashSet<>();
+        settings.add(USERNAME_PATTERN_SETTING);
+
+        settings.add(SSL_SETTINGS.truststorePath);
+        settings.add(SSL_SETTINGS.truststorePassword);
+        settings.add(SSL_SETTINGS.truststoreAlgorithm);
+        settings.add(SSL_SETTINGS.caPaths);
+
+        DnRoleMapper.getSettings(settings);
+
+        return settings;
     }
 }

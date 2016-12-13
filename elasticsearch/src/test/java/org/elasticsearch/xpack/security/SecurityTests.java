@@ -65,7 +65,7 @@ public class SecurityTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, false);
-        Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(false));
+        Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(false, null));
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);

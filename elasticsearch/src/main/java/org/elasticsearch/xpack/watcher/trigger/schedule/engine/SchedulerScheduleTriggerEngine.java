@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.engine;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEngine;
@@ -72,7 +71,7 @@ public class SchedulerScheduleTriggerEngine extends ScheduleTriggerEngine {
         final ScheduleTriggerEvent event = new ScheduleTriggerEvent(name, new DateTime(triggeredTime, UTC),
                 new DateTime(scheduledTime, UTC));
         for (Listener listener : listeners) {
-            listener.triggered(Collections.<TriggerEvent>singletonList(event));
+            listener.triggered(Collections.singletonList(event));
         }
     }
 }

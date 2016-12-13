@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.XPackSettings;
+import org.elasticsearch.xpack.security.Security;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -62,7 +63,7 @@ public class SSLService extends AbstractComponent {
     public SSLService(Settings settings, Environment environment) {
         super(settings);
         this.env = environment;
-        this.globalSSLConfiguration = new SSLConfiguration(settings.getByPrefix("xpack.ssl."));
+        this.globalSSLConfiguration = new SSLConfiguration(settings.getByPrefix(XPackSettings.GLOBAL_SSL_PREFIX));
         this.sslContexts = loadSSLConfigurations();
     }
 
@@ -387,7 +388,7 @@ public class SSLService extends AbstractComponent {
         Map<SSLConfiguration, SSLContextHolder> sslConfigurations = new HashMap<>();
         sslConfigurations.put(globalSSLConfiguration, createSslContext(globalSSLConfiguration));
 
-        final Settings transportSSLSettings = settings.getByPrefix("xpack.security.transport.ssl.");
+        final Settings transportSSLSettings = settings.getByPrefix(XPackSettings.TRANSPORT_SSL_PREFIX);
         List<Settings> sslSettingsList = new ArrayList<>();
         sslSettingsList.add(transportSSLSettings);
         sslSettingsList.add(getHttpTransportSSLSettings(settings));
@@ -741,7 +742,7 @@ public class SSLService extends AbstractComponent {
 
     private static List<Settings> getRealmsSSLSettings(Settings settings) {
         List<Settings> sslSettings = new ArrayList<>();
-        Settings realmsSettings = settings.getByPrefix("xpack.security.authc.realms.");
+        Settings realmsSettings = settings.getByPrefix(Security.setting("authc.realms."));
         for (String name : realmsSettings.names()) {
             Settings realmSSLSettings = realmsSettings.getAsSettings(name).getByPrefix("ssl.");
             if (realmSSLSettings.isEmpty() == false) {
@@ -764,7 +765,7 @@ public class SSLService extends AbstractComponent {
     }
 
     public static Settings getHttpTransportSSLSettings(Settings settings) {
-        Settings httpSSLSettings = settings.getByPrefix("xpack.security.http.ssl.");
+        Settings httpSSLSettings = settings.getByPrefix(XPackSettings.HTTP_SSL_PREFIX);
         if (httpSSLSettings.isEmpty()) {
             return httpSSLSettings;
         }

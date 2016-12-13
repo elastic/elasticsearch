@@ -42,9 +42,9 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         int maxUsers = randomIntBetween(10, 100);
         TimeValue ttl = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
         Settings settings = Settings.builder()
-                .put(CachingUsernamePasswordRealm.CACHE_HASH_ALGO_SETTING, hashAlgo)
-                .put(CachingUsernamePasswordRealm.CACHE_MAX_USERS_SETTING, maxUsers)
-                .put(CachingUsernamePasswordRealm.CACHE_TTL_SETTING, ttl)
+                .put(CachingUsernamePasswordRealm.CACHE_HASH_ALGO_SETTING.getKey(), hashAlgo)
+                .put(CachingUsernamePasswordRealm.CACHE_MAX_USERS_SETTING.getKey(), maxUsers)
+                .put(CachingUsernamePasswordRealm.CACHE_TTL_SETTING.getKey(), ttl)
                 .build();
 
         RealmConfig config = new RealmConfig("test_realm", settings, globalSettings);

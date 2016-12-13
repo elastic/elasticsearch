@@ -29,8 +29,8 @@ public class RealmConfig {
         this.settings = settings;
         this.globalSettings = globalSettings;
         this.env = env;
-        enabled = settings.getAsBoolean("enabled", true);
-        order = settings.getAsInt("order", Integer.MAX_VALUE);
+        enabled = RealmSettings.ENABLED_SETTING.get(settings);
+        order = RealmSettings.ORDER_SETTING.get(settings);
     }
     
     public String name() {

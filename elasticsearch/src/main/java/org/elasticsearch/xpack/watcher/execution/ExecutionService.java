@@ -7,9 +7,10 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -25,13 +26,15 @@ import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.input.Input;
+import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.transform.Transform;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchLockService;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 import org.joda.time.DateTime;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.BitSet;
@@ -39,7 +42,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -58,28 +60,31 @@ public class ExecutionService extends AbstractComponent {
     private final HistoryStore historyStore;
     private final TriggeredWatchStore triggeredWatchStore;
     private final WatchExecutor executor;
-    private final WatchStore watchStore;
     private final WatchLockService watchLockService;
     private final Clock clock;
     private final TimeValue defaultThrottlePeriod;
     private final TimeValue maxStopTimeout;
     private final ThreadPool threadPool;
+    private final Watch.Parser parser;
+    private final WatcherClientProxy client;
 
     private volatile CurrentExecutions currentExecutions;
     private final AtomicBoolean started = new AtomicBoolean(false);
 
     public ExecutionService(Settings settings, HistoryStore historyStore, TriggeredWatchStore triggeredWatchStore, WatchExecutor executor,
-                            WatchStore watchStore, WatchLockService watchLockService, Clock clock, ThreadPool threadPool) {
+                            WatchLockService watchLockService, Clock clock, ThreadPool threadPool, Watch.Parser parser,
+                            WatcherClientProxy client) {
         super(settings);
         this.historyStore = historyStore;
         this.triggeredWatchStore = triggeredWatchStore;
         this.executor = executor;
-        this.watchStore = watchStore;
         this.watchLockService = watchLockService;
         this.clock = clock;
         this.defaultThrottlePeriod = DEFAULT_THROTTLE_PERIOD_SETTING.get(settings);
         this.maxStopTimeout = Watcher.MAX_STOP_TIMEOUT_SETTING.get(settings);
         this.threadPool = threadPool;
+        this.parser = parser;
+        this.client = client;
     }
 
     public void start(ClusterState state) throws Exception {
@@ -105,7 +110,16 @@ public class ExecutionService extends AbstractComponent {
     }
 
     public boolean validate(ClusterState state) {
-        return triggeredWatchStore.validate(state);
+        boolean triggeredWatchStoreReady = triggeredWatchStore.validate(state);
+        try {
+            IndexMetaData indexMetaData = WatchStoreUtils.getConcreteIndex(Watch.INDEX, state.metaData());
+            if (indexMetaData != null) {
+                return triggeredWatchStoreReady && state.routingTable().index(indexMetaData.getIndex()).allPrimaryShardsActive();
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        return triggeredWatchStoreReady;
     }
 
     public void stop() {
@@ -171,41 +185,39 @@ public class ExecutionService extends AbstractComponent {
         if (!started.get()) {
             throw new IllegalStateException("not started");
         }
-        final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
-        final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
-
+        final List<TriggeredWatch> triggeredWatches = new ArrayList<>();
+        final List<TriggeredExecutionContext> contexts = new ArrayList<>();
         DateTime now = new DateTime(clock.millis(), UTC);
-        for (TriggerEvent event : events) {
-            Watch watch = watchStore.get(event.jobName());
-            if (watch == null) {
-                logger.warn("unable to find watch [{}] in the watch store, perhaps it has been deleted", event.jobName());
-                continue;
-            }
-            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event, defaultThrottlePeriod);
-            contexts.add(ctx);
-            triggeredWatches.add(new TriggeredWatch(ctx.id(), event));
-        }
 
-        logger.debug("saving watch records [{}]", triggeredWatches.size());
-
-        triggeredWatchStore.putAll(triggeredWatches, new ActionListener<BitSet>() {
-            @Override
-            public void onResponse(BitSet slots) {
-                int slot = 0;
-                while ((slot = slots.nextSetBit(slot)) != -1) {
-                    executeAsync(contexts.get(slot), triggeredWatches.get(slot));
-                    slot++;
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof EsRejectedExecutionException) {
-                    logger.debug("failed to store watch records due to overloaded threadpool [{}]", ExceptionsHelper.detailedMessage(e));
+        threadPool.generic().execute(() -> {
+            for (TriggerEvent event : events) {
+                GetResponse response = client.getWatch(event.jobName());
+                if (response.isExists() == false) {
+                    logger.warn("unable to find watch [{}] in watch index, perhaps it has been deleted", event.jobName());
                 } else {
-                    logger.warn("failed to store watch records", e);
+                    try {
+                        Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now);
+                        TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event, defaultThrottlePeriod);
+                        contexts.add(ctx);
+                        triggeredWatches.add(new TriggeredWatch(ctx.id(), event));
+                    } catch (IOException e) {
+                        logger.warn("unable to parse watch [{}]", event.jobName());
+                    }
                 }
+            }
+
+            if (triggeredWatches.isEmpty() == false) {
+                logger.debug("saving triggered [{}] watches", triggeredWatches.size());
+
+                triggeredWatchStore.putAll(triggeredWatches, ActionListener.wrap(
+                        (slots) -> {
+                            int slot = 0;
+                            while ((slot = slots.nextSetBit(slot)) != -1) {
+                                executeAsync(contexts.get(slot), triggeredWatches.get(slot));
+                                slot++;
+                            }
+                        },
+                        (e) -> logger.warn("failed to store watch [] records", e)));
             }
         });
     }
@@ -214,31 +226,30 @@ public class ExecutionService extends AbstractComponent {
         if (!started.get()) {
             throw new IllegalStateException("not started");
         }
-        final LinkedList<TriggeredWatch> triggeredWatches = new LinkedList<>();
-        final LinkedList<TriggeredExecutionContext> contexts = new LinkedList<>();
+        final List<TriggeredWatch> triggeredWatches = new ArrayList<>();
+        final List<TriggeredExecutionContext> contexts = new ArrayList<>();
 
         DateTime now = new DateTime(clock.millis(), UTC);
         for (TriggerEvent event : events) {
-            Watch watch = watchStore.get(event.jobName());
-            if (watch == null) {
-                logger.warn("unable to find watch [{}] in the watch store, perhaps it has been deleted", event.jobName());
+            GetResponse response = client.getWatch(event.jobName());
+            if (response.isExists() == false) {
+                logger.warn("unable to find watch [{}] in watch index, perhaps it has been deleted", event.jobName());
                 continue;
             }
+            Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now);
             TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, now, event, defaultThrottlePeriod);
             contexts.add(ctx);
             triggeredWatches.add(new TriggeredWatch(ctx.id(), event));
         }
 
-        logger.debug("saving watch records [{}]", triggeredWatches.size());
-        if (triggeredWatches.size() == 0) {
-            return;
-        }
-
-        BitSet slots = triggeredWatchStore.putAll(triggeredWatches);
-        int slot = 0;
-        while ((slot = slots.nextSetBit(slot)) != -1) {
-            executeAsync(contexts.get(slot), triggeredWatches.get(slot));
-            slot++;
+        if (triggeredWatches.isEmpty() == false) {
+            logger.debug("saving triggered [{}] watches", triggeredWatches.size());
+            BitSet slots = triggeredWatchStore.putAll(triggeredWatches);
+            int slot = 0;
+            while ((slot = slots.nextSetBit(slot)) != -1) {
+                executeAsync(contexts.get(slot), triggeredWatches.get(slot));
+                slot++;
+            }
         }
     }
 
@@ -250,7 +261,10 @@ public class ExecutionService extends AbstractComponent {
         }
         try {
             currentExecutions.put(ctx.watch().id(), new WatchExecution(ctx, Thread.currentThread()));
-            if (ctx.knownWatch() && watchStore.get(ctx.watch().id()) == null) {
+            final AtomicBoolean watchExists = new AtomicBoolean(true);
+            client.getWatch(ctx.watch().id(), ActionListener.wrap((r) -> watchExists.set(r.isExists()), (e) -> watchExists.set(false)));
+
+            if (ctx.knownWatch() && watchExists.get() == false) {
                 // fail fast if we are trying to execute a deleted watch
                 String message = "unable to find watch for record [" + ctx.id() + "], perhaps it has been deleted, ignoring...";
                 logger.warn("{}", message);
@@ -261,7 +275,7 @@ public class ExecutionService extends AbstractComponent {
 
                 record = executeInner(ctx);
                 if (ctx.recordExecution()) {
-                    watchStore.updateStatus(ctx.watch());
+                    client.updateWatchStatus(ctx.watch());
                 }
             }
         } catch (Exception e) {
@@ -330,33 +344,28 @@ public class ExecutionService extends AbstractComponent {
         try {
             executor.execute(new WatchExecutionTask(ctx));
         } catch (EsRejectedExecutionException e) {
-            // we are still in the transport thread here most likely, so we cannot run heavy operations
-            // this means some offloading needs to be done for indexing into the history and delete the triggered watches entry
-            threadPool.generic().execute(() -> {
-                String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
-                logger.debug("{}", message);
-                WatchRecord record = ctx.abortBeforeExecution(ExecutionState.FAILED, message);
-                try {
-                    if (ctx.overrideRecordOnConflict()) {
-                        historyStore.forcePut(record);
-                    } else {
-                        historyStore.put(record);
-                    }
-                } catch (Exception exc) {
-                    logger.error((Supplier<?>) () ->
-                            new ParameterizedMessage("Error storing watch history record for watch [{}] after thread pool rejection",
-                                    triggeredWatch.id()), exc);
+            String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
+            WatchRecord record = ctx.abortBeforeExecution(ExecutionState.FAILED, message);
+            try {
+                if (ctx.overrideRecordOnConflict()) {
+                    historyStore.forcePut(record);
+                } else {
+                    historyStore.put(record);
                 }
+            } catch (Exception exc) {
+                logger.error((Supplier<?>) () ->
+                        new ParameterizedMessage("Error storing watch history record for watch [{}] after thread pool rejection",
+                                triggeredWatch.id()), exc);
+            }
 
-                try {
-                    triggeredWatchStore.delete(triggeredWatch.id());
-                } catch (Exception exc) {
-                    logger.error((Supplier<?>) () ->
-                            new ParameterizedMessage("Error deleting triggered watch store record for watch [{}] after thread pool " +
-                                    "rejection", triggeredWatch.id()), exc);
-                }
-            });
-        }
+            try {
+                triggeredWatchStore.delete(triggeredWatch.id());
+            } catch (Exception exc) {
+                logger.error((Supplier<?>) () ->
+                        new ParameterizedMessage("Error deleting triggered watch store record for watch [{}] after thread pool " +
+                                "rejection", triggeredWatch.id()), exc);
+            }
+        };
     }
 
     WatchRecord executeInner(WatchExecutionContext ctx) {
@@ -417,8 +426,8 @@ public class ExecutionService extends AbstractComponent {
         assert triggeredWatches != null;
         int counter = 0;
         for (TriggeredWatch triggeredWatch : triggeredWatches) {
-            Watch watch = watchStore.get(triggeredWatch.id().watchId());
-            if (watch == null) {
+            GetResponse response = client.getWatch(triggeredWatch.id().watchId());
+            if (response.isExists() == false) {
                 String message = "unable to find watch for record [" + triggeredWatch.id().watchId() + "]/[" + triggeredWatch.id() +
                         "], perhaps it has been deleted, ignoring...";
                 WatchRecord record = new WatchRecord.MessageWatchRecord(triggeredWatch.id(), triggeredWatch.triggerEvent(),
@@ -426,8 +435,10 @@ public class ExecutionService extends AbstractComponent {
                 historyStore.forcePut(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
-                TriggeredExecutionContext ctx = new StartupExecutionContext(watch, new DateTime(clock.millis(), UTC),
-                        triggeredWatch.triggerEvent(), defaultThrottlePeriod);
+                DateTime now = new DateTime(clock.millis(), UTC);
+                Watch watch = parser.parseWithSecrets(response.getId(), true, response.getSourceAsBytesRef(), now);
+                TriggeredExecutionContext ctx =
+                        new StartupExecutionContext(watch, now, triggeredWatch.triggerEvent(), defaultThrottlePeriod);
                 executeAsync(ctx, triggeredWatch);
                 counter++;
             }

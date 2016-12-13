@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
+import org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -28,9 +29,10 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory.URLS_SETTING;
-import static org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory.USER_DN_TEMPLATES_SETTING;
 
 public abstract class LdapTestCase extends ESTestCase {
+
+    private static final String USER_DN_TEMPLATES_SETTING_KEY = LdapSessionFactory.USER_DN_TEMPLATES_SETTING.getKey();
 
     static int numberOfLdapServers;
     protected InMemoryDirectoryServer[] ldapServers;
@@ -86,7 +88,7 @@ public abstract class LdapTestCase extends ESTestCase {
                                              LdapLoadBalancing serverSetType) {
         Settings.Builder builder = Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl)
-                .putArray(USER_DN_TEMPLATES_SETTING, userTemplate)
+                .putArray(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
                 .put("group_search.base_dn", groupSearchBase)
                 .put("group_search.scope", scope)
                 .put(HOSTNAME_VERIFICATION_SETTING, false);
@@ -100,14 +102,14 @@ public abstract class LdapTestCase extends ESTestCase {
     public static Settings buildLdapSettings(String[] ldapUrl, String userTemplate, boolean hostnameVerification) {
         return Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl)
-                .putArray(USER_DN_TEMPLATES_SETTING, userTemplate)
+                .putArray(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
                 .put(HOSTNAME_VERIFICATION_SETTING, hostnameVerification)
                 .build();
     }
 
     protected DnRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {
         Settings settings = Settings.builder()
-                .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
+                .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.getKey(), true)
                 .build();
         Settings global = Settings.builder().put("path.home", createTempDir()).build();
         RealmConfig config = new RealmConfig("ldap1", settings, global);

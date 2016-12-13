@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
@@ -47,6 +48,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.extensions.XPackExtension;
+import org.elasticsearch.xpack.extensions.XPackExtensionsService;
 import org.elasticsearch.xpack.security.action.SecurityActionModule;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.realm.ClearRealmCacheAction;
@@ -79,15 +81,14 @@ import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
+import org.elasticsearch.xpack.security.authc.InternalRealms;
 import org.elasticsearch.xpack.security.authc.Realm;
+import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
-import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
-import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -246,13 +247,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         final ReservedRealm reservedRealm = new ReservedRealm(env, settings, nativeUsersStore, anonymousUser);
         Map<String, Realm.Factory> realmFactories = new HashMap<>();
-        realmFactories.put(FileRealm.TYPE, config -> new FileRealm(config, resourceWatcherService));
-        realmFactories.put(NativeRealm.TYPE, config -> new NativeRealm(config, nativeUsersStore));
-        realmFactories.put(LdapRealm.AD_TYPE,
-            config -> new LdapRealm(LdapRealm.AD_TYPE, config, resourceWatcherService, sslService, threadPool));
-        realmFactories.put(LdapRealm.LDAP_TYPE,
-                config -> new LdapRealm(LdapRealm.LDAP_TYPE, config, resourceWatcherService, sslService, threadPool));
-        realmFactories.put(PkiRealm.TYPE, config -> new PkiRealm(config, resourceWatcherService, sslService));
+        realmFactories.putAll(InternalRealms.getFactories(threadPool, resourceWatcherService, sslService, nativeUsersStore));
         for (XPackExtension extension : extensions) {
             Map<String, Realm.Factory> newRealms = extension.getRealms(resourceWatcherService);
             for (Map.Entry<String, Realm.Factory> entry : newRealms.entrySet()) {
@@ -380,7 +375,10 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         return settingsBuilder.build();
     }
 
-    public static List<Setting<?>> getSettings(boolean transportClientMode) {
+    /**
+     * Get the {@link Setting setting configuration} for all security components, including those defined in extensions.
+     */
+    public static List<Setting<?>> getSettings(boolean transportClientMode, @Nullable XPackExtensionsService extensionsService) {
         List<Setting<?>> settingsList = new ArrayList<>();
         // always register for both client and node modes
         settingsList.add(USER_SETTING);
@@ -401,7 +399,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
         // authentication settings
         AnonymousUser.addSettings(settingsList);
-        Realms.addSettings(settingsList);
+        RealmSettings.addSettings(settingsList, extensionsService == null ? null : extensionsService.getExtensions());
         NativeRolesStore.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);

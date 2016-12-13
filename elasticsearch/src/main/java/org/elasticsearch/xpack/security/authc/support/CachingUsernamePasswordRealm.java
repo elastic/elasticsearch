@@ -8,34 +8,41 @@ package org.elasticsearch.xpack.security.authc.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.user.User;
 
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm implements CachingRealm {
 
-    public static final String CACHE_HASH_ALGO_SETTING = "cache.hash_algo";
-    public static final String CACHE_TTL_SETTING = "cache.ttl";
-    public static final String CACHE_MAX_USERS_SETTING = "cache.max_users";
+    public static final Setting<String> CACHE_HASH_ALGO_SETTING = Setting.simpleString("cache.hash_algo", Setting.Property.NodeScope);
 
     private static final TimeValue DEFAULT_TTL = TimeValue.timeValueMinutes(20);
-    private static final int DEFAULT_MAX_USERS = 100000; //100k users
+    public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting("cache.ttl", DEFAULT_TTL, Setting.Property.NodeScope);
+
+    private static final int DEFAULT_MAX_USERS = 100_000; //100k users
+    public static final Setting<Integer> CACHE_MAX_USERS_SETTING = Setting.intSetting("cache.max_users", DEFAULT_MAX_USERS,
+            Setting.Property.NodeScope);
 
     private final Cache<String, UserWithHash> cache;
     final Hasher hasher;
 
     protected CachingUsernamePasswordRealm(String type, RealmConfig config) {
         super(type, config);
-        hasher = Hasher.resolve(config.settings().get(CACHE_HASH_ALGO_SETTING, null), Hasher.SSHA256);
-        TimeValue ttl = config.settings().getAsTime(CACHE_TTL_SETTING, DEFAULT_TTL);
+        hasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(config.settings()), Hasher.SSHA256);
+        TimeValue ttl = CACHE_TTL_SETTING.get(config.settings());
         if (ttl.getNanos() > 0) {
             cache = CacheBuilder.<String, UserWithHash>builder()
                     .setExpireAfterAccess(ttl)
-                    .setMaximumWeight(config.settings().getAsInt(CACHE_MAX_USERS_SETTING, DEFAULT_MAX_USERS))
+                    .setMaximumWeight(CACHE_MAX_USERS_SETTING.get(config.settings()))
                     .build();
         } else {
             cache = null;
@@ -171,6 +178,13 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
     }
 
     protected abstract void doLookupUser(String username, ActionListener<User> listener);
+
+    /**
+     * Returns the {@link Setting setting configuration} that is common for all caching realms
+     */
+    protected static Set<Setting<?>> getCachingSettings() {
+        return new HashSet<>(Arrays.asList(CACHE_HASH_ALGO_SETTING, CACHE_TTL_SETTING, CACHE_MAX_USERS_SETTING));
+    }
 
     private static class UserWithHash {
         User user;

@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapTestCase;
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
+import org.elasticsearch.xpack.security.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
@@ -23,9 +24,9 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.security.authc.ldap.LdapSessionFactory.USER_DN_TEMPLATES_SETTING;
 import static org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory.HOSTNAME_VERIFICATION_SETTING;
 import static org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory.URLS_SETTING;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -45,6 +46,8 @@ public class LdapRealmTests extends LdapTestCase {
     public static final String VALID_USER_TEMPLATE = "cn={0},ou=people,o=sevenSeas";
     public static final String VALID_USERNAME = "Thomas Masterman Hardy";
     public static final String PASSWORD = "pass";
+
+    private static final String USER_DN_TEMPLATES_SETTING_KEY = LdapSessionFactory.USER_DN_TEMPLATES_SETTING.getKey();
 
     private ThreadPool threadPool;
     private ResourceWatcherService resourceWatcherService;
@@ -95,7 +98,7 @@ public class LdapRealmTests extends LdapTestCase {
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)), future);
         User user = future.actionGet();
         assertThat(user, notNullValue());
-        assertThat(user.roles(), arrayContaining("HMS Victory"));
+        assertThat("For roles " + Arrays.toString(user.roles()), user.roles(), arrayContaining("HMS Victory"));
     }
 
     public void testAuthenticateCaching() throws Exception {
@@ -158,7 +161,7 @@ public class LdapRealmTests extends LdapTestCase {
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(LdapRealm.CACHE_TTL_SETTING, -1)
+                .put(CachingUsernamePasswordRealm.CACHE_TTL_SETTING.getKey(), -1)
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm", settings, globalSettings);
 
@@ -182,7 +185,7 @@ public class LdapRealmTests extends LdapTestCase {
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
                 .putArray(URLS_SETTING, ldapUrls())
-                .putArray(USER_DN_TEMPLATES_SETTING, userTemplate)
+                .putArray(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
                 .put("group_search.base_dn", groupSearchBase)
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
                 .put(HOSTNAME_VERIFICATION_SETTING, false)
@@ -215,7 +218,7 @@ public class LdapRealmTests extends LdapTestCase {
     public void testLdapRealmThrowsExceptionForUserTemplateAndSearchSettings() throws Exception {
         Settings settings = Settings.builder()
                 .putArray(URLS_SETTING, ldapUrls())
-                .putArray(USER_DN_TEMPLATES_SETTING, "cn=foo")
+                .putArray(USER_DN_TEMPLATES_SETTING_KEY, "cn=foo")
                 .put("user_search.base_dn", "cn=bar")
                 .put("group_search.base_dn", "")
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
@@ -224,7 +227,26 @@ public class LdapRealmTests extends LdapTestCase {
         RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, globalSettings);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> LdapRealm.sessionFactory(config, null, LdapRealm.LDAP_TYPE));
-        assertThat(e.getMessage(), containsString("settings were found for both user search and user template"));
+        assertThat(e.getMessage(),
+                containsString("settings were found for both" +
+                        " user search [xpack.security.authc.realms.test-ldap-realm-user-search.user_search.] and" +
+                        " user template [xpack.security.authc.realms.test-ldap-realm-user-search.user_dn_templates]"));
+    }
+
+    public void testLdapRealmThrowsExceptionWhenNeitherUserTemplateNorSearchSettingsProvided() throws Exception {
+        Settings settings = Settings.builder()
+                .putArray(URLS_SETTING, ldapUrls())
+                .put("group_search.base_dn", "")
+                .put("group_search.scope", LdapSearchScope.SUB_TREE)
+                .put(HOSTNAME_VERIFICATION_SETTING, false)
+                .build();
+        RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings, globalSettings);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> LdapRealm.sessionFactory(config, null, LdapRealm.LDAP_TYPE));
+        assertThat(e.getMessage(),
+                containsString("settings were not found for either" +
+                        " user search [xpack.security.authc.realms.test-ldap-realm-user-search.user_search.] or" +
+                        " user template [xpack.security.authc.realms.test-ldap-realm-user-search.user_dn_templates]"));
     }
 
     public void testLdapRealmMapsUserDNToRole() throws Exception {
@@ -232,7 +254,7 @@ public class LdapRealmTests extends LdapTestCase {
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(ldapUrls(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING,
+                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING.getKey(),
                         getDataPath("/org/elasticsearch/xpack/security/authc/support/role_mapping.yml"))
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm-userdn", settings, globalSettings);
@@ -256,6 +278,7 @@ public class LdapRealmTests extends LdapTestCase {
                 .put("bind_password", PASSWORD)
                 .put("group_search.base_dn", groupSearchBase)
                 .put("group_search.scope", LdapSearchScope.SUB_TREE)
+                .put(LdapSessionFactory.USER_DN_TEMPLATES_SETTING.getKey(), "--")
                 .put(HOSTNAME_VERIFICATION_SETTING, false);
 
         int order = randomIntBetween(0, 10);

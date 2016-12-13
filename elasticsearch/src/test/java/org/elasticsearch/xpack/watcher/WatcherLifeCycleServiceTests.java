@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -177,7 +177,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         // old cluster state that contains watcher index
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         ClusterState oldClusterState = ClusterState.builder(new ClusterName("my-cluster"))
-                .metaData(new MetaData.Builder().put(IndexMetaData.builder(WatchStore.INDEX)
+                .metaData(new MetaData.Builder().put(IndexMetaData.builder(Watch.INDEX)
                         .settings(indexSettings).numberOfReplicas(0).numberOfShards(1)))
                 .nodes(discoveryNodes).build();
 
@@ -196,13 +196,13 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         // old cluster state that contains watcher index
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         ClusterState oldClusterState = ClusterState.builder(new ClusterName("my-cluster"))
-                .metaData(new MetaData.Builder().put(IndexMetaData.builder(WatchStore.INDEX)
+                .metaData(new MetaData.Builder().put(IndexMetaData.builder(Watch.INDEX)
                         .settings(indexSettings).numberOfReplicas(0).numberOfShards(1)))
                 .nodes(discoveryNodes).build();
 
         // new cluster state with a closed watcher index
         ClusterState newClusterState = ClusterState.builder(new ClusterName("my-cluster"))
-                .metaData(new MetaData.Builder().put(IndexMetaData.builder(WatchStore.INDEX).state(IndexMetaData.State.CLOSE)
+                .metaData(new MetaData.Builder().put(IndexMetaData.builder(Watch.INDEX).state(IndexMetaData.State.CLOSE)
                 .settings(indexSettings).numberOfReplicas(0).numberOfShards(1)))
                 .nodes(discoveryNodes).build();
         when(watcherService.state()).thenReturn(WatcherState.STARTED);

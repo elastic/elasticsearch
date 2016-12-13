@@ -44,7 +44,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
 import java.util.Collections;
-import java.util.Optional;
 
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
@@ -148,8 +147,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         for (int i = 0; i < numValues; i++) {
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
             when(queryShardContext.newParseContext(anyParser())).thenReturn(queryParseContext);
-            when(queryParseContext.parseInnerQueryBuilder())
-                    .thenReturn(Optional.of(new TermQueryBuilder("field", values[i])));
+            when(queryParseContext.parseInnerQueryBuilder()).thenReturn(new TermQueryBuilder("field", values[i]));
             when(queryShardContext.toQuery(new TermsQueryBuilder("field", values[i]))).thenReturn(parsedQuery);
             DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
             IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));

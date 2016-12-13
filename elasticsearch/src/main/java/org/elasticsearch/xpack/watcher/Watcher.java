@@ -142,7 +142,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.engine.SchedulerSchedule
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchLockService;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -255,13 +254,10 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final InputRegistry inputRegistry = new InputRegistry(settings, inputFactories);
         inputFactories.put(ChainInput.TYPE, new ChainInputFactory(settings, inputRegistry));
 
-        // TODO replace internal client where needed, so we can remove ctors
         final WatcherClientProxy watcherClientProxy = new WatcherClientProxy(settings, internalClient);
-
         final WatcherClient watcherClient = new WatcherClient(internalClient);
 
         final HistoryStore historyStore = new HistoryStore(settings, watcherClientProxy);
-
         final Set<Schedule.Parser> scheduleParsers = new HashSet<>();
         scheduleParsers.add(new CronSchedule.Parser());
         scheduleParsers.add(new DailySchedule.Parser());
@@ -288,10 +284,9 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final WatchLockService watchLockService = new WatchLockService(settings);
         final WatchExecutor watchExecutor = getWatchExecutor(threadPool);
         final Watch.Parser watchParser = new Watch.Parser(settings, triggerService, registry, inputRegistry, cryptoService, clock);
-        final WatchStore watchStore = new WatchStore(settings, watcherClientProxy, watchParser);
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                watchStore, watchLockService, clock, threadPool);
+                watchLockService, clock, threadPool, watchParser, watcherClientProxy);
 
         final TriggerEngine.Listener triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
@@ -299,15 +294,15 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = new WatcherIndexTemplateRegistry(settings,
                 clusterService.getClusterSettings(), clusterService, threadPool, internalClient);
 
-        final WatcherService watcherService = new WatcherService(settings, clock, triggerService, watchStore,
-                watchParser, executionService, watchLockService, watcherIndexTemplateRegistry);
+        final WatcherService watcherService = new WatcherService(settings, triggerService, executionService, watchLockService,
+                watcherIndexTemplateRegistry, watchParser, watcherClientProxy);
 
         final WatcherLifeCycleService watcherLifeCycleService =
                 new WatcherLifeCycleService(settings, threadPool, clusterService, watcherService);
 
         return Arrays.asList(registry, watcherClient, inputRegistry, historyStore, triggerService, triggeredWatchParser,
-                watcherLifeCycleService, executionService, watchStore, triggerEngineListener, watcherService, watchParser,
-                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService);
+                watcherLifeCycleService, executionService, triggerEngineListener, watcherService, watchParser,
+                configuredTriggerEngine, triggeredWatchStore, watcherSearchTemplateService, watcherClientProxy);
     }
 
     protected TriggerEngine getTriggerEngine(Clock clock, ScheduleRegistry scheduleRegistry) {
@@ -441,7 +436,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
 
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
-                "[{}, {}, {}*]", (Object) value, WatchStore.INDEX, TriggeredWatchStore.INDEX_NAME, HistoryStore.INDEX_PREFIX);
+                "[{}, {}, {}*]", (Object) value, Watch.INDEX, TriggeredWatchStore.INDEX_NAME, HistoryStore.INDEX_PREFIX);
         if (Booleans.isExplicitFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }

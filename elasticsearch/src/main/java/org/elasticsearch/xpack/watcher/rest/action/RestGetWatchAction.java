@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -16,10 +17,8 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.rest.WatcherRestHandler;
-import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
-import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 
 import java.io.IOException;
 
@@ -48,11 +47,9 @@ public class RestGetWatchAction extends WatcherRestHandler {
                         .field("found", response.isFound())
                         .field("_id", response.getId());
                         if (response.isFound()) {
-                            WatcherParams params = WatcherParams.builder(request)
-                                    .put(WatchStatus.INCLUDE_VERSION_KEY, true)
-                                    .build();
-                            builder.field("_status", response.getStatus(), params);
-                            builder.field("watch", response.getSource(), params);
+                            ToXContent.MapParams xContentParams = new ToXContent.MapParams(request.params());
+                            builder.field("_status", response.getStatus(), xContentParams);
+                            builder.field("watch", response.getSource(), xContentParams);
                         }
                         builder.endObject();
 

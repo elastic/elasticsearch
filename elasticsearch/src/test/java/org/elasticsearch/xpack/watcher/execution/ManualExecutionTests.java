@@ -5,54 +5,40 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.xpack.watcher.WatcherService;
 import org.elasticsearch.xpack.watcher.actions.ActionStatus;
-import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.condition.NeverCondition;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
 import org.elasticsearch.xpack.watcher.history.HistoryStore;
-import org.elasticsearch.xpack.watcher.history.WatchRecord;
-import org.elasticsearch.xpack.watcher.input.simple.SimpleInput;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.xpack.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
-import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.time.Clock;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -61,13 +47,9 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
@@ -125,79 +107,44 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .condition(conditionAlwaysTrue ? AlwaysCondition.INSTANCE : NeverCondition.INSTANCE)
                 .addAction("log", loggingAction("foobar"));
 
-        ManualExecutionContext.Builder ctxBuilder;
-        Watch parsedWatch = null;
-        ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id",
-                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
-        if (recordExecution) {
-            PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
-            assertThat(putWatchResponse.getVersion(), greaterThan(0L));
-            refresh();
-            assertThat(watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().isFound(), equalTo(true));
-            //If we are persisting the state we need to use the exact watch that is in memory
-            ctxBuilder = ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent, timeValueSeconds(5));
-        } else {
-            parsedWatch = watchParser().parse("_id", false, watchBuilder.buildAsBytes(XContentType.JSON));
-            ctxBuilder = ManualExecutionContext.builder(parsedWatch, false, triggerEvent, timeValueSeconds(5));
-        }
+        watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
 
-        if (ignoreCondition) {
-            ctxBuilder.withCondition(AlwaysCondition.RESULT_INSTANCE);
-        }
-
-        ctxBuilder.recordExecution(recordExecution);
-
-
-        if ("_all".equals(action)) {
-            ctxBuilder.allActionsMode(ActionExecutionMode.SIMULATE);
-        } else {
-            ctxBuilder.actionMode(action, ActionExecutionMode.SIMULATE);
-        }
-
-        ManualExecutionContext ctx = ctxBuilder.build();
+        ExecuteWatchRequestBuilder executeWatchRequestBuilder = watcherClient().prepareExecuteWatch("_id");
+        executeWatchRequestBuilder.setIgnoreCondition(ignoreCondition);
+        executeWatchRequestBuilder.setRecordExecution(recordExecution);
+        executeWatchRequestBuilder.setActionMode(action, ActionExecutionMode.SIMULATE);
 
         refresh();
         long oldRecordCount = docCount(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*", HistoryStore.DOC_TYPE, matchAllQuery());
 
-        WatchRecord watchRecord = executionService().execute(ctx);
+        ExecuteWatchResponse executeWatchResponse = executeWatchRequestBuilder.get();
+        Map<String, Object> responseMap = executeWatchResponse.getRecordSource().getAsMap();
 
         refresh();
-
         long newRecordCount = docCount(HistoryStore.INDEX_PREFIX_WITH_TEMPLATE + "*", HistoryStore.DOC_TYPE, matchAllQuery());
         long expectedCount = oldRecordCount + (recordExecution ? 1 : 0);
 
         assertThat("the expected count of history records should be [" + expectedCount + "]", newRecordCount, equalTo(expectedCount));
 
+        List<Map<String, Object>> actions = ObjectPath.eval("result.actions", responseMap);
         if (ignoreCondition) {
-            assertThat("The action should have run", watchRecord.result().actionsResults().size(), equalTo(1));
+            assertThat("The action should have run", actions.size(), equalTo(1));
         } else if (!conditionAlwaysTrue) {
-            assertThat("The action should not have run", watchRecord.result().actionsResults().size(), equalTo(0));
+            assertThat("The action should not have run", actions.size(), equalTo(0));
         }
 
-        if ((ignoreCondition || conditionAlwaysTrue) && action == null) {
-            assertThat("The action should have run non simulated", watchRecord.result().actionsResults().get("log").action(),
-            not(instanceOf(LoggingAction.Result.Simulated.class)) );
+        if (ignoreCondition || conditionAlwaysTrue) {
+            assertThat("The action should have run simulated", actions.get(0).get("status"), is("simulated"));
         }
 
-        if ((ignoreCondition || conditionAlwaysTrue) && action != null ) {
-            assertThat("The action should have run simulated",
-                    watchRecord.result().actionsResults().get("log").action(), instanceOf(LoggingAction.Result.Simulated.class));
-        }
-
-        Watch testWatch = watchService().getWatch("_id");
         if (recordExecution) {
-            refresh();
+            GetWatchResponse response =  watcherClient().getWatch(new GetWatchRequest("_id")).actionGet();
             if (ignoreCondition || conditionAlwaysTrue) {
-                assertThat(testWatch.status().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.ACKABLE));
-                GetWatchResponse response =  watcherClient().getWatch(new GetWatchRequest("_id")).actionGet();
-                assertThat(response.getStatus().actionStatus("log").ackStatus().state(), equalTo(ActionStatus.AckStatus.State.ACKABLE));
+                assertThat(response.getStatus().actionStatus("log").ackStatus().state(), is(ActionStatus.AckStatus.State.ACKABLE));
             } else {
-                assertThat(testWatch.status().actionStatus("log").ackStatus().state(),
-                        equalTo(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
+                assertThat(response.getStatus().actionStatus("log").ackStatus().state(),
+                        is(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
             }
-        } else {
-            assertThat(parsedWatch.status().actionStatus("log").ackStatus().state(),
-                    equalTo(ActionStatus.AckStatus.State.AWAITS_SUCCESSFUL_EXECUTION));
         }
     }
 
@@ -214,7 +161,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
             builder.setRecordExecution(false);
         }
         if (randomBoolean()) {
-            builder.setTriggerEvent(new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
+            DateTime now = new DateTime(DateTimeZone.UTC);
+            builder.setTriggerEvent(new ScheduleTriggerEvent(now, now));
         }
 
         ExecuteWatchResponse executeWatchResponse = builder.get();
@@ -231,16 +179,13 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .condition(AlwaysCondition.INSTANCE)
                 .addAction("log", loggingAction("foobar"));
 
-        try {
-            watcherClient().prepareExecuteWatch()
-                    .setWatchSource(watchBuilder)
-                    .setRecordExecution(true)
-                    .setTriggerEvent(new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)))
-                    .get();
-            fail();
-        } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("the execution of an inline watch cannot be recorded"));
-        }
+        ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class, () ->
+                watcherClient().prepareExecuteWatch()
+                .setWatchSource(watchBuilder)
+                .setRecordExecution(true)
+                .setTriggerEvent(new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)))
+                .get());
+        assertThat(e.getMessage(), containsString("the execution of an inline watch cannot be recorded"));
     }
 
     public void testExecutionWithInlineWatch_withWatchId() throws Exception {
@@ -269,10 +214,8 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .addAction("log", loggingAction("foobar"));
 
-        PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
-        assertThat(putWatchResponse.getVersion(), greaterThan(0L));
-        refresh();
-        assertThat(watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().isFound(), equalTo(true));
+        watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
+        refresh(Watch.INDEX);
 
         Map<String, Object> map1 = new HashMap<>();
         map1.put("foo", "bar");
@@ -280,28 +223,24 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         Map<String, Object> map2 = new HashMap<>();
         map2.put("foo", map1);
 
-        ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id",
-                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
-        ManualExecutionContext.Builder ctxBuilder1 = ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent,
-                timeValueSeconds(5));
-        ctxBuilder1.actionMode("_all", ActionExecutionMode.SIMULATE);
+        ExecuteWatchResponse firstResponse = watcherClient().prepareExecuteWatch("_id")
+                .setActionMode("_all", ActionExecutionMode.SIMULATE)
+                .setAlternativeInput(map1)
+                .setRecordExecution(true)
+                .setTriggerEvent(new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)))
+                .get();
 
-        ctxBuilder1.withInput(new SimpleInput.Result(new Payload.Simple(map1)));
-        ctxBuilder1.recordExecution(true);
+        ExecuteWatchResponse secondResponse = watcherClient().prepareExecuteWatch("_id")
+                .setActionMode("_all", ActionExecutionMode.SIMULATE)
+                .setAlternativeInput(map2)
+                .setRecordExecution(true)
+                .setTriggerEvent(new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)))
+                .get();
 
-        WatchRecord watchRecord1 = executionService().execute(ctxBuilder1.build());
-
-        ManualExecutionContext.Builder ctxBuilder2 = ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent,
-                timeValueSeconds(5));
-        ctxBuilder2.actionMode("_all", ActionExecutionMode.SIMULATE);
-
-        ctxBuilder2.withInput(new SimpleInput.Result(new Payload.Simple(map2)));
-        ctxBuilder2.recordExecution(true);
-
-        WatchRecord watchRecord2 = executionService().execute(ctxBuilder2.build());
-
-        assertThat(watchRecord1.result().inputResult().payload().data().get("foo").toString(), equalTo("bar"));
-        assertThat(watchRecord2.result().inputResult().payload().data().get("foo"), instanceOf(Map.class));
+        String firstPayload = ObjectPath.eval("result.input.payload.foo", firstResponse.getRecordSource().getAsMap());
+        assertThat(firstPayload, is("bar"));
+        Map<String, String> secondPayload = ObjectPath.eval("result.input.payload", secondResponse.getRecordSource().getAsMap());
+        assertThat(secondPayload, instanceOf(Map.class));
     }
 
     public void testExecutionRequestDefaults() throws Exception {
@@ -309,7 +248,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
                 .condition(NeverCondition.INSTANCE)
-                .defaultThrottlePeriod(new TimeValue(1, TimeUnit.HOURS))
+                .defaultThrottlePeriod(TimeValue.timeValueHours(1))
                 .addAction("log", loggingAction("foobar"));
         watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
 
@@ -328,7 +267,7 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
                 .condition(AlwaysCondition.INSTANCE)
-                .defaultThrottlePeriod(new TimeValue(1, TimeUnit.HOURS))
+                .defaultThrottlePeriod(TimeValue.timeValueHours(1))
                 .addAction("log", loggingAction("foobar"));
         watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
 
@@ -355,90 +294,13 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
                 .condition(new ScriptCondition(script))
                 .addAction("log", loggingAction("foobar"));
 
-        Watch watch = watchParser().parse("_id", false, watchBuilder.buildAsBytes(XContentType.JSON));
-        ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watch, false, new ManualTriggerEvent("_id",
-                        new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))),
-                new TimeValue(1, TimeUnit.HOURS));
-        WatchRecord record = executionService().execute(ctxBuilder.build());
-        assertThat(record.result().executionDurationMs(), greaterThanOrEqualTo(100L));
+        watcherClient().preparePutWatch("_id").setSource(watchBuilder).get();
+        refresh(Watch.INDEX);
+
+        ScheduleTriggerEvent triggerEvent = new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC));
+        ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_id").setTriggerEvent(triggerEvent).get();
+        Integer duration = ObjectPath.eval("result.execution_duration", executeWatchResponse.getRecordSource().getAsMap());
+
+        assertThat(duration, greaterThanOrEqualTo(100));
     }
-
-    public void testForceDeletionOfLongRunningWatch() throws Exception {
-        Script script = new Script(ScriptType.INLINE, WATCHER_LANG, "sleep", singletonMap("millis", 10000L));
-        WatchSourceBuilder watchBuilder = watchBuilder()
-                .trigger(schedule(cron("0 0 0 1 * ? 2099")))
-                .input(simpleInput("foo", "bar"))
-                .condition(new ScriptCondition(script))
-                .defaultThrottlePeriod(new TimeValue(1, TimeUnit.HOURS))
-                .addAction("log", loggingAction("foobar"));
-
-        PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchBuilder)).actionGet();
-        assertThat(putWatchResponse.getVersion(), greaterThan(0L));
-        refresh();
-        assertThat(watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().isFound(), equalTo(true));
-
-        int numberOfThreads = scaledRandomIntBetween(1, 5);
-        CountDownLatch startLatch = new CountDownLatch(1);
-
-        List<Thread> threads = new ArrayList<>();
-        for (int i = 0; i < numberOfThreads; ++i) {
-            threads.add(new Thread(new ExecutionRunner(watchService(), executionService(), "_id", startLatch)));
-        }
-
-        for (Thread thread : threads) {
-            thread.start();
-        }
-        DeleteWatchResponse deleteWatchResponse = watcherClient().prepareDeleteWatch("_id").get();
-        assertThat(deleteWatchResponse.isFound(), is(true));
-
-        deleteWatchResponse = watcherClient().prepareDeleteWatch("_id").get();
-        assertThat(deleteWatchResponse.isFound(), is(false));
-
-        startLatch.countDown();
-
-        long startJoin = System.currentTimeMillis();
-        for (Thread thread : threads) {
-            thread.join(30_000L);
-            assertFalse(thread.isAlive());
-        }
-        long endJoin = System.currentTimeMillis();
-        TimeValue tv = new TimeValue(10 * (numberOfThreads+1), TimeUnit.SECONDS);
-        assertThat("Shouldn't take longer than [" + tv.getSeconds() + "] seconds for all the threads to stop", (endJoin - startJoin),
-                lessThan(tv.getMillis()));
-    }
-
-    public static class ExecutionRunner implements Runnable {
-
-        final WatcherService watcherService;
-        final ExecutionService executionService;
-        final String watchId;
-        final CountDownLatch startLatch;
-        final ManualExecutionContext.Builder ctxBuilder;
-
-        public ExecutionRunner(WatcherService watcherService, ExecutionService executionService, String watchId,
-                               CountDownLatch startLatch) {
-            this.watcherService = watcherService;
-            this.executionService = executionService;
-            this.watchId = watchId;
-            this.startLatch = startLatch;
-            ManualTriggerEvent triggerEvent = new ManualTriggerEvent(watchId,
-                    new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
-            ctxBuilder = ManualExecutionContext.builder(watcherService.getWatch(watchId), true, triggerEvent, timeValueSeconds(5));
-            ctxBuilder.recordExecution(true);
-            ctxBuilder.actionMode("_all", ActionExecutionMode.FORCE_EXECUTE);
-        }
-
-        @Override
-        public void run() {
-            try {
-                startLatch.await();
-                WatchRecord record = executionService.execute(ctxBuilder.build());
-                assertThat(record, notNullValue());
-                assertThat(record.state(), is(ExecutionState.NOT_EXECUTED_WATCH_MISSING));
-            } catch (Exception e) {
-                throw new ElasticsearchException("Failure mode execution of [{}] failed in an unexpected way", e, watchId);
-            }
-        }
-    }
-
 }

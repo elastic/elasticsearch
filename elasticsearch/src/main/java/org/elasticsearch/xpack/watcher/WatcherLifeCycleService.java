@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.util.concurrent.CountDownLatch;
 
@@ -130,15 +130,15 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
                 threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> start(state, false));
             } else {
                 boolean isWatchIndexDeleted = event.indicesDeleted().stream()
-                        .filter(index -> WatchStore.INDEX.equals(index.getName()))
+                        .filter(index -> Watch.INDEX.equals(index.getName()))
                         .findAny()
                         .isPresent();
 
-                boolean isWatchIndexOpenInPreviousClusterState = event.previousState().metaData().hasIndex(WatchStore.INDEX) &&
-                        event.previousState().metaData().index(WatchStore.INDEX).getState() == IndexMetaData.State.OPEN;
-                boolean isWatchIndexClosedInCurrentClusterState = event.state().metaData().hasIndex(WatchStore.INDEX) &&
-                        event.state().metaData().index(WatchStore.INDEX).getState() == IndexMetaData.State.CLOSE;
-                boolean hasWatcherIndexBeenClosed = isWatchIndexOpenInPreviousClusterState && isWatchIndexClosedInCurrentClusterState;
+                final boolean isWatchIndexOpenInPreviousClusterState = event.previousState().metaData().hasIndex(Watch.INDEX) &&
+                        event.previousState().metaData().index(Watch.INDEX).getState() == IndexMetaData.State.OPEN;
+                final boolean isWatchIndexClosedInCurrentClusterState = event.state().metaData().hasIndex(Watch.INDEX) &&
+                        event.state().metaData().index(Watch.INDEX).getState() == IndexMetaData.State.CLOSE;
+                final boolean hasWatcherIndexBeenClosed = isWatchIndexOpenInPreviousClusterState && isWatchIndexClosedInCurrentClusterState;
 
                 if (isWatchIndexDeleted || hasWatcherIndexBeenClosed) {
                     threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> watcherService.watchIndexDeletedOrClosed());

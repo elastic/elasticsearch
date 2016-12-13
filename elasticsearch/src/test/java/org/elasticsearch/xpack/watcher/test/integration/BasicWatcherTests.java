@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.client.WatcherClient;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
@@ -27,11 +28,10 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.MonthTimes;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.WeekTimes;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 
 import java.time.Clock;
-
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -60,6 +60,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
+
+    @Override
+    protected boolean enableSecurity() {
+        return false;
+    }
 
     @Override
     protected boolean timeWarped() {
@@ -130,7 +135,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertThat(deleteWatchResponse.isFound(), is(true));
 
         refresh();
-        assertHitCount(client().prepareSearch(WatchStore.INDEX).setSize(0).get(), 0L);
+        assertHitCount(client().prepareSearch(Watch.INDEX).setSize(0).get(), 0L);
 
         // Deleting the same watch for the second time
         deleteWatchResponse = watcherClient.prepareDeleteWatch("_name").get();
@@ -163,7 +168,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
             // In watch store we fail parsing if an watch contains undefined fields.
         }
         try {
-            client().prepareIndex(WatchStore.INDEX, WatchStore.DOC_TYPE, "_name")
+            client().prepareIndex(Watch.INDEX, Watch.DOC_TYPE, "_name")
                     .setSource(watchSource)
                     .get();
             fail();
@@ -247,6 +252,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 equalTo(before));
     }
 
+    @TestLogging("org.elasticsearch.xpack.watcher.trigger:DEBUG")
     public void testConditionSearchWithSource() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
         testConditionSearch(templateRequest(searchSourceBuilder, "events"));
@@ -394,6 +400,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .get();
 
         refresh();
+        timeWarp().clock().fastForwardSeconds(1);
         timeWarp().scheduler().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 1);
 
@@ -401,6 +408,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource("level", "b")
                 .get();
         refresh();
+        timeWarp().clock().fastForwardSeconds(1);
         timeWarp().scheduler().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 2);
 
@@ -408,6 +416,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource("level", "a")
                 .get();
         refresh();
+        timeWarp().clock().fastForwardSeconds(1);
         timeWarp().scheduler().trigger(watchName);
         assertWatchWithMinimumPerformedActionsCount(watchName, 1);
     }

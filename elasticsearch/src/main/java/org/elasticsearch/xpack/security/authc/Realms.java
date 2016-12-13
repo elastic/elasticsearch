@@ -18,8 +18,6 @@ import java.util.Set;
 
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
@@ -27,20 +25,12 @@ import org.elasticsearch.license.XPackLicenseState.AllowedRealmType;
 import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
-import org.elasticsearch.xpack.security.authc.ldap.LdapRealm;
-import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 
-import static org.elasticsearch.xpack.security.Security.setting;
 
 /**
  * Serves as a realms registry (also responsible for ordering the realms appropriately)
  */
 public class Realms extends AbstractComponent implements Iterable<Realm> {
-
-    static final List<String> INTERNAL_REALM_TYPES =
-        Arrays.asList(ReservedRealm.TYPE, NativeRealm.TYPE, FileRealm.TYPE, LdapRealm.AD_TYPE, LdapRealm.LDAP_TYPE, PkiRealm.TYPE);
-
-    public static final Setting<Settings> REALMS_GROUPS_SETTINGS = Setting.groupSetting(setting("authc.realms."), Property.NodeScope);
 
     private final Environment env;
     private final Map<String, Realm.Factory> factories;
@@ -68,7 +58,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         List<Realm> nativeRealms = new ArrayList<>();
         for (Realm realm : realms) {
             // don't add the reserved realm here otherwise we end up with only this realm...
-            if (INTERNAL_REALM_TYPES.contains(realm.type()) && ReservedRealm.TYPE.equals(realm.type()) == false) {
+            if (InternalRealms.isInternalRealm(realm.type(), false)) {
                 internalRealms.add(realm);
             }
 
@@ -142,7 +132,7 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
     }
 
     protected List<Realm> initRealms() throws Exception {
-        Settings realmsSettings = REALMS_GROUPS_SETTINGS.get(settings);
+        Settings realmsSettings = RealmSettings.get(settings);
         Set<String> internalTypes = new HashSet<>();
         List<Realm> realms = new ArrayList<>();
         for (String name : realmsSettings.names()) {
@@ -239,10 +229,6 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
         }
     }
 
-    public static void addSettings(List<Setting<?>> settingsModule) {
-        settingsModule.add(REALMS_GROUPS_SETTINGS);
-    }
-
     private static void combineMaps(Map<String, Object> mapA, Map<String, Object> mapB) {
         for (Entry<String, Object> entry : mapB.entrySet()) {
             mapA.compute(entry.getKey(), (key, value) -> {
@@ -274,9 +260,10 @@ public class Realms extends AbstractComponent implements Iterable<Realm> {
             case NATIVE:
                 return FileRealm.TYPE.equals(type) || NativeRealm.TYPE.equals(type);
             case DEFAULT:
-                return INTERNAL_REALM_TYPES.contains(type);
+                return InternalRealms.isInternalRealm(type, true);
             default:
                 throw new IllegalStateException("unknown enabled realm type [" + enabledRealmType + "]");
         }
     }
+
 }

@@ -7,11 +7,11 @@ package org.elasticsearch.xpack.watcher.actions.throttler;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.notification.email.EmailTemplate;
 import org.elasticsearch.xpack.watcher.actions.Action;
-import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.elasticsearch.xpack.watcher.actions.email.EmailAction;
 import org.elasticsearch.xpack.watcher.actions.index.IndexAction;
 import org.elasticsearch.xpack.watcher.actions.logging.LoggingAction;
@@ -19,24 +19,23 @@ import org.elasticsearch.xpack.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.xpack.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
-import org.elasticsearch.xpack.watcher.execution.ManualExecutionContext;
-import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
+import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
 import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchResponse;
-import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchRequest;
-import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.time.Clock;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -47,12 +46,15 @@ import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBu
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
-    public void testSingleActionAckThrottle() throws Exception {
-        boolean useClientForAcking = randomBoolean();
 
+    @Override
+    protected boolean timeWarped() {
+        return true;
+    }
+
+    public void testSingleActionAckThrottle() throws Exception {
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval("60m")));
 
@@ -60,38 +62,37 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         Action.Builder action = availableAction.action();
         watchSourceBuilder.addAction("test_id", action);
 
-        PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
-        assertThat(putWatchResponse.getVersion(), greaterThan(0L));
-        refresh();
+        watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
+        refresh(Watch.INDEX);
 
-        assertThat(watcherClient().prepareGetWatch("_id").get().isFound(), equalTo(true));
-        ManualExecutionContext ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
-        WatchRecord watchRecord = executionService().execute(ctx);
+        ExecuteWatchRequestBuilder executeWatchRequestBuilder = watcherClient().prepareExecuteWatch("_id")
+                .setRecordExecution(true)
+                .setActionMode("test_id", ActionExecutionMode.SIMULATE);
 
-        assertThat(watchRecord.result().actionsResults().get("test_id").action().status(), equalTo(Action.Result.Status.SIMULATED));
-        if (timeWarped()) {
-            timeWarp().clock().fastForward(TimeValue.timeValueSeconds(1));
-        }
+        Map<String, Object> responseMap = executeWatchRequestBuilder.get().getRecordSource().getAsMap();
+        String status = ObjectPath.eval("result.actions.0.status", responseMap);
+        assertThat(status, equalTo(Action.Result.Status.SIMULATED.toString().toLowerCase(Locale.ROOT)));
+
+        timeWarp().clock().fastForward(TimeValue.timeValueSeconds(15));
+
         boolean ack = randomBoolean();
         if (ack) {
-            if (useClientForAcking) {
-                watcherClient().prepareAckWatch("_id").setActionIds("test_id").get();
-            } else {
-                watchService().ackWatch("_id", new String[] { "test_id" });
-            }
+            watcherClient().prepareAckWatch("_id").setActionIds("test_id").get();
         }
-        ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
-        watchRecord = executionService().execute(ctx);
+
+        executeWatchRequestBuilder = watcherClient().prepareExecuteWatch("_id")
+                .setRecordExecution(true)
+                .setActionMode("test_id", ActionExecutionMode.SIMULATE);
+        responseMap = executeWatchRequestBuilder.get().getRecordSource().getAsMap();
+        status = ObjectPath.eval("result.actions.0.status", responseMap);
         if (ack) {
-            assertThat(watchRecord.result().actionsResults().get("test_id").action().status(), equalTo(Action.Result.Status.THROTTLED));
+            assertThat(status, equalTo(Action.Result.Status.THROTTLED.toString().toLowerCase(Locale.ROOT)));
         } else {
-            assertThat(watchRecord.result().actionsResults().get("test_id").action().status(), equalTo(Action.Result.Status.SIMULATED));
+            assertThat(status, equalTo(Action.Result.Status.SIMULATED.toString().toLowerCase(Locale.ROOT)));
         }
     }
 
     public void testRandomMultiActionAckThrottle() throws Exception {
-        boolean useClientForAcking = randomBoolean();
-
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval("60m")));
 
@@ -105,38 +106,35 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
             }
         }
 
-        PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
-        assertThat(putWatchResponse.getVersion(), greaterThan(0L));
-        refresh();
-
-        assertThat(watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().isFound(), equalTo(true));
-        ManualExecutionContext ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
-        executionService().execute(ctx);
+        watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
+        refresh(Watch.INDEX);
+        executeWatch("_id");
 
         for (String actionId : ackingActions)  {
-            if (useClientForAcking) {
-                watcherClient().prepareAckWatch("_id").setActionIds(actionId).get();
-            } else {
-                watchService().ackWatch("_id", new String[]{actionId});
-            }
+            watcherClient().prepareAckWatch("_id").setActionIds(actionId).get();
         }
 
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(5);
-        }
+        timeWarp().clock().fastForwardSeconds(15);
 
-        ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
-        WatchRecord watchRecord = executionService().execute(ctx);
-        for (ActionWrapper.Result result : watchRecord.result().actionsResults().values()) {
-            if (ackingActions.contains(result.id())) {
-                assertThat(result.action().status(), equalTo(Action.Result.Status.THROTTLED));
+        Map<String, Object> responseMap = executeWatch("_id");
+        List<Map<String, String>> actions = ObjectPath.eval("result.actions", responseMap);
+        for (Map<String, String> result : actions) {
+            if (ackingActions.contains(result.get("id"))) {
+                assertThat(result.get("status"), equalTo(Action.Result.Status.THROTTLED.toString().toLowerCase(Locale.ROOT)));
             } else {
-                assertThat(result.action().status(), equalTo(Action.Result.Status.SIMULATED));
+                assertThat(result.get("status"), equalTo(Action.Result.Status.SIMULATED.toString().toLowerCase(Locale.ROOT)));
             }
         }
     }
 
+    private Map<String, Object> executeWatch(String id) {
+        return watcherClient().prepareExecuteWatch(id)
+                .setRecordExecution(true)
+                .setActionMode("_all", ActionExecutionMode.SIMULATE).get().getRecordSource().getAsMap();
+    }
+
     public void testDifferentThrottlePeriods() throws Exception {
+        timeWarp().clock().setTime(DateTime.now(DateTimeZone.UTC));
         WatchSourceBuilder watchSourceBuilder = watchBuilder()
                 .trigger(schedule(interval("60m")));
 
@@ -145,46 +143,34 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         watchSourceBuilder.addAction("fifteen_sec_throttle", new TimeValue(15, TimeUnit.SECONDS),
                 randomFrom(AvailableAction.values()).action());
 
-        PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
-        assertThat(putWatchResponse.getVersion(), greaterThan(0L));
-        refresh();
-        assertThat(watcherClient().getWatch(new GetWatchRequest("_id")).actionGet().isFound(), equalTo(true));
+        watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
+        refresh(Watch.INDEX);
 
-        if (timeWarped()) {
-            timeWarp().clock().setTime(new DateTime(DateTimeZone.UTC));
+        timeWarp().clock().fastForwardSeconds(1);
+        Map<String, Object> responseMap = executeWatch("_id");
+        List<Map<String, String>> actions = ObjectPath.eval("result.actions", responseMap);
+        for (Map<String, String> result : actions) {
+            assertThat(result.get("status"), equalTo(Action.Result.Status.SIMULATED.toString().toLowerCase(Locale.ROOT)));
+        }
+        timeWarp().clock().fastForwardSeconds(1);
+
+        responseMap = executeWatch("_id");
+        actions = ObjectPath.eval("result.actions", responseMap);
+        for (Map<String, String> result : actions) {
+            assertThat(result.get("status"), equalTo(Action.Result.Status.THROTTLED.toString().toLowerCase(Locale.ROOT)));
         }
 
-        ManualExecutionContext ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
-        WatchRecord watchRecord = executionService().execute(ctx);
-        long firstExecution = System.currentTimeMillis();
-        for(ActionWrapper.Result actionResult : watchRecord.result().actionsResults().values()) {
-            assertThat(actionResult.action().status(), equalTo(Action.Result.Status.SIMULATED));
-        }
-        ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
-        watchRecord = executionService().execute(ctx);
-        for(ActionWrapper.Result actionResult : watchRecord.result().actionsResults().values()) {
-            assertThat(actionResult.action().status(), equalTo(Action.Result.Status.THROTTLED));
-        }
+        timeWarp().clock().fastForwardSeconds(10);
 
-        if (timeWarped()) {
-            timeWarp().clock().fastForwardSeconds(11);
-        }
-
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                ManualExecutionContext ctx = getManualExecutionContext(new TimeValue(0, TimeUnit.SECONDS));
-                WatchRecord watchRecord = executionService().execute(ctx);
-                for (ActionWrapper.Result actionResult : watchRecord.result().actionsResults().values()) {
-                    if ("ten_sec_throttle".equals(actionResult.id())) {
-                        assertThat(actionResult.action().status(), equalTo(Action.Result.Status.SIMULATED));
-                    } else {
-                        assertThat(actionResult.action().status(), equalTo(Action.Result.Status.THROTTLED));
-                    }
-                }
+        responseMap = executeWatch("_id");
+        actions = ObjectPath.eval("result.actions", responseMap);
+        for (Map<String, String> result : actions) {
+            if ("ten_sec_throttle".equals(result.get("id"))) {
+                assertThat(result.get("status"), equalTo(Action.Result.Status.SIMULATED.toString().toLowerCase(Locale.ROOT)));
+            } else {
+                assertThat(result.get("status"), equalTo(Action.Result.Status.THROTTLED.toString().toLowerCase(Locale.ROOT)));
             }
-        }, 11000 - (System.currentTimeMillis() - firstExecution), TimeUnit.MILLISECONDS);
-
+        }
     }
 
     public void testDefaultThrottlePeriod() throws Exception {
@@ -194,9 +180,8 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         AvailableAction availableAction = randomFrom(AvailableAction.values());
         watchSourceBuilder.addAction("default_global_throttle", availableAction.action());
 
-        PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
-        assertThat(putWatchResponse.getVersion(), greaterThan(0L));
-        refresh();
+        watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
+        refresh(Watch.INDEX);
 
         if (timeWarped()) {
             timeWarp().clock().setTime(new DateTime(DateTimeZone.UTC));
@@ -208,9 +193,9 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
                 .setRecordExecution(true)
                 .get();
-        Map<String, Object> watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-        Object resultStatus = getExecutionStatus(watchRecordMap);
-        assertThat(resultStatus.toString(), equalTo("simulated"));
+
+        String status = ObjectPath.eval("result.actions.0.status", executeWatchResponse.getRecordSource().getAsMap());
+        assertThat(status, equalTo("simulated"));
 
         if (timeWarped()) {
             timeWarp().clock().fastForwardSeconds(1);
@@ -222,30 +207,25 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
                 .setRecordExecution(true)
                 .get();
-        watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-        resultStatus = getExecutionStatus(watchRecordMap);
-        assertThat(resultStatus.toString(), equalTo("throttled"));
+        status = ObjectPath.eval("result.actions.0.status", executeWatchResponse.getRecordSource().getAsMap());
+        assertThat(status, equalTo("throttled"));
 
         if (timeWarped()) {
             timeWarp().clock().fastForwardSeconds(5);
         }
 
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_id")
-                            .setTriggerEvent(new ManualTriggerEvent("execute_id",
-                                    new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))))
-                            .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
-                            .setRecordExecution(true)
-                            .get();
-                    Map<String, Object> watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-                    Object resultStatus = getExecutionStatus(watchRecordMap);
-                    assertThat(resultStatus.toString(), equalTo("simulated"));
-                } catch (IOException ioe) {
-                    throw new ElasticsearchException("failed to execute", ioe);
-                }
+        assertBusy(() -> {
+            try {
+                ExecuteWatchResponse executeWatchResponse1 = watcherClient().prepareExecuteWatch("_id")
+                        .setTriggerEvent(new ManualTriggerEvent("execute_id",
+                                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))))
+                        .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
+                        .setRecordExecution(true)
+                        .get();
+                String currentStatus = ObjectPath.eval("result.actions.0.status", executeWatchResponse1.getRecordSource().getAsMap());
+                assertThat(currentStatus, equalTo("simulated"));
+            } catch (IOException ioe) {
+                throw new ElasticsearchException("failed to execute", ioe);
             }
         }, 6, TimeUnit.SECONDS);
     }
@@ -258,9 +238,8 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         AvailableAction availableAction = randomFrom(AvailableAction.values());
         watchSourceBuilder.addAction("default_global_throttle", availableAction.action());
 
-        PutWatchResponse putWatchResponse = watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
-        assertThat(putWatchResponse.getVersion(), greaterThan(0L));
-        refresh();
+        watcherClient().putWatch(new PutWatchRequest("_id", watchSourceBuilder)).actionGet();
+        refresh(Watch.INDEX);
 
         if (timeWarped()) {
             timeWarp().clock().setTime(new DateTime(DateTimeZone.UTC));
@@ -272,9 +251,8 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
                 .setRecordExecution(true)
                 .get();
-        Map<String, Object> watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-        Object resultStatus = getExecutionStatus(watchRecordMap);
-        assertThat(resultStatus.toString(), equalTo("simulated"));
+        String status = ObjectPath.eval("result.actions.0.status", executeWatchResponse.getRecordSource().getAsMap());
+        assertThat(status, equalTo("simulated"));
 
         if (timeWarped()) {
             timeWarp().clock().fastForwardSeconds(1);
@@ -286,30 +264,25 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
                 .setRecordExecution(true)
                 .get();
-        watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-        resultStatus = getExecutionStatus(watchRecordMap);
-        assertThat(resultStatus.toString(), equalTo("throttled"));
+        status = ObjectPath.eval("result.actions.0.status", executeWatchResponse.getRecordSource().getAsMap());
+        assertThat(status, equalTo("throttled"));
 
         if (timeWarped()) {
             timeWarp().clock().fastForwardSeconds(20);
         }
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    //Since the default throttle period is 5 seconds but we have overridden the period in the watch this should trigger
-                    ExecuteWatchResponse executeWatchResponse = watcherClient().prepareExecuteWatch("_id")
-                            .setTriggerEvent(new ManualTriggerEvent("execute_id",
-                                    new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))))
-                            .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
-                            .setRecordExecution(true)
-                            .get();
-                    Map<String, Object> watchRecordMap = executeWatchResponse.getRecordSource().getAsMap();
-                    Object resultStatus = getExecutionStatus(watchRecordMap);
-                    assertThat(resultStatus.toString(), equalTo("simulated"));
-                } catch (IOException ioe) {
-                    throw new ElasticsearchException("failed to execute", ioe);
-                }
+        assertBusy(() -> {
+            try {
+                //Since the default throttle period is 5 seconds but we have overridden the period in the watch this should trigger
+                ExecuteWatchResponse executeWatchResponse1 = watcherClient().prepareExecuteWatch("_id")
+                        .setTriggerEvent(new ManualTriggerEvent("execute_id",
+                                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC))))
+                        .setActionMode("default_global_throttle", ActionExecutionMode.SIMULATE)
+                        .setRecordExecution(true)
+                        .get();
+                String status1 = ObjectPath.eval("result.actions.0.status", executeWatchResponse1.getRecordSource().getAsMap());
+                assertThat(status1, equalTo("simulated"));
+            } catch (IOException ioe) {
+                throw new ElasticsearchException("failed to execute", ioe);
             }
         }, 20, TimeUnit.SECONDS);
     }
@@ -317,7 +290,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
     public void testFailingActionDoesGetThrottled() throws Exception {
         TimeValue throttlePeriod = new TimeValue(60, TimeUnit.MINUTES);
 
-        PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
+        watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(new ScheduleTrigger(new IntervalSchedule(
                         new IntervalSchedule.Interval(60, IntervalSchedule.Interval.Unit.MINUTES))))
                 .defaultThrottlePeriod(throttlePeriod)
@@ -325,46 +298,50 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                 // no DNS resolution here please
                 .addAction("failing_hook", webhookAction(HttpRequestTemplate.builder("http://127.0.0.1/foobar", 80))))
                 .get();
-        assertThat(putWatchResponse.getVersion(), greaterThan(0L));
-        refresh();
+        refresh(Watch.INDEX);
 
-        ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id",
-                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
-        ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent,
-                throttlePeriod);
-        ctxBuilder.recordExecution(true);
+        {
+            Map<String, Object> responseMap = watcherClient().prepareExecuteWatch("_id")
+                    .setRecordExecution(true)
+                    .get().getRecordSource().getAsMap();
 
-        ManualExecutionContext ctx = ctxBuilder.build();
-        WatchRecord watchRecord = executionService().execute(ctx);
+            String state = ObjectPath.eval("state", responseMap);
 
-        assertThat(watchRecord.state(), equalTo(ExecutionState.EXECUTED));
-        assertThat(watchRecord.result().actionsResults().get("logging").action().status(), equalTo(Action.Result.Status.SUCCESS));
-        assertThat(watchRecord.result().actionsResults().get("failing_hook").action().status(), equalTo(Action.Result.Status.FAILURE));
+            String firstId = ObjectPath.eval("result.actions.0.id", responseMap);
+            String statusLogging, statusFailingHook;
+            if ("logging".equals(firstId)) {
+                statusLogging = ObjectPath.eval("result.actions.0.status", responseMap);
+                statusFailingHook = ObjectPath.eval("result.actions.1.status", responseMap);
+            } else {
+                statusFailingHook = ObjectPath.eval("result.actions.0.status", responseMap);
+                statusLogging = ObjectPath.eval("result.actions.1.status", responseMap);
+            }
 
-        triggerEvent = new ManualTriggerEvent("_id",
-                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
-        ctxBuilder = ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent, throttlePeriod);
-        ctxBuilder.recordExecution(true);
+            assertThat(state, equalTo(ExecutionState.EXECUTED.toString().toLowerCase(Locale.ROOT)));
+            assertThat(statusLogging, equalTo(Action.Result.Status.SUCCESS.toString().toLowerCase(Locale.ROOT)));
+            assertThat(statusFailingHook, equalTo(Action.Result.Status.FAILURE.toString().toLowerCase(Locale.ROOT)));
+        }
 
-        ctx = ctxBuilder.build();
-        watchRecord = executionService().execute(ctx);
-        assertThat(watchRecord.result().actionsResults().get("logging").action().status(), equalTo(Action.Result.Status.THROTTLED));
-        assertThat(watchRecord.result().actionsResults().get("failing_hook").action().status(), equalTo(Action.Result.Status.FAILURE));
-        assertThat(watchRecord.state(), equalTo(ExecutionState.THROTTLED));
-    }
+        {
+            Map<String, Object> responseMap = watcherClient().prepareExecuteWatch("_id")
+                    .setRecordExecution(true)
+                    .get().getRecordSource().getAsMap();
+            String state = ObjectPath.eval("state", responseMap);
 
-    private String getExecutionStatus(Map<String, Object> watchRecordMap) {
-        return ObjectPath.eval("result.actions.0.status", watchRecordMap);
-    }
+            String firstId = ObjectPath.eval("result.actions.0.id", responseMap);
+            String statusLogging, statusFailingHook;
+            if ("logging".equals(firstId)) {
+                statusLogging = ObjectPath.eval("result.actions.0.status", responseMap);
+                statusFailingHook = ObjectPath.eval("result.actions.1.status", responseMap);
+            } else {
+                statusFailingHook = ObjectPath.eval("result.actions.0.status", responseMap);
+                statusLogging = ObjectPath.eval("result.actions.1.status", responseMap);
+            }
 
-    private ManualExecutionContext getManualExecutionContext(TimeValue throttlePeriod) {
-        ManualTriggerEvent triggerEvent = new ManualTriggerEvent("_id",
-                new ScheduleTriggerEvent(new DateTime(DateTimeZone.UTC), new DateTime(DateTimeZone.UTC)));
-        return ManualExecutionContext.builder(watchService().getWatch("_id"), true, triggerEvent, throttlePeriod)
-                .executionTime(timeWarped() ? new DateTime(timeWarp().clock().millis()) : new DateTime(Clock.systemUTC().millis()))
-                .allActionsMode(ActionExecutionMode.SIMULATE)
-                .recordExecution(true)
-                .build();
+            assertThat(state, equalTo(ExecutionState.THROTTLED.toString().toLowerCase(Locale.ROOT)));
+            assertThat(statusLogging, equalTo(Action.Result.Status.THROTTLED.toString().toLowerCase(Locale.ROOT)));
+            assertThat(statusFailingHook, equalTo(Action.Result.Status.FAILURE.toString().toLowerCase(Locale.ROOT)));
+        }
     }
 
     enum AvailableAction {
@@ -386,7 +363,9 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         WEBHOOK {
             @Override
             public Action.Builder action() throws Exception {
-                HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder("foo.bar.com", 1234);
+                HttpRequestTemplate.Builder requestBuilder = HttpRequestTemplate.builder("localhost", 1234)
+                        .path("/")
+                        .method(HttpMethod.GET);
                 return WebhookAction.builder(requestBuilder.build());
             }
 

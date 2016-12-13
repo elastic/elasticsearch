@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.watcher.transport.actions.execute.ExecuteWatchRes
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 import org.junit.After;
 import org.junit.Before;
@@ -92,7 +92,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // verifying the basic auth password is stored encrypted in the index when security
         // is enabled, and when it's not enabled, it's stored in plain text
-        GetResponse response = client().prepareGet(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id").get();
+        GetResponse response = client().prepareGet(Watch.INDEX, Watch.DOC_TYPE, "_id").get();
         assertThat(response, notNullValue());
         assertThat(response.getId(), is("_id"));
         Map<String, Object> source = response.getSource();
@@ -156,7 +156,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
 
         // verifying the basic auth password is stored encrypted in the index when security
         // is enabled, when it's not enabled, the the passowrd should be stored in plain text
-        GetResponse response = client().prepareGet(WatchStore.INDEX, WatchStore.DOC_TYPE, "_id").get();
+        GetResponse response = client().prepareGet(Watch.INDEX, Watch.DOC_TYPE, "_id").get();
         assertThat(response, notNullValue());
         assertThat(response.getId(), is("_id"));
         Map<String, Object> source = response.getSource();

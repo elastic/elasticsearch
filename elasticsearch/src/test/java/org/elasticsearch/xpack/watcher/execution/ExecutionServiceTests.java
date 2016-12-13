@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.watcher.history.HistoryStore;
 import org.elasticsearch.xpack.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.Input;
+import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.transform.Transform;
@@ -36,7 +38,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.watch.WatchLockService;
 import org.elasticsearch.xpack.watcher.watch.WatchStatus;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Before;
@@ -72,7 +73,6 @@ public class ExecutionServiceTests extends ESTestCase {
     private ExecutableInput input;
     private Input.Result inputResult;
 
-    private WatchStore watchStore;
     private TriggeredWatchStore triggeredWatchStore;
     private WatchExecutor executor;
     private HistoryStore historyStore;
@@ -80,6 +80,8 @@ public class ExecutionServiceTests extends ESTestCase {
     private ExecutionService executionService;
     private Clock clock;
     private ThreadPool threadPool;
+    private WatcherClientProxy client;
+    private Watch.Parser parser;
 
     @Before
     public void init() throws Exception {
@@ -90,7 +92,6 @@ public class ExecutionServiceTests extends ESTestCase {
         when(inputResult.payload()).thenReturn(payload);
         when(input.execute(any(WatchExecutionContext.class), any(Payload.class))).thenReturn(inputResult);
 
-        watchStore = mock(WatchStore.class);
         triggeredWatchStore = mock(TriggeredWatchStore.class);
         historyStore = mock(HistoryStore.class);
 
@@ -100,8 +101,11 @@ public class ExecutionServiceTests extends ESTestCase {
         watchLockService = mock(WatchLockService.class);
         clock = ClockMock.frozen();
         threadPool = mock(ThreadPool.class);
-        executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, watchStore,
-                watchLockService, clock, threadPool);
+
+        client = mock(WatcherClientProxy.class);
+        parser = mock(Watch.Parser.class);
+        executionService = new ExecutionService(Settings.EMPTY, historyStore, triggeredWatchStore, executor, watchLockService, clock,
+                threadPool, parser, client);
 
         ClusterState clusterState = mock(ClusterState.class);
         when(triggeredWatchStore.loadTriggeredWatches(clusterState)).thenReturn(new ArrayList<>());
@@ -114,7 +118,9 @@ public class ExecutionServiceTests extends ESTestCase {
 
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
-        when(watchStore.get("_id")).thenReturn(watch);
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(true);
+        when(client.getWatch("_id")).thenReturn(getResponse);
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -205,9 +211,12 @@ public class ExecutionServiceTests extends ESTestCase {
         Releasable releasable = mock(Releasable.class);
         when(watchLockService.acquire("_id")).thenReturn(releasable);
 
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(true);
+        when(client.getWatch("_id")).thenReturn(getResponse);
+
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
-        when(watchStore.get("_id")).thenReturn(watch);
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -277,7 +286,9 @@ public class ExecutionServiceTests extends ESTestCase {
 
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
-        when(watchStore.get("_id")).thenReturn(watch);
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(true);
+        when(client.getWatch("_id")).thenReturn(getResponse);
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -343,7 +354,9 @@ public class ExecutionServiceTests extends ESTestCase {
 
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
-        when(watchStore.get("_id")).thenReturn(watch);
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(true);
+        when(client.getWatch("_id")).thenReturn(getResponse);
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -408,7 +421,9 @@ public class ExecutionServiceTests extends ESTestCase {
 
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");
-        when(watchStore.get("_id")).thenReturn(watch);
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(true);
+        when(client.getWatch("_id")).thenReturn(getResponse);
 
         DateTime now = new DateTime(clock.millis());
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
@@ -773,7 +788,11 @@ public class ExecutionServiceTests extends ESTestCase {
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("foo");
         when(watch.nonce()).thenReturn(1L);
-        when(watchStore.get(any())).thenReturn(watch);
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(true);
+        when(getResponse.getId()).thenReturn("foo");
+        when(client.getWatch(any())).thenReturn(getResponse);
+        when(parser.parseWithSecrets(eq("foo"), eq(true), any(), any())).thenReturn(watch);
 
         // execute needs to fail as well as storing the history
         doThrow(new EsRejectedExecutionException()).when(executor).execute(any());

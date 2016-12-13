@@ -13,6 +13,8 @@ import com.unboundid.ldap.sdk.SearchRequest;
 import com.unboundid.ldap.sdk.SearchScope;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
@@ -20,9 +22,13 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsRes
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.Set;
+import java.util.function.Function;
 
+import static org.elasticsearch.common.Strings.isNullOrEmpty;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.OBJECT_CLASS_PRESENCE_FILTER;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.createFilter;
 import static org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils.search;
@@ -38,19 +44,28 @@ class SearchGroupsResolver implements GroupsResolver {
             "(|(objectclass=groupOfNames)(objectclass=groupOfUniqueNames)(objectclass=group)(objectclass=posixGroup))" +
             "(|(uniqueMember={0})(member={0})(memberUid={0})))";
 
+    static final Setting<String> BASE_DN = Setting.simpleString("group_search.base_dn", Setting.Property.NodeScope);
+    static final Setting<LdapSearchScope> SCOPE = new Setting<>("group_search.scope", (String) null,
+            s -> LdapSearchScope.resolve(s, LdapSearchScope.SUB_TREE), Setting.Property.NodeScope);
+    static final Setting<String> USER_ATTRIBUTE = Setting.simpleString("group_search.user_attribute", Setting.Property.NodeScope);
+
+    static final Setting<String> FILTER = new Setting<>("group_search.filter", GROUP_SEARCH_DEFAULT_FILTER,
+            Function.identity(), Setting.Property.NodeScope);
+
     private final String baseDn;
     private final String filter;
     private final String userAttribute;
     private final LdapSearchScope scope;
 
     SearchGroupsResolver(Settings settings) {
-        baseDn = settings.get("base_dn");
-        if (baseDn == null) {
+        if (BASE_DN.exists(settings)) {
+            baseDn = BASE_DN.get(settings);
+        } else {
             throw new IllegalArgumentException("base_dn must be specified");
         }
-        filter = settings.get("filter", GROUP_SEARCH_DEFAULT_FILTER);
-        userAttribute = settings.get("user_attribute");
-        scope = LdapSearchScope.resolve(settings.get("scope"), LdapSearchScope.SUB_TREE);
+        filter = FILTER.get(settings);
+        userAttribute = USER_ATTRIBUTE.get(settings);
+        scope = SCOPE.get(settings);
     }
 
     @Override
@@ -75,7 +90,7 @@ class SearchGroupsResolver implements GroupsResolver {
     }
 
     public String[] attributes() {
-        if (userAttribute != null) {
+        if (Strings.hasLength(userAttribute)) {
             return new String[] { userAttribute };
         }
         return null;
@@ -83,7 +98,7 @@ class SearchGroupsResolver implements GroupsResolver {
 
     private void getUserId(String dn, Collection<Attribute> attributes, LDAPInterface connection, TimeValue timeout,
                              ActionListener<String> listener) {
-        if (userAttribute == null) {
+        if (isNullOrEmpty(userAttribute)) {
             listener.onResponse(dn);
         } else if (attributes != null) {
             final String value = attributes.stream().filter((attribute) -> attribute.getName().equals(userAttribute))
@@ -106,5 +121,14 @@ class SearchGroupsResolver implements GroupsResolver {
                     }
                 }, listener::onFailure),
                 userAttribute);
+    }
+
+    public static Set<Setting<?>> getSettings() {
+        Set<Setting<?>> settings = new HashSet<>();
+        settings.add(BASE_DN);
+        settings.add(FILTER);
+        settings.add(USER_ATTRIBUTE);
+        settings.add(SCOPE);
+        return settings;
     }
 }

@@ -13,14 +13,20 @@ import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import javax.net.SocketFactory;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 
 /**
@@ -147,6 +153,19 @@ public abstract class SessionFactory {
 
     public boolean isSslUsed() {
         return sslUsed;
+    }
+
+    protected static Set<Setting<?>> getSettings() {
+        Set<Setting<?>> settings = new HashSet<>();
+        settings.addAll(LdapLoadBalancing.getSettings());
+        settings.add(Setting.listSetting(URLS_SETTING, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope));
+        settings.add(Setting.timeSetting(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
+        settings.add(Setting.timeSetting(TIMEOUT_TCP_READ_SETTING, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
+        settings.add(Setting.timeSetting(TIMEOUT_LDAP_SETTING, TIMEOUT_DEFAULT, Setting.Property.NodeScope));
+        settings.add(Setting.boolSetting(HOSTNAME_VERIFICATION_SETTING, true, Setting.Property.NodeScope));
+        settings.add(Setting.boolSetting(FOLLOW_REFERRALS_SETTING, true, Setting.Property.NodeScope));
+        settings.addAll(SSLConfigurationSettings.withPrefix("ssl.").getAllSettings());
+        return settings;
     }
 
     public static class LDAPServers {

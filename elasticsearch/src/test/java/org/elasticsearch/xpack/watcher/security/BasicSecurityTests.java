@@ -18,10 +18,12 @@ import org.elasticsearch.xpack.watcher.transport.actions.stats.WatcherStatsRespo
 import org.elasticsearch.xpack.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 import org.joda.time.DateTime;
 
 import java.util.Collections;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
@@ -56,6 +58,8 @@ public class BasicSecurityTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testWatcherMonitorRole() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
+
         // stats and get watch apis require at least monitor role:
         String token = basicAuthHeaderValue("test", new SecuredString("changeme".toCharArray()));
         try {

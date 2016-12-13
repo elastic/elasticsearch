@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -37,17 +38,12 @@ import static org.joda.time.DateTimeZone.UTC;
 
 public class WatchStatus implements ToXContent, Streamable {
 
-    public static final String INCLUDE_VERSION_KEY = "include_version";
-
-    private transient long version;
-
     private State state;
 
     @Nullable private DateTime lastChecked;
     @Nullable private DateTime lastMetCondition;
+    @Nullable private long version;
     private Map<String, ActionStatus> actions;
-
-    private volatile boolean dirty = false;
 
     // for serialization
     private WatchStatus() {
@@ -73,14 +69,6 @@ public class WatchStatus implements ToXContent, Streamable {
         return state;
     }
 
-    public long version() {
-        return version;
-    }
-
-    public void version(long version) {
-        this.version = version;
-    }
-
     public boolean checked() {
         return lastChecked != null;
     }
@@ -93,19 +81,12 @@ public class WatchStatus implements ToXContent, Streamable {
         return actions.get(actionId);
     }
 
-    /**
-     * marks this status as non-dirty. this should only be done when the current state of the status is in sync with
-     * the persisted state.
-     */
-    public void resetDirty() {
-        this.dirty = false;
+    public long version() {
+        return version;
     }
 
-    /**
-     * @return does this Watch.Status needs to be persisted to the index
-     */
-    public boolean dirty() {
-        return dirty;
+    public void version(long version) {
+        this.version = version;
     }
 
     @Override
@@ -115,20 +96,15 @@ public class WatchStatus implements ToXContent, Streamable {
 
         WatchStatus that = (WatchStatus) o;
 
-        if (version != that.version) return false;
-        if (lastChecked != null ? !lastChecked.equals(that.lastChecked) : that.lastChecked != null) return false;
-        if (lastMetCondition != null ? !lastMetCondition.equals(that.lastMetCondition) : that.lastMetCondition != null)
-            return false;
-        return !(actions != null ? !actions.equals(that.actions) : that.actions != null);
+        return Objects.equals(lastChecked, that.lastChecked) &&
+                Objects.equals(lastMetCondition, that.lastMetCondition) &&
+                Objects.equals(version, that.version) &&
+                Objects.equals(actions, that.actions);
     }
 
     @Override
     public int hashCode() {
-        int result = (int) (version ^ (version >>> 32));
-        result = 31 * result + (lastChecked != null ? lastChecked.hashCode() : 0);
-        result = 31 * result + (lastMetCondition != null ? lastMetCondition.hashCode() : 0);
-        result = 31 * result + (actions != null ? actions.hashCode() : 0);
-        return result;
+        return Objects.hash(lastChecked, lastMetCondition, actions, version);
     }
 
     /**
@@ -139,7 +115,6 @@ public class WatchStatus implements ToXContent, Streamable {
      */
     public void onCheck(boolean metCondition, DateTime timestamp) {
         lastChecked = timestamp;
-        dirty = true;
         if (metCondition) {
             lastMetCondition = timestamp;
         }
@@ -148,7 +123,6 @@ public class WatchStatus implements ToXContent, Streamable {
     public void onActionResult(String actionId, DateTime timestamp, Action.Result result) {
         ActionStatus status = actions.get(actionId);
         status.update(timestamp, result);
-        dirty = true;
     }
 
     /**
@@ -173,7 +147,6 @@ public class WatchStatus implements ToXContent, Streamable {
             for (ActionStatus status : actions.values()) {
                 changed |= status.onAck(timestamp);
             }
-            dirty |= changed;
             return changed;
         }
 
@@ -183,14 +156,13 @@ public class WatchStatus implements ToXContent, Streamable {
                 changed |= status.onAck(timestamp);
             }
         }
-        dirty |= changed;
+
         return changed;
     }
 
     boolean setActive(boolean active, DateTime now) {
         boolean change = this.state.active != active;
         if (change) {
-            this.dirty = true;
             this.state = new State(active, now);
         }
         return change;
@@ -233,9 +205,6 @@ public class WatchStatus implements ToXContent, Streamable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (params.paramAsBoolean(INCLUDE_VERSION_KEY, false)) {
-            builder.field(Field.VERSION.getPreferredName(), version);
-        }
         builder.field(Field.STATE.getPreferredName(), state, params);
         if (lastChecked != null) {
             builder.field(Field.LAST_CHECKED.getPreferredName(), lastChecked);
@@ -250,14 +219,16 @@ public class WatchStatus implements ToXContent, Streamable {
             }
             builder.endObject();
         }
+        builder.field(Field.VERSION.getPreferredName(), version);
         return builder.endObject();
     }
 
-    public static WatchStatus parse(String watchId, XContentParser parser) throws IOException {
+    public static WatchStatus parse(String watchId, XContentParser parser, Clock clock) throws IOException {
         State state = null;
         DateTime lastChecked = null;
         DateTime lastMetCondition = null;
         Map<String, ActionStatus> actions = null;
+        long version = -1;
 
         String currentFieldName = null;
         XContentParser.Token token;
@@ -266,10 +237,17 @@ public class WatchStatus implements ToXContent, Streamable {
                 currentFieldName = parser.currentName();
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.STATE)) {
                 try {
-                    state = State.parse(parser);
+                    state = State.parse(parser, clock);
                 } catch (ElasticsearchParseException e) {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. failed to parse field [{}]",
                             e, watchId, currentFieldName);
+                }
+            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.VERSION)) {
+                if (token.isValue()) {
+                    version = parser.longValue();
+                } else {
+                    throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a long " +
+                            "value, found [{}] instead", watchId, currentFieldName, token);
                 }
             } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LAST_CHECKED)) {
                 if (token.isValue()) {
@@ -311,7 +289,7 @@ public class WatchStatus implements ToXContent, Streamable {
         }
         actions = actions == null ? emptyMap() : unmodifiableMap(actions);
 
-        return new WatchStatus(-1, state, lastChecked, lastMetCondition, actions);
+        return new WatchStatus(version, state, lastChecked, lastMetCondition, actions);
     }
 
     public static class State implements ToXContent {
@@ -340,12 +318,12 @@ public class WatchStatus implements ToXContent, Streamable {
             return builder.endObject();
         }
 
-        public static State parse(XContentParser parser) throws IOException {
+        public static State parse(XContentParser parser, Clock clock) throws IOException {
             if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
                 throw new ElasticsearchParseException("expected an object but found [{}] instead", parser.currentToken());
             }
             boolean active = true;
-            DateTime timestamp = new DateTime(Clock.systemUTC().millis(), UTC);
+            DateTime timestamp = new DateTime(clock.millis(), UTC);
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -361,13 +339,13 @@ public class WatchStatus implements ToXContent, Streamable {
         }
     }
 
-    interface Field {
-        ParseField VERSION = new ParseField("version");
+    public interface Field {
         ParseField STATE = new ParseField("state");
         ParseField ACTIVE = new ParseField("active");
         ParseField TIMESTAMP = new ParseField("timestamp");
         ParseField LAST_CHECKED = new ParseField("last_checked");
         ParseField LAST_MET_CONDITION = new ParseField("last_met_condition");
         ParseField ACTIONS = new ParseField("actions");
+        ParseField VERSION = new ParseField("version");
     }
 }

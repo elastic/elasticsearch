@@ -10,7 +10,7 @@ watcher_manager:
   cluster:
     - manage
   indices:
-    - names: '.watcher-history-*'
+    - names: '.watch*'
       privileges:
         - all
   run_as:

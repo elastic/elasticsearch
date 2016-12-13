@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.xpack.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchStore;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -96,8 +95,8 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         refresh();
         long a1CountAfterAck = docCount("actions", "action1", matchAllQuery());
         long a2CountAfterAck = docCount("actions", "action2", matchAllQuery());
-        assertThat(a1CountAfterAck, greaterThanOrEqualTo((long) 1));
-        assertThat(a2CountAfterAck, greaterThanOrEqualTo((long) 1));
+        assertThat(a1CountAfterAck, greaterThan(0L));
+        assertThat(a2CountAfterAck, greaterThan(0L));
 
         timeWarp().scheduler().trigger("_id", 4, TimeValue.timeValueSeconds(5));
         flush();
@@ -227,7 +226,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
         assertThat(watchResponse.getStatus().actionStatus("_id").ackStatus().state(), Matchers.equalTo(ActionStatus.AckStatus.State.ACKED));
 
         refresh();
-        GetResponse getResponse = client().get(new GetRequest(WatchStore.INDEX, WatchStore.DOC_TYPE, "_name")).actionGet();
+        GetResponse getResponse = client().get(new GetRequest(Watch.INDEX, Watch.DOC_TYPE, "_name")).actionGet();
         Watch indexedWatch = watchParser().parse("_name", true, getResponse.getSourceAsBytesRef());
         assertThat(watchResponse.getStatus().actionStatus("_id").ackStatus().state(),
                 equalTo(indexedWatch.status().actionStatus("_id").ackStatus().state()));

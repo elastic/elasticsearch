@@ -25,10 +25,6 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
         return wrap(params).hideSecrets();
     }
 
-    public static boolean collapseArrays(ToXContent.Params params) {
-        return wrap(params).collapseArrays();
-    }
-
     public static boolean debug(ToXContent.Params params) {
         return wrap(params).debug();
     }
@@ -39,10 +35,6 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
 
     public boolean hideSecrets() {
         return paramAsBoolean(HIDE_SECRETS_KEY, false);
-    }
-
-    public boolean collapseArrays() {
-        return paramAsBoolean(COLLAPSE_ARRAYS_KEY, false);
     }
 
     public boolean debug() {
@@ -74,11 +66,6 @@ public class WatcherParams extends ToXContent.DelegatingMapParams {
 
         public Builder hideSecrets(boolean hideSecrets) {
             params.put(HIDE_SECRETS_KEY, String.valueOf(hideSecrets));
-            return this;
-        }
-
-        public Builder collapseArrays(boolean collapseArrays) {
-            params.put(COLLAPSE_ARRAYS_KEY, String.valueOf(collapseArrays));
             return this;
         }
 

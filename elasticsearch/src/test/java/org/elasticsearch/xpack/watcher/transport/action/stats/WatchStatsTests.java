@@ -10,6 +10,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.LatchScriptEngine;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.watcher.WatcherState;
 import org.elasticsearch.xpack.watcher.actions.ActionBuilders;
 import org.elasticsearch.xpack.watcher.condition.ScriptCondition;
@@ -48,6 +49,11 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
     }
 
     @Override
+    protected boolean enableSecurity() {
+        return false;
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(LatchScriptEngine.LatchScriptPlugin.class);
@@ -73,6 +79,7 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTestCase {
         getLatchScriptEngine().finishScriptExecution();
     }
 
+    @TestLogging("org.elasticsearch.xpack.watcher.trigger.schedule.engine:TRACE,org.elasticsearch.xpack.scheduler:TRACE")
     public void testCurrentWatches() throws Exception {
         watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("1s")))

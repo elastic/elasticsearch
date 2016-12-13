@@ -39,12 +39,6 @@ import java.util.Map;
  */
 public class HttpClient extends AbstractComponent {
 
-    static final String SETTINGS_SSL_PREFIX = "xpack.http.ssl.";
-    static final String SETTINGS_PROXY_PREFIX = "xpack.http.proxy.";
-
-    static final String SETTINGS_PROXY_HOST = SETTINGS_PROXY_PREFIX + "host";
-    static final String SETTINGS_PROXY_PORT = SETTINGS_PROXY_PREFIX + "port";
-
     private final HttpAuthRegistry httpAuthRegistry;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
@@ -55,21 +49,27 @@ public class HttpClient extends AbstractComponent {
     public HttpClient(Settings settings, HttpAuthRegistry httpAuthRegistry, SSLService sslService) {
         super(settings);
         this.httpAuthRegistry = httpAuthRegistry;
-        this.defaultConnectionTimeout = settings.getAsTime("xpack.http.default_connection_timeout", TimeValue.timeValueSeconds(10));
-        this.defaultReadTimeout = settings.getAsTime("xpack.http.default_read_timeout", TimeValue.timeValueSeconds(10));
-        Integer proxyPort = settings.getAsInt(SETTINGS_PROXY_PORT, null);
-        String proxyHost = settings.get(SETTINGS_PROXY_HOST, null);
+        this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
+        this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
+
+        final Integer proxyPort;
+        if (HttpSettings.PROXY_HOST.exists(settings)) {
+            proxyPort = HttpSettings.PROXY_PORT.get(settings);
+        } else {
+            proxyPort = null;
+        }
+        final String proxyHost = HttpSettings.PROXY_HOST.get(settings);
         if (proxyPort != null && Strings.hasText(proxyHost)) {
             this.proxy = new HttpProxy(proxyHost, proxyPort);
             logger.info("Using default proxy for http input and slack/hipchat/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
         } else if (proxyPort == null && Strings.hasText(proxyHost) == false) {
             this.proxy = HttpProxy.NO_PROXY;
         } else {
-            throw new IllegalArgumentException("HTTP Proxy requires both settings: [" + SETTINGS_PROXY_HOST + "] and [" +
-                    SETTINGS_PROXY_PORT + "]");
+            throw new IllegalArgumentException("HTTP Proxy requires both settings: [" + HttpSettings.PROXY_HOST_KEY + "] and [" +
+                    HttpSettings.PROXY_PORT_KEY + "]");
         }
-        Settings sslSettings = settings.getByPrefix(SETTINGS_SSL_PREFIX);
-        this.sslSocketFactory = sslService.sslSocketFactory(settings.getByPrefix(SETTINGS_SSL_PREFIX));
+        Settings sslSettings = settings.getByPrefix(HttpSettings.SSL_KEY_PREFIX);
+        this.sslSocketFactory = sslService.sslSocketFactory(settings.getByPrefix(HttpSettings.SSL_KEY_PREFIX));
         this.isHostnameVerificationEnabled = sslService.getVerificationMode(sslSettings, Settings.EMPTY).isHostnameVerificationEnabled();
     }
 

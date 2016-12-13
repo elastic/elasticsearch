@@ -284,8 +284,8 @@ public class HttpClientTests extends ESTestCase {
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
             proxyServer.start();
             Settings settings = Settings.builder()
-                    .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
-                    .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort())
+                    .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
+                    .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort())
                     .build();
             HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 
@@ -309,8 +309,8 @@ public class HttpClientTests extends ESTestCase {
             proxyServer.enqueue(new MockResponse().setResponseCode(200).setBody("fullProxiedContent"));
             proxyServer.start();
             Settings settings = Settings.builder()
-                    .put(HttpClient.SETTINGS_PROXY_HOST, "localhost")
-                    .put(HttpClient.SETTINGS_PROXY_PORT, proxyServer.getPort() + 1)
+                    .put(HttpSettings.PROXY_HOST.getKey(), "localhost")
+                    .put(HttpSettings.PROXY_PORT.getKey(), proxyServer.getPort() + 1)
                     .build();
             HttpClient httpClient = new HttpClient(settings, authRegistry, new SSLService(settings, environment));
 

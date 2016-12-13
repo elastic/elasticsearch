@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -37,9 +38,9 @@ public class TriggerService extends AbstractComponent {
         this.engines = unmodifiableMap(builder);
     }
 
-    public synchronized void start(Collection<? extends TriggerEngine.Job> jobs) throws Exception {
+    public synchronized void start(Collection<Watch> watches) throws Exception {
         for (TriggerEngine engine : engines.values()) {
-            engine.start(jobs);
+            engine.start(watches);
         }
     }
 

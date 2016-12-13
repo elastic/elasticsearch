@@ -64,6 +64,7 @@ import static org.mockito.Mockito.verify;
 public class ActiveDirectoryRealmTests extends ESTestCase {
 
     private static final String PASSWORD = "password";
+    private static final String ROLE_MAPPING_FILE_SETTING = DnRoleMapper.ROLE_MAPPING_FILE_SETTING.getKey();
 
     static int numberOfLdapServers;
     InMemoryDirectoryServer[] directoryServers;
@@ -168,7 +169,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     }
 
     public void testAuthenticateCachingCanBeDisabled() throws Exception {
-        Settings settings = settings(Settings.builder().put(CachingUsernamePasswordRealm.CACHE_TTL_SETTING, -1).build());
+        Settings settings = settings(Settings.builder().put(CachingUsernamePasswordRealm.CACHE_TTL_SETTING.getKey(), -1).build());
         RealmConfig config = new RealmConfig("testAuthenticateCachingCanBeDisabled", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = spy(new ActiveDirectorySessionFactory(config, null));
         DnRoleMapper roleMapper = new DnRoleMapper(LdapRealm.AD_TYPE, config, resourceWatcherService, () -> {});
@@ -216,7 +217,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
     public void testRealmMapsGroupsToRoles() throws Exception {
         Settings settings = settings(Settings.builder()
-                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
+                .put(ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
                 .build());
         RealmConfig config = new RealmConfig("testRealmMapsGroupsToRoles", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, null);
@@ -232,7 +233,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
     public void testRealmMapsUsersToRoles() throws Exception {
         Settings settings = settings(Settings.builder()
-                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
+                .put(ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
                 .build());
         RealmConfig config = new RealmConfig("testRealmMapsGroupsToRoles", settings, globalSettings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, null);
@@ -249,7 +250,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
     public void testRealmUsageStats() throws Exception {
         String loadBalanceType = randomFrom("failover", "round_robin");
         Settings settings = settings(Settings.builder()
-                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
+                .put(ROLE_MAPPING_FILE_SETTING, getDataPath("role_mapping.yml"))
                 .put("load_balance.type", loadBalanceType)
                 .build());
         RealmConfig config = new RealmConfig("testRealmUsageStats", settings, globalSettings);
@@ -274,7 +275,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         return Settings.builder()
                 .putArray(URLS_SETTING, ldapUrls())
                 .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, "ad.test.elasticsearch.com")
-                .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
+                .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING.getKey(), true)
                 .put(HOSTNAME_VERIFICATION_SETTING, false)
                 .put(extraSettings)
                 .build();

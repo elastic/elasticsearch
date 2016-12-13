@@ -1,0 +1,35 @@
+[[release-notes-2.4.3]]
+== 2.4.3 Release Notes
+
+[[enhancement-2.4.3]]
+[float]
+=== Enhancements
+
+Core::
+* Install a security manager on startup {pull}21716[#21716]
+
+
+
+[[bug-2.4.3]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fixes InternalDateRange.createBucket when from/to is null {pull}21659[#21659] (issue: {issue}21579[#21579])
+
+Core::
+* Use a buffer to do character to byte conversion in StreamOutput#writeString {pull}21680[#21680] (issue: {issue}21660[#21660])
+
+Highlighting::
+* Fix FiltersFunctionScoreQuery highlighting {pull}21827[#21827]
+
+Java API::
+* Transport client: Fix remove address to actually work {pull}21743[#21743]
+* Add a HostFailureListener to notify client code if a node got disconnected {pull}21709[#21709] (issue: {issue}21424[#21424])
+
+Plugin Mapper Attachment::
+* NPE is raised when defining a non existing type within attachments type {pull}21848[#21848]
+
+Search::
+* Fix cross_fields type on multi_match query with synonyms {pull}21638[#21638] (issue: {issue}21633[#21633])
+

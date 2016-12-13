@@ -44,8 +44,14 @@ import java.util.stream.Collectors;
  */
 public final class RepositoryData implements ToXContent {
 
-    private static final long INITIAL_GEN = -1L;
-    public static final RepositoryData EMPTY = new RepositoryData(INITIAL_GEN, Collections.emptyList(), Collections.emptyMap());
+    /**
+     * The generation value indicating the repository has no index generational files.
+     */
+    public static final long EMPTY_REPO_GEN = -1L;
+    /**
+     * An instance initialized for an empty repository.
+     */
+    public static final RepositoryData EMPTY = new RepositoryData(EMPTY_REPO_GEN, Collections.emptyList(), Collections.emptyMap());
 
     /**
      * The generational id of the index file from which the repository data was read.
@@ -77,7 +83,7 @@ public final class RepositoryData implements ToXContent {
      * Creates an instance of {@link RepositoryData} on a fresh repository (one that has no index-N files).
      */
     public static RepositoryData initRepositoryData(List<SnapshotId> snapshotIds, Map<IndexId, Set<SnapshotId>> indexSnapshots) {
-        return new RepositoryData(INITIAL_GEN, snapshotIds, indexSnapshots);
+        return new RepositoryData(EMPTY_REPO_GEN, snapshotIds, indexSnapshots);
     }
 
     protected RepositoryData copy() {

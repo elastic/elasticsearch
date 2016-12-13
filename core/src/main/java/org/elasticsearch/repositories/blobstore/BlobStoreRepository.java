@@ -725,7 +725,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 //      index-latest blob
                 // in a read-only repository, we can't know which of the two scenarios it is,
                 // but we will assume (1) because we can't do anything about (2) anyway
-                return -1;
+                return RepositoryData.EMPTY_REPO_GEN;
             }
         }
     }

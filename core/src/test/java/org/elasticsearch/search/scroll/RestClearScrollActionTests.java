@@ -48,7 +48,7 @@ public class RestClearScrollActionTests extends ESTestCase {
 
     public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
         RestClearScrollAction action = new RestClearScrollAction(Settings.EMPTY, mock(RestController.class));
-        RestRequest request = new FakeRestRequest.Builder().withContent(new BytesArray("{invalid_json}")).build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray("{invalid_json}")).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
         assertThat(e.getMessage(), equalTo("Failed to parse request body"));
     }

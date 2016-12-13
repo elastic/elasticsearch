@@ -318,7 +318,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     public void testParseIndicesBoost() throws IOException {
         {
             String restContent = " { \"indices_boost\": {\"foo\": 1.0, \"bar\": 2.0}}";
-            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
                     searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 assertEquals(2, searchSourceBuilder.indexBoosts().size());
@@ -335,7 +335,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                 "        { \"bar\" : 2.0 },\n" +
                 "        { \"baz\" : 3.0 }\n" +
                 "    ]}";
-            try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
                 SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
                     searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 assertEquals(3, searchSourceBuilder.indexBoosts().size());
@@ -383,7 +383,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {
-        try (XContentParser parser = XContentFactory.xContent(restContent).createParser(restContent)) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(createParseContext(parser),
                 searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers));
             assertEquals(expectedErrorMessage, e.getMessage());

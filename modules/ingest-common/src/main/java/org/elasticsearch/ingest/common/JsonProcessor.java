@@ -19,7 +19,8 @@
 
 package org.elasticsearch.ingest.common;
 
-import com.fasterxml.jackson.core.JsonParseException;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
@@ -65,7 +66,7 @@ public final class JsonProcessor extends AbstractProcessor {
     public void execute(IngestDocument document) throws Exception {
         String stringValue = document.getFieldValue(field, String.class);
         try {
-            Map<String, Object> mapValue = JsonXContent.jsonXContent.createParser(stringValue).map();
+            Map<String, Object> mapValue = XContentHelper.convertToMap(JsonXContent.jsonXContent, stringValue, false);
             if (addToRoot) {
                 for (Map.Entry<String, Object> entry : mapValue.entrySet()) {
                     document.setFieldValue(entry.getKey(), entry.getValue());
@@ -73,7 +74,7 @@ public final class JsonProcessor extends AbstractProcessor {
             } else {
                 document.setFieldValue(targetField, mapValue);
             }
-        } catch (JsonParseException e) {
+        } catch (ElasticsearchParseException e) {
             throw new IllegalArgumentException(e);
         }
     }

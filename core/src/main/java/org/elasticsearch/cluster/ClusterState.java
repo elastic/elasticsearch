@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -49,8 +51,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.PublishClusterStateAction;
 
@@ -403,11 +404,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, CompressedXContent> cursor1 : templateMetaData.mappings()) {
-                    byte[] mappingSource = cursor1.value.uncompressed();
-                    Map<String, Object> mapping;
-                    try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
-                        mapping = parser.map();
-                    }
+                    Map<String, Object> mapping = XContentHelper.convertToMap(new BytesArray(cursor1.value.uncompressed()), false).v2();
                     if (mapping.size() == 1 && mapping.containsKey(cursor1.key)) {
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor1.key);
@@ -435,11 +432,8 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
                 builder.startObject("mappings");
                 for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
-                    byte[] mappingSource = cursor.value.source().uncompressed();
-                    Map<String, Object> mapping;
-                    try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
-                        mapping = parser.map();
-                    }
+                    Map<String, Object> mapping = XContentHelper
+                            .convertToMap(new BytesArray(cursor.value.source().uncompressed()), false).v2();
                     if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
                         // the type name is the root value, reduce it
                         mapping = (Map<String, Object>) mapping.get(cursor.key);

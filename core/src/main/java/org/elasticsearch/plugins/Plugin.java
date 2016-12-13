@@ -19,12 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
@@ -39,6 +33,8 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -51,6 +47,11 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
 
@@ -106,7 +107,7 @@ public abstract class Plugin implements Closeable {
      */
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               SearchRequestParsers searchRequestParsers) {
+                                               SearchRequestParsers searchRequestParsers, NamedXContentRegistry xContentRegistry) {
         return Collections.emptyList();
     }
 
@@ -123,6 +124,14 @@ public abstract class Plugin implements Closeable {
      * @see NamedWriteableRegistry
      */
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns parsers for named objects this plugin will parse from {@link XContentParser#namedObject(Class, String, Object)}.
+     * @see NamedWriteableRegistry
+     */
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
         return Collections.emptyList();
     }
 

@@ -61,6 +61,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerAdapter;
@@ -193,6 +194,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
     protected final boolean detailedErrorsEnabled;
     protected final ThreadPool threadPool;
+    protected final NamedXContentRegistry xContentRegistry;
 
     protected final boolean tcpNoDelay;
     protected final boolean tcpKeepAlive;
@@ -218,11 +220,13 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
     private final Netty4CorsConfig corsConfig;
 
-    public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool) {
+    public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
+            NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
+        this.xContentRegistry = xContentRegistry;
 
         ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
@@ -534,7 +538,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, detailedErrorsEnabled, threadPool.getThreadContext());
+        return new HttpChannelHandler(this, detailedErrorsEnabled, threadPool.getThreadContext(), xContentRegistry);
     }
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
@@ -543,11 +547,12 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         private final Netty4HttpRequestHandler requestHandler;
 
         protected HttpChannelHandler(
-            final Netty4HttpServerTransport transport,
-            final boolean detailedErrorsEnabled,
-            final ThreadContext threadContext) {
+                final Netty4HttpServerTransport transport,
+                final boolean detailedErrorsEnabled,
+                final ThreadContext threadContext,
+                final NamedXContentRegistry xContentRegistry) {
             this.transport = transport;
-            this.requestHandler = new Netty4HttpRequestHandler(transport, detailedErrorsEnabled, threadContext);
+            this.requestHandler = new Netty4HttpRequestHandler(transport, detailedErrorsEnabled, threadContext, xContentRegistry);
         }
 
         @Override

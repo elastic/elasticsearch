@@ -35,6 +35,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -67,14 +68,17 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final Client client;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportGetTaskAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, Client client) {
+            IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, Client client,
+            NamedXContentRegistry xContentRegistry) {
         super(settings, GetTaskAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, GetTaskRequest::new);
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.client = client;
+        this.xContentRegistry = xContentRegistry;
     }
 
     @Override
@@ -246,7 +250,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
             listener.onFailure(new ElasticsearchException("Stored task status for [{}] didn't contain any source!", response.getId()));
             return;
         }
-        try (XContentParser parser = XContentHelper.createParser(response.getSourceAsBytesRef())) {
+        try (XContentParser parser = XContentHelper.createParser(xContentRegistry, response.getSourceAsBytesRef())) {
             TaskResult result = TaskResult.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
             listener.onResponse(new GetTaskResponse(result));
         }

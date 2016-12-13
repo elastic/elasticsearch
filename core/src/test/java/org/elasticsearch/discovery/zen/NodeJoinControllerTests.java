@@ -626,12 +626,15 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         setState(clusterService, stateBuilder.build());
 
-        final DiscoveryNode restartedNode = new DiscoveryNode(otherNode.getId(),
-            randomBoolean() ? otherNode.getAddress() : buildNewFakeTransportAddress(), otherNode.getAttributes(),
-            otherNode.getRoles(), Version.CURRENT);
+        // conflict on node id or address
+        final DiscoveryNode conflictingNode = randomBoolean() ?
+            new DiscoveryNode(otherNode.getId(), randomBoolean() ? otherNode.getAddress() : buildNewFakeTransportAddress(),
+                otherNode.getAttributes(), otherNode.getRoles(), Version.CURRENT) :
+            new DiscoveryNode("conflicting_address_node", otherNode.getAddress(), otherNode.getAttributes(), otherNode.getRoles(),
+                Version.CURRENT);
 
         nodeJoinController.startElectionContext();
-        final SimpleFuture joinFuture = joinNodeAsync(restartedNode);
+        final SimpleFuture joinFuture = joinNodeAsync(conflictingNode);
         final CountDownLatch elected = new CountDownLatch(1);
         nodeJoinController.waitToBeElectedAsMaster(1, TimeValue.timeValueHours(5), new NodeJoinController.ElectionCallback() {
             @Override
@@ -655,9 +658,9 @@ public class NodeJoinControllerTests extends ESTestCase {
         assertTrue(finalNodes.isLocalNodeElectedMaster());
         assertThat(finalNodes.getLocalNode(), equalTo(masterNode));
         assertThat(finalNodes.getSize(), equalTo(2));
-        assertThat(finalNodes.get(restartedNode.getId()), equalTo(restartedNode));
+        assertThat(finalNodes.get(conflictingNode.getId()), equalTo(conflictingNode));
         List<ShardRouting> activeShardsOnRestartedNode =
-            StreamSupport.stream(finalState.getRoutingNodes().node(restartedNode.getId()).spliterator(), false)
+            StreamSupport.stream(finalState.getRoutingNodes().node(conflictingNode.getId()).spliterator(), false)
                 .filter(ShardRouting::active).collect(Collectors.toList());
         assertThat(activeShardsOnRestartedNode, empty());
     }

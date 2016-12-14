@@ -48,9 +48,11 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -1849,6 +1851,42 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             ConnectTransportException ex = expectThrows(ConnectTransportException.class,
                 () -> serviceA.connectToNode(dummy, builder.build()));
             assertEquals("[][" + dummy.getAddress() +"] handshake_timeout[1ms]", ex.getMessage());
+        }
+    }
+
+    public void testTcpHandshakeConnectionReset() throws IOException, InterruptedException {
+        assumeTrue("only tcp transport does a handshake", serviceA.getOriginalTransport() instanceof TcpTransport);
+        try (ServerSocket socket = new ServerSocket()) {
+            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+            socket.setReuseAddress(true);
+            DiscoveryNode dummy = new DiscoveryNode("TEST", new InetSocketTransportAddress(socket.getInetAddress(),
+                socket.getLocalPort()), emptyMap(),
+                emptySet(), version0);
+            Thread t = new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        Socket accept = socket.accept();
+                        accept.close();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            };
+            t.start();
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(1,
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE);
+            builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
+            ConnectTransportException ex = expectThrows(ConnectTransportException.class,
+                () -> serviceA.connectToNode(dummy, builder.build()));
+            assertEquals("[][" + dummy.getAddress() +"] general node connection failure", ex.getMessage());
+            assertEquals("handshake failed", ex.getCause().getMessage());
+            t.join();
         }
     }
 }

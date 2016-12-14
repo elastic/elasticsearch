@@ -386,7 +386,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 }
                 throw e;
             }
-            onAfterChannelsConnected(nodeChannels);
             success = true;
         } finally {
             if (success == false) {
@@ -400,14 +399,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
         return nodeChannels;
     }
 
-    /**
-     * Allows for logic to be executed after a connection has been made on all channels. While this method is being executed, the node is
-     * not listed as being connected to.
-     * @param nodeChannels the {@link NodeChannels} that have been connected
-     */
-    protected void onAfterChannelsConnected(NodeChannels nodeChannels) {
-    }
-
     private class ChannelCloseListener implements ChannelFutureListener {
 
         private final DiscoveryNode node;
@@ -418,6 +409,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         public void operationComplete(final ChannelFuture future) throws Exception {
+            onChannelClosed(future.channel());
             NodeChannels nodeChannels = connectedNodes.get(node);
             if (nodeChannels != null && nodeChannels.hasChannel(future.channel())) {
                 threadPool.generic().execute(() -> disconnectFromNode(node, future.channel(), "channel closed event"));

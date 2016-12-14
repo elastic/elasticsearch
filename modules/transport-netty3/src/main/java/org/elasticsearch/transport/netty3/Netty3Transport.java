@@ -479,6 +479,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
 
         @Override
         public void operationComplete(final ChannelFuture future) throws Exception {
+            onChannelClosed(future.getChannel());
             NodeChannels nodeChannels = connectedNodes.get(node);
             if (nodeChannels != null && nodeChannels.hasChannel(future.getChannel())) {
                 threadPool.generic().execute(() -> {

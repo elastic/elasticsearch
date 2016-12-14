@@ -1065,7 +1065,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected void ensureClusterSizeConsistency() {
-        if (cluster() != null) { // if static init fails the cluster can be null
+        if (cluster() != null && cluster().size() > 0) { // if static init fails the cluster can be null
             logger.trace("Check consistency for [{}] nodes", cluster().size());
             assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(cluster().size())).get());
         }
@@ -1075,7 +1075,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Verifies that all nodes that have the same version of the cluster state as master have same cluster state
      */
     protected void ensureClusterStateConsistency() throws IOException {
-        if (cluster() != null) {
+        if (cluster() != null && cluster().size() > 0) {
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
             // remove local node reference

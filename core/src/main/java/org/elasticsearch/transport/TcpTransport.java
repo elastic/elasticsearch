@@ -180,7 +180,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private final String transportName;
     protected final ConnectionProfile defaultConnectionProfile;
 
-    private final ConcurrentMap<Long, VersionHandshakeResponseTransportResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, HandshakeResponseHandler> pendingHandshakes = new ConcurrentHashMap<>();
     private final AtomicLong requestIdGenerator = new AtomicLong();
     private final CounterMetric numHandshakes = new CounterMetric();
     private static final String HANDSHAKE_ACTION_NAME = "internal:tcp/handshake";
@@ -242,16 +242,14 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         this.transportServiceAdapter = service;
     }
 
-    private static class VersionHandshakeResponseTransportResponseHandler<Channel> implements
-        TransportResponseHandler<VersionHandshakeResponse> {
-
+    private static class HandshakeResponseHandler<Channel> implements TransportResponseHandler<VersionHandshakeResponse> {
         final AtomicReference<Version> versionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean handshakeNotSupported = new AtomicBoolean(false);
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final Channel channel;
 
-        public VersionHandshakeResponseTransportResponseHandler(Channel channel) {
+        public HandshakeResponseHandler(Channel channel) {
             this.channel = channel;
         }
 
@@ -272,7 +270,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             Throwable cause = exp.getCause();
             if (cause != null
                 && cause instanceof ActionNotFoundTransportException
-                // this will happen if we talk to a node (pre 5.2) that doesn't haven a handshake handler
+                // this will happen if we talk to a node (pre 5.2) that doesn't have a handshake handler
                 // we will just treat the node as a 5.0.0 node unless the discovery node that is used to connect has a higher version.
                 && cause.getMessage().equals("No handler for action [internal:tcp/handshake]")) {
                     handshakeNotSupported.set(true);
@@ -1523,7 +1521,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     final Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException, InterruptedException {
         numHandshakes.inc();
         final long requestId = newRequestId();
-        final VersionHandshakeResponseTransportResponseHandler handler = new VersionHandshakeResponseTransportResponseHandler(channel);
+        final HandshakeResponseHandler handler = new HandshakeResponseHandler(channel);
         AtomicReference<Version> versionRef = handler.versionRef;
         AtomicReference<Exception> exceptionRef = handler.exceptionRef;
         pendingHandshakes.put(requestId, handler);
@@ -1580,11 +1578,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * Called by sub-classes for each channel that is closed
      */
     protected final void onChannelClosed(Channel channel) {
-        Optional<Map.Entry<Long, VersionHandshakeResponseTransportResponseHandler>> first = pendingHandshakes.entrySet().stream()
+        Optional<Map.Entry<Long, HandshakeResponseHandler>> first = pendingHandshakes.entrySet().stream()
             .filter((entry) -> entry.getValue().channel == channel).findFirst();
         if(first.isPresent()) {
             final Long requestId = first.get().getKey();
-            VersionHandshakeResponseTransportResponseHandler handler = first.get().getValue();
+            HandshakeResponseHandler handler = first.get().getValue();
             pendingHandshakes.remove(requestId);
             handler.handleException(new TransportException("connection reset"));
         }

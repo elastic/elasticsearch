@@ -28,6 +28,8 @@ import org.elasticsearch.ingest.Processor;
 
 import java.util.Map;
 
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
+
 /**
  * Processor that serializes a string-valued field into a
  * map of maps.
@@ -38,11 +40,13 @@ public final class JsonProcessor extends AbstractProcessor {
 
     private final String field;
     private final String targetField;
+    private final boolean addToRoot;
 
-    JsonProcessor(String tag, String field, String targetField) {
+    JsonProcessor(String tag, String field, String targetField, boolean addToRoot) {
         super(tag);
         this.field = field;
         this.targetField = targetField;
+        this.addToRoot = addToRoot;
     }
 
     public String getField() {
@@ -53,12 +57,22 @@ public final class JsonProcessor extends AbstractProcessor {
         return targetField;
     }
 
+    boolean isAddToRoot() {
+        return addToRoot;
+    }
+
     @Override
     public void execute(IngestDocument document) throws Exception {
         String stringValue = document.getFieldValue(field, String.class);
         try {
             Map<String, Object> mapValue = JsonXContent.jsonXContent.createParser(stringValue).map();
-            document.setFieldValue(targetField, mapValue);
+            if (addToRoot) {
+                for (Map.Entry<String, Object> entry : mapValue.entrySet()) {
+                    document.setFieldValue(entry.getKey(), entry.getValue());
+                }
+            } else {
+                document.setFieldValue(targetField, mapValue);
+            }
         } catch (JsonParseException e) {
             throw new IllegalArgumentException(e);
         }
@@ -74,8 +88,19 @@ public final class JsonProcessor extends AbstractProcessor {
         public JsonProcessor create(Map<String, Processor.Factory> registry, String processorTag,
                                     Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);
-            return new JsonProcessor(processorTag, field, targetField);
+            String targetField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_field");
+            boolean addToRoot = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "add_to_root", false);
+
+            if (addToRoot && targetField != null) {
+                throw newConfigurationException(TYPE, processorTag, "target_field",
+                    "Cannot set a target field while also setting `add_to_root` to true");
+            }
+
+            if (targetField == null) {
+                targetField = field;
+            }
+
+            return new JsonProcessor(processorTag, field, targetField, addToRoot);
         }
     }
 }

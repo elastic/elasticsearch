@@ -34,15 +34,21 @@ setup:
                 "format" : "ELASTICSEARCH",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd'T'HH:mm:ssX"
-            },
-            "scheduler_config": {
-                "indexes":["farequote"],
-                "types":["response"]
             }
           }
   - do:
       xpack.prelert.open_job:
         job_id: scheduled-job
+
+  - do:
+      xpack.prelert.put_scheduler:
+        scheduler_id: scheduler-1
+        body:  >
+          {
+            "job_id":"scheduled-job",
+            "indexes":["farequote"],
+            "types":["response"]
+          }
 
   - do:
       index:

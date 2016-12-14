@@ -5,18 +5,16 @@
  */
 package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
 
-import static org.mockito.Mockito.mock;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.test.ESTestCase;
-
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.DataDescription.DataFormat;
-import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfigs;
+
+import static org.mockito.Mockito.mock;
 
 public class DataToProcessWriterFactoryTests extends ESTestCase {
     public void testCreate_GivenDataFormatIsJson() {
@@ -49,7 +47,6 @@ public class DataToProcessWriterFactoryTests extends ESTestCase {
 
     private static DataToProcessWriter createWriter(DataDescription dataDescription) {
         return DataToProcessWriterFactory.create(true, mock(AutodetectProcess.class), dataDescription,
-                mock(AnalysisConfig.class), mock(SchedulerConfig.class), mock(TransformConfigs.class),
-                mock(StatusReporter.class), mock(Logger.class));
+                mock(AnalysisConfig.class), mock(TransformConfigs.class), mock(StatusReporter.class), mock(Logger.class));
     }
 }

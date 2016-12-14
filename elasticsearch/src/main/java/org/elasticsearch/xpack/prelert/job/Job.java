@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfigs;
 import org.elasticsearch.xpack.prelert.job.transform.verification.TransformConfigsVerifier;
+import org.elasticsearch.xpack.prelert.utils.PrelertStrings;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
 import java.io.IOException;
@@ -34,7 +35,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Pattern;
 
 /**
  * This class represents a configured and created Job. The creation time is set
@@ -47,7 +47,7 @@ import java.util.regex.Pattern;
 public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent {
 
     public static final Job PROTO =
-            new Job(null, null, null, null, null, 0L, null, null, null, null, null, null, null, null, null, null, null, null, null);
+            new Job(null, null, null, null, null, 0L, null, null, null, null, null, null, null, null, null, null, null, null);
 
     public static final long DEFAULT_BUCKETSPAN = 300;
 
@@ -67,7 +67,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public static final ParseField IGNORE_DOWNTIME = new ParseField("ignore_downtime");
     public static final ParseField LAST_DATA_TIME = new ParseField("last_data_time");
     public static final ParseField MODEL_DEBUG_CONFIG = new ParseField("model_debug_config");
-    public static final ParseField SCHEDULER_CONFIG = new ParseField("scheduler_config");
     public static final ParseField RENORMALIZATION_WINDOW_DAYS = new ParseField("renormalization_window_days");
     public static final ParseField BACKGROUND_PERSIST_INTERVAL = new ParseField("background_persist_interval");
     public static final ParseField MODEL_SNAPSHOT_RETENTION_DAYS = new ParseField("model_snapshot_retention_days");
@@ -112,7 +111,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         }, LAST_DATA_TIME, ValueType.VALUE);
         PARSER.declareObject(Builder::setAnalysisConfig, AnalysisConfig.PARSER, ANALYSIS_CONFIG);
         PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSER, ANALYSIS_LIMITS);
-        PARSER.declareObject(Builder::setSchedulerConfig, SchedulerConfig.PARSER, SCHEDULER_CONFIG);
         PARSER.declareObject(Builder::setDataDescription, DataDescription.PARSER, DATA_DESCRIPTION);
         PARSER.declareObjectArray(Builder::setTransforms, TransformConfig.PARSER, TRANSFORMS);
         PARSER.declareObject(Builder::setModelDebugConfig, ModelDebugConfig.PARSER, MODEL_DEBUG_CONFIG);
@@ -135,7 +133,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final long timeout;
     private final AnalysisConfig analysisConfig;
     private final AnalysisLimits analysisLimits;
-    private final SchedulerConfig schedulerConfig;
     private final DataDescription dataDescription;
     private final List<TransformConfig> transforms;
     private final ModelDebugConfig modelDebugConfig;
@@ -148,10 +145,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final String modelSnapshotId;
 
     public Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime, long timeout,
-               AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, SchedulerConfig schedulerConfig,
-               DataDescription dataDescription, List<TransformConfig> transforms,
-               ModelDebugConfig modelDebugConfig, IgnoreDowntime ignoreDowntime, Long renormalizationWindowDays,
-               Long backgroundPersistInterval, Long modelSnapshotRetentionDays, Long resultsRetentionDays,
+               AnalysisConfig analysisConfig, AnalysisLimits analysisLimits,  DataDescription dataDescription,
+               List<TransformConfig> transforms, ModelDebugConfig modelDebugConfig, IgnoreDowntime ignoreDowntime,
+               Long renormalizationWindowDays, Long backgroundPersistInterval, Long modelSnapshotRetentionDays, Long resultsRetentionDays,
                Map<String, Object> customSettings, String modelSnapshotId) {
         this.jobId = jobId;
         this.description = description;
@@ -161,7 +157,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         this.timeout = timeout;
         this.analysisConfig = analysisConfig;
         this.analysisLimits = analysisLimits;
-        this.schedulerConfig = schedulerConfig;
         this.dataDescription = dataDescription;
         this.transforms = transforms;
         this.modelDebugConfig = modelDebugConfig;
@@ -183,7 +178,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         timeout = in.readVLong();
         analysisConfig = new AnalysisConfig(in);
         analysisLimits = in.readOptionalWriteable(AnalysisLimits::new);
-        schedulerConfig = in.readOptionalWriteable(SchedulerConfig::new);
         dataDescription = in.readOptionalWriteable(DataDescription::new);
         transforms = in.readList(TransformConfig::new);
         modelDebugConfig = in.readOptionalWriteable(ModelDebugConfig::new);
@@ -288,10 +282,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     public IgnoreDowntime getIgnoreDowntime() {
         return ignoreDowntime;
-    }
-
-    public SchedulerConfig getSchedulerConfig() {
-        return schedulerConfig;
     }
 
     public ModelDebugConfig getModelDebugConfig() {
@@ -405,7 +395,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         out.writeVLong(timeout);
         analysisConfig.writeTo(out);
         out.writeOptionalWriteable(analysisLimits);
-        out.writeOptionalWriteable(schedulerConfig);
         out.writeOptionalWriteable(dataDescription);
         out.writeList(transforms);
         out.writeOptionalWriteable(modelDebugConfig);
@@ -440,9 +429,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
         if (analysisLimits != null) {
             builder.field(ANALYSIS_LIMITS.getPreferredName(), analysisLimits, params);
-        }
-        if (schedulerConfig != null) {
-            builder.field(SCHEDULER_CONFIG.getPreferredName(), schedulerConfig, params);
         }
         if (dataDescription != null) {
             builder.field(DATA_DESCRIPTION.getPreferredName(), dataDescription, params);
@@ -490,8 +476,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         Job that = (Job) other;
         return Objects.equals(this.jobId, that.jobId) && Objects.equals(this.description, that.description)
                 && Objects.equals(this.createTime, that.createTime)
-                && Objects.equals(this.finishedTime, that.finishedTime) && Objects.equals(this.lastDataTime, that.lastDataTime)
-                && (this.timeout == that.timeout) && Objects.equals(this.analysisConfig, that.analysisConfig)
+                && Objects.equals(this.finishedTime, that.finishedTime)
+                && Objects.equals(this.lastDataTime, that.lastDataTime)
+                && (this.timeout == that.timeout)
+                && Objects.equals(this.analysisConfig, that.analysisConfig)
                 && Objects.equals(this.analysisLimits, that.analysisLimits) && Objects.equals(this.dataDescription, that.dataDescription)
                 && Objects.equals(this.modelDebugConfig, that.modelDebugConfig) && Objects.equals(this.transforms, that.transforms)
                 && Objects.equals(this.ignoreDowntime, that.ignoreDowntime)
@@ -528,10 +516,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     public static class Builder {
 
-        /**
-         * Valid jobId characters. Note that '.' is allowed but not documented.
-         */
-        private static final Pattern VALID_JOB_ID_CHAR_PATTERN = Pattern.compile("[a-z0-9_\\-\\.]+");
         public static final int MAX_JOB_ID_LENGTH = 64;
         public static final long MIN_BACKGROUND_PERSIST_INTERVAL = 3600;
         public static final long DEFAULT_TIMEOUT = 600;
@@ -541,7 +525,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
         private AnalysisConfig analysisConfig;
         private AnalysisLimits analysisLimits;
-        private SchedulerConfig schedulerConfig;
         private List<TransformConfig> transforms = new ArrayList<>();
         private DataDescription dataDescription;
         private Date createTime;
@@ -568,7 +551,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.id = job.getId();
             this.description = job.getDescription();
             this.analysisConfig = job.getAnalysisConfig();
-            this.schedulerConfig = job.getSchedulerConfig();
             this.transforms = job.getTransforms();
             this.dataDescription = job.getDataDescription();
             this.createTime = job.getCreateTime();
@@ -615,10 +597,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 }
             }
             this.analysisLimits = analysisLimits;
-        }
-
-        public void setSchedulerConfig(SchedulerConfig.Builder config) {
-            schedulerConfig = config.build();
         }
 
         public void setTimeout(Long timeout) {
@@ -686,25 +664,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
             }
 
-            if (schedulerConfig != null) {
-                if (analysisConfig.getBucketSpan() == null) {
-                    throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_REQUIRES_BUCKET_SPAN));
-                }
-                if (analysisConfig.getLatency() != null && analysisConfig.getLatency() > 0) {
-                    throw new IllegalArgumentException(
-                            Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_ELASTICSEARCH_DOES_NOT_SUPPORT_LATENCY));
-                }
-                if (schedulerConfig.getAggregationsOrAggs() != null
-                        && !SchedulerConfig.DOC_COUNT.equals(analysisConfig.getSummaryCountFieldName())) {
-                    throw new IllegalArgumentException(
-                            Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_AGGREGATIONS_REQUIRES_SUMMARY_COUNT_FIELD,
-                                    SchedulerConfig.DOC_COUNT));
-                }
-                if (dataDescription == null || dataDescription.getFormat() != DataDescription.DataFormat.ELASTICSEARCH) {
-                    throw new IllegalArgumentException(
-                            Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_ELASTICSEARCH_REQUIRES_DATAFORMAT_ELASTICSEARCH));
-                }
-            }
             if (transforms != null && transforms.isEmpty() == false) {
                 TransformConfigsVerifier.verify(transforms);
                 checkTransformOutputIsUsed();
@@ -745,12 +704,12 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             if (id.length() > MAX_JOB_ID_LENGTH) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
             }
-            if (!VALID_JOB_ID_CHAR_PATTERN.matcher(id).matches()) {
+            if (!PrelertStrings.isValidId(id)) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_JOBID_CHARS));
             }
             return new Job(
                     id, description, createTime, finishedTime, lastDataTime, timeout, analysisConfig, analysisLimits,
-                    schedulerConfig, dataDescription, transforms, modelDebugConfig, ignoreDowntime, renormalizationWindowDays,
+                    dataDescription, transforms, modelDebugConfig, ignoreDowntime, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId
             );
         }

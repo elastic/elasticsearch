@@ -70,7 +70,7 @@ public class AutodetectCommunicator implements Closeable {
 
     private DataToProcessWriter createProcessWriter(Job job, AutodetectProcess process, StatusReporter statusReporter) {
         return DataToProcessWriterFactory.create(true, process, job.getDataDescription(), job.getAnalysisConfig(),
-                job.getSchedulerConfig(), new TransformConfigs(job.getTransforms()) , statusReporter, LOGGER);
+                new TransformConfigs(job.getTransforms()) , statusReporter, LOGGER);
     }
 
     public DataCounts writeToJob(InputStream inputStream, DataLoadParams params, Supplier<Boolean> cancelled) throws IOException {

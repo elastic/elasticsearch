@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.prelert.integration;
 
-import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Response;
@@ -34,11 +33,13 @@ public class ScheduledJobIT extends ESRestTestCase {
     public void testStartJobScheduler_GivenLookbackOnly() throws Exception {
         String jobId = "_id2";
         createAirlineDataIndex();
-        createScheduledJob(jobId);
+        createJob(jobId);
+        String schedulerId = "_sched1";
+        createScheduler(schedulerId, jobId);
         openJob(client(), jobId);
 
         Response startSchedulerRequest = client().performRequest("post",
-                PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start?start=2016-06-01T00:00:00Z&end=2016-06-02T00:00:00Z");
+                PrelertPlugin.BASE_PATH + "schedulers/" + schedulerId + "/_start?start=2016-06-01T00:00:00Z&end=2016-06-02T00:00:00Z");
         assertThat(startSchedulerRequest.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(startSchedulerRequest), containsString("{\"task\":\""));
         assertBusy(() -> {
@@ -56,11 +57,13 @@ public class ScheduledJobIT extends ESRestTestCase {
     public void testStartJobScheduler_GivenRealtime() throws Exception {
         String jobId = "_id3";
         createAirlineDataIndex();
-        createScheduledJob(jobId);
+        createJob(jobId);
+        String schedulerId = "_sched1";
+        createScheduler(schedulerId, jobId);
         openJob(client(), jobId);
 
         Response response = client().performRequest("post",
-                PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_start?start=2016-06-01T00:00:00Z");
+                PrelertPlugin.BASE_PATH + "schedulers/" + schedulerId + "/_start?start=2016-06-01T00:00:00Z");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(response), containsString("{\"task\":\""));
         assertBusy(() -> {
@@ -79,14 +82,20 @@ public class ScheduledJobIT extends ESRestTestCase {
                 () -> client().performRequest("delete", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId));
         response = e.getResponse();
         assertThat(response.getStatusLine().getStatusCode(), equalTo(409));
-        assertThat(responseEntityToString(response), containsString("Cannot delete job '" + jobId + "' while it is OPENED"));
+        assertThat(responseEntityToString(response), containsString("Cannot delete job [" + jobId + "] while scheduler [" + schedulerId
+                + "] refers to it"));
 
-        response = client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/" + jobId + "/_stop");
+        response = client().performRequest("post", PrelertPlugin.BASE_PATH + "schedulers/" + schedulerId + "/_stop");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
         waitForSchedulerStoppedState(client(), jobId);
 
         client().performRequest("POST", "/_xpack/prelert/anomaly_detectors/" + jobId + "/_close");
+
+        response = client().performRequest("delete", PrelertPlugin.BASE_PATH + "schedulers/" + schedulerId);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
+
         response = client().performRequest("delete", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
@@ -106,18 +115,22 @@ public class ScheduledJobIT extends ESRestTestCase {
         client().performRequest("post", "airline-data/_refresh");
     }
 
-    private Response createScheduledJob(String id) throws Exception {
-        HttpHost httpHost = getClusterHosts().get(0);
-        logger.info("Http host = " + httpHost.toURI());
+    private Response createJob(String id) throws Exception {
         String job = "{\n" + "    \"job_id\":\"" + id + "\",\n" + "    \"description\":\"Analysis of response time by airline\",\n"
                 + "    \"analysis_config\" : {\n" + "        \"bucket_span\":3600,\n"
                 + "        \"detectors\" :[{\"function\":\"mean\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
                 + "    },\n" + "    \"data_description\" : {\n" + "        \"format\":\"ELASTICSEARCH\",\n"
-                + "        \"time_field\":\"time\",\n" + "        \"time_format\":\"yyyy-MM-dd'T'HH:mm:ssX\"\n" + "    },\n"
-                + "    \"scheduler_config\" : {\n" +  "        \"indexes\":[\"airline-data\"],\n"
-                + "        \"types\":[\"response\"],\n" + "        \"retrieve_whole_source\":true\n" + "    }\n" + "}";
+                + "        \"time_field\":\"time\",\n" + "        \"time_format\":\"yyyy-MM-dd'T'HH:mm:ssX\"\n" + "    }\n"
+                + "}";
 
         return client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors", Collections.emptyMap(), new StringEntity(job));
+    }
+
+    private Response createScheduler(String schedulerId, String jobId) throws IOException {
+        String schedulerConfig = "{" + "\"job_id\": \"" + jobId + "\",\n" + "\"indexes\":[\"airline-data\"],\n"
+                + "\"types\":[\"response\"],\n" + "\"retrieve_whole_source\":true\n" + "}";
+        return client().performRequest("put", PrelertPlugin.BASE_PATH + "schedulers/" + schedulerId, Collections.emptyMap(),
+                new StringEntity(schedulerConfig));
     }
 
     private static String responseEntityToString(Response response) throws Exception {
@@ -133,7 +146,7 @@ public class ScheduledJobIT extends ESRestTestCase {
                     Response getJobResponse = client.performRequest("get",
                             PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats",
                             Collections.singletonMap("metric", "scheduler_status"));
-                    assertThat(responseEntityToString(getJobResponse), containsString("\"status\":\"STOPPED\""));
+                    assertThat(responseEntityToString(getJobResponse), containsString("\"scheduler_status\":\"STOPPED\""));
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
@@ -151,6 +164,35 @@ public class ScheduledJobIT extends ESRestTestCase {
     }
 
     public static void clearPrelertMetadata(RestClient client) throws IOException {
+        deleteAllSchedulers(client);
+        deleteAllJobs(client);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void deleteAllSchedulers(RestClient client) throws IOException {
+        Map<String, Object> clusterStateAsMap = entityAsMap(client.performRequest("GET", "/_cluster/state",
+                Collections.singletonMap("filter_path", "metadata.prelert.schedulers")));
+        List<Map<String, Object>> schedulers =
+                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.prelert.schedulers", clusterStateAsMap);
+        if (schedulers == null) {
+            return;
+        }
+
+        for (Map<String, Object> scheduler : schedulers) {
+            Map<String, Object> schedulerMap = (Map<String, Object>) scheduler.get("config");
+            String schedulerId = (String) schedulerMap.get("scheduler_id");
+            String jobId = (String) schedulerMap.get("job_id");
+            try {
+                client.performRequest("POST", "/_xpack/prelert/schedulers/" + schedulerId + "/_stop");
+                waitForSchedulerStoppedState(client, jobId);
+            } catch (Exception e) {
+                // ignore
+            }
+            client.performRequest("DELETE", "/_xpack/prelert/schedulers/" + schedulerId);
+        }
+    }
+
+    private static void deleteAllJobs(RestClient client) throws IOException {
         Map<String, Object> clusterStateAsMap = entityAsMap(client.performRequest("GET", "/_cluster/state",
                 Collections.singletonMap("filter_path", "metadata.prelert.jobs")));
         @SuppressWarnings("unchecked")
@@ -162,12 +204,6 @@ public class ScheduledJobIT extends ESRestTestCase {
 
         for (Map<String, Object> jobConfig : jobConfigs) {
             String jobId = (String) jobConfig.get("job_id");
-            try {
-                client.performRequest("POST", "/_xpack/prelert/schedulers/" + jobId + "/_stop");
-                waitForSchedulerStoppedState(client, jobId);
-            } catch (Exception e) {
-                // ignore
-            }
             try {
                 Response response = client.performRequest("POST", "/_xpack/prelert/anomaly_detectors/" + jobId + "/_close");
                 assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

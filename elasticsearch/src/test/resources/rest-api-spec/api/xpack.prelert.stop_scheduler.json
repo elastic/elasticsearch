@@ -1,0 +1,17 @@
+{
+  "xpack.prelert.stop_scheduler": {
+    "methods": [ "POST" ],
+    "url": {
+      "path": "/_xpack/prelert/schedulers/{scheduler_id}/_stop",
+      "paths": [ "/_xpack/prelert/schedulers/{scheduler_id}/_stop" ],
+      "parts": {
+        "scheduler_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the scheduler to stop"
+        }
+      }
+    },
+    "body": null
+  }
+}

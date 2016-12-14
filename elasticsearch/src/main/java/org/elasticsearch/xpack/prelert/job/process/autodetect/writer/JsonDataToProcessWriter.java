@@ -5,27 +5,23 @@
  */
 package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
-
-import org.apache.logging.log4j.Logger;
-
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParser;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.DataDescription.DataFormat;
-import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfigs;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * A writer for transforming and piping JSON data from an
@@ -38,18 +34,10 @@ import org.elasticsearch.xpack.prelert.job.transform.TransformConfigs;
 class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
     private static final String ELASTICSEARCH_SOURCE_FIELD = "_source";
 
-    /**
-     * Scheduler config.  May be <code>null</code>.
-     */
-    private SchedulerConfig schedulerConfig;
-
-    public JsonDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess,
-            DataDescription dataDescription, AnalysisConfig analysisConfig,
-            SchedulerConfig schedulerConfig, TransformConfigs transforms,
-            StatusReporter statusReporter, Logger logger) {
-        super(includeControlField, autodetectProcess, dataDescription, analysisConfig, transforms,
-                statusReporter, logger);
-        this.schedulerConfig = schedulerConfig;
+    public JsonDataToProcessWriter(boolean includeControlField, AutodetectProcess autodetectProcess, DataDescription dataDescription,
+                                   AnalysisConfig analysisConfig, TransformConfigs transforms, StatusReporter statusReporter,
+                                   Logger logger) {
+        super(includeControlField, autodetectProcess, dataDescription, analysisConfig, transforms, statusReporter, logger);
     }
 
     /**
@@ -85,7 +73,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
         // We never expect to get the control field
         boolean[] gotFields = new boolean[analysisFields.size()];
 
-        JsonRecordReader recordReader = makeRecordReader(parser);
+        JsonRecordReader recordReader = new SimpleJsonRecordReader(parser, inFieldIndexes, getRecordHoldingField(), logger);
         long inputFieldCount = recordReader.read(input, gotFields);
         while (inputFieldCount >= 0) {
             Arrays.fill(record, "");
@@ -110,23 +98,9 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
     private String getRecordHoldingField() {
         if (dataDescription.getFormat().equals(DataFormat.ELASTICSEARCH)) {
-            if (schedulerConfig != null) {
-                if (schedulerConfig.getAggregationsOrAggs() != null) {
-                    return SchedulerConfig.AGGREGATIONS.getPreferredName();
-                }
-            }
             return ELASTICSEARCH_SOURCE_FIELD;
         }
         return "";
-    }
-
-    // TODO norelease: Feels like this is checked in the wrong place. The fact that there is a different format, should
-    // be specified to this class and this class shouldn't know about the existence of SchedulerConfig
-    private JsonRecordReader makeRecordReader(JsonParser parser) {
-        List<String> nestingOrder = (schedulerConfig != null) ?
-                schedulerConfig.buildAggregatedFieldList() : Collections.emptyList();
-                return nestingOrder.isEmpty() ? new SimpleJsonRecordReader(parser, inFieldIndexes, getRecordHoldingField(), logger)
-                        : new AggregatedJsonRecordReader(parser, inFieldIndexes, getRecordHoldingField(), logger, nestingOrder);
     }
 
     /**

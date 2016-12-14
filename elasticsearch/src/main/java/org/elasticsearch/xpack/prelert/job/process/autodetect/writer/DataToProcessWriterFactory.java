@@ -33,14 +33,13 @@ public final class DataToProcessWriterFactory {
      * format is JSON or otherwise a {@link CsvDataToProcessWriter}
      */
     public static DataToProcessWriter create(boolean includeControlField, AutodetectProcess autodetectProcess,
-            DataDescription dataDescription, AnalysisConfig analysisConfig,
-            SchedulerConfig schedulerConfig, TransformConfigs transforms,
-            StatusReporter statusReporter, Logger logger) {
+                                             DataDescription dataDescription, AnalysisConfig analysisConfig,
+                                             TransformConfigs transforms, StatusReporter statusReporter, Logger logger) {
         switch (dataDescription.getFormat()) {
         case JSON:
         case ELASTICSEARCH:
             return new JsonDataToProcessWriter(includeControlField, autodetectProcess, dataDescription, analysisConfig,
-                    schedulerConfig, transforms, statusReporter, logger);
+                    transforms, statusReporter, logger);
         case DELIMITED:
             return new CsvDataToProcessWriter(includeControlField, autodetectProcess, dataDescription, analysisConfig,
                     transforms, statusReporter, logger);

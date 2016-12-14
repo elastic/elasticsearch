@@ -26,9 +26,12 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.prelert.action.CloseJobAction;
 import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
 import org.elasticsearch.xpack.prelert.action.DeleteListAction;
 import org.elasticsearch.xpack.prelert.action.DeleteModelSnapshotAction;
+import org.elasticsearch.xpack.prelert.action.DeleteSchedulerAction;
+import org.elasticsearch.xpack.prelert.action.FlushJobAction;
 import org.elasticsearch.xpack.prelert.action.GetBucketsAction;
 import org.elasticsearch.xpack.prelert.action.GetCategoriesDefinitionAction;
 import org.elasticsearch.xpack.prelert.action.GetInfluencersAction;
@@ -37,17 +40,16 @@ import org.elasticsearch.xpack.prelert.action.GetListAction;
 import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.prelert.action.GetRecordsAction;
 import org.elasticsearch.xpack.prelert.action.JobDataAction;
-import org.elasticsearch.xpack.prelert.action.CloseJobAction;
-import org.elasticsearch.xpack.prelert.action.FlushJobAction;
+import org.elasticsearch.xpack.prelert.action.OpenJobAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
 import org.elasticsearch.xpack.prelert.action.PutListAction;
 import org.elasticsearch.xpack.prelert.action.PutModelSnapshotDescriptionAction;
-import org.elasticsearch.xpack.prelert.action.OpenJobAction;
+import org.elasticsearch.xpack.prelert.action.PutSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.RevertModelSnapshotAction;
-import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction;
-import org.elasticsearch.xpack.prelert.action.StopJobSchedulerAction;
-import org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction;
+import org.elasticsearch.xpack.prelert.action.StartSchedulerAction;
+import org.elasticsearch.xpack.prelert.action.StopSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
+import org.elasticsearch.xpack.prelert.action.UpdateSchedulerStatusAction;
 import org.elasticsearch.xpack.prelert.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.prelert.action.ValidateTransformAction;
 import org.elasticsearch.xpack.prelert.action.ValidateTransformsAction;
@@ -58,8 +60,8 @@ import org.elasticsearch.xpack.prelert.job.metadata.JobAllocator;
 import org.elasticsearch.xpack.prelert.job.metadata.JobLifeCycleService;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertInitializationService;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
-import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleterFactory;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
+import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleterFactory;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.process.NativeController;
@@ -75,15 +77,14 @@ import org.elasticsearch.xpack.prelert.job.process.normalizer.NormalizerProcessF
 import org.elasticsearch.xpack.prelert.job.scheduler.http.HttpDataExtractorFactory;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
-import org.elasticsearch.xpack.prelert.rest.job.RestJobDataAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestCloseJobAction;
-import org.elasticsearch.xpack.prelert.rest.job.RestFlushJobAction;
-import org.elasticsearch.xpack.prelert.rest.list.RestDeleteListAction;
-import org.elasticsearch.xpack.prelert.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestDeleteJobAction;
+import org.elasticsearch.xpack.prelert.rest.job.RestFlushJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsAction;
-import org.elasticsearch.xpack.prelert.rest.job.RestPutJobAction;
+import org.elasticsearch.xpack.prelert.rest.job.RestJobDataAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestOpenJobAction;
+import org.elasticsearch.xpack.prelert.rest.job.RestPutJobAction;
+import org.elasticsearch.xpack.prelert.rest.list.RestDeleteListAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestGetListAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestPutListAction;
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestDeleteModelSnapshotAction;
@@ -92,9 +93,12 @@ import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestPutModelSnapshotD
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestRevertModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetBucketsAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetCategoriesAction;
+import org.elasticsearch.xpack.prelert.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetRecordsAction;
-import org.elasticsearch.xpack.prelert.rest.schedulers.RestStartJobSchedulerAction;
-import org.elasticsearch.xpack.prelert.rest.schedulers.RestStopJobSchedulerAction;
+import org.elasticsearch.xpack.prelert.rest.schedulers.RestDeleteSchedulerAction;
+import org.elasticsearch.xpack.prelert.rest.schedulers.RestPutSchedulerAction;
+import org.elasticsearch.xpack.prelert.rest.schedulers.RestStartSchedulerAction;
+import org.elasticsearch.xpack.prelert.rest.schedulers.RestStopSchedulerAction;
 import org.elasticsearch.xpack.prelert.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.prelert.rest.validate.RestValidateTransformAction;
 import org.elasticsearch.xpack.prelert.rest.validate.RestValidateTransformsAction;
@@ -217,8 +221,10 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 RestGetModelSnapshotsAction.class,
                 RestRevertModelSnapshotAction.class,
                 RestPutModelSnapshotDescriptionAction.class,
-                RestStartJobSchedulerAction.class,
-                RestStopJobSchedulerAction.class,
+                RestPutSchedulerAction.class,
+                RestDeleteSchedulerAction.class,
+                RestStartSchedulerAction.class,
+                RestStopSchedulerAction.class,
                 RestDeleteModelSnapshotAction.class
                 );
     }
@@ -231,7 +237,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(DeleteJobAction.INSTANCE, DeleteJobAction.TransportAction.class),
                 new ActionHandler<>(OpenJobAction.INSTANCE, OpenJobAction.TransportAction.class),
                 new ActionHandler<>(UpdateJobStatusAction.INSTANCE, UpdateJobStatusAction.TransportAction.class),
-                new ActionHandler<>(UpdateJobSchedulerStatusAction.INSTANCE, UpdateJobSchedulerStatusAction.TransportAction.class),
+                new ActionHandler<>(UpdateSchedulerStatusAction.INSTANCE, UpdateSchedulerStatusAction.TransportAction.class),
                 new ActionHandler<>(GetListAction.INSTANCE, GetListAction.TransportAction.class),
                 new ActionHandler<>(PutListAction.INSTANCE, PutListAction.TransportAction.class),
                 new ActionHandler<>(DeleteListAction.INSTANCE, DeleteListAction.TransportAction.class),
@@ -248,8 +254,10 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetModelSnapshotsAction.INSTANCE, GetModelSnapshotsAction.TransportAction.class),
                 new ActionHandler<>(RevertModelSnapshotAction.INSTANCE, RevertModelSnapshotAction.TransportAction.class),
                 new ActionHandler<>(PutModelSnapshotDescriptionAction.INSTANCE, PutModelSnapshotDescriptionAction.TransportAction.class),
-                new ActionHandler<>(StartJobSchedulerAction.INSTANCE, StartJobSchedulerAction.TransportAction.class),
-                new ActionHandler<>(StopJobSchedulerAction.INSTANCE, StopJobSchedulerAction.TransportAction.class),
+                new ActionHandler<>(PutSchedulerAction.INSTANCE, PutSchedulerAction.TransportAction.class),
+                new ActionHandler<>(DeleteSchedulerAction.INSTANCE, DeleteSchedulerAction.TransportAction.class),
+                new ActionHandler<>(StartSchedulerAction.INSTANCE, StartSchedulerAction.TransportAction.class),
+                new ActionHandler<>(StopSchedulerAction.INSTANCE, StopSchedulerAction.TransportAction.class),
                 new ActionHandler<>(DeleteModelSnapshotAction.INSTANCE, DeleteModelSnapshotAction.TransportAction.class)
                 );
     }

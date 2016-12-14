@@ -1,0 +1,17 @@
+{
+  "xpack.prelert.delete_scheduler": {
+    "methods": [ "DELETE" ],
+    "url": {
+      "path": "/_xpack/prelert/schedulers/{scheduler_id}",
+      "paths": [ "/_xpack/prelert/schedulers/{scheduler_id}" ],
+      "parts": {
+        "scheduler_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the scheduler to delete"
+        }
+      }
+    },
+    "body": null
+  }
+}

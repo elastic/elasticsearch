@@ -29,20 +29,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.manager.JobManager;
+import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class StopJobSchedulerAction
-extends Action<StopJobSchedulerAction.Request, StopJobSchedulerAction.Response, StopJobSchedulerAction.RequestBuilder> {
+public class StopSchedulerAction
+        extends Action<StopSchedulerAction.Request, StopSchedulerAction.Response, StopSchedulerAction.RequestBuilder> {
 
-    public static final StopJobSchedulerAction INSTANCE = new StopJobSchedulerAction();
-    public static final String NAME = "cluster:admin/prelert/job/scheduler/stop";
+    public static final StopSchedulerAction INSTANCE = new StopSchedulerAction();
+    public static final String NAME = "cluster:admin/prelert/scheduler/stop";
 
-    private StopJobSchedulerAction() {
+    private StopSchedulerAction() {
         super(NAME);
     }
 
@@ -58,17 +57,17 @@ extends Action<StopJobSchedulerAction.Request, StopJobSchedulerAction.Response, 
 
     public static class Request extends ActionRequest {
 
-        private String jobId;
+        private String schedulerId;
 
         public Request(String jobId) {
-            this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+            this.schedulerId = ExceptionsHelper.requireNonNull(jobId, SchedulerConfig.ID.getPreferredName());
         }
 
         Request() {
         }
 
-        public String getJobId() {
-            return jobId;
+        public String getSchedulerId() {
+            return schedulerId;
         }
 
         @Override
@@ -79,18 +78,18 @@ extends Action<StopJobSchedulerAction.Request, StopJobSchedulerAction.Response, 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            jobId = in.readString();
+            schedulerId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(jobId);
+            out.writeString(schedulerId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId);
+            return Objects.hash(schedulerId);
         }
 
         @Override
@@ -102,13 +101,13 @@ extends Action<StopJobSchedulerAction.Request, StopJobSchedulerAction.Response, 
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId);
+            return Objects.equals(schedulerId, other.schedulerId);
         }
     }
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, StopJobSchedulerAction action) {
+        public RequestBuilder(ElasticsearchClient client, StopSchedulerAction action) {
             super(client, action, new Request());
         }
     }
@@ -139,7 +138,7 @@ extends Action<StopJobSchedulerAction.Request, StopJobSchedulerAction.Response, 
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                TransportCancelTasksAction cancelTasksAction, TransportListTasksAction listTasksAction) {
-            super(settings, StopJobSchedulerAction.NAME, threadPool, transportService, actionFilters,
+            super(settings, StopSchedulerAction.NAME, threadPool, transportService, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.cancelTasksAction = cancelTasksAction;
             this.listTasksAction = listTasksAction;
@@ -147,14 +146,14 @@ extends Action<StopJobSchedulerAction.Request, StopJobSchedulerAction.Response, 
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
-            String jobId = request.getJobId();
+            String schedulerId = request.getSchedulerId();
             ListTasksRequest listTasksRequest = new ListTasksRequest();
-            listTasksRequest.setActions(StartJobSchedulerAction.NAME);
+            listTasksRequest.setActions(StartSchedulerAction.NAME);
             listTasksRequest.setDetailed(true);
             listTasksAction.execute(listTasksRequest, new ActionListener<ListTasksResponse>() {
                 @Override
                 public void onResponse(ListTasksResponse listTasksResponse) {
-                    String expectedJobDescription = "job-scheduler-" + jobId;
+                    String expectedJobDescription = "scheduler-" + schedulerId;
                     for (TaskInfo taskInfo : listTasksResponse.getTasks()) {
                         if (expectedJobDescription.equals(taskInfo.getDescription())) {
                             CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
@@ -173,7 +172,7 @@ extends Action<StopJobSchedulerAction.Request, StopJobSchedulerAction.Response, 
                             return;
                         }
                     }
-                    listener.onFailure(new ResourceNotFoundException("No scheduler running for job [" + jobId + "]"));
+                    listener.onFailure(new ResourceNotFoundException("No scheduler [" + schedulerId + "] running"));
                 }
 
                 @Override

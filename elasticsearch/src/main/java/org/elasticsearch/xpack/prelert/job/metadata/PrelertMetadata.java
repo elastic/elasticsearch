@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.prelert.job.metadata;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -18,12 +18,15 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
+import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
+import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobValidator;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -33,14 +36,15 @@ import java.util.Date;
 import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 public class PrelertMetadata implements MetaData.Custom {
 
     private static final ParseField JOBS_FIELD = new ParseField("jobs");
     private static final ParseField ALLOCATIONS_FIELD = new ParseField("allocations");
+    private static final ParseField SCHEDULERS_FIELD = new ParseField("schedulers");
 
     public static final String TYPE = "prelert";
     public static final PrelertMetadata PROTO = new PrelertMetadata(Collections.emptySortedMap(), Collections.emptySortedMap(),
@@ -52,17 +56,18 @@ public class PrelertMetadata implements MetaData.Custom {
     static {
         PRELERT_METADATA_PARSER.declareObjectArray(Builder::putJobs, (p, c) -> Job.PARSER.apply(p, c).build(), JOBS_FIELD);
         PRELERT_METADATA_PARSER.declareObjectArray(Builder::putAllocations, Allocation.PARSER, ALLOCATIONS_FIELD);
+        PRELERT_METADATA_PARSER.declareObjectArray(Builder::putSchedulers, Scheduler.PARSER, SCHEDULERS_FIELD);
     }
 
     private final SortedMap<String, Job> jobs;
     private final SortedMap<String, Allocation> allocations;
-    private final SortedMap<String, SchedulerStatus> schedulerStatuses;
+    private final SortedMap<String, Scheduler> schedulers;
 
     private PrelertMetadata(SortedMap<String, Job> jobs, SortedMap<String, Allocation> allocations,
-                            SortedMap<String, SchedulerStatus> schedulerStatuses) {
+                            SortedMap<String, Scheduler> schedulers) {
         this.jobs = Collections.unmodifiableSortedMap(jobs);
         this.allocations = Collections.unmodifiableSortedMap(allocations);
-        this.schedulerStatuses = Collections.unmodifiableSortedMap(schedulerStatuses);
+        this.schedulers = Collections.unmodifiableSortedMap(schedulers);
     }
 
     public Map<String, Job> getJobs() {
@@ -73,8 +78,21 @@ public class PrelertMetadata implements MetaData.Custom {
         return allocations;
     }
 
-    public SortedMap<String, SchedulerStatus> getSchedulerStatuses() {
-        return schedulerStatuses;
+    public SortedMap<String, Scheduler> getSchedulers() {
+        return schedulers;
+    }
+
+    public Scheduler getScheduler(String schedulerId) {
+        return schedulers.get(schedulerId);
+    }
+
+    public Optional<Scheduler> getSchedulerByJobId(String jobId) {
+        return schedulers.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
+    }
+
+    public Optional<SchedulerStatus> getSchedulerStatusByJobId(String jobId) {
+        Optional<Scheduler> scheduler = getSchedulerByJobId(jobId);
+        return Optional.ofNullable(scheduler.isPresent() ? scheduler.get().getStatus() : null);
     }
 
     @Override
@@ -117,27 +135,23 @@ public class PrelertMetadata implements MetaData.Custom {
             allocations.put(in.readString(), Allocation.PROTO.readFrom(in));
         }
         size = in.readVInt();
-        TreeMap<String, SchedulerStatus> schedulerStatuses = new TreeMap<>();
+        TreeMap<String, Scheduler> schedulers = new TreeMap<>();
         for (int i = 0; i < size; i++) {
-            schedulerStatuses.put(in.readString(), SchedulerStatus.fromStream(in));
+            schedulers.put(in.readString(), new Scheduler(in));
         }
-        return new PrelertMetadata(jobs, allocations, schedulerStatuses);
+        return new PrelertMetadata(jobs, allocations, schedulers);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(jobs.size());
-        for (Map.Entry<String, Job> entry : jobs.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
-        }
-        out.writeVInt(allocations.size());
-        for (Map.Entry<String, Allocation> entry : allocations.entrySet()) {
-            out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
-        }
-        out.writeVInt(schedulerStatuses.size());
-        for (Map.Entry<String, SchedulerStatus> entry : schedulerStatuses.entrySet()) {
+        writeMap(jobs, out);
+        writeMap(allocations, out);
+        writeMap(schedulers, out);
+    }
+
+    private static <T extends Writeable> void writeMap(Map<String, T> map, StreamOutput out) throws IOException {
+        out.writeVInt(map.size());
+        for (Map.Entry<String, T> entry : map.entrySet()) {
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);
         }
@@ -145,100 +159,52 @@ public class PrelertMetadata implements MetaData.Custom {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray(JOBS_FIELD.getPreferredName());
-        for (Job job : jobs.values()) {
-            builder.value(job);
-        }
-        builder.endArray();
-        builder.startArray(ALLOCATIONS_FIELD.getPreferredName());
-        for (Map.Entry<String, Allocation> entry : allocations.entrySet()) {
-            builder.value(entry.getValue());
-        }
-        builder.endArray();
+        mapValuesToXContent(JOBS_FIELD, jobs, builder, params);
+        mapValuesToXContent(ALLOCATIONS_FIELD, allocations, builder, params);
+        mapValuesToXContent(SCHEDULERS_FIELD, schedulers, builder, params);
         return builder;
+    }
+
+    private static <T extends ToXContent> void mapValuesToXContent(ParseField field, Map<String, T> map, XContentBuilder builder,
+                                                                   Params params) throws IOException {
+        builder.startArray(field.getPreferredName());
+        for (Map.Entry<String, T> entry : map.entrySet()) {
+            entry.getValue().toXContent(builder, params);
+        }
+        builder.endArray();
     }
 
     static class PrelertMetadataDiff implements Diff<MetaData.Custom> {
 
         final Diff<Map<String, Job>> jobs;
         final Diff<Map<String, Allocation>> allocations;
-        final Diff<Map<String, SchedulerStatusDiff>> schedulerStatuses;
+        final Diff<Map<String, Scheduler>> schedulers;
 
         PrelertMetadataDiff(PrelertMetadata before, PrelertMetadata after) {
             this.jobs = DiffableUtils.diff(before.jobs, after.jobs, DiffableUtils.getStringKeySerializer());
             this.allocations = DiffableUtils.diff(before.allocations, after.allocations, DiffableUtils.getStringKeySerializer());
-            this.schedulerStatuses = DiffableUtils.diff(
-                    toSchedulerDiff(before.schedulerStatuses),
-                    toSchedulerDiff(after.schedulerStatuses),
-                    DiffableUtils.getStringKeySerializer());
+            this.schedulers = DiffableUtils.diff(before.schedulers, after.schedulers, DiffableUtils.getStringKeySerializer());
         }
 
         PrelertMetadataDiff(StreamInput in) throws IOException {
             jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job.PROTO);
             allocations = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Allocation.PROTO);
-            schedulerStatuses = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), SchedulerStatusDiff.PROTO);
+            schedulers = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Scheduler.PROTO);
         }
 
         @Override
         public MetaData.Custom apply(MetaData.Custom part) {
             TreeMap<String, Job> newJobs = new TreeMap<>(jobs.apply(((PrelertMetadata) part).jobs));
             TreeMap<String, Allocation> newAllocations = new TreeMap<>(allocations.apply(((PrelertMetadata) part).allocations));
-
-            Map<String, SchedulerStatusDiff> newSchedulerStatuses =
-                    schedulerStatuses.apply(toSchedulerDiff((((PrelertMetadata) part)).schedulerStatuses));
-            return new PrelertMetadata(newJobs, newAllocations, new TreeMap<>(toSchedulerStatusMap(newSchedulerStatuses)));
+            TreeMap<String, Scheduler> newSchedulers = new TreeMap<>(schedulers.apply(((PrelertMetadata) part).schedulers));
+            return new PrelertMetadata(newJobs, newAllocations, newSchedulers);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             jobs.writeTo(out);
             allocations.writeTo(out);
-            schedulerStatuses.writeTo(out);
-        }
-
-        private static Map<String, SchedulerStatusDiff> toSchedulerDiff(Map<String, SchedulerStatus> from) {
-            return from.entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, (entry) -> new SchedulerStatusDiff(entry.getValue())));
-        }
-
-        private static Map<String, SchedulerStatus> toSchedulerStatusMap(Map<String, SchedulerStatusDiff> from) {
-            return from.entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, (entry) -> entry.getValue().status));
-        }
-
-        // SchedulerStatus is enum and that can't extend from anything
-        static class SchedulerStatusDiff extends AbstractDiffable<SchedulerStatusDiff> implements Writeable {
-
-            static SchedulerStatusDiff PROTO = new SchedulerStatusDiff(null);
-
-            private final SchedulerStatus status;
-
-            SchedulerStatusDiff(SchedulerStatus status) {
-                this.status = status;
-            }
-
-            @Override
-            public SchedulerStatusDiff readFrom(StreamInput in) throws IOException {
-                return new SchedulerStatusDiff(SchedulerStatus.fromStream(in));
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                status.writeTo(out);
-            }
-
-            @Override
-            public boolean equals(Object o) {
-                if (this == o) return true;
-                if (o == null || getClass() != o.getClass()) return false;
-                SchedulerStatusDiff that = (SchedulerStatusDiff) o;
-                return status == that.status;
-            }
-
-            @Override
-            public int hashCode() {
-                return Objects.hash(status);
-            }
+            schedulers.writeTo(out);
         }
     }
 
@@ -251,30 +217,30 @@ public class PrelertMetadata implements MetaData.Custom {
         PrelertMetadata that = (PrelertMetadata) o;
         return Objects.equals(jobs, that.jobs) &&
                 Objects.equals(allocations, that.allocations) &&
-                Objects.equals(schedulerStatuses, that.schedulerStatuses);
+                Objects.equals(schedulers, that.schedulers);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobs, allocations, schedulerStatuses);
+        return Objects.hash(jobs, allocations, schedulers);
     }
 
     public static class Builder {
 
         private TreeMap<String, Job> jobs;
         private TreeMap<String, Allocation> allocations;
-        private TreeMap<String, SchedulerStatus> schedulerStatuses;
+        private TreeMap<String, Scheduler> schedulers;
 
         public Builder() {
             this.jobs = new TreeMap<>();
             this.allocations = new TreeMap<>();
-            this.schedulerStatuses = new TreeMap<>();
+            this.schedulers = new TreeMap<>();
         }
 
         public Builder(PrelertMetadata previous) {
             jobs = new TreeMap<>(previous.jobs);
             allocations = new TreeMap<>(previous.allocations);
-            schedulerStatuses = new TreeMap<>(previous.schedulerStatuses);
+            schedulers = new TreeMap<>(previous.schedulers);
         }
 
         public Builder putJob(Job job, boolean overwrite) {
@@ -289,9 +255,6 @@ public class PrelertMetadata implements MetaData.Custom {
                 builder.setStatus(JobStatus.CLOSED);
                 allocations.put(job.getId(), builder.build());
             }
-            if (job.getSchedulerConfig() != null) {
-                schedulerStatuses.put(job.getId(), SchedulerStatus.STOPPED);
-            }
             return this;
         }
 
@@ -299,6 +262,13 @@ public class PrelertMetadata implements MetaData.Custom {
             if (jobs.remove(jobId) == null) {
                 throw new ResourceNotFoundException("job [" + jobId + "] does not exist");
             }
+
+            Optional<Scheduler> scheduler = getSchedulerByJobId(jobId);
+            if (scheduler.isPresent()) {
+                throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] while scheduler ["
+                        + scheduler.get().getId() + "] refers to it");
+            }
+
             Allocation previousAllocation = this.allocations.remove(jobId);
             if (previousAllocation != null) {
                 if (!previousAllocation.getStatus().isAnyOf(JobStatus.CLOSED, JobStatus.FAILED)) {
@@ -306,14 +276,48 @@ public class PrelertMetadata implements MetaData.Custom {
                             Messages.JOB_CANNOT_DELETE_WHILE_RUNNING, jobId, previousAllocation.getStatus()));
                 }
             }
-            SchedulerStatus previousStatus = this.schedulerStatuses.remove(jobId);
-            if (previousStatus != null) {
-                if (previousStatus != SchedulerStatus.STOPPED) {
-                    String message = Messages.getMessage(Messages.JOB_CANNOT_DELETE_WHILE_SCHEDULER_RUNS, jobId);
-                    throw ExceptionsHelper.conflictStatusException(message);
-                }
-            }
+
             return this;
+        }
+
+        public Builder putScheduler(SchedulerConfig schedulerConfig) {
+            if (schedulers.containsKey(schedulerConfig.getId())) {
+                throw new ResourceAlreadyExistsException("A scheduler with id [" + schedulerConfig.getId() + "] already exists");
+            }
+            String jobId = schedulerConfig.getJobId();
+            Job job = jobs.get(jobId);
+            if (job == null) {
+                throw ExceptionsHelper.missingJobException(jobId);
+            }
+            Optional<Scheduler> existingScheduler = getSchedulerByJobId(jobId);
+            if (existingScheduler.isPresent()) {
+                throw ExceptionsHelper.conflictStatusException("A scheduler [" + existingScheduler.get().getId()
+                        + "] already exists for job [" + jobId + "]");
+            }
+            ScheduledJobValidator.validate(schedulerConfig, job);
+            return putScheduler(new Scheduler(schedulerConfig, SchedulerStatus.STOPPED));
+        }
+
+        private Builder putScheduler(Scheduler scheduler) {
+            schedulers.put(scheduler.getId(), scheduler);
+            return this;
+        }
+
+        public Builder removeScheduler(String schedulerId) {
+            Scheduler scheduler = schedulers.get(schedulerId);
+            if (scheduler == null) {
+                throw new ResourceNotFoundException(Messages.getMessage(Messages.SCHEDULER_NOT_FOUND, schedulerId));
+            }
+            if (scheduler.getStatus() != SchedulerStatus.STOPPED) {
+                String msg = Messages.getMessage(Messages.SCHEDULER_CANNOT_DELETE_IN_CURRENT_STATE, schedulerId, scheduler.getStatus());
+                throw ExceptionsHelper.conflictStatusException(msg);
+            }
+            schedulers.remove(schedulerId);
+            return this;
+        }
+
+        private Optional<Scheduler> getSchedulerByJobId(String jobId) {
+            return schedulers.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
         }
 
         // only for parsing
@@ -332,8 +336,15 @@ public class PrelertMetadata implements MetaData.Custom {
             return this;
         }
 
+        private Builder putSchedulers(Collection<Scheduler> schedulers) {
+            for (Scheduler scheduler : schedulers) {
+                putScheduler(scheduler);
+            }
+            return this;
+        }
+
         public PrelertMetadata build() {
-            return new PrelertMetadata(jobs, allocations, schedulerStatuses);
+            return new PrelertMetadata(jobs, allocations, schedulers);
         }
 
         public Builder assignToNode(String jobId, String nodeId) {
@@ -385,29 +396,30 @@ public class PrelertMetadata implements MetaData.Custom {
             return this;
         }
 
-        public Builder updateSchedulerStatus(String jobId, SchedulerStatus newStatus) {
-            SchedulerStatus currentStatus = schedulerStatuses.get(jobId);
-            if (currentStatus == null) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_SCHEDULER_NO_SUCH_SCHEDULED_JOB, jobId));
+        public Builder updateSchedulerStatus(String schedulerId, SchedulerStatus newStatus) {
+            Scheduler scheduler = schedulers.get(schedulerId);
+            if (scheduler == null) {
+                throw new ResourceNotFoundException(Messages.getMessage(Messages.SCHEDULER_NOT_FOUND, schedulerId));
             }
 
+            SchedulerStatus currentStatus = scheduler.getStatus();
             switch (newStatus) {
                 case STARTED:
                     if (currentStatus != SchedulerStatus.STOPPED) {
-                        String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_START, jobId, newStatus);
+                        String msg = Messages.getMessage(Messages.SCHEDULER_CANNOT_START, schedulerId, newStatus);
                         throw ExceptionsHelper.conflictStatusException(msg);
                     }
                     break;
                 case STOPPED:
                     if (currentStatus != SchedulerStatus.STARTED) {
-                        String msg = Messages.getMessage(Messages.JOB_SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE, jobId, newStatus);
+                        String msg = Messages.getMessage(Messages.SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE, schedulerId, newStatus);
                         throw ExceptionsHelper.conflictStatusException(msg);
                     }
                     break;
                 default:
-                    throw new IllegalArgumentException("[" + jobId + "] invalid requested job scheduler status [" + newStatus + "]");
+                    throw new IllegalArgumentException("[" + schedulerId + "] requested invalid scheduler status [" + newStatus + "]");
             }
-            schedulerStatuses.put(jobId, newStatus);
+            schedulers.put(schedulerId, new Scheduler(scheduler.getConfig(), newStatus));
             return this;
         }
     }

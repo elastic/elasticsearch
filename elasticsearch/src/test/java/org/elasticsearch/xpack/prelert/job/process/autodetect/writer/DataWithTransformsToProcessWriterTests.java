@@ -5,9 +5,21 @@
  */
 package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.verify;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
+import org.elasticsearch.xpack.prelert.job.DataDescription;
+import org.elasticsearch.xpack.prelert.job.DataDescription.DataFormat;
+import org.elasticsearch.xpack.prelert.job.Detector;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
+import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
+import org.elasticsearch.xpack.prelert.job.transform.TransformConfigs;
+import org.elasticsearch.xpack.prelert.job.transform.TransformType;
+import org.junit.Before;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -17,22 +29,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
-import org.junit.Before;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
-
-import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
-import org.elasticsearch.xpack.prelert.job.DataDescription;
-import org.elasticsearch.xpack.prelert.job.DataDescription.DataFormat;
-import org.elasticsearch.xpack.prelert.job.Detector;
-import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
-import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
-import org.elasticsearch.xpack.prelert.job.transform.TransformConfigs;
-import org.elasticsearch.xpack.prelert.job.transform.TransformType;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.verify;
 
 public class DataWithTransformsToProcessWriterTests extends ESTestCase {
     private AutodetectProcess autodetectProcess;
@@ -129,7 +128,7 @@ public class DataWithTransformsToProcessWriterTests extends ESTestCase {
         if (doCsv) {
             return new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, tcs, statusReporter, logger);
         } else {
-            return new JsonDataToProcessWriter(true, autodetectProcess, dd.build(), ac, null, tcs, statusReporter, logger);
+            return new JsonDataToProcessWriter(true, autodetectProcess, dd.build(), ac, tcs, statusReporter, logger);
         }
     }
 

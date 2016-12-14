@@ -102,6 +102,42 @@
           }
 
 ---
+"Test delete job that is referred by a scheduler":
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "job_id":"scheduler-job",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"ELASTICSEARCH",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - match: { job_id: "scheduler-job" }
+
+  - do:
+      xpack.prelert.put_scheduler:
+        scheduler_id: test-scheduler-1
+        body:  >
+          {
+            "job_id":"scheduler-job",
+            "indexes":["index-foo"],
+            "types":["type-bar"]
+          }
+  - match: { scheduler_id: "test-scheduler-1" }
+
+  - do:
+      catch: /Cannot delete job \[scheduler-job\] while scheduler \[test-scheduler-1\] refers to it/
+      xpack.prelert.delete_job:
+        job_id: scheduler-job
+
+---
 "Test jobid + from and/or size":
   - do:
       catch: request

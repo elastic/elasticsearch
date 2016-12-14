@@ -7,10 +7,10 @@ package org.elasticsearch.xpack.prelert.action;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction.Request;
+import org.elasticsearch.xpack.prelert.action.StartSchedulerAction.Request;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableXContentTestCase;
 
-public class StartJobSchedulerActionRequestTests extends AbstractStreamableXContentTestCase<StartJobSchedulerAction.Request> {
+public class StartJobSchedulerActionRequestTests extends AbstractStreamableXContentTestCase<StartSchedulerAction.Request> {
 
     @Override
     protected Request createTestInstance() {

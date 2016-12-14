@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
+import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunnerTests;
 
@@ -32,18 +33,20 @@ public class RestStartJobSchedulerActionTests extends ESTestCase {
     public void testPrepareRequest() throws Exception {
         ClusterService clusterService = mock(ClusterService.class);
         Job.Builder job = ScheduledJobRunnerTests.createScheduledJob();
+        SchedulerConfig schedulerConfig = ScheduledJobRunnerTests.createSchedulerConfig("foo-scheduler", "foo").build();
         PrelertMetadata prelertMetadata = new PrelertMetadata.Builder()
                 .putJob(job.build(), false)
+                .putScheduler(schedulerConfig)
                 .updateStatus("foo", JobStatus.OPENED, null)
                 .build();
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, prelertMetadata))
                 .build());
-        RestStartJobSchedulerAction action = new RestStartJobSchedulerAction(Settings.EMPTY, mock(RestController.class), clusterService);
+        RestStartSchedulerAction action = new RestStartSchedulerAction(Settings.EMPTY, mock(RestController.class), clusterService);
 
         Map<String, String> params = new HashMap<>();
         params.put("start", "not-a-date");
-        params.put("job_id", "foo");
+        params.put("scheduler_id", "foo-scheduler");
         RestRequest restRequest1 = new FakeRestRequest.Builder().withParams(params).build();
         ElasticsearchParseException e =  expectThrows(ElasticsearchParseException.class,
                 () -> action.prepareRequest(restRequest1, mock(NodeClient.class)));
@@ -52,7 +55,7 @@ public class RestStartJobSchedulerActionTests extends ESTestCase {
 
         params = new HashMap<>();
         params.put("end", "not-a-date");
-        params.put("job_id", "foo");
+        params.put("scheduler_id", "foo-scheduler");
         RestRequest restRequest2 = new FakeRestRequest.Builder().withParams(params).build();
         e =  expectThrows(ElasticsearchParseException.class, () -> action.prepareRequest(restRequest2, mock(NodeClient.class)));
         assertEquals("Query param 'end' with value 'not-a-date' cannot be parsed as a date or converted to a number (epoch).",
@@ -60,11 +63,11 @@ public class RestStartJobSchedulerActionTests extends ESTestCase {
     }
 
     public void testParseDateOrThrow() {
-        assertEquals(0L, RestStartJobSchedulerAction.parseDateOrThrow("0", "start"));
-        assertEquals(0L, RestStartJobSchedulerAction.parseDateOrThrow("1970-01-01T00:00:00Z", "start"));
+        assertEquals(0L, RestStartSchedulerAction.parseDateOrThrow("0", "start"));
+        assertEquals(0L, RestStartSchedulerAction.parseDateOrThrow("1970-01-01T00:00:00Z", "start"));
 
         Exception e = expectThrows(ElasticsearchParseException.class,
-                () -> RestStartJobSchedulerAction.parseDateOrThrow("not-a-date", "start"));
+                () -> RestStartSchedulerAction.parseDateOrThrow("not-a-date", "start"));
         assertEquals("Query param 'start' with value 'not-a-date' cannot be parsed as a date or converted to a number (epoch).",
                 e.getMessage());
     }

@@ -30,23 +30,23 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunner;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class StartJobSchedulerAction
-extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response, StartJobSchedulerAction.RequestBuilder> {
+public class StartSchedulerAction
+        extends Action<StartSchedulerAction.Request, StartSchedulerAction.Response, StartSchedulerAction.RequestBuilder> {
 
     public static final ParseField START_TIME = new ParseField("start");
     public static final ParseField END_TIME = new ParseField("end");
 
-    public static final StartJobSchedulerAction INSTANCE = new StartJobSchedulerAction();
-    public static final String NAME = "cluster:admin/prelert/job/scheduler/run";
+    public static final StartSchedulerAction INSTANCE = new StartSchedulerAction();
+    public static final String NAME = "cluster:admin/prelert/scheduler/start";
 
-    private StartJobSchedulerAction() {
+    private StartSchedulerAction() {
         super(NAME);
     }
 
@@ -65,33 +65,33 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
         public static ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
-            PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
+            PARSER.declareString((request, schedulerId) -> request.schedulerId = schedulerId, SchedulerConfig.ID);
             PARSER.declareLong((request, startTime) -> request.startTime = startTime, START_TIME);
             PARSER.declareLong(Request::setEndTime, END_TIME);
         }
 
-        public static Request parseRequest(String jobId, XContentParser parser, ParseFieldMatcherSupplier parseFieldMatcherSupplier) {
+        public static Request parseRequest(String schedulerId, XContentParser parser, ParseFieldMatcherSupplier parseFieldMatcherSupplier) {
             Request request = PARSER.apply(parser, parseFieldMatcherSupplier);
-            if (jobId != null) {
-                request.jobId = jobId;
+            if (schedulerId != null) {
+                request.schedulerId = schedulerId;
             }
             return request;
         }
 
-        private String jobId;
+        private String schedulerId;
         private long startTime;
         private Long endTime;
 
-        public Request(String jobId, long startTime) {
-            this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
+        public Request(String schedulerId, long startTime) {
+            this.schedulerId = ExceptionsHelper.requireNonNull(schedulerId, SchedulerConfig.ID.getPreferredName());
             this.startTime = startTime;
         }
 
         Request() {
         }
 
-        public String getJobId() {
-            return jobId;
+        public String getSchedulerId() {
+            return schedulerId;
         }
 
         public long getStartTime() {
@@ -113,13 +113,13 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId) {
-            return new SchedulerTask(id, type, action, parentTaskId, jobId);
+            return new SchedulerTask(id, type, action, parentTaskId, schedulerId);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            jobId = in.readString();
+            schedulerId = in.readString();
             startTime = in.readVLong();
             endTime = in.readOptionalLong();
         }
@@ -127,7 +127,7 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(jobId);
+            out.writeString(schedulerId);
             out.writeVLong(startTime);
             out.writeOptionalLong(endTime);
         }
@@ -135,7 +135,7 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field(Job.ID.getPreferredName(), jobId);
+            builder.field(SchedulerConfig.ID.getPreferredName(), schedulerId);
             builder.field(START_TIME.getPreferredName(), startTime);
             if (endTime != null) {
                 builder.field(END_TIME.getPreferredName(), endTime);
@@ -146,7 +146,7 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, startTime, endTime);
+            return Objects.hash(schedulerId, startTime, endTime);
         }
 
         @Override
@@ -158,7 +158,7 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) &&
+            return Objects.equals(schedulerId, other.schedulerId) &&
                     Objects.equals(startTime, other.startTime) &&
                     Objects.equals(endTime, other.endTime);
         }
@@ -166,7 +166,7 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
 
     static class RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder> {
 
-        public RequestBuilder(ElasticsearchClient client, StartJobSchedulerAction action) {
+        public RequestBuilder(ElasticsearchClient client, StartSchedulerAction action) {
             super(client, action, new Request());
         }
     }
@@ -182,8 +182,8 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
 
         private volatile ScheduledJobRunner.Holder holder;
 
-        public SchedulerTask(long id, String type, String action, TaskId parentTaskId, String jobId) {
-            super(id, type, action, "job-scheduler-" + jobId, parentTaskId);
+        public SchedulerTask(long id, String type, String action, TaskId parentTaskId, String schedulerId) {
+            super(id, type, action, "scheduler-" + schedulerId, parentTaskId);
         }
 
         public void setHolder(ScheduledJobRunner.Holder holder) {
@@ -211,7 +211,7 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
         public TransportAction(Settings settings, TransportService transportService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                ScheduledJobRunner scheduledJobRunner) {
-            super(settings, StartJobSchedulerAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
+            super(settings, StartSchedulerAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver,
                     Request::new);
             this.scheduledJobRunner = scheduledJobRunner;
         }
@@ -219,7 +219,7 @@ extends Action<StartJobSchedulerAction.Request, StartJobSchedulerAction.Response
         @Override
         protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
             SchedulerTask schedulerTask = (SchedulerTask) task;
-            scheduledJobRunner.run(request.getJobId(), request.getStartTime(), request.getEndTime(), schedulerTask, (error) -> {
+            scheduledJobRunner.run(request.getSchedulerId(), request.getStartTime(), request.getEndTime(), schedulerTask, (error) -> {
                 if (error != null) {
                     listener.onFailure(error);
                 } else {

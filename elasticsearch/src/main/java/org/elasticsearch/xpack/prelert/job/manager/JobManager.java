@@ -16,20 +16,21 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
-import org.elasticsearch.xpack.prelert.action.PutJobAction;
 import org.elasticsearch.xpack.prelert.action.OpenJobAction;
+import org.elasticsearch.xpack.prelert.action.PutJobAction;
 import org.elasticsearch.xpack.prelert.action.RevertModelSnapshotAction;
-import org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction;
 import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
+import org.elasticsearch.xpack.prelert.action.UpdateSchedulerStatusAction;
 import org.elasticsearch.xpack.prelert.job.IgnoreDowntime;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
+import org.elasticsearch.xpack.prelert.job.metadata.Scheduler;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
@@ -251,32 +252,31 @@ public class JobManager extends AbstractComponent {
     ClusterState removeJobFromClusterState(String jobId, ClusterState currentState) {
         PrelertMetadata.Builder builder = createPrelertMetadataBuilder(currentState);
         builder.removeJob(jobId);
-
         return buildNewClusterState(currentState, builder);
     }
 
     public Optional<SchedulerStatus> getSchedulerStatus(String jobId) {
         PrelertMetadata prelertMetadata = clusterService.state().metaData().custom(PrelertMetadata.TYPE);
-        return Optional.ofNullable(prelertMetadata.getSchedulerStatuses().get(jobId));
+        return prelertMetadata.getSchedulerStatusByJobId(jobId);
     }
 
-    public void updateSchedulerStatus(UpdateJobSchedulerStatusAction.Request request,
-                                      ActionListener<UpdateJobSchedulerStatusAction.Response> actionListener) {
-        String jobId = request.getJobId();
+    public void updateSchedulerStatus(UpdateSchedulerStatusAction.Request request,
+                                      ActionListener<UpdateSchedulerStatusAction.Response> actionListener) {
+        String schedulerId = request.getSchedulerId();
         SchedulerStatus newStatus = request.getSchedulerStatus();
-        clusterService.submitStateUpdateTask("update-scheduler-status-job-" + jobId,
-                new AckedClusterStateUpdateTask<UpdateJobSchedulerStatusAction.Response>(request, actionListener) {
+        clusterService.submitStateUpdateTask("update-scheduler-status-" + schedulerId,
+                new AckedClusterStateUpdateTask<UpdateSchedulerStatusAction.Response>(request, actionListener) {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 PrelertMetadata.Builder builder = createPrelertMetadataBuilder(currentState);
-                builder.updateSchedulerStatus(jobId, newStatus);
+                builder.updateSchedulerStatus(schedulerId, newStatus);
                 return buildNewClusterState(currentState, builder);
             }
 
             @Override
-            protected UpdateJobSchedulerStatusAction.Response newResponse(boolean acknowledged) {
-                return new UpdateJobSchedulerStatusAction.Response(acknowledged);
+            protected UpdateSchedulerStatusAction.Response newResponse(boolean acknowledged) {
+                return new UpdateSchedulerStatusAction.Response(acknowledged);
             }
         });
     }

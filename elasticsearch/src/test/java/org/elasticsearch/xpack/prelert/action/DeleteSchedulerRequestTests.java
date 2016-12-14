@@ -5,15 +5,14 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
-import org.elasticsearch.xpack.prelert.action.UpdateSchedulerStatusAction.Request;
-import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
+import org.elasticsearch.xpack.prelert.action.DeleteSchedulerAction.Request;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
-public class UpdateJobSchedulerStatusRequestTests extends AbstractStreamableTestCase<Request> {
+public class DeleteSchedulerRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAsciiOfLengthBetween(1, 20), randomFrom(SchedulerStatus.values()));
+        return new Request(randomAsciiOfLengthBetween(1, 20));
     }
 
     @Override

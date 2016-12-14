@@ -62,7 +62,6 @@ public final class Messages {
     public static final String SYSTEM_AUDIT_SHUTDOWN = "system.audit.shutdown";
 
     public static final String JOB_CANNOT_DELETE_WHILE_RUNNING = "job.cannot.delete.while.running";
-    public static final String JOB_CANNOT_DELETE_WHILE_SCHEDULER_RUNS = "job.cannot.delete.while.scheduler.runs";
     public static final String JOB_CANNOT_PAUSE = "job.cannot.pause";
     public static final String JOB_CANNOT_RESUME = "job.cannot.resume";
 
@@ -180,17 +179,6 @@ public final class Messages {
     public static final String JOB_CONFIG_TRANSFORM_UNKNOWN_TYPE = "job.config.transform.unknown.type";
     public static final String JOB_CONFIG_UNKNOWN_FUNCTION = "job.config.unknown.function";
 
-    public static final String JOB_CONFIG_SCHEDULER_FIELD_NOT_SUPPORTED = "job.config.scheduler.field.not.supported";
-    public static final String JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE = "job.config.scheduler.invalid.option.value";
-    public static final String JOB_CONFIG_SCHEDULER_REQUIRES_BUCKET_SPAN = "job.config.scheduler.requires.bucket.span";
-    public static final String JOB_CONFIG_SCHEDULER_ELASTICSEARCH_DOES_NOT_SUPPORT_LATENCY = "job.config.scheduler.elasticsearch.does.not."
-            + "support.latency";
-    public static final String JOB_CONFIG_SCHEDULER_AGGREGATIONS_REQUIRES_SUMMARY_COUNT_FIELD = "job.config.scheduler.aggregations."
-            + "requires.summary.count.field";
-    public static final String JOB_CONFIG_SCHEDULER_ELASTICSEARCH_REQUIRES_DATAFORMAT_ELASTICSEARCH = "job.config.scheduler.elasticsearch."
-            + "requires.dataformat.elasticsearch";
-    public static final String JOB_CONFIG_SCHEDULER_MULTIPLE_AGGREGATIONS = "job.config.scheduler.multiple.aggregations";
-
     public static final String JOB_DATA_CONCURRENT_USE_CLOSE = "job.data.concurrent.use.close";
     public static final String JOB_DATA_CONCURRENT_USE_FLUSH = "job.data.concurrent.use.flush";
     public static final String JOB_DATA_CONCURRENT_USE_PAUSE = "job.data.concurrent.use.pause";
@@ -199,16 +187,22 @@ public final class Messages {
     public static final String JOB_DATA_CONCURRENT_USE_UPDATE = "job.data.concurrent.use.update";
     public static final String JOB_DATA_CONCURRENT_USE_UPLOAD = "job.data.concurrent.use.upload";
 
-    public static final String JOB_SCHEDULER_CANNOT_START = "job.scheduler.cannot.start";
-    public static final String JOB_SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE = "job.scheduler.cannot.stop.in.current.state";
-    public static final String JOB_SCHEDULER_CANNOT_UPDATE_IN_CURRENT_STATE = "job.scheduler.cannot.update.in.current.state";
-    public static final String JOB_SCHEDULER_FAILED_TO_STOP = "job.scheduler.failed.to.stop";
-    public static final String JOB_SCHEDULER_NO_SUCH_SCHEDULED_JOB = "job.scheduler.no.such.scheduled.job";
-    public static final String JOB_SCHEDULER_STATUS_STARTED = "job.scheduler.status.started";
-    public static final String JOB_SCHEDULER_STATUS_STOPPING = "job.scheduler.status.stopping";
-    public static final String JOB_SCHEDULER_STATUS_STOPPED = "job.scheduler.status.stopped";
-    public static final String JOB_SCHEDULER_STATUS_UPDATING = "job.scheduler.status.updating";
-    public static final String JOB_SCHEDULER_STATUS_DELETING = "job.scheduler.status.deleting";
+    public static final String SCHEDULER_CONFIG_FIELD_NOT_SUPPORTED = "scheduler.config.field.not.supported";
+    public static final String SCHEDULER_CONFIG_INVALID_OPTION_VALUE = "scheduler.config.invalid.option.value";
+    public static final String SCHEDULER_CONFIG_MULTIPLE_AGGREGATIONS = "scheduler.config.multiple.aggregations";
+
+    public static final String SCHEDULER_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "scheduler.does.not.support.job.with.latency";
+    public static final String SCHEDULER_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =
+            "scheduler.aggregations.requires.job.with.summary.count.field";
+    public static final String SCHEDULER_REQUIRES_JOB_WITH_DATAFORMAT_ELASTICSEARCH =
+            "scheduler.requires.job.with.dataformat.elasticsearch";
+
+    public static final String SCHEDULER_CANNOT_START = "scheduler.cannot.start";
+    public static final String SCHEDULER_CANNOT_STOP_IN_CURRENT_STATE = "scheduler.cannot.stop.in.current.state";
+    public static final String SCHEDULER_CANNOT_UPDATE_IN_CURRENT_STATE = "scheduler.cannot.update.in.current.state";
+    public static final String SCHEDULER_CANNOT_DELETE_IN_CURRENT_STATE = "scheduler.cannot.delete.in.current.state";
+    public static final String SCHEDULER_FAILED_TO_STOP = "scheduler.failed.to.stop";
+    public static final String SCHEDULER_NOT_FOUND = "scheduler.not.found";
 
     public static final String JOB_MISSING_QUANTILES = "job.missing.quantiles";
     public static final String JOB_UNKNOWN_ID = "job.unknown.id";

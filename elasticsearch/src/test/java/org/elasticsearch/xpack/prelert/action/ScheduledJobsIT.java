@@ -23,14 +23,14 @@ import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
+import org.elasticsearch.xpack.prelert.job.metadata.Scheduler;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.junit.After;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
@@ -75,16 +75,21 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
         assertTrue(openJobResponse.isAcknowledged());
 
-        StartJobSchedulerAction.Request startSchedulerRequest = new StartJobSchedulerAction.Request("_job_id", 0L);
+        SchedulerConfig schedulerConfig = createScheduler(job.getId() + "-scheduler", job.getId());
+        PutSchedulerAction.Request putSchedulerRequest = new PutSchedulerAction.Request(schedulerConfig);
+        PutSchedulerAction.Response putSchedulerResponse = client().execute(PutSchedulerAction.INSTANCE, putSchedulerRequest).get();
+        assertTrue(putSchedulerResponse.isAcknowledged());
+
+        StartSchedulerAction.Request startSchedulerRequest = new StartSchedulerAction.Request(schedulerConfig.getId(), 0L);
         startSchedulerRequest.setEndTime(now);
-        client().execute(StartJobSchedulerAction.INSTANCE, startSchedulerRequest).get();
+        client().execute(StartSchedulerAction.INSTANCE, startSchedulerRequest).get();
         assertBusy(() -> {
             DataCounts dataCounts = getDataCounts("_job_id");
             assertThat(dataCounts.getInputRecordCount(), equalTo(numDocs));
 
             PrelertMetadata prelertMetadata = client().admin().cluster().prepareState().all().get()
                     .getState().metaData().custom(PrelertMetadata.TYPE);
-            assertThat(prelertMetadata.getSchedulerStatuses().get("_job_id"), equalTo(SchedulerStatus.STOPPED));
+            assertThat(prelertMetadata.getSchedulerStatusByJobId("_job_id").get(), equalTo(SchedulerStatus.STOPPED));
         });
     }
 
@@ -104,11 +109,16 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
         assertTrue(openJobResponse.isAcknowledged());
 
+        SchedulerConfig schedulerConfig = createScheduler(job.getId() + "-scheduler", job.getId());
+        PutSchedulerAction.Request putSchedulerRequest = new PutSchedulerAction.Request(schedulerConfig);
+        PutSchedulerAction.Response putSchedulerResponse = client().execute(PutSchedulerAction.INSTANCE, putSchedulerRequest).get();
+        assertTrue(putSchedulerResponse.isAcknowledged());
+
         AtomicReference<Throwable> errorHolder = new AtomicReference<>();
         Thread t = new Thread(() -> {
             try {
-                StartJobSchedulerAction.Request startSchedulerRequest = new StartJobSchedulerAction.Request("_job_id", 0L);
-                client().execute(StartJobSchedulerAction.INSTANCE, startSchedulerRequest).get();
+                StartSchedulerAction.Request startSchedulerRequest = new StartSchedulerAction.Request(schedulerConfig.getId(), 0L);
+                client().execute(StartSchedulerAction.INSTANCE, startSchedulerRequest).get();
             } catch (Exception | AssertionError e) {
                 errorHolder.set(e);
             }
@@ -127,13 +137,13 @@ public class ScheduledJobsIT extends ESIntegTestCase {
             assertThat(dataCounts.getInputRecordCount(), equalTo(numDocs1 + numDocs2));
         }, 30, TimeUnit.SECONDS);
 
-        StopJobSchedulerAction.Request stopSchedulerRequest = new StopJobSchedulerAction.Request("_job_id");
-        StopJobSchedulerAction.Response stopJobResponse = client().execute(StopJobSchedulerAction.INSTANCE, stopSchedulerRequest).get();
+        StopSchedulerAction.Request stopSchedulerRequest = new StopSchedulerAction.Request(schedulerConfig.getId());
+        StopSchedulerAction.Response stopJobResponse = client().execute(StopSchedulerAction.INSTANCE, stopSchedulerRequest).get();
         assertTrue(stopJobResponse.isAcknowledged());
         assertBusy(() -> {
             PrelertMetadata prelertMetadata = client().admin().cluster().prepareState().all().get()
                     .getState().metaData().custom(PrelertMetadata.TYPE);
-            assertThat(prelertMetadata.getSchedulerStatuses().get("_job_id"), equalTo(SchedulerStatus.STOPPED));
+            assertThat(prelertMetadata.getSchedulerStatusByJobId("_job_id").get(), equalTo(SchedulerStatus.STOPPED));
         });
         assertThat(errorHolder.get(), nullValue());
     }
@@ -156,12 +166,6 @@ public class ScheduledJobsIT extends ESIntegTestCase {
     }
 
     private Job.Builder createJob() {
-        SchedulerConfig.Builder scheduler = new SchedulerConfig.Builder(Collections.singletonList("data"),
-                Collections.singletonList("type"));
-        scheduler.setQueryDelay(1);
-        scheduler.setFrequency(2);
-        InetSocketAddress address = cluster().httpAddresses()[0];
-
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.ELASTICSEARCH);
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
@@ -170,12 +174,20 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
 
         Job.Builder builder = new Job.Builder();
-        builder.setSchedulerConfig(scheduler);
         builder.setId("_job_id");
 
         builder.setAnalysisConfig(analysisConfig);
         builder.setDataDescription(dataDescription);
         return builder;
+    }
+
+    private SchedulerConfig createScheduler(String schedulerId, String jobId) {
+        SchedulerConfig.Builder builder = new SchedulerConfig.Builder(schedulerId, jobId);
+        builder.setQueryDelay(1);
+        builder.setFrequency(2);
+        builder.setIndexes(Collections.singletonList("data"));
+        builder.setTypes(Collections.singletonList("type"));
+        return builder.build();
     }
 
     private DataCounts getDataCounts(String jobId) {
@@ -193,13 +205,19 @@ public class ScheduledJobsIT extends ESIntegTestCase {
     }
 
     public static void clearPrelertMetadata(Client client) throws Exception {
+        deleteAllSchedulers(client);
+        deleteAllJobs(client);
+    }
+
+    private static void deleteAllSchedulers(Client client) throws Exception {
         MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
         PrelertMetadata prelertMetadata = metaData.custom(PrelertMetadata.TYPE);
-        for (Map.Entry<String, Job> entry : prelertMetadata.getJobs().entrySet()) {
-            String jobId = entry.getKey();
+        for (Scheduler scheduler : prelertMetadata.getSchedulers().values()) {
+            String schedulerId = scheduler.getId();
+            String jobId = scheduler.getJobId();
             try {
-                StopJobSchedulerAction.Response response =
-                        client.execute(StopJobSchedulerAction.INSTANCE, new StopJobSchedulerAction.Request(jobId)).get();
+                StopSchedulerAction.Response response =
+                        client.execute(StopSchedulerAction.INSTANCE, new StopSchedulerAction.Request(schedulerId)).get();
                 assertTrue(response.isAcknowledged());
                 assertBusy(() -> {
                     GetJobsAction.Response r = null;
@@ -217,6 +235,21 @@ public class ScheduledJobsIT extends ESIntegTestCase {
                 // ignore
             }
             try {
+                DeleteSchedulerAction.Response response =
+                        client.execute(DeleteSchedulerAction.INSTANCE, new DeleteSchedulerAction.Request(schedulerId)).get();
+                assertTrue(response.isAcknowledged());
+            } catch (Exception e) {
+                // ignore
+            }
+        }
+    }
+
+    public static void deleteAllJobs(Client client) throws Exception {
+        MetaData metaData = client.admin().cluster().prepareState().get().getState().getMetaData();
+        PrelertMetadata prelertMetadata = metaData.custom(PrelertMetadata.TYPE);
+        for (Map.Entry<String, Job> entry : prelertMetadata.getJobs().entrySet()) {
+            String jobId = entry.getKey();
+            try {
                 CloseJobAction.Response response =
                         client.execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobId)).get();
                 assertTrue(response.isAcknowledged());
@@ -228,5 +261,4 @@ public class ScheduledJobsIT extends ESIntegTestCase {
             assertTrue(response.isAcknowledged());
         }
     }
-
 }

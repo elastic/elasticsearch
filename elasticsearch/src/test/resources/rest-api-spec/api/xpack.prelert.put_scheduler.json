@@ -1,0 +1,20 @@
+{
+  "xpack.prelert.put_scheduler": {
+    "methods": [ "PUT" ],
+    "url": {
+      "path": "/_xpack/prelert/schedulers/{scheduler_id}",
+      "paths": [ "/_xpack/prelert/schedulers/{scheduler_id}" ],
+      "parts": {
+        "scheduler_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the scheduler to create"
+        }
+      }
+    },
+    "body": {
+      "description" : "The scheduler config",
+      "required" : true
+    }
+  }
+}

@@ -5,13 +5,23 @@
  */
 package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
+import org.elasticsearch.xpack.prelert.job.DataDescription;
+import org.elasticsearch.xpack.prelert.job.DataDescription.DataFormat;
+import org.elasticsearch.xpack.prelert.job.Detector;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
+import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
+import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
+import org.elasticsearch.xpack.prelert.job.transform.TransformConfigs;
+import org.elasticsearch.xpack.prelert.job.transform.TransformType;
+import org.junit.Before;
+import org.mockito.Mockito;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -23,24 +33,13 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
-import org.junit.Before;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
-
-import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
-import org.elasticsearch.xpack.prelert.job.DataDescription;
-import org.elasticsearch.xpack.prelert.job.DataDescription.DataFormat;
-import org.elasticsearch.xpack.prelert.job.Detector;
-import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
-import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
-import org.elasticsearch.xpack.prelert.job.transform.TransformConfigs;
-import org.elasticsearch.xpack.prelert.job.transform.TransformType;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class JsonDataToProcessWriterTests extends ESTestCase {
 
@@ -390,9 +389,8 @@ public class JsonDataToProcessWriterTests extends ESTestCase {
     }
 
     private JsonDataToProcessWriter createWriter() {
-        return new JsonDataToProcessWriter(true, autodetectProcess, dataDescription.build(),
-                analysisConfig, null, new TransformConfigs(transforms),
-                statusReporter, logger);
+        return new JsonDataToProcessWriter(true, autodetectProcess, dataDescription.build(), analysisConfig,
+                new TransformConfigs(transforms), statusReporter, logger);
     }
 
     private void assertWrittenRecordsEqualTo(List<String[]> expectedRecords) {

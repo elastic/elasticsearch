@@ -1,14 +1,14 @@
 {
-  "xpack.prelert.start_job_scheduler": {
+  "xpack.prelert.start_scheduler": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/prelert/schedulers/{job_id}/_start",
-      "paths": [ "/_xpack/prelert/schedulers/{job_id}/_start" ],
+      "path": "/_xpack/prelert/schedulers/{scheduler_id}/_start",
+      "paths": [ "/_xpack/prelert/schedulers/{scheduler_id}/_start" ],
       "parts": {
-        "job_id": {
+        "scheduler_id": {
           "type": "string",
           "required": true,
-          "description": "The ID of the job whose scheduler to start"
+          "description": "The ID of the scheduler to start"
         }
       },
       "params": {

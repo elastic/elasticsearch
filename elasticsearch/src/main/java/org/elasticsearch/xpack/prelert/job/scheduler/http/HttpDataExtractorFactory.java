@@ -33,9 +33,8 @@ public class HttpDataExtractorFactory implements DataExtractorFactory {
     }
 
     @Override
-    public DataExtractor newExtractor(Job job) {
+    public DataExtractor newExtractor(SchedulerConfig schedulerConfig, Job job) {
         String timeField = job.getDataDescription().getTimeField();
-        SchedulerConfig schedulerConfig = job.getSchedulerConfig();
         ElasticsearchQueryBuilder queryBuilder = new ElasticsearchQueryBuilder(
                 stringifyElasticsearchQuery(schedulerConfig.getQuery()),
                 stringifyElasticsearchAggregations(schedulerConfig.getAggregations(), schedulerConfig.getAggs()),

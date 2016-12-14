@@ -16,9 +16,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.JobTests;
+import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
 
@@ -26,6 +28,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.prelert.job.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunnerTests.createScheduledJob;
+import static org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunnerTests.createSchedulerConfig;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -92,10 +95,10 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
         PrelertMetadata result = builder.build();
         assertThat(result.getJobs().get("1"), sameInstance(job1));
         assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.CLOSED));
-        assertThat(result.getSchedulerStatuses().get("1"), nullValue());
+        assertThat(result.getSchedulers().get("1"), nullValue());
         assertThat(result.getJobs().get("2"), sameInstance(job2));
         assertThat(result.getAllocations().get("2").getStatus(), equalTo(JobStatus.CLOSED));
-        assertThat(result.getSchedulerStatuses().get("2"), nullValue());
+        assertThat(result.getSchedulers().get("2"), nullValue());
 
         builder = new PrelertMetadata.Builder(result);
 
@@ -119,14 +122,14 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
         PrelertMetadata result = builder.build();
         assertThat(result.getJobs().get("1"), sameInstance(job1));
         assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.CLOSED));
-        assertThat(result.getSchedulerStatuses().get("1"), nullValue());
+        assertThat(result.getSchedulers().get("1"), nullValue());
 
         builder = new PrelertMetadata.Builder(result);
         builder.removeJob("1");
         result = builder.build();
         assertThat(result.getJobs().get("1"), nullValue());
         assertThat(result.getAllocations().get("1"), nullValue());
-        assertThat(result.getSchedulerStatuses().get("1"), nullValue());
+        assertThat(result.getSchedulers().get("1"), nullValue());
     }
 
     public void testRemoveJob_failBecauseJobIsOpen() {
@@ -139,11 +142,24 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
         PrelertMetadata result = builder1.build();
         assertThat(result.getJobs().get("1"), sameInstance(job1));
         assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.OPENED));
-        assertThat(result.getSchedulerStatuses().get("1"), nullValue());
+        assertThat(result.getSchedulers().get("1"), nullValue());
 
         PrelertMetadata.Builder builder2 = new PrelertMetadata.Builder(result);
         ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder2.removeJob("1"));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+    }
+
+    public void testRemoveJob_failSchedulerRefersToJob() {
+        Job job1 = createScheduledJob().build();
+        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
+        PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
+        builder.putJob(job1, false);
+        builder.putScheduler(schedulerConfig1);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.removeJob(job1.getId()));
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+        String expectedMsg = "Cannot delete job [" + job1.getId() + "] while scheduler [" + schedulerConfig1.getId() + "] refers to it";
+        assertThat(e.getMessage(), equalTo(expectedMsg));
     }
 
     public void testRemoveJob_failBecauseJobDoesNotExist() {
@@ -151,39 +167,86 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
         expectThrows(ResourceNotFoundException.class, () -> builder1.removeJob("1"));
     }
 
-    public void testCrudScheduledJob() {
+    public void testCrudScheduler() {
         Job job1 = createScheduledJob().build();
+        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
         PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
         builder.putJob(job1, false);
+        builder.putScheduler(schedulerConfig1);
 
         PrelertMetadata result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
         assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.CLOSED));
-        assertThat(result.getSchedulerStatuses().get("foo"), equalTo(SchedulerStatus.STOPPED));
+        assertThat(result.getSchedulers().get("scheduler1").getConfig(), sameInstance(schedulerConfig1));
+        assertThat(result.getSchedulers().get("scheduler1").getStatus(), equalTo(SchedulerStatus.STOPPED));
 
         builder = new PrelertMetadata.Builder(result);
-        builder.removeJob("foo");
+        builder.removeScheduler("scheduler1");
         result = builder.build();
-        assertThat(result.getJobs().get("foo"), nullValue());
-        assertThat(result.getAllocations().get("foo"), nullValue());
-        assertThat(result.getSchedulerStatuses().get("foo"), nullValue());
+        assertThat(result.getJobs().get("foo"), sameInstance(job1));
+        assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.CLOSED));
+        assertThat(result.getSchedulers().get("scheduler1"), nullValue());
     }
 
-    public void testDeletedScheduledJob_failBecauseSchedulerStarted() {
+    public void testPutScheduler_failBecauseJobDoesNotExist() {
+        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", "missing-job").build();
+        PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
+
+        expectThrows(ResourceNotFoundException.class, () -> builder.putScheduler(schedulerConfig1));
+    }
+
+    public void testPutScheduler_failBecauseSchedulerIdIsAlreadyTaken() {
         Job job1 = createScheduledJob().build();
+        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
         PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
         builder.putJob(job1, false);
+        builder.putScheduler(schedulerConfig1);
+
+        expectThrows(ResourceAlreadyExistsException.class, () -> builder.putScheduler(schedulerConfig1));
+    }
+
+    public void testPutScheduler_failBecauseJobAlreadyHasScheduler() {
+        Job job1 = createScheduledJob().build();
+        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
+        SchedulerConfig schedulerConfig2 = createSchedulerConfig("scheduler2", job1.getId()).build();
+        PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
+        builder.putJob(job1, false);
+        builder.putScheduler(schedulerConfig1);
+
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.putScheduler(schedulerConfig2));
+        assertThat(e.status(), equalTo(RestStatus.CONFLICT));
+    }
+
+    public void testPutScheduler_failBecauseJobIsNotCompatibleForScheduler() {
+        Job.Builder job1 = createScheduledJob();
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+        dataDescription.setFormat(DataDescription.DataFormat.DELIMITED);
+        job1.setDataDescription(dataDescription);
+        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
+        PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
+        builder.putJob(job1.build(), false);
+
+        expectThrows(IllegalArgumentException.class, () -> builder.putScheduler(schedulerConfig1));
+    }
+
+    public void testRemoveScheduler_failBecauseSchedulerStarted() {
+        Job job1 = createScheduledJob().build();
+        SchedulerConfig schedulerConfig1 = createSchedulerConfig("scheduler1", job1.getId()).build();
+        PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
+        builder.putJob(job1, false);
+        builder.putScheduler(schedulerConfig1);
         builder.updateStatus("foo", JobStatus.OPENING, null);
         builder.updateStatus("foo", JobStatus.OPENED, null);
-        builder.updateSchedulerStatus("foo", SchedulerStatus.STARTED);
+        builder.updateSchedulerStatus("scheduler1", SchedulerStatus.STARTED);
 
         PrelertMetadata result = builder.build();
         assertThat(result.getJobs().get("foo"), sameInstance(job1));
         assertThat(result.getAllocations().get("foo").getStatus(), equalTo(JobStatus.OPENED));
-        assertThat(result.getSchedulerStatuses().get("foo"), equalTo(SchedulerStatus.STARTED));
+        assertThat(result.getSchedulers().get("scheduler1").getConfig(), sameInstance(schedulerConfig1));
+        assertThat(result.getSchedulers().get("scheduler1").getStatus(), equalTo(SchedulerStatus.STARTED));
 
         PrelertMetadata.Builder builder2 = new PrelertMetadata.Builder(result);
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder2.removeJob("foo"));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder2.removeScheduler("scheduler1"));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.job;
 
+import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,7 +28,9 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
 
     @Override
     protected SchedulerConfig createTestInstance() {
-        SchedulerConfig.Builder builder = new SchedulerConfig.Builder(randomStringList(1, 10), randomStringList(1, 10));
+        SchedulerConfig.Builder builder = new SchedulerConfig.Builder(randomValidSchedulerId(), randomAsciiOfLength(10));
+        builder.setIndexes(randomStringList(1, 10));
+        builder.setTypes(randomStringList(1, 10));
         if (randomBoolean()) {
             builder.setQuery(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
         }
@@ -76,21 +79,14 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
     /**
      * Test parsing of the opaque {@link SchedulerConfig#getQuery()} object
      */
-    public void testAnalysisConfigRequiredFields() throws IOException {
+    public void testQueryParsing() throws IOException {
         Logger logger = Loggers.getLogger(SchedulerConfigTests.class);
 
-        String jobConfigStr = "{" + "\"job_id\":\"farequote\"," + "\"scheduler_config\" : {"
-                + "\"indexes\":[\"farequote\"]," + "\"types\":[\"farequote\"],"
-                + "\"query\":{\"match_all\":{} }" + "}," + "\"analysis_config\" : {" + "\"bucket_span\":3600,"
-                + "\"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}],"
-                + "\"influencers\" :[\"airline\"]" + "}," + "\"data_description\" : {" + "\"format\":\"ELASTICSEARCH\","
-                + "\"time_field\":\"@timestamp\"," + "\"time_format\":\"epoch_ms\"" + "}" + "}";
+        String schedulerConfigStr = "{" + "\"scheduler_id\":\"scheduler1\"," + "\"job_id\":\"job1\"," + "\"indexes\":[\"farequote\"],"
+                + "\"types\":[\"farequote\"]," + "\"query\":{\"match_all\":{} }" + "}";
 
-        XContentParser parser = XContentFactory.xContent(jobConfigStr).createParser(jobConfigStr);
-        Job jobConfig = Job.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT).build();
-        assertNotNull(jobConfig);
-
-        SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(jobConfig.getSchedulerConfig());
+        XContentParser parser = XContentFactory.xContent(schedulerConfigStr).createParser(schedulerConfigStr);
+        SchedulerConfig schedulerConfig = SchedulerConfig.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT).build();
         assertNotNull(schedulerConfig);
 
         Map<String, Object> query = schedulerConfig.getQuery();
@@ -102,7 +98,9 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
     }
 
     public void testBuildAggregatedFieldList_GivenNoAggregations() {
-        SchedulerConfig.Builder builder = new SchedulerConfig.Builder(Arrays.asList("index"), Arrays.asList("type"));
+        SchedulerConfig.Builder builder = new SchedulerConfig.Builder("scheduler1", "job1");
+        builder.setIndexes(Arrays.asList("index"));
+        builder.setTypes(Arrays.asList("type"));
         assertTrue(builder.build().buildAggregatedFieldList().isEmpty());
     }
 
@@ -113,22 +111,15 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
     public void testAggsParse() throws IOException {
         Logger logger = Loggers.getLogger(SchedulerConfigTests.class);
 
-        String jobConfigStr = "{" + "\"job_id\":\"farequote\"," + "\"scheduler_config\" : {"
-                + "\"indexes\":[\"farequote\"]," + "\"types\":[\"farequote\"],"
-                + "\"query\":{\"match_all\":{} }," + "\"aggs\" : {" + "\"top_level_must_be_time\" : {" + "\"histogram\" : {"
-                + "\"field\" : \"@timestamp\"," + "\"interval\" : 3600000" + "}," + "\"aggs\" : {" + "\"by_field_in_the_middle\" : { "
-                + "\"terms\" : {" + "\"field\" : \"airline\"," + "\"size\" : 0" + "}," + "\"aggs\" : {" + "\"stats_last\" : {"
-                + "\"avg\" : {" + "\"field\" : \"responsetime\"" + "}" + "}" + "} " + "}" + "}" + "}" + "}" + "},"
-                + "\"analysis_config\" : {" + "\"summary_count_field_name\":\"doc_count\"," + "\"bucket_span\":3600,"
-                + "\"detectors\" :[{\"function\":\"avg\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}],"
-                + "\"influencers\" :[\"airline\"]" + "}," + "\"data_description\" : {" + "\"format\":\"ELASTICSEARCH\","
-                + "\"time_field\":\"@timestamp\"," + "\"time_format\":\"epoch_ms\"" + "}" + "}";
+        String configStr = "{" + "\"scheduler_id\":\"scheduler1\"," + "\"job_id\":\"job1\"," + "\"indexes\":[\"farequote\"],"
+                + "\"types\":[\"farequote\"]," + "\"query\":{\"match_all\":{} }," + "\"aggs\" : {" + "\"top_level_must_be_time\" : {"
+                + "\"histogram\" : {" + "\"field\" : \"@timestamp\"," + "\"interval\" : 3600000" + "}," + "\"aggs\" : {"
+                + "\"by_field_in_the_middle\" : { " + "\"terms\" : {" + "\"field\" : \"airline\"," + "\"size\" : 0" + "}," + "\"aggs\" : {"
+                + "\"stats_last\" : {" + "\"avg\" : {" + "\"field\" : \"responsetime\"" + "}" + "}" + "} " + "}" + "}" + "}" + "}" + "}"
+                + "}";
 
-        XContentParser parser = XContentFactory.xContent(jobConfigStr).createParser(jobConfigStr);
-        Job jobConfig = Job.PARSER.parse(parser, () -> ParseFieldMatcher.STRICT).build();
-        assertNotNull(jobConfig);
-
-        SchedulerConfig schedulerConfig = jobConfig.getSchedulerConfig();
+        XContentParser parser = XContentFactory.xContent(configStr).createParser(configStr);
+        SchedulerConfig schedulerConfig = SchedulerConfig.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT).build();
         assertNotNull(schedulerConfig);
 
         Map<String, Object> aggs = schedulerConfig.getAggregationsOrAggs();
@@ -145,54 +136,21 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         assertEquals("responsetime", aggregatedFieldList.get(2));
     }
 
-    public void testFillDefaults_GivenNothingToFill() {
-        SchedulerConfig.Builder originalSchedulerConfig = new SchedulerConfig.Builder(Arrays.asList("index"), Arrays.asList("type"));
-        originalSchedulerConfig.setQuery(new HashMap<>());
-        originalSchedulerConfig.setQueryDelay(30L);
-        originalSchedulerConfig.setRetrieveWholeSource(true);
-        originalSchedulerConfig.setScrollSize(2000);
-
-        SchedulerConfig.Builder defaultedSchedulerConfig = new SchedulerConfig.Builder(Arrays.asList("index"), Arrays.asList("type"));
-        defaultedSchedulerConfig.setQuery(new HashMap<>());
-        defaultedSchedulerConfig.setQueryDelay(30L);
-        defaultedSchedulerConfig.setRetrieveWholeSource(true);
-        defaultedSchedulerConfig.setScrollSize(2000);
-
-        assertEquals(originalSchedulerConfig.build(), defaultedSchedulerConfig.build());
-    }
-
-    public void testFillDefaults_GivenDataSourceIsElasticsearchAndDefaultsAreApplied() {
-        SchedulerConfig.Builder expectedSchedulerConfig = new SchedulerConfig.Builder(Arrays.asList("index"), Arrays.asList("type"));
+    public void testFillDefaults() {
+        SchedulerConfig.Builder expectedSchedulerConfig = new SchedulerConfig.Builder("scheduler1", "job1");
+        expectedSchedulerConfig.setIndexes(Arrays.asList("index"));
+        expectedSchedulerConfig.setTypes(Arrays.asList("type"));
         Map<String, Object> defaultQuery = new HashMap<>();
         defaultQuery.put("match_all", new HashMap<String, Object>());
         expectedSchedulerConfig.setQuery(defaultQuery);
         expectedSchedulerConfig.setQueryDelay(60L);
         expectedSchedulerConfig.setRetrieveWholeSource(false);
         expectedSchedulerConfig.setScrollSize(1000);
-        SchedulerConfig.Builder defaultedSchedulerConfig = new SchedulerConfig.Builder(Arrays.asList("index"), Arrays.asList("type"));
+        SchedulerConfig.Builder defaultedSchedulerConfig = new SchedulerConfig.Builder("scheduler1", "job1");
+        defaultedSchedulerConfig.setIndexes(Arrays.asList("index"));
+        defaultedSchedulerConfig.setTypes(Arrays.asList("type"));
+
         assertEquals(expectedSchedulerConfig.build(), defaultedSchedulerConfig.build());
-    }
-
-    public void testEquals_GivenDifferentClass() {
-        SchedulerConfig.Builder builder = new SchedulerConfig.Builder(Arrays.asList("index"), Arrays.asList("type"));
-        assertFalse(builder.build().equals("a string"));
-    }
-
-    public void testEquals_GivenSameRef() {
-        SchedulerConfig.Builder builder = new SchedulerConfig.Builder(Arrays.asList("index"), Arrays.asList("type"));
-        SchedulerConfig schedulerConfig = builder.build();
-        assertTrue(schedulerConfig.equals(schedulerConfig));
-    }
-
-    public void testEquals_GivenEqual() {
-        SchedulerConfig.Builder b1 = createFullyPopulated();
-        SchedulerConfig.Builder b2 = createFullyPopulated();
-
-        SchedulerConfig sc1 = b1.build();
-        SchedulerConfig sc2 = b2.build();
-        assertTrue(sc1.equals(sc2));
-        assertTrue(sc2.equals(sc1));
-        assertEquals(sc1.hashCode(), sc2.hashCode());
     }
 
     public void testEquals_GivenDifferentQueryDelay() {
@@ -229,18 +187,18 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
     }
 
     public void testEquals_GivenDifferentIndexes() {
-        SchedulerConfig.Builder sc1 = new SchedulerConfig.Builder(Arrays.asList("myIndex"), Arrays.asList("myType1", "myType2"));
-        SchedulerConfig.Builder sc2 = new SchedulerConfig.Builder(Arrays.asList("thisOtherCrazyIndex"),
-                Arrays.asList("myType1", "myType2"));
+        SchedulerConfig.Builder sc1 = createFullyPopulated();
+        SchedulerConfig.Builder sc2 = createFullyPopulated();
+        sc2.setIndexes(Arrays.asList("blah", "di", "blah"));
 
         assertFalse(sc1.build().equals(sc2.build()));
         assertFalse(sc2.build().equals(sc1.build()));
     }
 
     public void testEquals_GivenDifferentTypes() {
-        SchedulerConfig.Builder sc1 = new SchedulerConfig.Builder(Arrays.asList("myIndex"), Arrays.asList("myType1", "myType2"));
-        SchedulerConfig.Builder sc2 = new SchedulerConfig.Builder(Arrays.asList("thisOtherCrazyIndex"),
-                Arrays.asList("thisOtherCrazyType", "myType2"));
+        SchedulerConfig.Builder sc1 = createFullyPopulated();
+        SchedulerConfig.Builder sc2 = createFullyPopulated();
+        sc2.setTypes(Arrays.asList("blah", "di", "blah"));
 
         assertFalse(sc1.build().equals(sc2.build()));
         assertFalse(sc2.build().equals(sc1.build()));
@@ -269,7 +227,9 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
     }
 
     private static SchedulerConfig.Builder createFullyPopulated() {
-        SchedulerConfig.Builder sc = new SchedulerConfig.Builder(Arrays.asList("myIndex"), Arrays.asList("myType1", "myType2"));
+        SchedulerConfig.Builder sc = new SchedulerConfig.Builder("scheduler1", "job1");
+        sc.setIndexes(Arrays.asList("myIndex"));
+        sc.setTypes(Arrays.asList("myType1", "myType2"));
         sc.setFrequency(60L);
         sc.setScrollSize(5000);
         Map<String, Object> query = new HashMap<>();
@@ -282,8 +242,10 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         return sc;
     }
 
-    public void testCheckValidElasticsearch_AllOk() throws IOException {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(Arrays.asList("myindex"), Arrays.asList("mytype"));
+    public void testCheckValid_AllOk() throws IOException {
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
+        conf.setIndexes(Arrays.asList("myindex"));
+        conf.setTypes(Arrays.asList("mytype"));
         conf.setQueryDelay(90L);
         String json = "{ \"match_all\" : {} }";
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
@@ -292,13 +254,17 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         conf.build();
     }
 
-    public void testCheckValidElasticsearch_NoQuery() {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(Arrays.asList("myindex"), Arrays.asList("mytype"));
+    public void testCheckValid_NoQuery() {
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
+        conf.setIndexes(Arrays.asList("myindex"));
+        conf.setTypes(Arrays.asList("mytype"));
         assertEquals(Collections.singletonMap("match_all", new HashMap<>()), conf.build().getQuery());
     }
 
-    public void testCheckValidElasticsearch_GivenScriptFieldsNotWholeSource() throws IOException {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(Arrays.asList("myindex"), Arrays.asList("mytype"));
+    public void testCheckValid_GivenScriptFieldsNotWholeSource() throws IOException {
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
+        conf.setIndexes(Arrays.asList("myindex"));
+        conf.setTypes(Arrays.asList("mytype"));
         String json = "{ \"twiceresponsetime\" : { \"script\" : { \"lang\" : \"expression\", "
                 + "\"inline\" : \"doc['responsetime'].value * 2\" } } }";
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
@@ -307,8 +273,10 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         assertEquals(1, conf.build().getScriptFields().size());
     }
 
-    public void testCheckValidElasticsearch_GivenScriptFieldsAndWholeSource() throws IOException {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(Arrays.asList("myindex"), Arrays.asList("mytype"));
+    public void testCheckValid_GivenScriptFieldsAndWholeSource() throws IOException {
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
+        conf.setIndexes(Arrays.asList("myindex"));
+        conf.setTypes(Arrays.asList("mytype"));
         String json = "{ \"twiceresponsetime\" : { \"script\" : { \"lang\" : \"expression\", "
                 + "\"inline\" : \"doc['responsetime'].value * 2\" } } }";
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
@@ -317,65 +285,76 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         expectThrows(IllegalArgumentException.class, conf::build);
     }
 
-    public void testCheckValidElasticsearch_GivenNullIndexes() throws IOException {
-        expectThrows(NullPointerException.class, () -> new SchedulerConfig.Builder(null, Arrays.asList("mytype")));
+    public void testCheckValid_GivenNullIndexes() throws IOException {
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
+        expectThrows(IllegalArgumentException.class, () -> conf.setIndexes(null));
     }
 
-    public void testCheckValidElasticsearch_GivenEmptyIndexes() throws IOException {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(Collections.emptyList(), Arrays.asList("mytype"));
+    public void testCheckValid_GivenEmptyIndexes() throws IOException {
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
+        conf.setIndexes(Collections.emptyList());
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "indexes", "[]"), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.SCHEDULER_CONFIG_INVALID_OPTION_VALUE, "indexes", "[]"), e.getMessage());
     }
 
-    public void testCheckValidElasticsearch_GivenIndexesContainsOnlyNulls() throws IOException {
+    public void testCheckValid_GivenIndexesContainsOnlyNulls() throws IOException {
         List<String> indexes = new ArrayList<>();
         indexes.add(null);
         indexes.add(null);
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(indexes, Arrays.asList("mytype"));
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
+        conf.setIndexes(indexes);
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "indexes", "[null, null]"), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.SCHEDULER_CONFIG_INVALID_OPTION_VALUE, "indexes", "[null, null]"), e.getMessage());
     }
 
-    public void testCheckValidElasticsearch_GivenIndexesContainsOnlyEmptyStrings() throws IOException {
+    public void testCheckValid_GivenIndexesContainsOnlyEmptyStrings() throws IOException {
         List<String> indexes = new ArrayList<>();
         indexes.add("");
         indexes.add("");
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(indexes, Arrays.asList("mytype"));
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
+        conf.setIndexes(indexes);
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "indexes", "[, ]"), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.SCHEDULER_CONFIG_INVALID_OPTION_VALUE, "indexes", "[, ]"), e.getMessage());
     }
 
-    public void testCheckValidElasticsearch_GivenNegativeQueryDelay() throws IOException {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(Arrays.asList("myindex"), Arrays.asList("mytype"));
+    public void testCheckValid_GivenNegativeQueryDelay() throws IOException {
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setQueryDelay(-10L));
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "query_delay", -10L), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.SCHEDULER_CONFIG_INVALID_OPTION_VALUE, "query_delay", -10L), e.getMessage());
     }
 
-    public void testCheckValidElasticsearch_GivenZeroFrequency() throws IOException {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(Arrays.asList("myindex"), Arrays.asList("mytype"));
+    public void testCheckValid_GivenZeroFrequency() throws IOException {
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setFrequency(0L));
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "frequency", 0L), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.SCHEDULER_CONFIG_INVALID_OPTION_VALUE, "frequency", 0L), e.getMessage());
     }
 
-    public void testCheckValidElasticsearch_GivenNegativeFrequency() throws IOException {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(Arrays.asList("myindex"), Arrays.asList("mytype"));
+    public void testCheckValid_GivenNegativeFrequency() throws IOException {
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setFrequency(-600L));
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "frequency", -600L), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.SCHEDULER_CONFIG_INVALID_OPTION_VALUE, "frequency", -600L), e.getMessage());
     }
 
-    public void testCheckValidElasticsearch_GivenNegativeScrollSize() throws IOException {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(Arrays.asList("myindex"), Arrays.asList("mytype"));
+    public void testCheckValid_GivenNegativeScrollSize() throws IOException {
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setScrollSize(-1000));
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_INVALID_OPTION_VALUE, "scroll_size", -1000L), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.SCHEDULER_CONFIG_INVALID_OPTION_VALUE, "scroll_size", -1000L), e.getMessage());
     }
 
-    public void testCheckValidElasticsearch_GivenBothAggregationsAndAggsAreSet() {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder(Arrays.asList("myindex"), Arrays.asList("mytype"));
+    public void testCheckValid_GivenBothAggregationsAndAggsAreSet() {
+        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
+        conf.setIndexes(Arrays.asList("myindex"));
+        conf.setTypes(Arrays.asList("mytype"));
         conf.setScrollSize(1000);
         Map<String, Object> aggs = new HashMap<>();
         conf.setAggregations(aggs);
         conf.setAggs(aggs);
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.JOB_CONFIG_SCHEDULER_MULTIPLE_AGGREGATIONS), e.getMessage());
+        assertEquals(Messages.getMessage(Messages.SCHEDULER_CONFIG_MULTIPLE_AGGREGATIONS), e.getMessage());
+    }
+
+    public static String randomValidSchedulerId() {
+        CodepointSetGenerator generator =  new CodepointSetGenerator("abcdefghijklmnopqrstuvwxyz".toCharArray());
+        return generator.ofCodePointsLength(random(), 10, 10);
     }
 }

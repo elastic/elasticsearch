@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
-import org.elasticsearch.xpack.prelert.action.StopJobSchedulerAction.Request;
+import org.elasticsearch.xpack.prelert.action.StopSchedulerAction.Request;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
-public class StopJobSchedulerActionRequestTests extends AbstractStreamableTestCase<StopJobSchedulerAction.Request> {
+public class StopJobSchedulerActionRequestTests extends AbstractStreamableTestCase<StopSchedulerAction.Request> {
 
     @Override
     protected Request createTestInstance() {

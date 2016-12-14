@@ -23,55 +23,55 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
-import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction;
-import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.action.StartSchedulerAction;
+import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunner;
 
 import java.io.IOException;
 
-public class RestStartJobSchedulerAction extends BaseRestHandler {
+public class RestStartSchedulerAction extends BaseRestHandler {
 
     private static final String DEFAULT_START = "0";
 
     private final ClusterService clusterService;
 
     @Inject
-    public RestStartJobSchedulerAction(Settings settings, RestController controller, ClusterService clusterService) {
+    public RestStartSchedulerAction(Settings settings, RestController controller, ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
         controller.registerHandler(RestRequest.Method.POST,
-                PrelertPlugin.BASE_PATH + "schedulers/{" + Job.ID.getPreferredName() + "}/_start", this);
+                PrelertPlugin.BASE_PATH + "schedulers/{" + SchedulerConfig.ID.getPreferredName() + "}/_start", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String jobId = restRequest.param(Job.ID.getPreferredName());
+        String schedulerId = restRequest.param(SchedulerConfig.ID.getPreferredName());
 
         // This validation happens also in ScheduledJobRunner, the reason we do it here too is that if it fails there
         // we are unable to provide the user immediate feedback. We would create the task and the validation would fail
         // in the background, whereas now the validation failure is part of the response being returned.
         PrelertMetadata prelertMetadata = clusterService.state().metaData().custom(PrelertMetadata.TYPE);
-        ScheduledJobRunner.validate(jobId, prelertMetadata);
+        ScheduledJobRunner.validate(schedulerId, prelertMetadata);
 
-        StartJobSchedulerAction.Request jobSchedulerRequest;
+        StartSchedulerAction.Request jobSchedulerRequest;
         if (restRequest.hasContentOrSourceParam()) {
             BytesReference bodyBytes = restRequest.contentOrSourceParam();
             XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
-            jobSchedulerRequest = StartJobSchedulerAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
+            jobSchedulerRequest = StartSchedulerAction.Request.parseRequest(schedulerId, parser, () -> parseFieldMatcher);
         } else {
-            long startTimeMillis = parseDateOrThrow(restRequest.param(StartJobSchedulerAction.START_TIME.getPreferredName(),
-                    DEFAULT_START), StartJobSchedulerAction.START_TIME.getPreferredName());
+            long startTimeMillis = parseDateOrThrow(restRequest.param(StartSchedulerAction.START_TIME.getPreferredName(),
+                    DEFAULT_START), StartSchedulerAction.START_TIME.getPreferredName());
             Long endTimeMillis = null;
-            if (restRequest.hasParam(StartJobSchedulerAction.END_TIME.getPreferredName())) {
-                endTimeMillis = parseDateOrThrow(restRequest.param(StartJobSchedulerAction.END_TIME.getPreferredName()),
-                        StartJobSchedulerAction.END_TIME.getPreferredName());
+            if (restRequest.hasParam(StartSchedulerAction.END_TIME.getPreferredName())) {
+                endTimeMillis = parseDateOrThrow(restRequest.param(StartSchedulerAction.END_TIME.getPreferredName()),
+                        StartSchedulerAction.END_TIME.getPreferredName());
             }
-            jobSchedulerRequest = new StartJobSchedulerAction.Request(jobId, startTimeMillis);
+            jobSchedulerRequest = new StartSchedulerAction.Request(schedulerId, startTimeMillis);
             jobSchedulerRequest.setEndTime(endTimeMillis);
         }
-        return sendTask(client.executeLocally(StartJobSchedulerAction.INSTANCE, jobSchedulerRequest, LoggingTaskListener.instance()));
+        return sendTask(client.executeLocally(StartSchedulerAction.INSTANCE, jobSchedulerRequest, LoggingTaskListener.instance()));
     }
 
     private RestChannelConsumer sendTask(Task task) throws IOException {

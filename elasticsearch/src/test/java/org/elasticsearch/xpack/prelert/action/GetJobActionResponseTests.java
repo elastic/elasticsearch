@@ -13,11 +13,10 @@ import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.IgnoreDowntime;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelDebugConfig;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
-import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import org.elasticsearch.xpack.prelert.job.transform.TransformType;
@@ -25,7 +24,6 @@ import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 import org.joda.time.DateTime;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumSet;
@@ -50,7 +48,6 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
             AnalysisConfig analysisConfig = new AnalysisConfig.Builder(
                     Collections.singletonList(new Detector.Builder("metric", "some_field").build())).build();
             AnalysisLimits analysisLimits = new AnalysisLimits(randomPositiveLong(), randomPositiveLong());
-            SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(Arrays.asList("myIndex"), Arrays.asList("myType"));
             DataDescription dataDescription = randomBoolean() ? new DataDescription.Builder().build() : null;
             int numTransformers = randomIntBetween(0, 32);
             List<TransformConfig> transformConfigList = new ArrayList<>(numTransformers);
@@ -67,7 +64,7 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
                     : null;
             String modelSnapshotId = randomBoolean() ? randomAsciiOfLength(10) : null;
             Job job = new Job(jobId, description, createTime, finishedTime, lastDataTime,
-                    timeout, analysisConfig, analysisLimits, schedulerConfig.build(), dataDescription, transformConfigList,
+                    timeout, analysisConfig, analysisLimits, dataDescription, transformConfigList,
                     modelDebugConfig, ignoreDowntime, normalizationWindowDays, backgroundPersistInterval,
                     modelSnapshotRetentionDays, resultsRetentionDays, customConfig, modelSnapshotId);
 

@@ -17,18 +17,20 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
-import org.elasticsearch.xpack.prelert.action.StartJobSchedulerAction;
-import org.elasticsearch.xpack.prelert.action.UpdateJobSchedulerStatusAction;
+import org.elasticsearch.xpack.prelert.action.StartSchedulerAction;
+import org.elasticsearch.xpack.prelert.action.UpdateSchedulerStatusAction;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
+import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.config.DefaultFrequency;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractorFactory;
+import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
+import org.elasticsearch.xpack.prelert.job.metadata.Scheduler;
 import org.elasticsearch.xpack.prelert.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
@@ -61,14 +63,16 @@ public class ScheduledJobRunner extends AbstractComponent {
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
     }
 
-    public void run(String jobId, long startTime, Long endTime, StartJobSchedulerAction.SchedulerTask task, Consumer<Exception> handler) {
+    public void run(String schedulerId, long startTime, Long endTime, StartSchedulerAction.SchedulerTask task,
+                    Consumer<Exception> handler) {
         PrelertMetadata prelertMetadata = clusterService.state().metaData().custom(PrelertMetadata.TYPE);
-        validate(jobId, prelertMetadata);
+        validate(schedulerId, prelertMetadata);
 
-        setJobSchedulerStatus(jobId, SchedulerStatus.STARTED, error -> {
-            logger.info("[{}] Starting scheduler", jobId);
-            Job job = prelertMetadata.getJobs().get(jobId);
-            Holder holder = createJobScheduler(job, task, handler);
+        setJobSchedulerStatus(schedulerId, SchedulerStatus.STARTED, error -> {
+            Scheduler scheduler = prelertMetadata.getScheduler(schedulerId);
+            logger.info("Starting scheduler [{}] for job [{}]", schedulerId, scheduler.getJobId());
+            Job job = prelertMetadata.getJobs().get(scheduler.getJobId());
+            Holder holder = createJobScheduler(scheduler, job, handler);
             task.setHolder(holder);
             holder.future = threadPool.executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME).submit(() -> {
                 try {
@@ -87,7 +91,7 @@ public class ScheduledJobRunner extends AbstractComponent {
                         holder.stop();
                     }
                 } catch (Exception e) {
-                    logger.error("Failed lookback import for job[" + job.getId() + "]", e);
+                    logger.error("Failed lookback import for job [" + job.getId() + "]", e);
                     holder.stop();
                 }
                 holder.problemTracker.finishReport();
@@ -129,39 +133,40 @@ public class ScheduledJobRunner extends AbstractComponent {
         }
     }
 
-    public static void validate(String jobId, PrelertMetadata prelertMetadata) {
-        Job job = prelertMetadata.getJobs().get(jobId);
+    public static void validate(String schedulerId, PrelertMetadata prelertMetadata) {
+        Scheduler scheduler = prelertMetadata.getScheduler(schedulerId);
+        if (scheduler == null) {
+            throw new ResourceNotFoundException(Messages.getMessage(Messages.SCHEDULER_NOT_FOUND, schedulerId));
+        }
+        Job job = prelertMetadata.getJobs().get(scheduler.getJobId());
         if (job == null) {
-            throw ExceptionsHelper.missingJobException(jobId);
+            throw ExceptionsHelper.missingJobException(scheduler.getJobId());
         }
 
-        if (job.getSchedulerConfig() == null) {
-            throw new IllegalArgumentException("job [" + job.getId() + "] is not a scheduled job");
-        }
-
-        Allocation allocation = prelertMetadata.getAllocations().get(jobId);
+        Allocation allocation = prelertMetadata.getAllocations().get(scheduler.getJobId());
         if (allocation.getStatus() != JobStatus.OPENED) {
             throw new ElasticsearchStatusException("cannot start scheduler, expected job status [{}], but got [{}]",
                     RestStatus.CONFLICT, JobStatus.OPENED, allocation.getStatus());
         }
 
-        SchedulerStatus status = prelertMetadata.getSchedulerStatuses().get(jobId);
+        SchedulerStatus status = scheduler.getStatus();
         if (status != SchedulerStatus.STOPPED) {
             throw new ElasticsearchStatusException("scheduler already started, expected scheduler status [{}], but got [{}]",
                     RestStatus.CONFLICT, SchedulerStatus.STOPPED, status);
         }
 
+        ScheduledJobValidator.validate(scheduler.getConfig(), job);
     }
 
-    private Holder createJobScheduler(Job job, StartJobSchedulerAction.SchedulerTask task, Consumer<Exception> handler) {
+    private Holder createJobScheduler(Scheduler scheduler, Job job, Consumer<Exception> handler) {
         Auditor auditor = jobProvider.audit(job.getId());
-        Duration frequency = getFrequencyOrDefault(job);
-        Duration queryDelay = Duration.ofSeconds(job.getSchedulerConfig().getQueryDelay());
-        DataExtractor dataExtractor = dataExtractorFactory.newExtractor(job);
+        Duration frequency = getFrequencyOrDefault(scheduler, job);
+        Duration queryDelay = Duration.ofSeconds(scheduler.getConfig().getQueryDelay());
+        DataExtractor dataExtractor = dataExtractorFactory.newExtractor(scheduler.getConfig(), job);
         ScheduledJob scheduledJob =  new ScheduledJob(job.getId(), frequency.toMillis(), queryDelay.toMillis(),
                 dataExtractor, client, auditor, currentTimeSupplier, getLatestFinalBucketEndTimeMs(job),
                 getLatestRecordTimestamp(job.getId()));
-        return new Holder(job, scheduledJob, new ProblemTracker(() -> auditor), handler);
+        return new Holder(scheduler, scheduledJob, new ProblemTracker(() -> auditor), handler);
     }
 
     private long getLatestFinalBucketEndTimeMs(Job job) {
@@ -193,8 +198,8 @@ public class ScheduledJobRunner extends AbstractComponent {
         return latestRecordTimeMs;
     }
 
-    private static Duration getFrequencyOrDefault(Job job) {
-        Long frequency = job.getSchedulerConfig().getFrequency();
+    private static Duration getFrequencyOrDefault(Scheduler scheduler, Job job) {
+        Long frequency = scheduler.getConfig().getFrequency();
         Long bucketSpan = job.getAnalysisConfig().getBucketSpan();
         return frequency == null ? DefaultFrequency.ofBucketSpan(bucketSpan) : Duration.ofSeconds(frequency);
     }
@@ -203,22 +208,22 @@ public class ScheduledJobRunner extends AbstractComponent {
         return new TimeValue(Math.max(1, next - currentTimeSupplier.get()));
     }
 
-    private void setJobSchedulerStatus(String jobId, SchedulerStatus status, Consumer<Exception> supplier) {
-        UpdateJobSchedulerStatusAction.Request request = new UpdateJobSchedulerStatusAction.Request(jobId, status);
-        client.execute(UpdateJobSchedulerStatusAction.INSTANCE, request, new ActionListener<UpdateJobSchedulerStatusAction.Response>() {
+    private void setJobSchedulerStatus(String schedulerId, SchedulerStatus status, Consumer<Exception> supplier) {
+        UpdateSchedulerStatusAction.Request request = new UpdateSchedulerStatusAction.Request(schedulerId, status);
+        client.execute(UpdateSchedulerStatusAction.INSTANCE, request, new ActionListener<UpdateSchedulerStatusAction.Response>() {
             @Override
-            public void onResponse(UpdateJobSchedulerStatusAction.Response response) {
+            public void onResponse(UpdateSchedulerStatusAction.Response response) {
                 if (response.isAcknowledged()) {
-                    logger.debug("successfully set job scheduler status to [{}] for job [{}]", status, jobId);
+                    logger.debug("successfully set scheduler [{}] status to [{}]", schedulerId, status);
                 } else {
-                    logger.info("set job scheduler status to [{}] for job [{}], but was not acknowledged", status, jobId);
+                    logger.info("set scheduler [{}] status to [{}], but was not acknowledged", schedulerId, status);
                 }
                 supplier.accept(null);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("could not set job scheduler status to [" + status + "] for job [" + jobId +"]", e);
+                logger.error("could not set scheduler [" + schedulerId + "] status to [" + status + "]", e);
                 supplier.accept(e);
             }
         });
@@ -226,14 +231,14 @@ public class ScheduledJobRunner extends AbstractComponent {
 
     public class Holder {
 
-        private final String jobId;
+        private final Scheduler scheduler;
         private final ScheduledJob scheduledJob;
         private final ProblemTracker problemTracker;
         private final Consumer<Exception> handler;
         volatile Future<?> future;
 
-        private Holder(Job job, ScheduledJob scheduledJob, ProblemTracker problemTracker, Consumer<Exception> handler) {
-            this.jobId = job.getId();
+        private Holder(Scheduler scheduler, ScheduledJob scheduledJob, ProblemTracker problemTracker, Consumer<Exception> handler) {
+            this.scheduler = scheduler;
             this.scheduledJob = scheduledJob;
             this.problemTracker = problemTracker;
             this.handler = handler;
@@ -244,10 +249,10 @@ public class ScheduledJobRunner extends AbstractComponent {
         }
 
         public void stop() {
-            logger.info("Stopping scheduler for job [{}]", jobId);
+            logger.info("Stopping scheduler [{}] for job [{}]", scheduler.getId(), scheduler.getJobId());
             scheduledJob.stop();
             FutureUtils.cancel(future);
-            setJobSchedulerStatus(jobId, SchedulerStatus.STOPPED, error -> handler.accept(null));
+            setJobSchedulerStatus(scheduler.getId(), SchedulerStatus.STOPPED, error -> handler.accept(null));
         }
 
     }

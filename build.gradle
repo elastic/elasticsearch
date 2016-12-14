@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.precommit.LicenseHeadersTask
 
-if (project.projectDir.name != 'x-plugins') {
+if (project.projectDir.name != 'x-pack') {
   throw new GradleException('You must checkout x-plugins in a directory named x-plugins next to elasticsearch')
 }
 
@@ -71,5 +71,5 @@ subprojects {
     approvedLicenses = ['Elasticsearch Confidential']
     additionalLicense 'ESCON', 'Elasticsearch Confidential', 'ELASTICSEARCH CONFIDENTIAL'
   }
-  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-plugins:elasticsearch' ]
+  ext.projectSubstitutions += [ "org.elasticsearch.plugin:x-pack-api:${version}": ':x-pack:elasticsearch' ]
 }

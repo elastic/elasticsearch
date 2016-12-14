@@ -1,5 +1,5 @@
 #!/bin/bash
-# This script is used as a single command to run the x-plugins tests.
+# This script is used as a single command to run the x-pack tests.
 #
 # It will attempt to check out 'elasticsearch' into a sibling directory
 # unless the environment variable `USE_EXISTING_ES` has a value. The
@@ -26,7 +26,7 @@ set -o pipefail
 key=${1-check}
 case $key in
     packagingTest)
-        GRADLE_OPT_STRING="--info -Pvagrant.boxes=all :x-plugins:qa:vagrant:packagingTest"
+        GRADLE_OPT_STRING="--info -Pvagrant.boxes=all :x-pack:qa:vagrant:packagingTest"
         ;;
     check)
         GRADLE_OPT_STRING="--info check -Dtests.network=true -Dtests.badapples=true"
@@ -56,7 +56,7 @@ BASE_DIR=$(dirname "$SCRIPT")/..
 # make BASE_DIR absolute
 BASE_DIR=$(cd "$BASE_DIR"; pwd)
 
-PARENT_DIR=$(cd "$BASE_DIR"/..; pwd)
+PARENT_DIR=$(cd "$BASE_DIR"/../..; pwd)
 
 # go to the parent directory
 cd $PARENT_DIR

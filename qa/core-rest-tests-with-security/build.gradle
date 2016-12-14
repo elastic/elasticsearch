@@ -1,7 +1,7 @@
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-plugins:elasticsearch', configuration: 'runtime')
+  testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
 }
 
 integTest {
@@ -16,7 +16,7 @@ integTest {
     ].join(',')
 
   cluster {
-    plugin ':x-plugins:elasticsearch'
+    plugin ':x-pack:elasticsearch'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.monitoring.enabled', 'false'
     setupCommand 'setupDummyUser',

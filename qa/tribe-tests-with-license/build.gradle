@@ -5,8 +5,8 @@ import org.elasticsearch.gradle.test.NodeInfo
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-    testCompile project(path: ':x-plugins:elasticsearch', configuration: 'runtime')
-    testCompile project(path: ':x-plugins:elasticsearch', configuration: 'testArtifacts')
+    testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
+    testCompile project(path: ':x-pack:elasticsearch', configuration: 'testArtifacts')
 }
 
 List<NodeInfo> cluster1Nodes
@@ -17,7 +17,7 @@ task setupClusterOne(type: DefaultTask) {
     cluster1Config.clusterName = 'cluster1'
     cluster1Config.setting('node.name', 'cluster1-node1')
     // x-pack
-    cluster1Config.plugin(':x-plugins:elasticsearch')
+    cluster1Config.plugin(':x-pack:elasticsearch')
     cluster1Config.setting('xpack.monitoring.enabled', false)
     cluster1Config.setting('xpack.security.enabled', false)
     cluster1Config.setting('xpack.watcher.enabled', false)
@@ -34,7 +34,7 @@ task setupClusterTwo(type: DefaultTask) {
     cluster2Config.clusterName = 'cluster2'
     cluster2Config.setting('node.name', 'cluster2-node1')
     // x-pack
-    cluster2Config.plugin(':x-plugins:elasticsearch')
+    cluster2Config.plugin(':x-pack:elasticsearch')
     cluster2Config.setting('xpack.monitoring.enabled', false)
     cluster2Config.setting('xpack.monitoring.enabled', false)
     cluster2Config.setting('xpack.security.enabled', false)
@@ -66,7 +66,7 @@ integTest {
         setting 'tribe.cluster2.xpack.watcher.enabled', false
         setting 'tribe.cluster2.xpack.graph.enabled', false
         // x-pack
-        plugin ':x-plugins:elasticsearch'
+        plugin ':x-pack:elasticsearch'
         setting 'xpack.monitoring.enabled', false
         setting 'xpack.monitoring.enabled', false
         setting 'xpack.security.enabled', false

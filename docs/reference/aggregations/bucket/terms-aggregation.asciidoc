@@ -62,6 +62,8 @@ This means that if the number of unique terms is greater than `size`, the return
 (it could be that the term counts are slightly off and it could even be that a term that should have been in the top
 size buckets was not returned).
 
+deprecated[2.4.0, The ability to set size to 0, resulting in the size being set to Integer.MAX_VALUE, is deprecated, and will be removed in the next major release.]
+
 [[search-aggregations-bucket-terms-aggregation-approximate-counts]]
 ==== Document counts are approximate
 

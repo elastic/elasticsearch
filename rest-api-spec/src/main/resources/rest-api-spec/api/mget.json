@@ -1,6 +1,6 @@
 {
   "mget": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-multi-get.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/2.4/docs-multi-get.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/_mget",
@@ -31,6 +31,10 @@
         "refresh": {
           "type" : "boolean",
           "description" : "Refresh the shard containing the document before performing the operation"
+        },
+        "routing": {
+          "type" : "string",
+          "description" : "Specific routing value"
         },
         "_source": {
           "type" : "list",

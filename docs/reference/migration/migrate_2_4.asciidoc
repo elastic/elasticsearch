@@ -6,7 +6,7 @@
 === Settings
 
 The setting `bootstrap.mlockall` has been renamed to
-<<bootstrap.memory_lock,`bootstrap.memory_lock`>>. Future versions of
+<<setup-configuration-memory,`bootstrap.memory_lock`>>. Future versions of
 Elasticsearch will refuse to start if `bootstrap.mlockall` is set. You
 can switch to the new setting now.
 
@@ -14,3 +14,17 @@ can switch to the new setting now.
 
 The `optimize_bbox` parameter for `geo_distance` and `geo_distance_range` queries
 has been deprecated when querying indexes created after 2.1.
+
+=== Index Templates
+
+Prior to 2.4, validation was not performed upon creation of an index template.
+Rather, the index template was validated upon index creation *after* all matching
+templates were fully merged.
+
+Each index template must now be independently valid prior to merging. This means,
+for example, that you can no longer reference `analyzers`, `filters`, or
+`tokenizers` from a shared template.
+
+See https://github.com/elastic/elasticsearch/issues/21105[elastic/elasticsearch#21105]
+and https://github.com/elastic/elasticsearch/issues/20479[elastic/elasticsearch#20479]
+for discussion concerning the new behavior.

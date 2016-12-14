@@ -19,16 +19,26 @@
 
 package org.elasticsearch.client.transport;
 
-import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
+import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Transport;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.transport.TransportServiceAdapter;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,6 +51,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 abstract class FailAndRetryMockTransport<Response extends TransportResponse> implements Transport {
 
     private final Random random;
+    private final ClusterName clusterName;
 
     private boolean connectMode = true;
 
@@ -51,9 +62,12 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     private final AtomicInteger successes = new AtomicInteger();
     private final Set<DiscoveryNode> triedNodes = new CopyOnWriteArraySet<>();
 
-    FailAndRetryMockTransport(Random random) {
+    FailAndRetryMockTransport(Random random, ClusterName clusterName) {
         this.random = new Random(random.nextLong());
+        this.clusterName = clusterName;
     }
+
+    protected abstract ClusterState getMockClusterState(DiscoveryNode node);
 
     @Override
     @SuppressWarnings("unchecked")
@@ -61,15 +75,24 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
         //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
         if (connectMode) {
-            TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
-            transportResponseHandler.handleResponse(new LivenessResponse(ClusterName.DEFAULT, node));
+            if (TransportLivenessAction.NAME.equals(action)) {
+                TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
+                transportResponseHandler.handleResponse(new LivenessResponse(ClusterName.DEFAULT,
+                    node));
+            } else if (ClusterStateAction.NAME.equals(action)) {
+                TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
+                ClusterState clusterState = getMockClusterState(node);
+                transportResponseHandler.handleResponse(new ClusterStateResponse(clusterName, clusterState));
+            } else {
+                throw new UnsupportedOperationException("Mock transport does not understand action " + action);
+            }
             return;
         }
 
         //once nodes are connected we'll just return errors for each sendRequest call
         triedNodes.add(node);
 
-        if (RandomInts.randomInt(random, 100) > 10) {
+        if (randomInt(random, 100) > 10) {
             connectTransportExceptions.incrementAndGet();
             throw new ConnectTransportException(node, "node not available");
         } else {
@@ -88,6 +111,18 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                 }
             }
         }
+    }
+
+    /**
+     * A random integer between 0 and <code>max</code> (inclusive).
+     */
+    public static int randomInt(Random r, int max) {
+        if (max == 0)
+            return 0;
+        else if (max == Integer.MAX_VALUE)
+            return r.nextInt() & 0x7fffffff;
+        else
+            return r.nextInt(max + 1);
     }
 
     protected abstract Response newResponse();

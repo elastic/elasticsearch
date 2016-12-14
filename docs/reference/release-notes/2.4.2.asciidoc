@@ -1,0 +1,72 @@
+[[release-notes-2.4.2]]
+== 2.4.2 Release Notes
+
+[[enhancement-2.4.2]]
+[float]
+=== Enhancements
+
+Aggregations::
+* Rescorer should be applied in the TopHits aggregation {pull}20978[#20978] (issue: {issue}19317[#19317])
+
+Cache::
+* Do not cache term queries. {pull}21566[#21566] (issues: {issue}16031[#16031], {issue}20116[#20116])
+
+Cluster::
+* Skip shard management code when updating cluster state on client/tribe nodes {pull}20731[#20731]
+
+Internal::
+* ShardActiveResponseHandler shouldn't hold to an entire cluster state {pull}21470[#21470] (issue: {issue}21394[#21394])
+
+Mapping::
+* Log about deprecated position_increment_gap setting on non-analyzed fields {pull}20810[#20810] (issues: {issue}20413[#20413], {issue}20806[#20806])
+
+
+
+[[bug-2.4.2]]
+[float]
+=== Bug fixes
+
+CRUD::
+* MultiGet should not fail entirely if alias resolves to many indices {pull}20858[#20858] (issue: {issue}20845[#20845])
+* Fixed date math expression support in multi get requests. {pull}20659[#20659] (issue: {issue}17957[#17957])
+
+Cluster::
+* Remove cluster update task when task times out {pull}21578[#21578] (issue: {issue}21568[#21568])
+* Reenable shard management on IndicesClusterStateService {pull}20741[#20741]
+
+Core::
+* Binary fields indexed into an upgraded (from 1.x -> 2.x) index hit "Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes" exception {pull}21440[#21440] (issue: {issue}11280[#11280])
+* Protect BytesStreamOutput against overflows of the current number of written bytes. {pull}21174[#21174] (issue: {issue}21159[#21159])
+* StoreStatsCache should also ignore AccessDeniedException when checking file size {pull}20790[#20790] (issue: {issue}17580[#17580])
+
+Index APIs::
+* Only negate index expression on all indices with preceding wildcard {pull}20898[#20898] (issues: {issue}19800[#19800], {issue}20033[#20033])
+
+Java API::
+* Null checked for source when calling sourceRef {pull}21431[#21431] (issue: {issue}19279[#19279])
+
+Plugin Cloud Azure::
+* Fix logger when you can not create an azure storage client {pull}20669[#20669] (issue: {issue}20633[#20633])
+
+Query DSL::
+* Fix NPE when parsing InnerHits with highlight query {pull}21065[#21065] (issue: {issue}21061[#21061])
+* Stricter parsing of multi_match "query" parameter {pull}20884[#20884] (issue: {issue}20785[#20785])
+* Fix match_phrase_prefix query with single term on _all field {pull}20471[#20471] (issue: {issue}20470[#20470])
+
+REST::
+* The routing query string param is supported by mget but was missing from the rest spec {pull}21357[#21357]
+* Read indices options in indices upgrade API {pull}21281[#21281] (issue: {issue}21099[#21099])
+
+Search::
+* Max score should be updated when a rescorer is used {pull}20977[#20977] (issue: {issue}20651[#20651])
+* Make range queries round up upper bounds again. {pull}20582[#20582] (issues: {issue}20579[#20579], {issue}8889[#8889])
+
+
+
+[[upgrade-2.4.2]]
+[float]
+=== Upgrades
+
+Dates::
+* Update Joda Time to version 2.9.5 on branch 2.4 {pull}21533[#21533] (issue: {issue}21468[#21468])
+

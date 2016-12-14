@@ -38,7 +38,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -47,9 +46,28 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.disMaxQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class MultiMatchQueryIT extends ESIntegTestCase {
 
@@ -617,6 +635,37 @@ public class MultiMatchQueryIT extends ESIntegTestCase {
                         .lenient(true))).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("ultimate1"));
+    }
+
+    public void testMultiMatchPrefixWithAllField() throws IOException {
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(multiMatchQuery("americ").field("_all").type(MultiMatchQueryBuilder.Type.PHRASE_PREFIX))
+                .get();
+        assertHitCount(searchResponse, 1L);
+        assertFirstHit(searchResponse, hasId("theone"));
+    }
+
+
+    /**
+     * test that specifying an array for the "query" parameter throws an
+     * execption (#20785)
+     */
+    @Test
+    public void testErrorOnQueryArray() throws Exception {
+        try {
+            client().prepareSearch("test")
+                    .setQuery("{\n" +
+                              "  \"multi_match\": {\n" +
+                              "     \"fields\": [\"tags\", \"tag2\"],\n" +
+                              "     \"query\": [\"broken\", \"machine\"]\n" +
+                              "  }\n" +
+                              "}")
+                    .get();
+            fail("query is invalid and should have produced a parse exception");
+        } catch (Exception e) {
+            assertTrue("query could not be parsed due to bad format: " + e.toString(),
+                    e.toString().contains("[multi_match] query does not support arrays for the [query] parameter"));
+        }
     }
 
     private static void assertEquivalent(String query, SearchResponse left, SearchResponse right) {

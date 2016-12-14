@@ -123,6 +123,15 @@ public class BinaryMappingTests extends ESSingleNodeTestCase {
         FieldMapper fieldMapper = mapper.mappers().smartNameFieldMapper("field");
         Object originalValue = fieldMapper.fieldType().valueForSearch(indexedValue);
         assertEquals(new BytesArray(original), originalValue);
+
+        // also test the use case where, after upgrading to beyond to this change and indexing a new binary field on a bwc (pre-2.0) index,
+        // that we can still pull its (uncompressed) search-time value:
+        doc = mapper.parse("test", "type", "id", XContentFactory.jsonBuilder().startObject().field("field", original).endObject().bytes());
+        indexedValue = doc.rootDoc().getBinaryValue("field");
+        assertEquals(new BytesRef(original), indexedValue);
+        fieldMapper = mapper.mappers().smartNameFieldMapper("field");
+        originalValue = fieldMapper.fieldType().valueForSearch(indexedValue);
+        assertEquals(new BytesArray(original), originalValue);
     }
 
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.bwcompat;
 
 import com.google.common.base.Predicate;
 import com.google.common.util.concurrent.ListenableFuture;
+
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -33,6 +34,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MultiDataPathUpgrader;
@@ -43,6 +45,8 @@ import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -262,6 +266,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertUpgradeWorks(client(), indexName, version);
         assertDeleteByQueryWorked(indexName, version);
         assertPositionIncrementGapDefaults(indexName, version);
+        assertStoredBinaryFields(indexName, version);
         unloadIndex(indexName);
     }
 
@@ -382,6 +387,43 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             StringFieldMapperPositionIncrementGapTests.assertGapIsZero(client(), indexName, "doc");
         } else {
             StringFieldMapperPositionIncrementGapTests.assertGapIsOneHundred(client(), indexName, "doc");
+        }
+    }
+
+    /**
+     * Make sure we can load stored binary fields.
+     */
+    void assertStoredBinaryFields(String indexName, Version version) throws Exception {
+        if (version.onOrAfter(Version.V_1_0_0) == false) {
+            // not sure why but I can't get binary fields properly indexed w/ ES < 1.0.0
+            return;
+        }
+        boolean hasCompressedBinaryField = version.onOrAfter(Version.V_2_0_0_beta1) == false;
+
+        SearchRequestBuilder request = client().prepareSearch(indexName);
+        request.setQuery(QueryBuilders.matchAllQuery());
+        request.setSize(100);
+        request.addField("binary");
+        if (hasCompressedBinaryField) {
+            request.addField("binary_compressed");
+        }
+        SearchHits hits = request.get().getHits();
+        assertEquals(100, hits.hits().length);
+
+        for(SearchHit hit : hits) {
+            SearchHitField field = hit.field("binary");
+            assertNotNull("version=" + version + " has no binary field", field);
+            Object value = field.value();
+            assertTrue("got: " + value + " version=" + version, value instanceof BytesReference);
+            assertEquals(16, ((BytesReference) value).length());
+
+            if (hasCompressedBinaryField) {
+                field = hit.field("binary_compressed");
+                assertNotNull("version=" + version + " has no binary_compressed field", field);
+                value = field.value();
+                assertTrue("got: " + value + " version=" + version, value instanceof BytesReference);
+                assertEquals(16, ((BytesReference) value).length());
+            }
         }
     }
 }

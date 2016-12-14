@@ -73,6 +73,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -120,7 +121,8 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     private final Collection<ClusterStateListener> priorityClusterStateListeners = new CopyOnWriteArrayList<>();
     private final Collection<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
     private final Collection<ClusterStateListener> lastClusterStateListeners = new CopyOnWriteArrayList<>();
-    private final Map<ClusterStateTaskExecutor, List<UpdateTask>> updateTasksPerExecutor = new HashMap<>();
+    // public for tests
+    public final Map<ClusterStateTaskExecutor, LinkedHashSet<UpdateTask>> updateTasksPerExecutor = new HashMap<>();
     // TODO this is rather frequently changing I guess a Synced Set would be better here and a dedicated remove API
     private final Collection<ClusterStateListener> postAppliedListeners = new CopyOnWriteArrayList<>();
     private final Iterable<ClusterStateListener> preAppliedListeners = Iterables.concat(
@@ -331,21 +333,31 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             final UpdateTask<T> updateTask = new UpdateTask<>(source, task, config, executor, listener);
 
             synchronized (updateTasksPerExecutor) {
-                List<UpdateTask> updateTasksForExecutor = updateTasksPerExecutor.get(executor);
+                LinkedHashSet<UpdateTask> updateTasksForExecutor = updateTasksPerExecutor.get(executor);
                 if (updateTasksForExecutor == null) {
-                    updateTasksPerExecutor.put(executor, new ArrayList<UpdateTask>());
+                    updateTasksPerExecutor.put(executor, new LinkedHashSet<UpdateTask>());
                 }
                 updateTasksPerExecutor.get(executor).add(updateTask);
             }
 
-            if (config.timeout() != null) {
-                updateTasksExecutor.execute(updateTask, threadPool.scheduler(), config.timeout(), new Runnable() {
+            final TimeValue timeout = config.timeout();
+            if (timeout != null) {
+                updateTasksExecutor.execute(updateTask, threadPool.scheduler(), timeout, new Runnable() {
                     @Override
                     public void run() {
                         threadPool.generic().execute(new Runnable() {
                             @Override
                             public void run() {
                                 if (updateTask.processed.getAndSet(true) == false) {
+                                    synchronized (updateTasksPerExecutor) {
+                                        LinkedHashSet<UpdateTask> existingTasks = updateTasksPerExecutor.get(executor);
+                                        if (existingTasks != null) {
+                                            existingTasks.remove(updateTask);
+                                            if (existingTasks.isEmpty()) {
+                                                updateTasksPerExecutor.remove(executor);
+                                            }
+                                        }
+                                    }
                                     listener.onFailure(source, new ProcessClusterEventTimeoutException(config.timeout(), source));
                                 }
                             }
@@ -428,7 +440,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         final ArrayList<UpdateTask<T>> toExecute = new ArrayList<>();
         final ArrayList<String> sources = new ArrayList<>();
         synchronized (updateTasksPerExecutor) {
-            List<UpdateTask> pending = updateTasksPerExecutor.remove(executor);
+            LinkedHashSet<UpdateTask> pending = updateTasksPerExecutor.remove(executor);
             if (pending != null) {
                 for (UpdateTask<T> task : pending) {
                     if (task.processed.getAndSet(true) == false) {

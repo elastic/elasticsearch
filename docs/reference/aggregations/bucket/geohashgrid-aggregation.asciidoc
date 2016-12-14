@@ -76,7 +76,7 @@ When requesting detailed buckets (typically for displaying a "zoomed in" map) a 
                 "zoom1":{
                     "geohash_grid" : {
                         "field":"location",
-                        "precision":8,
+                        "precision":8
                     }
                 }
             }

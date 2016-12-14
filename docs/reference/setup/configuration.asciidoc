@@ -32,8 +32,10 @@ enable <<setup-configuration-memory,`mlockall`>>.
 ==== File Descriptors
 
 [NOTE]
-This is only a problem for Linux and macOS and can be safely ignored if running
-Elasticsearch on Windows.
+This is only relevant for Linux and macOS and can be safely ignored if running
+Elasticsearch on Windows. On Windows that JVM uses an
+https://msdn.microsoft.com/en-us/library/windows/desktop/aa363858(v=vs.85).aspx[API]
+limited only by available resources.
 
 Make sure to increase the number of open files descriptors on the
 machine (or for the user running elasticsearch). Setting it to 32k or
@@ -114,7 +116,7 @@ You will need to set `swappiness` to `1` to still allow swapping in
 emergencies.
 --
 
-* **`mlockall`**
+* **`bootstrap.memory_lock`**
 +
 --
 The third option is to use

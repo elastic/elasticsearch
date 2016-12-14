@@ -253,11 +253,13 @@ public final class QueryRescorer implements Rescorer {
                 // secondary score?
                 in.scoreDocs[i].score *= ctx.queryWeight();
             }
-            
+
             // TODO: this is wrong, i.e. we are comparing apples and oranges at this point.  It would be better if we always rescored all
             // incoming first pass hits, instead of allowing recoring of just the top subset:
             Arrays.sort(in.scoreDocs, SCORE_DOC_COMPARATOR);
         }
+        // update the max score after the resort
+        in.setMaxScore(in.scoreDocs[0].score);
         return in;
     }
 

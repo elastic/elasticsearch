@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.HasChildQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -831,6 +832,32 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits()[0].id(), equalTo("2"));
+    }
+
+    @Test
+    public void testHasChildInnerHitsHighlighting() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        client().prepareIndex("test", "parent", "1").setSource("p_field", 1).get();
+        client().prepareIndex("test", "child", "2").setParent("1").setSource("c_field", "foo bar").get();
+        client().admin().indices().prepareFlush("test").get();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(hasChildQuery("child", matchQuery("c_field", "foo")).innerHit(
+                        new QueryInnerHitBuilder()
+                                .addHighlightedField(
+                                        new HighlightBuilder.Field("c_field").highlightQuery(QueryBuilders.matchQuery("c_field", "bar")))
+                        )).get();
+        assertNoFailures(searchResponse);
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits()[0].id(), equalTo("1"));
+        SearchHit[] searchHits = searchResponse.getHits().hits()[0].getInnerHits().get("child").hits();
+        assertThat(searchHits.length, equalTo(1));
+        assertThat(searchHits[0].getHighlightFields().get("c_field").getFragments().length, equalTo(1));
+        assertThat(searchHits[0].getHighlightFields().get("c_field").getFragments()[0].string(), equalTo("foo <em>bar</em>"));
     }
 
     @Test

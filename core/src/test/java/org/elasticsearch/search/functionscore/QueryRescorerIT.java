@@ -59,6 +59,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThir
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasScore;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -95,6 +96,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     numDocsWith100AsAScore += 1;
                 }
             }
+            assertThat(searchResponse.getHits().maxScore(), equalTo(searchResponse.getHits().getHits()[0].score()));
             // we cannot assert that they are equal since some shards might not have docs at all
             assertThat(numDocsWith100AsAScore, lessThanOrEqualTo(numShards));
         }
@@ -120,7 +122,8 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setRescorer(RescoreBuilder.queryRescorer(QueryBuilders.matchPhraseQuery("field1", "quick brown").slop(2).boost(4.0f)).setRescoreQueryWeight(2))
                 .setRescoreWindow(5).execute().actionGet();
 
-        assertThat(searchResponse.getHits().totalHits(), equalTo(3l));
+        assertThat(searchResponse.getHits().totalHits(), equalTo(3L));
+        assertThat(searchResponse.getHits().maxScore(), equalTo(searchResponse.getHits().getHits()[0].score()));
         assertThat(searchResponse.getHits().getHits()[0].getId(), equalTo("1"));
         assertThat(searchResponse.getHits().getHits()[1].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("2"));
@@ -141,6 +144,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setRescoreWindow(5).execute().actionGet();
 
         assertHitCount(searchResponse, 3);
+        assertThat(searchResponse.getHits().maxScore(), equalTo(searchResponse.getHits().getHits()[0].score()));
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
         assertThirdHit(searchResponse, hasId("3"));
@@ -204,6 +208,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
         assertHitCount(searchResponse, 9);
+        assertThat(searchResponse.getHits().maxScore(), equalTo(searchResponse.getHits().getHits()[0].score()));
         assertFirstHit(searchResponse, hasId("2"));
         assertSecondHit(searchResponse, hasId("6"));
         assertThirdHit(searchResponse, hasId("3"));
@@ -221,6 +226,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
         assertHitCount(searchResponse, 9);
+        assertThat(searchResponse.getHits().maxScore(), greaterThan(searchResponse.getHits().getHits()[0].score()));
         assertFirstHit(searchResponse, hasId("3"));
     }
 
@@ -254,6 +260,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .setSize(5).execute().actionGet();
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
         assertHitCount(searchResponse, 4);
+        assertThat(searchResponse.getHits().maxScore(), equalTo(searchResponse.getHits().getHits()[0].score()));
         assertFirstHit(searchResponse, hasId("3"));
         assertSecondHit(searchResponse, hasId("6"));
         assertThirdHit(searchResponse, hasId("1"));
@@ -271,6 +278,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         // Only top 2 hits were re-ordered:
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
         assertHitCount(searchResponse, 4);
+        assertThat(searchResponse.getHits().maxScore(), equalTo(searchResponse.getHits().getHits()[0].score()));
         assertFirstHit(searchResponse, hasId("6"));
         assertSecondHit(searchResponse, hasId("3"));
         assertThirdHit(searchResponse, hasId("1"));
@@ -289,6 +297,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         // Only top 3 hits were re-ordered:
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
         assertHitCount(searchResponse, 4);
+        assertThat(searchResponse.getHits().maxScore(), equalTo(searchResponse.getHits().getHits()[0].score()));
         assertFirstHit(searchResponse, hasId("6"));
         assertSecondHit(searchResponse, hasId("1"));
         assertThirdHit(searchResponse, hasId("3"));
@@ -325,6 +334,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
             .setSize(5).execute().actionGet();
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
         assertHitCount(searchResponse, 4);
+        assertThat(searchResponse.getHits().maxScore(), equalTo(searchResponse.getHits().getHits()[0].score()));
         assertFirstHit(searchResponse, hasId("3"));
         assertSecondHit(searchResponse, hasId("6"));
         assertThirdHit(searchResponse, hasId("1"));
@@ -341,6 +351,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                                 .setQueryWeight(1.0f).setRescoreQueryWeight(-1f)).setRescoreWindow(3).execute().actionGet();
 
         // 6 and 1 got worse, and then the hit (2) outside the rescore window were sorted ahead:
+        assertThat(searchResponse.getHits().maxScore(), equalTo(searchResponse.getHits().getHits()[0].score()));
         assertFirstHit(searchResponse, hasId("3"));
         assertSecondHit(searchResponse, hasId("2"));
         assertThirdHit(searchResponse, hasId("6"));
@@ -442,7 +453,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     .setPreference("test") // ensure we hit the same shards for tie-breaking
                     .setQuery(QueryBuilders.matchQuery("field1", query).operator(MatchQueryBuilder.Operator.OR)).setFrom(0).setSize(resultSize)
                     .execute().actionGet();
-            
+
             // check equivalence
             assertEquivalent(query, plain, rescored);
 
@@ -631,6 +642,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
 
                 assertHitCount(rescored, 4);
 
+                assertThat(rescored.getHits().maxScore(), equalTo(rescored.getHits().getHits()[0].score()));
                 if ("total".equals(scoreMode) || "".equals(scoreMode)) {
                     assertFirstHit(rescored, hasId(String.valueOf(i + 1)));
                     assertSecondHit(rescored, hasId(String.valueOf(i)));
@@ -708,6 +720,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                         .boostMode(CombineFunction.REPLACE)).setScoreMode("total");
         request.clearRescorers().addRescorer(ninetyIsGood).addRescorer(oneToo, 10);
         response = request.setSize(2).get();
+        assertThat(response.getHits().maxScore(), equalTo(response.getHits().getHits()[0].score()));
         assertFirstHit(response, hasId("91"));
         assertFirstHit(response, hasScore(2001.0f));
         assertSecondHit(response, hasScore(1001.0f)); // Not sure which one it is but it is ninety something

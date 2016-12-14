@@ -19,6 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
+import java.security.Permission;
+
 /**
  * This class starts elasticsearch.
  */
@@ -31,6 +33,14 @@ public final class Elasticsearch {
      * Main entry point for starting elasticsearch
      */
     public static void main(String[] args) throws StartupError {
+        // we want the JVM to think there is a security manager installed so that if internal policy decisions that would be based on the
+        // presence of a security manager or lack thereof act as if there is a security manager present (e.g., DNS cache policy)
+        System.setSecurityManager(new SecurityManager() {
+            @Override
+            public void checkPermission(Permission perm) {
+                // grant all permissions so that we can later set the security manager to the one that we want
+            }
+        });
         try {
             Bootstrap.init(args);
         } catch (Throwable t) {
@@ -51,4 +61,5 @@ public final class Elasticsearch {
     static void close(String[] args) {
         Bootstrap.stop();
     }
+
 }

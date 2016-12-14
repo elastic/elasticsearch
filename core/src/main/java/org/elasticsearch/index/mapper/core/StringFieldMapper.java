@@ -26,6 +26,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -87,6 +89,8 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
 
     public static class Builder extends FieldMapper.Builder<Builder, StringFieldMapper> {
 
+        private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(StringFieldMapper.class));
+
         protected String nullValue = Defaults.NULL_VALUE;
 
         /**
@@ -143,12 +147,13 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
             }
             if (positionIncrementGap != POSITION_INCREMENT_GAP_USE_ANALYZER) {
                 if (fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
-                    throw new IllegalArgumentException("Cannot set position_increment_gap on field ["
-                        + name + "] without positions enabled");
+                    DEPRECATION_LOGGER.deprecated("Ignoring deprecated position_increment_gap on field ["
+                            + name + "] without positions enabled");
+                } else {
+                    fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionIncrementGap));
+                    fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionIncrementGap));
+                    fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
                 }
-                fieldType.setIndexAnalyzer(new NamedAnalyzer(fieldType.indexAnalyzer(), positionIncrementGap));
-                fieldType.setSearchAnalyzer(new NamedAnalyzer(fieldType.searchAnalyzer(), positionIncrementGap));
-                fieldType.setSearchQuoteAnalyzer(new NamedAnalyzer(fieldType.searchQuoteAnalyzer(), positionIncrementGap));
             }
             setupFieldType(context);
             StringFieldMapper fieldMapper = new StringFieldMapper(

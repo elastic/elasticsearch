@@ -57,25 +57,28 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     @Override
     protected void doExecute(final MultiGetRequest request, final ActionListener<MultiGetResponse> listener) {
         ClusterState clusterState = clusterService.state();
-
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
 
         final AtomicArray<MultiGetItemResponse> responses = new AtomicArray<>(request.items.size());
+        final Map<ShardId, MultiGetShardRequest> shardRequests = new HashMap<>();
 
-        Map<ShardId, MultiGetShardRequest> shardRequests = new HashMap<>();
         for (int i = 0; i < request.items.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
-            if (!clusterState.metaData().hasConcreteIndex(item.index())) {
-                responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(item.index(), item.type(), item.id(), new IndexNotFoundException(item.index()))));
+
+            String concreteSingleIndex;
+            try {
+                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item);
+                item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), concreteSingleIndex));
+                if ((item.routing() == null) && (clusterState.getMetaData().routingRequired(concreteSingleIndex, item.type()))) {
+                    String message = "routing is required for [" + concreteSingleIndex + "]/[" + item.type() + "]/[" + item.id() + "]";
+                    responses.set(i, newItemFailure(concreteSingleIndex, item.type(), item.id(), new IllegalArgumentException(message)));
+                    continue;
+                }
+            } catch (Exception e) {
+                responses.set(i, newItemFailure(item.index(), item.type(), item.id(), e));
                 continue;
             }
-            item.routing(clusterState.metaData().resolveIndexRouting(item.routing(), item.index()));
-            String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item);
-            if (item.routing() == null && clusterState.getMetaData().routingRequired(concreteSingleIndex, item.type())) {
-                responses.set(i, new MultiGetItemResponse(null, new MultiGetResponse.Failure(concreteSingleIndex, item.type(), item.id(),
-                        new IllegalArgumentException("routing is required for [" + concreteSingleIndex + "]/[" + item.type() + "]/[" + item.id() + "]"))));
-                continue;
-            }
+
             ShardId shardId = clusterService.operationRouting()
                     .getShards(clusterState, concreteSingleIndex, item.type(), item.id(), item.routing(), null).shardId();
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
@@ -86,7 +89,7 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
             shardRequest.add(i, item);
         }
 
-        if (shardRequests.size() == 0) {
+        if (shardRequests.isEmpty()) {
             // only failures..
             listener.onResponse(new MultiGetResponse(responses.toArray(new MultiGetItemResponse[responses.length()])));
         }
@@ -98,7 +101,8 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 @Override
                 public void onResponse(MultiGetShardResponse response) {
                     for (int i = 0; i < response.locations.size(); i++) {
-                        responses.set(response.locations.get(i), new MultiGetItemResponse(response.responses.get(i), response.failures.get(i)));
+                        MultiGetItemResponse itemResponse = new MultiGetItemResponse(response.responses.get(i), response.failures.get(i));
+                        responses.set(response.locations.get(i), itemResponse);
                     }
                     if (counter.decrementAndGet() == 0) {
                         finishHim();
@@ -123,5 +127,9 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
                 }
             });
         }
+    }
+
+    private static MultiGetItemResponse newItemFailure(String index, String type, String id, Exception exception) {
+        return new MultiGetItemResponse(null, new MultiGetResponse.Failure(index, type, id, exception));
     }
 }

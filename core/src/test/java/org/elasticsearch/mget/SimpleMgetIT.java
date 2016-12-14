@@ -36,7 +36,14 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+
 import static org.hamcrest.Matchers.*;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SimpleMgetIT extends ESIntegTestCase {
 
@@ -50,7 +57,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         MultiGetResponse mgetResponse = client().prepareMultiGet()
                 .add(new MultiGetRequest.Item("test", "test", "1"))
                 .add(new MultiGetRequest.Item("nonExistingIndex", "test", "1"))
-                .execute().actionGet();
+                .get();
         assertThat(mgetResponse.getResponses().length, is(2));
 
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("test"));
@@ -59,19 +66,44 @@ public class SimpleMgetIT extends ESIntegTestCase {
         assertThat(mgetResponse.getResponses()[1].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), is("no such index"));
-        assertThat(((ElasticsearchException)mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex(), is("nonExistingIndex"));
-
+        assertThat(((ElasticsearchException) mgetResponse.getResponses()[1].getFailure().getFailure()).getIndex(), is("nonExistingIndex"));
 
         mgetResponse = client().prepareMultiGet()
                 .add(new MultiGetRequest.Item("nonExistingIndex", "test", "1"))
-                .execute().actionGet();
+                .get();
         assertThat(mgetResponse.getResponses().length, is(1));
         assertThat(mgetResponse.getResponses()[0].getIndex(), is("nonExistingIndex"));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
         assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), is("no such index"));
-        assertThat(((ElasticsearchException)mgetResponse.getResponses()[0].getFailure().getFailure()).getIndex(), is("nonExistingIndex"));
+        assertThat(((ElasticsearchException) mgetResponse.getResponses()[0].getFailure().getFailure()).getIndex(), is("nonExistingIndex"));
+    }
 
+    @Test
+    public void testThatMgetShouldWorkWithMultiIndexAlias() throws IOException {
+        assertAcked(prepareCreate("test").addAlias(new Alias("multiIndexAlias")));
+        assertAcked(prepareCreate("test2").addAlias(new Alias("multiIndexAlias")));
 
+        client().prepareIndex("test", "test", "1").setSource(jsonBuilder().startObject().field("foo", "bar").endObject()).get();
+
+        MultiGetResponse mgetResponse = client().prepareMultiGet()
+            .add(new MultiGetRequest.Item("test", "test", "1"))
+            .add(new MultiGetRequest.Item("multiIndexAlias", "test", "1"))
+            .get();
+        assertThat(mgetResponse.getResponses().length, is(2));
+        assertThat(mgetResponse.getResponses()[0].getIndex(), is("test"));
+        assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));
+
+        assertThat(mgetResponse.getResponses()[1].getIndex(), is("multiIndexAlias"));
+        assertThat(mgetResponse.getResponses()[1].isFailed(), is(true));
+        assertThat(mgetResponse.getResponses()[1].getFailure().getMessage(), containsString("more than one indices"));
+
+        mgetResponse = client().prepareMultiGet()
+            .add(new MultiGetRequest.Item("multiIndexAlias", "test", "1"))
+            .get();
+        assertThat(mgetResponse.getResponses().length, is(1));
+        assertThat(mgetResponse.getResponses()[0].getIndex(), is("multiIndexAlias"));
+        assertThat(mgetResponse.getResponses()[0].isFailed(), is(true));
+        assertThat(mgetResponse.getResponses()[0].getFailure().getMessage(), containsString("more than one indices"));
     }
 
     @Test
@@ -94,7 +126,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         MultiGetResponse mgetResponse = client().prepareMultiGet()
                 .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1").parent("4"))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "test", "1"))
-                .execute().actionGet();
+                .get();
 
         assertThat(mgetResponse.getResponses().length, is(2));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));
@@ -164,7 +196,7 @@ public class SimpleMgetIT extends ESIntegTestCase {
         MultiGetResponse mgetResponse = client().prepareMultiGet()
                 .add(new MultiGetRequest.Item(indexOrAlias(), "test", id).routing(routingOtherShard))
                 .add(new MultiGetRequest.Item(indexOrAlias(), "test", id))
-                .execute().actionGet();
+                .get();
 
         assertThat(mgetResponse.getResponses().length, is(2));
         assertThat(mgetResponse.getResponses()[0].isFailed(), is(false));

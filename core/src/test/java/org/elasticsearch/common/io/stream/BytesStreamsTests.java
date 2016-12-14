@@ -19,7 +19,9 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
@@ -27,6 +29,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.closeTo;
@@ -243,6 +247,13 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(position, out.position());
         assertEquals(position, out.bytes().toBytes().length);
 
+        try {
+            out.seek(Integer.MAX_VALUE + 1L);
+            fail();
+        } catch (IllegalArgumentException iae) {
+            assertEquals("BytesStreamOutput cannot hold more than 2GB of data", iae.getMessage());
+        }
+
         out.close();
     }
 
@@ -256,6 +267,13 @@ public class BytesStreamsTests extends ESTestCase {
         int forward = 100;
         out.skip(forward);
         assertEquals(position + forward, out.position());
+
+        try {
+            out.skip(Integer.MAX_VALUE - 50);
+            fail();
+        } catch (IllegalArgumentException iae) {
+            assertEquals("BytesStreamOutput cannot hold more than 2GB of data", iae.getMessage());
+        }
 
         out.close();
     }
@@ -506,6 +524,48 @@ public class BytesStreamsTests extends ESTestCase {
             StreamInput wrap = StreamInput.wrap(out.bytes());
             GeoPoint point = wrap.readGeoPoint();
             assertEquals(point, geoPoint);
+        }
+    }
+
+
+    public void testWriteRandomStrings() throws IOException {
+        final int iters = scaledRandomIntBetween(5, 20);
+        for (int iter = 0; iter < iters; iter++) {
+            List<String> strings = new ArrayList<>();
+            int numStrings = randomIntBetween(100, 1000);
+            BytesStreamOutput output = new BytesStreamOutput(0);
+            for (int i = 0; i < numStrings; i++) {
+                String s = randomRealisticUnicodeOfLengthBetween(0, 2048);
+                strings.add(s);
+                output.writeString(s);
+            }
+
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                for (int i = 0; i < numStrings; i++) {
+                    String s = streamInput.readString();
+                    assertEquals(strings.get(i), s);
+                }
+            }
+        }
+    }
+
+    /*
+     * tests the extreme case where characters use more than 2 bytes
+     */
+    public void testWriteLargeSurrogateOnlyString() throws IOException {
+        String deseretLetter = "\uD801\uDC00";
+        assertEquals(2, deseretLetter.length());
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < 2048; i++) {
+            builder.append(deseretLetter);
+        }
+        String largeString = builder.toString();
+        assertEquals("expands to 4 bytes", 4, new BytesRef(deseretLetter).length);
+        try (BytesStreamOutput output = new BytesStreamOutput(0)) {
+            output.writeString(largeString);
+            try (StreamInput streamInput = output.bytes().streamInput()) {
+                assertEquals(largeString, streamInput.readString());
+            }
         }
     }
 }

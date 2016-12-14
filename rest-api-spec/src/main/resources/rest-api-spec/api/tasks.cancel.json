@@ -1,6 +1,6 @@
 {
   "tasks.cancel": {
-    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/tasks-cancel.html",
+    "documentation": "https://www.elastic.co/guide/en/elasticsearch/reference/2.4/tasks.html#_task_cancellation",
     "methods": ["POST"],
     "url": {
       "path": "/_tasks",

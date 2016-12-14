@@ -63,6 +63,10 @@ public final class AllTermQuery extends Query {
         this.term = term;
     }
 
+    public Term getTerm() {
+        return term;
+    }
+
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
         if (getBoost() != 1f) {

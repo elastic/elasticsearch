@@ -137,8 +137,11 @@ public class MultiMatchQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new QueryParsingException(parseContext, "[match] query does not support [" + currentFieldName + "]");
+                    throw new QueryParsingException(parseContext, "[" + NAME + "] query does not support [" + currentFieldName + "]");
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                throw new QueryParsingException(parseContext,
+                        "[" + NAME + "] query does not support arrays for the [" + currentFieldName + "] parameter");
             }
         }
 

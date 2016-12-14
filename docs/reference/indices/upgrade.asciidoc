@@ -21,30 +21,12 @@ created.  For instance:
 
 **Migrating 1.x indices to 5.x**
 
-The only way to prepare an index created in 1.x for use in 5.x is to **reindex
-your data** in a cluster running Elasticsearch 2.3.x, which you can do with
-the new <<docs-reindex,reindex API>>.
+There are two ways to migrate 1.x indices to 5.x:
 
-The steps to do this are as follows:
+* Reindex them in an Elasticsearch 2.4.x cluster, or
+* Use reindex-from-remote to import indices from a 1.x cluster into a 5.x cluster directly.
 
-1. Create a new index (e.g. `new_index`) with the correct settings and
-   mappings.  These can be retrieved from the old index with the
-   <<indices-get-index,get-index>> API.
-
-2. Reindex from `old_index` to `new_index` with the
-   <<docs-reindex,reindex API>>.
-
-3. Retrieve a list of any aliases associated with the `old_index` using the
-   <<alias-retrieving,get-alias API>>.
-
-4. Delete the `old_index` using the <<indices-delete-index,delete index API>>.
-
-5. Add an alias called `old_index` to the `new_index` along with any aliases
-   returned in step 3, using the <<indices-aliases,update aliases API>>.
-
-In the future, we plan to change the upgrade API to perform a reindex-in-
-place.  In other words, it would reindex data from `old_index` to `.old_index`
-then atomically delete `old_index` and rename `.old_index` to `old_index`.
+See the https://www.elastic.co/guide/en/elasticsearch/reference/5.0/reindex-upgrade.html[Reindex to Upgrade] docs in 5.0 for more information.
 
 ===================================================
 

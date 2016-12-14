@@ -296,6 +296,9 @@ public class AttachmentMapper extends FieldMapper {
                 type = "string";
             }
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
+            if (typeParser == null) {
+                throw new MapperParsingException("Type [" + type + "] is not supported. Check your [" + propName + "] field.");
+            }
             Mapper.Builder<?, ?> mapperBuilder = typeParser.parse(propName, (Map<String, Object>) propNode, parserContext);
 
             return mapperBuilder;

@@ -432,6 +432,10 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
+            builder.put(IndexCacheModule.QUERY_CACHE_TERM_QUERIES, random.nextBoolean());
+        }
+
+        if (random.nextBoolean()) {
             if (random.nextInt(10) == 0) { // do something crazy slow here
                 builder.put(IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(RandomInts.randomIntBetween(random, 1, 10), ByteSizeUnit.MB));
             } else {

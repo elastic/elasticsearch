@@ -34,6 +34,7 @@ public class IndexCacheModule extends AbstractModule {
     public static final String QUERY_CACHE_TYPE = "index.queries.cache.type";
     // for test purposes only
     public static final String QUERY_CACHE_EVERYTHING = "index.queries.cache.everything";
+    public static final String QUERY_CACHE_TERM_QUERIES = "index.queries.cache.term_queries";
 
     private final Settings indexSettings;
     private final ExtensionPoint.SelectedType<QueryCache> queryCaches;

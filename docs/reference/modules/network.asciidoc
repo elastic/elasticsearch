@@ -35,7 +35,8 @@ addresses or hostnames.  If a hostname lookup resolves to multiple IP
 addresses then each IP address will be used for discovery.
 https://en.wikipedia.org/wiki/Round-robin_DNS[Round robin DNS] -- returning a
 different IP from a list on each lookup -- can be used for discovery; non-
-existent IP addresses will throw exceptions and cause another DNS lookup.
+existent IP addresses will throw exceptions and cause another DNS lookup
+on the next round of pinging (subject to JVM DNS caching).
 +
 Defaults to `["127.0.0.1", "[::1]"]`.
 

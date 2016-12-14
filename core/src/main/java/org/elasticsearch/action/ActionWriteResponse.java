@@ -35,6 +35,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Arrays;
 
 /**
  * Base class for write action responses.

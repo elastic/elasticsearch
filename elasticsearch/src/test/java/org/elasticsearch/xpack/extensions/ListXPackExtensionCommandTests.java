@@ -58,7 +58,12 @@ public class ListXPackExtensionCommandTests extends ESTestCase {
 
     static MockTerminal listExtensions(Path home) throws Exception {
         MockTerminal terminal = new MockTerminal();
-        int status = new ListXPackExtensionCommand().main(new String[] { "-Epath.home=" + home }, terminal);
+        int status = new ListXPackExtensionCommand() {
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        }.main(new String[] { "-Epath.home=" + home }, terminal);
         assertEquals(ExitCodes.OK, status);
         return terminal;
     }
@@ -68,7 +73,12 @@ public class ListXPackExtensionCommandTests extends ESTestCase {
         System.arraycopy(args, 0, argsAndHome, 0, args.length);
         argsAndHome[args.length] = "-Epath.home=" + home;
         MockTerminal terminal = new MockTerminal();
-        int status = new ListXPackExtensionCommand().main(argsAndHome, terminal);
+        int status = new ListXPackExtensionCommand() {
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        }.main(argsAndHome, terminal);
         assertEquals(ExitCodes.OK, status);
         return terminal;
     }

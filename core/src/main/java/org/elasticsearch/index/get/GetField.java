@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.get;
 
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -33,6 +32,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class GetField implements Streamable, ToXContent, Iterable<Object> {
 
@@ -107,17 +108,11 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
     }
 
     public static GetField fromXContent(XContentParser parser) throws IOException {
-        if (parser.currentToken() != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "expected " + XContentParser.Token.FIELD_NAME + " - found " + parser.currentToken());
-        }
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String fieldName = parser.currentName();
         List<Object> values = new ArrayList<>();
         XContentParser.Token token = parser.nextToken();
-        if (token != XContentParser.Token.START_ARRAY) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "expected " + XContentParser.Token.START_ARRAY + " - found " + parser.currentToken());
-        }
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
         while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
             values.add(parser.objectText());
         }

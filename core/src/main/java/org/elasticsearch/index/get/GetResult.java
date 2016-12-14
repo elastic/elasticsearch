@@ -20,7 +20,6 @@
 package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -43,6 +42,8 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.elasticsearch.index.get.GetField.readGetField;
 
 public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
@@ -263,10 +264,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     public static GetResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        if (token != XContentParser.Token.START_OBJECT) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "expected " + XContentParser.Token.START_OBJECT + " - found " + parser.currentToken());
-        }
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
         String currentFieldName = null;
         String index = null, type = null, id = null;
         long version = -1;
@@ -303,7 +301,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
                         fields.put(getField.getName(), getField);
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "unsupported field: " + currentFieldName);
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
             }
         }

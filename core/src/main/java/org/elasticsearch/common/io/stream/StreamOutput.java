@@ -368,7 +368,7 @@ public abstract class StreamOutput extends OutputStream {
         if (b == null) {
             writeByte(TWO);
         } else {
-            writeByte(b ? ONE : ZERO);
+            writeBoolean(b);
         }
     }
 

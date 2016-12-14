@@ -28,11 +28,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -54,7 +56,7 @@ public class FileInfoTests extends ESTestCase {
             byte[] xcontent = BytesReference.toBytes(shuffleXContent(builder).bytes());
 
             final BlobStoreIndexShardSnapshot.FileInfo parsedInfo;
-            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xcontent)) {
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, xcontent)) {
                 parser.nextToken();
                 parsedInfo = BlobStoreIndexShardSnapshot.FileInfo.fromXContent(parser);
             }
@@ -115,7 +117,7 @@ public class FileInfoTests extends ESTestCase {
             if (failure == null) {
                 // No failures should read as usual
                 final BlobStoreIndexShardSnapshot.FileInfo parsedInfo;
-                try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContent)) {
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
                     parser.nextToken();
                     parsedInfo = BlobStoreIndexShardSnapshot.FileInfo.fromXContent(parser);
                 }
@@ -126,14 +128,13 @@ public class FileInfoTests extends ESTestCase {
                 assertEquals("666", parsedInfo.metadata().checksum());
                 assertEquals(Version.LATEST, parsedInfo.metadata().writtenBy());
             } else {
-                try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContent)) {
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
                     parser.nextToken();
                     BlobStoreIndexShardSnapshot.FileInfo.fromXContent(parser);
                     fail("Should have failed with [" + failure + "]");
                 } catch (ElasticsearchParseException ex) {
                     assertThat(ex.getMessage(), containsString(failure));
                 }
-
             }
         }
     }

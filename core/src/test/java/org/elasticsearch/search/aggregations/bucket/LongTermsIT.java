@@ -305,41 +305,53 @@ public class LongTermsIT extends AbstractTermsTestCase {
         long includes[] = { 1, 2, 3, 98 };
         long excludes[] = { -1, 2, 4 };
         long empty[] = {};
-        testIncludeExcludeResults(includes, empty, new long[] { 1, 2, 3 });
-        testIncludeExcludeResults(includes, excludes, new long[] { 1, 3 });
-        testIncludeExcludeResults(empty, excludes, new long[] { 0, 1, 3 });
+        testIncludeExcludeResults(1, includes, empty, new long[] { 1, 2, 3 }, new long[0]);
+        testIncludeExcludeResults(1, includes, excludes, new long[] { 1, 3 }, new long[0]);
+        testIncludeExcludeResults(1, empty, excludes, new long[] { 0, 1, 3 }, new long[0]);
+
+        testIncludeExcludeResults(0, includes, empty, new long[] { 1, 2, 3}, new long[] { 98 });
+        testIncludeExcludeResults(0, includes, excludes, new long[] { 1, 3 }, new long[] { 98 });
+        testIncludeExcludeResults(0, empty, excludes, new long[] { 0, 1, 3 }, new long[] {5, 6, 7, 8, 9, 10, 11});
     }
 
-    private void testIncludeExcludeResults(long[] includes, long[] excludes, long[] expecteds) {
+    private void testIncludeExcludeResults(int minDocCount, long[] includes, long[] excludes,
+                                           long[] expectedWithCounts, long[] expectedZeroCounts) {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)
                         .includeExclude(new IncludeExclude(includes, excludes))
-                        .collectMode(randomFrom(SubAggCollectionMode.values())))
+                        .collectMode(randomFrom(SubAggCollectionMode.values()))
+                        .minDocCount(minDocCount))
                 .execute().actionGet();
         assertSearchResponse(response);
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        assertThat(terms.getBuckets().size(), equalTo(expecteds.length));
+        assertThat(terms.getBuckets().size(), equalTo(expectedWithCounts.length + expectedZeroCounts.length));
 
-        for (int i = 0; i < expecteds.length; i++) {
-            Terms.Bucket bucket = terms.getBucketByKey("" + expecteds[i]);
+        for (int i = 0; i < expectedWithCounts.length; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + expectedWithCounts[i]);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getDocCount(), equalTo(1L));
         }
+
+        for (int i = 0; i < expectedZeroCounts.length; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("" + expectedZeroCounts[i]);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getDocCount(), equalTo(0L));
+        }
     }
-    
-    
-    
+
+
+
     public void testSingleValueFieldWithPartitionedFiltering() throws Exception {
         runTestFieldWithPartitionedFiltering(SINGLE_VALUED_FIELD_NAME);
     }
-    
+
     public void testMultiValueFieldWithPartitionedFiltering() throws Exception {
         runTestFieldWithPartitionedFiltering(MULTI_VALUED_FIELD_NAME);
     }
-    
+
     private void runTestFieldWithPartitionedFiltering(String field) throws Exception {
         // Find total number of unique terms
         SearchResponse allResponse = client().prepareSearch("idx").setTypes("type")
@@ -348,8 +360,8 @@ public class LongTermsIT extends AbstractTermsTestCase {
         Terms terms = allResponse.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
-        int expectedCardinality = terms.getBuckets().size();        
-        
+        int expectedCardinality = terms.getBuckets().size();
+
         // Gather terms using partitioned aggregations
         final int numPartitions = randomIntBetween(2, 4);
         Set<Number> foundTerms = new HashSet<>();
@@ -368,9 +380,9 @@ public class LongTermsIT extends AbstractTermsTestCase {
                 foundTerms.add(bucket.getKeyAsNumber());
             }
         }
-        assertEquals(expectedCardinality, foundTerms.size());        
+        assertEquals(expectedCardinality, foundTerms.size());
     }
-    
+
 
     public void testSingleValueFieldWithMaxSize() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")

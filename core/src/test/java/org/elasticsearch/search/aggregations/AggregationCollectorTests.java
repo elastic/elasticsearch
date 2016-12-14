@@ -62,7 +62,7 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
     private boolean needsScores(IndexService index, String agg) throws IOException {
         AggregatorParsers parser = getInstanceFromNode(SearchRequestParsers.class).aggParsers;
         IndicesQueriesRegistry queriesRegistry = getInstanceFromNode(IndicesQueriesRegistry.class);
-        XContentParser aggParser = JsonXContent.jsonXContent.createParser(agg);
+        XContentParser aggParser = createParser(JsonXContent.jsonXContent, agg);
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, aggParser, ParseFieldMatcher.STRICT);
         aggParser.nextToken();
         SearchContext context = createSearchContext(index);

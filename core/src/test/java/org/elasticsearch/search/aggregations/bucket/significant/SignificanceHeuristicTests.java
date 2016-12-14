@@ -269,7 +269,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
         IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         try {
-            XContentParser stParser = JsonXContent.jsonXContent.createParser(
+            XContentParser stParser = createParser(JsonXContent.jsonXContent, 
                     "{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
             QueryParseContext parseContext = new QueryParseContext(registry, stParser, ParseFieldMatcher.STRICT);
             stParser.nextToken();
@@ -286,7 +286,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         stBuilder.significanceHeuristic(significanceHeuristic).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
-        XContentParser stParser = JsonXContent.jsonXContent.createParser(stXContentBuilder.string());
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, stXContentBuilder.string());
         return parseSignificanceHeuristic(significanceHeuristicParserRegistry, searchContext, stParser);
     }
 
@@ -308,7 +308,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
 
     protected SignificanceHeuristic parseFromString(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
             SearchContext searchContext, String heuristicString) throws IOException {
-        XContentParser stParser = JsonXContent.jsonXContent.createParser(
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, 
                 "{\"field\":\"text\", " + heuristicString + ", \"min_doc_count\":200}");
         return parseSignificanceHeuristic(significanceHeuristicParserRegistry, searchContext, stParser);
     }

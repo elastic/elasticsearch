@@ -70,7 +70,7 @@ public class ESTestCaseTests extends ESTestCase {
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         builder.map(randomStringObjectMap);
         XContentBuilder shuffleXContent = shuffleXContent(builder);
-        XContentParser parser = XContentFactory.xContent(shuffleXContent.bytes()).createParser(shuffleXContent.bytes());
+        XContentParser parser = createParser(shuffleXContent);
         Map<String, Object> resultMap = parser.map();
         assertEquals("both maps should contain the same mappings", randomStringObjectMap, resultMap);
         assertNotEquals("Both builders string representations should be different", builder.bytes(), shuffleXContent.bytes());

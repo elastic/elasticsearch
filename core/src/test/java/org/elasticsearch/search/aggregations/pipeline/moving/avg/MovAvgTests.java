@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.BasePipelineAggregationTestCase;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
@@ -106,7 +106,7 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
             "        }" +
             "    }" +
             "}";
-        XContentParser parser = XContentFactory.xContent(json).createParser(json);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());

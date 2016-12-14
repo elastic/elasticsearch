@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -119,7 +118,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             XContentBuilder shuffled = shuffleXContent(builder);
 
 
-            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
+            XContentParser parser = createParser(shuffled);
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             RescoreBuilder<?> secondRescoreBuilder = RescoreBuilder.parseFromXContent(context);

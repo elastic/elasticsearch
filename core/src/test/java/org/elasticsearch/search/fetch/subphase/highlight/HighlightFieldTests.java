@@ -61,7 +61,7 @@ public class HighlightFieldTests extends ESTestCase {
         builder.startObject(); // we need to wrap xContent output in proper object to create a parser for it
         builder = highlightField.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        XContentParser parser = xcontentType.xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken(); // skip to the opening object token, fromXContent advances from here and starts with the field name
         HighlightField parsedField = HighlightField.fromXContent(parser);
         assertEquals(highlightField, parsedField);

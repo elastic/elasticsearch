@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -425,7 +424,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
                         XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
-                        XContentParser parser = XContentHelper.createParser(new BytesArray(query));
+                        XContentParser parser = JsonXContent.jsonXContent.createParser(query);
                 ) {
                     int objectIndex = -1;
                     Deque<String> levels = new LinkedList<>();

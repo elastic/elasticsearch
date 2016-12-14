@@ -610,21 +610,7 @@ class InstallPluginCommand extends SettingCommand {
 
     @Override
     public void close() throws IOException {
-        IOException exception = null;
-        for (final Path pathToDeleteOnShutdown : pathsToDeleteOnShutdown) {
-            try {
-                IOUtils.rm(pathToDeleteOnShutdown);
-            } catch (final IOException e) {
-                if (exception == null) {
-                    exception = e;
-                } else {
-                    exception.addSuppressed(e);
-                }
-            }
-        }
-        if (exception != null) {
-            throw exception;
-        }
+        IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[pathsToDeleteOnShutdown.size()]));
     }
 
 }

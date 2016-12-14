@@ -498,6 +498,8 @@ public final class Script implements ToXContent, Writeable {
                 options = new HashMap<>();
                 XContentType contentType = XContentType.readFrom(in);
                 options.put(CONTENT_TYPE_OPTION, contentType.mediaType());
+            } else if (type == ScriptType.INLINE) {
+                options = new HashMap<>();
             }
 
             this.type = type;

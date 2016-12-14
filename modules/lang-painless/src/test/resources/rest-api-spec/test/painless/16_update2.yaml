@@ -1,5 +1,7 @@
 ---
 "Indexed script":
+  - skip:
+      features: warnings
 
   - do:
       warnings:

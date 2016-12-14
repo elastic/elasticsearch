@@ -331,7 +331,9 @@ public class DocumentMapper implements ToXContent {
             // no change
             return this;
         }
-        return new DocumentMapper(mapperService, updated);
+        DocumentMapper updatedDocMapper = new DocumentMapper(mapperService, updated);
+        assert updatedDocMapper == updatedDocMapper.updateFieldType(fullNameToFieldType) : "updateFieldType operation is not idempotent";
+        return updatedDocMapper;
     }
 
     @Override

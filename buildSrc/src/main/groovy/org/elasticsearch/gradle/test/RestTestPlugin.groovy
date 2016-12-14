@@ -18,16 +18,22 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.gradle.api.Plugin
 import org.gradle.api.Project
 
 /** A plugin to add rest integration tests. Used for qa projects.  */
-public class RestTestPlugin extends IntegTestPlugin {
+public class RestTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
         project.pluginManager.apply(StandaloneTestBasePlugin)
-        super.apply(project)
-        project.integTest.cluster.distribution = 'zip' // rest tests should run with the real zip
+        createIntegTestTask(project)
+    }
 
+    static void createIntegTestTask(Project project) {
+        RestIntegTestTask task = project.tasks.create('integTest', RestIntegTestTask.class)
+        task.cluster.distribution = 'zip' // rest tests should run with the real zip
+        task.mustRunAfter(project.precommit)
+        project.check.dependsOn(task)
     }
 }

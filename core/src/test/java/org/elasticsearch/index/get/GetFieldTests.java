@@ -54,7 +54,7 @@ public class GetFieldTests extends ESTestCase {
         checkEqualsAndHashCode(randomGetField(XContentType.JSON).v1(), GetFieldTests::copyGetField, GetFieldTests::mutateGetField);
     }
 
-    public void testGetFieldToAndFromXContent() throws Exception {
+    public void testToAndFromXContent() throws Exception {
         XContentType xContentType = randomFrom(XContentType.values());
         Tuple<GetField, GetField> tuple = randomGetField(xContentType);
         GetField getField = tuple.v1();

@@ -33,15 +33,23 @@ import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -100,13 +108,28 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertTrue(allocateDecision.isDecisionTaken());
         assertFalse(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO_VALID_SHARD_COPY, allocateDecision.getAllocationDecision());
-        assertEquals("cannot allocate because a previous copy of the primary shard existed but could not be found",
-            allocateDecision.getExplanation());
+        assertEquals("cannot allocate because a previous copy of the primary shard existed but can no longer be " +
+                         "found on the nodes in the cluster", allocateDecision.getExplanation());
         assertNull(allocateDecision.getAllocationId());
         assertNull(allocateDecision.getTargetNode());
         assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());
         assertEquals(0L, allocateDecision.getRemainingDelayInMillis());
         assertEquals(0, allocateDecision.getNodeDecisions().size());
+
+        // verify JSON output
+        try (XContentParser parser = getParser(explanation)) {
+            verifyShardInfo(parser, true, includeDiskInfo, ShardRoutingState.UNASSIGNED);
+            parser.nextToken();
+            assertEquals("can_allocate", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.NO_VALID_SHARD_COPY.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("allocate_explanation", parser.currentName());
+            parser.nextToken();
+            assertEquals("cannot allocate because a previous copy of the primary shard existed but can no longer be found " +
+                             "on the nodes in the cluster", parser.text());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+        }
     }
 
     public void testUnassignedReplicaDelayedAllocation() throws Exception {
@@ -192,6 +215,33 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                     assertNotNull(d.getExplanation());
                 }
             }
+        }
+
+        // verify JSON output
+        try (XContentParser parser = getParser(explanation)) {
+            verifyShardInfo(parser, false, includeDiskInfo, ShardRoutingState.UNASSIGNED);
+            parser.nextToken();
+            assertEquals("can_allocate", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.ALLOCATION_DELAYED.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("allocate_explanation", parser.currentName());
+            parser.nextToken();
+            assertThat(parser.text(), startsWith("cannot allocate because the cluster is still waiting"));
+            parser.nextToken();
+            assertEquals("configured_delay_in_millis", parser.currentName());
+            parser.nextToken();
+            assertEquals(60000L, parser.longValue());
+            parser.nextToken();
+            assertEquals("remaining_delay_in_millis", parser.currentName());
+            parser.nextToken();
+            assertThat(parser.longValue(), greaterThan(0L));
+            Map<String, AllocationDecision> nodes = new HashMap<>();
+            nodes.put(primaryNodeName, AllocationDecision.NO);
+            String[] currentNodes = internalCluster().getNodeNames();
+            nodes.put(currentNodes[0].equals(primaryNodeName) ? currentNodes[1] : currentNodes[0], AllocationDecision.YES);
+            verifyNodeDecisions(parser, nodes, includeYesDecisions, true);
+            assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
 
@@ -297,6 +347,32 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 }
             }
         }
+
+        // verify JSON output
+        try (XContentParser parser = getParser(explanation)) {
+            verifyShardInfo(parser, false, includeDiskInfo, ShardRoutingState.UNASSIGNED);
+            parser.nextToken();
+            assertEquals("can_allocate", parser.currentName());
+            parser.nextToken();
+            String allocationDecision = parser.text();
+            assertTrue(allocationDecision.equals(AllocationDecision.NO.toString())
+                           || allocationDecision.equals(AllocationDecision.AWAITING_INFO.toString()));
+            parser.nextToken();
+            assertEquals("allocate_explanation", parser.currentName());
+            parser.nextToken();
+            if (allocationDecision.equals("awaiting_info")) {
+                assertEquals("cannot allocate because information about existing shard data is still being retrieved " +
+                                 "from some of the nodes", parser.text());
+            } else {
+                assertEquals("cannot allocate because allocation is not permitted to any of the nodes", parser.text());
+            }
+            Map<String, AllocationDecision> nodeDecisions = new HashMap<>();
+            for (String nodeName : internalCluster().getNodeNames()) {
+                nodeDecisions.put(nodeName, AllocationDecision.NO);
+            }
+            verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, true);
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+        }
     }
 
     public void testAllocationFilteringOnIndexCreation() throws Exception {
@@ -362,6 +438,32 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                         d.getExplanation());
                 }
             }
+        }
+
+        // verify JSON output
+        try (XContentParser parser = getParser(explanation)) {
+            verifyShardInfo(parser, true, includeDiskInfo, ShardRoutingState.UNASSIGNED);
+            parser.nextToken();
+            assertEquals("can_allocate", parser.currentName());
+            parser.nextToken();
+            String allocationDecision = parser.text();
+            assertTrue(allocationDecision.equals(AllocationDecision.NO.toString())
+                           || allocationDecision.equals(AllocationDecision.AWAITING_INFO.toString()));
+            parser.nextToken();
+            assertEquals("allocate_explanation", parser.currentName());
+            parser.nextToken();
+            if (allocationDecision.equals("awaiting_info")) {
+                assertEquals("cannot allocate because information about existing shard data is still being retrieved " +
+                                 "from some of the nodes", parser.text());
+            } else {
+                assertEquals("cannot allocate because allocation is not permitted to any of the nodes", parser.text());
+            }
+            Map<String, AllocationDecision> nodeDecisions = new HashMap<>();
+            for (String nodeName : internalCluster().getNodeNames()) {
+                nodeDecisions.put(nodeName, AllocationDecision.NO);
+            }
+            verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, false);
+            assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
 
@@ -451,6 +553,28 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 assertNotNull(d.getExplanation());
             }
         }
+
+        // verify JSON output
+        try (XContentParser parser = getParser(explanation)) {
+            verifyShardInfo(parser, true, includeDiskInfo, ShardRoutingState.STARTED);
+            parser.nextToken();
+            assertEquals("can_remain_on_current_node", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.NO.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("can_remain_decisions", parser.currentName());
+            verifyDeciders(parser, AllocationDecision.NO);
+            parser.nextToken();
+            assertEquals("can_move_to_other_node", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.NO.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("move_explanation", parser.currentName());
+            parser.nextToken();
+            assertEquals("cannot move shard to another node, even though it is not allowed to remain on its current node", parser.text());
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO), includeYesDecisions, false);
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+        }
     }
 
     public void testRebalancingNotAllowed() throws Exception {
@@ -499,7 +623,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertFalse(allocateDecision.isDecisionTaken());
         assertTrue(moveDecision.isDecisionTaken());
         assertEquals(AllocationDecision.NO, moveDecision.getAllocationDecision());
-        assertEquals("rebalancing is not allowed on the cluster even though there is at least one node on which the shard can be allocated",
+        assertEquals("rebalancing is not allowed, even though there is at least one node on which the shard can be allocated",
             moveDecision.getExplanation());
         assertTrue(moveDecision.canRemain());
         assertFalse(moveDecision.forceMove());
@@ -534,6 +658,33 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         for (Decision d : result.getCanAllocateDecision().getDecisions()) {
             assertEquals(Decision.Type.YES, d.type());
             assertNotNull(d.getExplanation());
+        }
+
+        // verify JSON output
+        try (XContentParser parser = getParser(explanation)) {
+            verifyShardInfo(parser, true, includeDiskInfo, ShardRoutingState.STARTED);
+            parser.nextToken();
+            assertEquals("can_remain_on_current_node", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.YES.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("can_rebalance_cluster", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.NO.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("can_rebalance_cluster_decisions", parser.currentName());
+            verifyDeciders(parser, AllocationDecision.NO);
+            parser.nextToken();
+            assertEquals("can_rebalance_to_other_node", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.NO.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("rebalance_explanation", parser.currentName());
+            parser.nextToken();
+            assertEquals("rebalancing is not allowed, even though there is at least one node on which the shard can be allocated",
+                parser.text());
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.YES), includeYesDecisions, false);
+            assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
 
@@ -612,6 +763,30 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         for (Decision d : result.getCanAllocateDecision().getDecisions()) {
             assertEquals(Decision.Type.YES, d.type());
             assertNotNull(d.getExplanation());
+        }
+
+        // verify JSON output
+        try (XContentParser parser = getParser(explanation)) {
+            verifyShardInfo(parser, true, includeDiskInfo, ShardRoutingState.STARTED);
+            parser.nextToken();
+            assertEquals("can_remain_on_current_node", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.YES.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("can_rebalance_cluster", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.YES.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("can_rebalance_to_other_node", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.NO.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("rebalance_explanation", parser.currentName());
+            parser.nextToken();
+            assertEquals("cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
+                parser.text());
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.WORSE_BALANCE), includeYesDecisions, false);
+            assertEquals(Token.END_OBJECT, parser.nextToken());
         }
     }
 
@@ -698,6 +873,30 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                 assertNotNull(d.getExplanation());
             }
         }
+
+        // verify JSON output
+        try (XContentParser parser = getParser(explanation)) {
+            verifyShardInfo(parser, true, includeDiskInfo, ShardRoutingState.STARTED);
+            parser.nextToken();
+            assertEquals("can_remain_on_current_node", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.YES.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("can_rebalance_cluster", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.YES.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("can_rebalance_to_other_node", parser.currentName());
+            parser.nextToken();
+            assertEquals(AllocationDecision.NO.toString(), parser.text());
+            parser.nextToken();
+            assertEquals("rebalance_explanation", parser.currentName());
+            parser.nextToken();
+            assertEquals("cannot rebalance as no target node exists that can both allocate this shard and improve the cluster balance",
+                parser.text());
+            verifyNodeDecisions(parser, allNodeDecisions(AllocationDecision.NO), includeYesDecisions, false);
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+        }
     }
 
     private void verifyClusterInfo(ClusterInfo clusterInfo, boolean includeDiskInfo, int numNodes) {
@@ -717,11 +916,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             .setIncludeYesDecisions(includeYesDecisions)
             .setIncludeDiskInfo(includeDiskInfo)
             .get().getExplanation();
-        if (logger.isDebugEnabled()) {
+        if (logger.isInfoEnabled()) {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.prettyPrint();
             builder.humanReadable(true);
-            logger.debug("--> explain json output: \n{}", explanation.toXContent(builder, ToXContent.EMPTY_PARAMS).string());
+            logger.info("--> explain json output: \n{}", explanation.toXContent(builder, ToXContent.EMPTY_PARAMS).string());
         }
         return explanation;
     }
@@ -756,6 +955,185 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         String nodeId = clusterState.getRoutingTable().index("idx").shard(0).replicaShards().get(0).currentNodeId();
         return clusterState.getRoutingNodes().node(nodeId).node().getName();
+    }
+
+    private XContentParser getParser(ClusterAllocationExplanation explanation) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        return JsonXContent.jsonXContent.createParser(explanation.toXContent(builder, ToXContent.EMPTY_PARAMS).string());
+    }
+
+    private void verifyShardInfo(XContentParser parser, boolean primary, boolean includeDiskInfo, ShardRoutingState state)
+        throws IOException {
+
+        parser.nextToken();
+        assertEquals(Token.START_OBJECT, parser.currentToken());
+        parser.nextToken();
+        assertEquals("index", parser.currentName());
+        parser.nextToken();
+        assertEquals("idx", parser.text());
+        parser.nextToken();
+        assertEquals("shard", parser.currentName());
+        parser.nextToken();
+        assertEquals(0, parser.intValue());
+        parser.nextToken();
+        assertEquals("primary", parser.currentName());
+        parser.nextToken();
+        assertEquals(primary, parser.booleanValue());
+        parser.nextToken();
+        assertEquals("current_shard_state", parser.currentName());
+        parser.nextToken();
+        assertEquals(state.toString().toLowerCase(Locale.ROOT), parser.text());
+        if (state == ShardRoutingState.UNASSIGNED) {
+            parser.nextToken();
+            assertEquals("unassigned_info", parser.currentName());
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            Token token;
+            while ((token = parser.nextToken()) != Token.END_OBJECT) { // until we reach end of unassigned_info
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    assertNotEquals("delayed", parser.currentName()); // we should never display "delayed" from unassigned info
+                    if (parser.currentName().equals("last_allocation_status")) {
+                        parser.nextToken();
+                        String value = parser.text();
+                        assertTrue(AllocationStatus.NO_VALID_SHARD_COPY.value().equals(value)
+                                       || AllocationStatus.FETCHING_SHARD_DATA.value().equals(value)
+                                       || AllocationStatus.NO_ATTEMPT.value().equals(value)
+                                       || "not_permitted".equals(value));
+                    }
+                }
+            }
+        } else {
+            assertEquals(ShardRoutingState.STARTED, state);
+            parser.nextToken();
+            assertEquals("current_node", parser.currentName());
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            Token token;
+            while ((token = parser.nextToken()) != Token.END_OBJECT) { // until we reach end of current_node
+                if (token == Token.FIELD_NAME) {
+                    assertTrue(parser.currentName().equals("id")
+                                   || parser.currentName().equals("name")
+                                   || parser.currentName().equals("transport_address")
+                                   || parser.currentName().equals("weight_ranking"));
+                } else {
+                    assertTrue(token.isValue());
+                    assertNotNull(parser.text());
+                }
+            }
+        }
+        if (includeDiskInfo) {
+            // disk info is included, just verify the object is there
+            parser.nextToken();
+            assertEquals("cluster_info", parser.currentName());
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            int numObjects = 1;
+            while (numObjects > 0) {
+                Token token = parser.nextToken();
+                if (token == Token.START_OBJECT) {
+                    ++numObjects;
+                } else if (token == Token.END_OBJECT) {
+                    --numObjects;
+                }
+            }
+        }
+    }
+
+    private void verifyNodeDecisions(XContentParser parser, Map<String, AllocationDecision> expectedNodeDecisions,
+                                     boolean includeYesDecisions, boolean reuseStore) throws IOException {
+        parser.nextToken();
+        assertEquals("node_allocation_decisions", parser.currentName());
+        assertEquals(Token.START_ARRAY, parser.nextToken());
+        boolean encounteredNo = false;
+        final int numNodes = expectedNodeDecisions.size();
+        for (int i = 0; i < numNodes; i++) {
+            assertEquals(Token.START_OBJECT, parser.nextToken());
+            parser.nextToken();
+            assertEquals("node_id", parser.currentName());
+            parser.nextToken();
+            assertNotNull(parser.text());
+            parser.nextToken();
+            assertEquals("node_name", parser.currentName());
+            parser.nextToken();
+            String nodeName = parser.text();
+            AllocationDecision allocationDecision = expectedNodeDecisions.get(nodeName);
+            assertNotNull(nodeName);
+            parser.nextToken();
+            assertEquals("transport_address", parser.currentName());
+            parser.nextToken();
+            assertNotNull(parser.text());
+            parser.nextToken();
+            assertEquals("node_decision", parser.currentName());
+            parser.nextToken();
+            assertEquals(allocationDecision.toString(), parser.text());
+            if (allocationDecision != AllocationDecision.YES) {
+                encounteredNo = true;
+            } else {
+                assertFalse("encountered a YES node decision after a NO node decision - sort order is wrong", encounteredNo);
+            }
+            parser.nextToken();
+            if ("store".equals(parser.currentName())) {
+                assertTrue("store info should not be present", reuseStore);
+                assertEquals(Token.START_OBJECT, parser.nextToken());
+                parser.nextToken();
+                assertEquals("matching_size_in_bytes", parser.currentName());
+                parser.nextToken();
+                assertThat(parser.longValue(), greaterThan(0L));
+                assertEquals(Token.END_OBJECT, parser.nextToken());
+                parser.nextToken();
+            }
+            if (reuseStore == false) {
+                assertEquals("weight_ranking", parser.currentName());
+                parser.nextToken();
+                assertThat(parser.intValue(), greaterThan(0));
+                parser.nextToken();
+            }
+            if (allocationDecision == AllocationDecision.NO || allocationDecision == AllocationDecision.THROTTLED || includeYesDecisions) {
+                assertEquals("deciders", parser.currentName());
+                boolean atLeastOneMatchingDecisionFound = verifyDeciders(parser, allocationDecision);
+                parser.nextToken();
+                if (allocationDecision == AllocationDecision.NO || allocationDecision == AllocationDecision.THROTTLED) {
+                    assertTrue("decision was " + allocationDecision + " but found no node's with that decision",
+                        atLeastOneMatchingDecisionFound);
+                }
+            }
+            assertEquals(Token.END_OBJECT, parser.currentToken());
+        }
+        assertEquals(Token.END_ARRAY, parser.nextToken());
+    }
+
+    private boolean verifyDeciders(XContentParser parser, AllocationDecision allocationDecision) throws IOException {
+        assertEquals(Token.START_ARRAY, parser.nextToken());
+        boolean atLeastOneMatchingDecisionFound = false;
+        while (parser.nextToken() != Token.END_ARRAY) {
+            assertEquals(Token.START_OBJECT, parser.currentToken());
+            parser.nextToken();
+            assertEquals("decider", parser.currentName());
+            parser.nextToken();
+            assertNotNull(parser.text());
+            parser.nextToken();
+            assertEquals("decision", parser.currentName());
+            parser.nextToken();
+            String decisionText = parser.text();
+            if ((allocationDecision == AllocationDecision.NO && decisionText.equals("no")
+                     || (allocationDecision == AllocationDecision.THROTTLED && decisionText.equals("throttle")))) {
+                atLeastOneMatchingDecisionFound = true;
+            }
+            assertNotNull(decisionText);
+            parser.nextToken();
+            assertEquals("explanation", parser.currentName());
+            parser.nextToken();
+            assertNotNull(parser.text());
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+        }
+        return atLeastOneMatchingDecisionFound;
+    }
+
+    private Map<String, AllocationDecision> allNodeDecisions(AllocationDecision allocationDecision) {
+        Map<String, AllocationDecision> nodeDecisions = new HashMap<>();
+        Set<String> allNodes = Sets.newHashSet(internalCluster().getNodeNames());
+        allNodes.remove(primaryNodeName());
+        for (String nodeName : allNodes) {
+            nodeDecisions.put(nodeName, allocationDecision);
+        }
+        return nodeDecisions;
     }
 
 }

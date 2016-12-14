@@ -226,7 +226,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             if (allocationDecision == AllocationDecision.AWAITING_INFO) {
                 explanation = "cannot rebalance as information about existing copies of this shard in the cluster is still being gathered";
             } else if (clusterRebalanceDecision.type() == Type.NO) {
-                explanation = "rebalancing is not allowed on the cluster" + (atLeastOneNodeWithYesDecision() ? " even though there " +
+                explanation = "rebalancing is not allowed" + (atLeastOneNodeWithYesDecision() ? ", even though there " +
                               "is at least one node on which the shard can be allocated" : "");
             } else if (clusterRebalanceDecision.type() == Type.THROTTLE) {
                 explanation = "rebalancing is throttled";

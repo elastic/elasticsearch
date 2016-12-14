@@ -154,15 +154,13 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         if (unassignedInfo.getNumFailedAllocations() >  0) {
             builder.field("failed_allocation_attempts", unassignedInfo.getNumFailedAllocations());
         }
-        if (shardRouting.primary() == false) {
-            // delayed allocation only makes sense when explaining a replica shard
-            builder.field("delayed", unassignedInfo.isDelayed());
-        }
         String details = unassignedInfo.getDetails();
         if (details != null) {
             builder.field("details", details);
         }
-        builder.field("last_allocation_status", unassignedInfo.getLastAllocationStatus().value());
+        String lastAllocStatus = unassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ?
+                                     "not_permitted" : unassignedInfo.getLastAllocationStatus().value();
+        builder.field("last_allocation_status", lastAllocStatus);
         builder.endObject();
         return builder;
     }

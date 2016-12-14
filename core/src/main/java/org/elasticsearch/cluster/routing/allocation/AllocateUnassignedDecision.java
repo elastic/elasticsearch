@@ -249,7 +249,8 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
             if (getNodeDecisions() != null && getNodeDecisions().isEmpty() == false) {
                 return "cannot allocate because all found copies of the shard are either stale or corrupt";
             } else {
-                return "cannot allocate because a previous copy of the primary shard existed but could not be found";
+                return "cannot allocate because a previous copy of the primary shard existed but can no longer be found on " +
+                       "the nodes in the cluster";
             }
         } else if (allocationDecision == AllocationDecision.ALLOCATION_DELAYED) {
             return "cannot allocate because the cluster is still waiting " +

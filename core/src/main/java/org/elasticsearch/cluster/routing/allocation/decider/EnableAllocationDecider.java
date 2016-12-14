@@ -178,7 +178,7 @@ public class EnableAllocationDecider extends AllocationDecider {
     }
 
     private static String setting(Allocation allocation, boolean usedIndexSetting) {
-        StringBuilder buf = new StringBuilder("[");
+        StringBuilder buf = new StringBuilder(usedIndexSetting ? "index setting " : "cluster setting ").append("[");
         if (usedIndexSetting) {
             buf.append(INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey());
         } else {

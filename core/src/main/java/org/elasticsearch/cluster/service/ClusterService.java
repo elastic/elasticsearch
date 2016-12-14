@@ -49,7 +49,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -564,9 +563,6 @@ public class ClusterService extends AbstractLifecycleComponent {
                 if (element.getClassName().equals(ClusterService.class.getName())
                     && element.getMethodName().equals("callClusterStateAppliers")) {
                    throw new AssertionError("should not be called by a cluster state applier. reason [" + reason + "]");
-                } else if (element.getClassName().equals(AbstractScopedSettings.class.getName())
-                    && element.getMethodName().equals("applySettings")) {
-                    throw new AssertionError("should not be called when updating the settings. reason [" + reason + "]");
                 }
             }
         }

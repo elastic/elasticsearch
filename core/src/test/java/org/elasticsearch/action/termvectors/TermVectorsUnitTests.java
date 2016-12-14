@@ -41,7 +41,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.AllFieldMapper;
@@ -290,13 +289,13 @@ public class TermVectorsUnitTests extends ESTestCase {
 
     public void testMultiParser() throws Exception {
         byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest1.json");
-        XContentParser data = XContentHelper.createParser(new BytesArray(bytes));
+        XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), data);
         checkParsedParameters(request);
 
         bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest2.json");
-        data = XContentHelper.createParser(new BytesArray(bytes));
+        data = createParser(JsonXContent.jsonXContent, new BytesArray(bytes));
         request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), data);
         checkParsedParameters(request);
@@ -326,7 +325,7 @@ public class TermVectorsUnitTests extends ESTestCase {
     // issue #12311
     public void testMultiParserFilter() throws Exception {
         byte[] bytes = StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/termvectors/multiRequest3.json");
-        XContentParser data = XContentHelper.createParser(new BytesArray(bytes));
+        XContentParser data = createParser(JsonXContent.jsonXContent, bytes);
         MultiTermVectorsRequest request = new MultiTermVectorsRequest();
         request.add(new TermVectorsRequest(), data);
         checkParsedFilterParameters(request);

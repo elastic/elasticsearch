@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -138,7 +137,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
-            XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
+            XContentParser itemParser = createParser(shuffled);
             itemParser.nextToken();
 
             /*

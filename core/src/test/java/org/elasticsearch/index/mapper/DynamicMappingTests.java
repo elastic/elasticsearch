@@ -28,8 +28,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.BooleanFieldMapper.BooleanFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -198,12 +198,14 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
     private Mapper parse(DocumentMapper mapper, DocumentMapperParser parser, XContentBuilder builder) throws Exception {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         SourceToParse source = SourceToParse.source("test", mapper.type(), "some_id", builder.bytes());
-        ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, source, XContentHelper.createParser(source.source()));
-        assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
-        ctx.parser().nextToken();
-        DocumentParser.parseObjectOrNested(ctx, mapper.root(), true);
-        Mapping mapping = DocumentParser.createDynamicUpdate(mapper.mapping(), mapper, ctx.getDynamicMappers());
-        return mapping == null ? null : mapping.root();
+        try (XContentParser xContentParser = createParser(JsonXContent.jsonXContent, source.source())) {
+            ParseContext.InternalParseContext ctx = new ParseContext.InternalParseContext(settings, parser, mapper, source, xContentParser);
+            assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
+            ctx.parser().nextToken();
+            DocumentParser.parseObjectOrNested(ctx, mapper.root(), true);
+            Mapping mapping = DocumentParser.createDynamicUpdate(mapper.mapping(), mapper, ctx.getDynamicMappers());
+            return mapping == null ? null : mapping.root();
+        }
     }
 
     public void testDynamicMappingsNotNeeded() throws Exception {

@@ -229,7 +229,7 @@ public class IncludeExcludeTests extends ESTestCase {
         incExc.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         XContentParser.Token token = parser.nextToken();
         assertEquals(token, XContentParser.Token.START_OBJECT);
         token = parser.nextToken();
@@ -276,7 +276,7 @@ public class IncludeExcludeTests extends ESTestCase {
         incExc.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         XContentParser.Token token = parser.nextToken();
         assertEquals(token, XContentParser.Token.START_OBJECT);

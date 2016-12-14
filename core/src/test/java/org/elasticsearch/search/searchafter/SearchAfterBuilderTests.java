@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -189,7 +188,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             builder.startObject();
             searchAfterBuilder.innerToXContent(builder);
             builder.endObject();
-            XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
+            XContentParser parser = createParser(shuffleXContent(builder));
             new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             parser.nextToken();

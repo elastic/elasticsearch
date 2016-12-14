@@ -24,7 +24,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -41,12 +40,12 @@ import static org.mockito.Mockito.verify;
 public class RestAnalyzeActionTests extends ESTestCase {
 
     public void testParseXContentForAnalyzeRequest() throws Exception {
-        XContentParser content = XContentHelper.createParser(XContentFactory.jsonBuilder()
+        XContentParser content = createParser(XContentFactory.jsonBuilder()
             .startObject()
                 .field("text", "THIS IS A TEST")
                 .field("tokenizer", "keyword")
                 .array("filter", "lowercase")
-            .endObject().bytes());
+            .endObject());
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
 
@@ -62,7 +61,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
     }
 
     public void testParseXContentForAnalyzeRequestWithCustomFilters() throws Exception {
-        XContentParser content = XContentHelper.createParser(XContentFactory.jsonBuilder()
+        XContentParser content = createParser(XContentFactory.jsonBuilder()
             .startObject()
                 .field("text", "THIS IS A TEST")
                 .field("tokenizer", "keyword")
@@ -79,7 +78,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
                         .array("mappings", "ph => f", "qu => q")
                     .endObject()
                 .endArray()
-            .endObject().bytes());
+            .endObject());
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
 
@@ -105,11 +104,11 @@ public class RestAnalyzeActionTests extends ESTestCase {
 
     public void testParseXContentForAnalyzeRequestWithUnknownParamThrowsException() throws Exception {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
-        XContentParser invalidContent = XContentHelper.createParser(XContentFactory.jsonBuilder()
+        XContentParser invalidContent = createParser(XContentFactory.jsonBuilder()
             .startObject()
                 .field("text", "THIS IS A TEST")
                 .field("unknown", "keyword")
-            .endObject().bytes());
+            .endObject());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> RestAnalyzeAction.buildFromContent(invalidContent, analyzeRequest, new ParseFieldMatcher(Settings.EMPTY)));
         assertThat(e.getMessage(), startsWith("Unknown parameter [unknown]"));
@@ -117,10 +116,10 @@ public class RestAnalyzeActionTests extends ESTestCase {
 
     public void testParseXContentForAnalyzeRequestWithInvalidStringExplainParamThrowsException() throws Exception {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
-        XContentParser invalidExplain = XContentHelper.createParser(XContentFactory.jsonBuilder()
+        XContentParser invalidExplain = createParser(XContentFactory.jsonBuilder()
             .startObject()
                 .field("explain", "fals")
-            .endObject().bytes());
+            .endObject());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> RestAnalyzeAction.buildFromContent(invalidExplain, analyzeRequest, new ParseFieldMatcher(Settings.EMPTY)));
         assertThat(e.getMessage(), startsWith("explain must be either 'true' or 'false'"));
@@ -129,47 +128,47 @@ public class RestAnalyzeActionTests extends ESTestCase {
     public void testDeprecatedParamIn2xException() throws Exception {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> RestAnalyzeAction.buildFromContent(
-                XContentHelper.createParser(XContentFactory.jsonBuilder()
+                createParser(XContentFactory.jsonBuilder()
                     .startObject()
                         .field("text", "THIS IS A TEST")
                         .field("tokenizer", "keyword")
                         .array("filters", "lowercase")
-                    .endObject().bytes()),
+                    .endObject()),
                 new AnalyzeRequest("for test"), new ParseFieldMatcher(Settings.EMPTY)));
         assertThat(e.getMessage(), startsWith("Unknown parameter [filters]"));
 
 
         e = expectThrows(IllegalArgumentException.class,
             () -> RestAnalyzeAction.buildFromContent(
-                XContentHelper.createParser(XContentFactory.jsonBuilder()
+                createParser(XContentFactory.jsonBuilder()
                     .startObject()
                         .field("text", "THIS IS A TEST")
                         .field("tokenizer", "keyword")
                         .array("token_filters", "lowercase")
-                    .endObject().bytes()),
+                    .endObject()),
                 new AnalyzeRequest("for test"), new ParseFieldMatcher(Settings.EMPTY)));
         assertThat(e.getMessage(), startsWith("Unknown parameter [token_filters]"));
 
 
         e = expectThrows(IllegalArgumentException.class,
             () -> RestAnalyzeAction.buildFromContent(
-                XContentHelper.createParser(XContentFactory.jsonBuilder()
+                createParser(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("text", "THIS IS A TEST")
                     .field("tokenizer", "keyword")
                     .array("char_filters", "lowercase")
-                    .endObject().bytes()),
+                    .endObject()),
                 new AnalyzeRequest("for test"), new ParseFieldMatcher(Settings.EMPTY)));
         assertThat(e.getMessage(), startsWith("Unknown parameter [char_filters]"));
 
         e = expectThrows(IllegalArgumentException.class,
             () -> RestAnalyzeAction.buildFromContent(
-                XContentHelper.createParser(XContentFactory.jsonBuilder()
+                createParser(XContentFactory.jsonBuilder()
                     .startObject()
                     .field("text", "THIS IS A TEST")
                     .field("tokenizer", "keyword")
                     .array("token_filter", "lowercase")
-                    .endObject().bytes())
+                    .endObject())
                 , new AnalyzeRequest("for test"), new ParseFieldMatcher(Settings.EMPTY)));
         assertThat(e.getMessage(), startsWith("Unknown parameter [token_filter]"));
     }
@@ -191,7 +190,6 @@ public class RestAnalyzeActionTests extends ESTestCase {
             "this feature will be removed in the next major release. Please use the text param in JSON");
         assertThat(analyzeRequest.text().length, equalTo(1));
         assertThat(analyzeRequest.text()[0], equalTo("this is test"));
-
     }
 
 }

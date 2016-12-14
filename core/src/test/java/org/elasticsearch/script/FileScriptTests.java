@@ -55,7 +55,7 @@ public class FileScriptTests extends ESTestCase {
             .put("script.engine." + MockScriptEngine.NAME + ".file.aggs", "false").build();
         ScriptService scriptService = makeScriptService(settings);
         Script script = new Script(ScriptType.FILE, MockScriptEngine.NAME, "script1", Collections.emptyMap());
-        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.SEARCH, Collections.emptyMap());
+        CompiledScript compiledScript = scriptService.compile(script, ScriptContext.Standard.SEARCH);
         assertNotNull(compiledScript);
         MockCompiledScript executable = (MockCompiledScript) compiledScript.compiled();
         assertEquals("script1.mockscript", executable.getName());
@@ -72,7 +72,7 @@ public class FileScriptTests extends ESTestCase {
         Script script = new Script(ScriptType.FILE, MockScriptEngine.NAME, "script1", Collections.emptyMap());
         for (ScriptContext context : ScriptContext.Standard.values()) {
             try {
-                scriptService.compile(script, context, Collections.emptyMap());
+                scriptService.compile(script, context);
                 fail(context.getKey() + " script should have been rejected");
             } catch(Exception e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [file], operation [" + context.getKey() + "] and lang [" + MockScriptEngine.NAME + "] are disabled"));

@@ -404,7 +404,7 @@ public abstract class AbstractAsyncBulkIndexByScrollAction<Request extends Abstr
                 return request;
             }
             if (executable == null) {
-                CompiledScript compiled = scriptService.compile(script, ScriptContext.Standard.UPDATE, emptyMap());
+                CompiledScript compiled = scriptService.compile(script, ScriptContext.Standard.UPDATE);
                 executable = scriptService.executable(compiled, params);
             }
             if (context == null) {

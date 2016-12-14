@@ -88,8 +88,8 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
             if (firstAggregation.reduceScript.getParams() != null) {
                 vars.putAll(firstAggregation.reduceScript.getParams());
             }
-            CompiledScript compiledScript = reduceContext.scriptService().compile(firstAggregation.reduceScript,
-                    ScriptContext.Standard.AGGS, Collections.emptyMap());
+            CompiledScript compiledScript = reduceContext.scriptService().compile(
+                firstAggregation.reduceScript, ScriptContext.Standard.AGGS);
             ExecutableScript script = reduceContext.scriptService().executable(compiledScript, vars);
             aggregation = script.run();
         } else {

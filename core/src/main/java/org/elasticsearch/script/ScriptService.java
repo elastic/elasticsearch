@@ -206,7 +206,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      */
-    public CompiledScript compile(Script script, ScriptContext scriptContext, Map<String, String> params) {
+    public CompiledScript compile(Script script, ScriptContext scriptContext) {
         Objects.requireNonNull(script);
         Objects.requireNonNull(scriptContext);
 
@@ -296,7 +296,6 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
                     // but give the script engine the chance to be better, give it separate name + source code
                     // for the inline case, then its anonymous: null.
-                    String actualName = (type == ScriptType.INLINE) ? null : id;
                     if (logger.isTraceEnabled()) {
                         logger.trace("compiling script, type: [{}], lang: [{}], options: [{}]", type, lang, options);
                     }
@@ -465,7 +464,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      * Compiles (or retrieves from cache) and executes the provided script
      */
     public ExecutableScript executable(Script script, ScriptContext scriptContext) {
-        return executable(compile(script, scriptContext, script.getOptions()), script.getParams());
+        return executable(compile(script, scriptContext), script.getParams());
     }
 
     /**
@@ -479,7 +478,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
      * Compiles (or retrieves from cache) and executes the provided search script
      */
     public SearchScript search(SearchLookup lookup, Script script, ScriptContext scriptContext) {
-        CompiledScript compiledScript = compile(script, scriptContext, script.getOptions());
+        CompiledScript compiledScript = compile(script, scriptContext);
         return search(lookup, compiledScript, script.getParams());
     }
 

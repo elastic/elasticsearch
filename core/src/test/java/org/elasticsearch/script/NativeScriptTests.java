@@ -80,7 +80,7 @@ public class NativeScriptTests extends ESTestCase {
 
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             assertThat(scriptService.compile(new Script(ScriptType.INLINE, NativeScriptEngineService.NAME, "my", Collections.emptyMap()),
-                scriptContext, Collections.emptyMap()), notNullValue());
+                scriptContext), notNullValue());
         }
     }
 

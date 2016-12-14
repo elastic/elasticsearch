@@ -67,7 +67,7 @@ public class ScriptContextTests extends ESTestCase {
         for (ScriptType scriptType : ScriptType.values()) {
             try {
                 Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
-                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"), Collections.emptyMap());
+                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"));
                 fail("script compilation should have been rejected");
             } catch (IllegalStateException e) {
                 assertThat(e.getMessage(), containsString("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
@@ -79,16 +79,16 @@ public class ScriptContextTests extends ESTestCase {
         ScriptService scriptService = makeScriptService();
         Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
         try {
-            scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"), Collections.emptyMap());
+            scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_exp_disabled_op"));
             fail("script compilation should have been rejected");
         } catch (IllegalStateException e) {
             assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [inline], operation [" + PLUGIN_NAME + "_custom_exp_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
         }
 
         // still works for other script contexts
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.AGGS, Collections.emptyMap()));
-        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH, Collections.emptyMap()));
-        assertNotNull(scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op"), Collections.emptyMap()));
+        assertNotNull(scriptService.compile(script, ScriptContext.Standard.AGGS));
+        assertNotNull(scriptService.compile(script, ScriptContext.Standard.SEARCH));
+        assertNotNull(scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_op")));
     }
 
     public void testUnknownPluginScriptContext() throws Exception {
@@ -96,7 +96,7 @@ public class ScriptContextTests extends ESTestCase {
         for (ScriptType scriptType : ScriptType.values()) {
             try {
                 Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
-                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"), Collections.emptyMap());
+                scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "unknown"));
                 fail("script compilation should have been rejected");
             } catch (IllegalArgumentException e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [" + PLUGIN_NAME + "_unknown] not supported"));
@@ -115,7 +115,7 @@ public class ScriptContextTests extends ESTestCase {
         for (ScriptType scriptType : ScriptType.values()) {
             try {
                 Script script = new Script(scriptType, MockScriptEngine.NAME, "1", Collections.emptyMap());
-                scriptService.compile(script, context, Collections.emptyMap());
+                scriptService.compile(script, context);
                 fail("script compilation should have been rejected");
             } catch (IllegalArgumentException e) {
                 assertTrue(e.getMessage(), e.getMessage().contains("script context [test] not supported"));

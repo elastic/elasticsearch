@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.prelert.job.process.autodetect.output;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
@@ -90,9 +89,9 @@ public class AutoDetectResultProcessor {
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] error parsing autodetect output", new Object[] {jobId}), e);
         } finally {
-            completionLatch.countDown();
+            waitUntilRenormalizerIsIdle();
             flushListener.clear();
-            renormalizer.shutdown();
+            completionLatch.countDown();
         }
     }
 
@@ -149,12 +148,8 @@ public class AutoDetectResultProcessor {
         if (quantiles != null) {
             persister.persistQuantiles(quantiles);
 
-            LOGGER.debug("[{}] Quantiles parsed from output - will " + "trigger renormalization of scores", context.jobId);
-            if (context.isPerPartitionNormalization) {
-                renormalizer.renormalizeWithPartition(quantiles);
-            } else {
-                renormalizer.renormalize(quantiles);
-            }
+            LOGGER.debug("[{}] Quantiles parsed from output - will trigger renormalization of scores", context.jobId);
+            renormalizer.renormalize(quantiles);
         }
         FlushAcknowledgement flushAcknowledgement = result.getFlushAcknowledgement();
         if (flushAcknowledgement != null) {

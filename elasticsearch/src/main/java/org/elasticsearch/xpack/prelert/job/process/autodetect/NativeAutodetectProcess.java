@@ -108,10 +108,10 @@ class NativeAutodetectProcess implements AutodetectProcess {
             if (cppLogHandler.seenFatalError()) {
                 throw ExceptionsHelper.serverError(cppLogHandler.getErrors());
             }
-            LOGGER.info("[{}] Autodetect process exited", jobId);
+            LOGGER.debug("[{}] Autodetect process exited", jobId);
         } catch (ExecutionException | TimeoutException e) {
             LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running autodetect process",
-                    new Object[] { jobId }, e));
+                    new Object[] { jobId }), e);
         } catch (InterruptedException e) {
             LOGGER.warn("[{}] Exception closing the running autodetect process", jobId);
             Thread.currentThread().interrupt();

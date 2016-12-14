@@ -14,7 +14,8 @@ public class PartitionScoreTests extends AbstractSerializingTestCase<PartitionSc
 
     @Override
     protected PartitionScore createTestInstance() {
-        return new PartitionScore(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20), randomDouble(), randomDouble());
+        return new PartitionScore(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20), randomDouble(), randomDouble(),
+                randomDouble());
     }
 
     @Override

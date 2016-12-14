@@ -61,7 +61,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
             List<PartitionScore> partitionScores = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 partitionScores.add(new PartitionScore(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20), randomDouble(),
-                        randomDouble()));
+                        randomDouble(), randomDouble()));
             }
             bucket.setPartitionScores(partitionScores);
         }
@@ -306,20 +306,28 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
 
     public void testPartitionAnomalyScore() {
         List<PartitionScore> pScore = new ArrayList<>();
-        pScore.add(new PartitionScore("pf", "pv1", 10, 0.1));
-        pScore.add(new PartitionScore("pf", "pv3", 50, 0.1));
-        pScore.add(new PartitionScore("pf", "pv4", 60, 0.1));
-        pScore.add(new PartitionScore("pf", "pv2", 40, 0.1));
+        pScore.add(new PartitionScore("pf", "pv1", 11.0, 10.0, 0.1));
+        pScore.add(new PartitionScore("pf", "pv3", 51.0, 50.0, 0.1));
+        pScore.add(new PartitionScore("pf", "pv4", 61.0, 60.0, 0.1));
+        pScore.add(new PartitionScore("pf", "pv2", 41.0, 40.0, 0.1));
 
         Bucket bucket = new Bucket("foo", new Date(123), 123);
         bucket.setPartitionScores(pScore);
 
+        double initialAnomalyScore = bucket.partitionInitialAnomalyScore("pv1");
+        assertEquals(11.0, initialAnomalyScore, 0.001);
         double anomalyScore = bucket.partitionAnomalyScore("pv1");
         assertEquals(10.0, anomalyScore, 0.001);
+        initialAnomalyScore = bucket.partitionInitialAnomalyScore("pv2");
+        assertEquals(41.0, initialAnomalyScore, 0.001);
         anomalyScore = bucket.partitionAnomalyScore("pv2");
         assertEquals(40.0, anomalyScore, 0.001);
+        initialAnomalyScore = bucket.partitionInitialAnomalyScore("pv3");
+        assertEquals(51.0, initialAnomalyScore, 0.001);
         anomalyScore = bucket.partitionAnomalyScore("pv3");
         assertEquals(50.0, anomalyScore, 0.001);
+        initialAnomalyScore = bucket.partitionInitialAnomalyScore("pv4");
+        assertEquals(61.0, initialAnomalyScore, 0.001);
         anomalyScore = bucket.partitionAnomalyScore("pv4");
         assertEquals(60.0, anomalyScore, 0.001);
     }

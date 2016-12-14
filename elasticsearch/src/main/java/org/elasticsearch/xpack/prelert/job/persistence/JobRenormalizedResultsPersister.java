@@ -20,14 +20,13 @@ import java.util.List;
  * for a particular job with new normalized anomaly scores and
  * unusual scores.
  *
- * Renormalized results already have an ID having been indexed at least
- * once before that same ID should be used on persistence
+ * Renormalized results must already have an ID.
  */
-public class JobRenormalizer extends AbstractComponent {
+public class JobRenormalizedResultsPersister extends AbstractComponent {
 
     private final JobResultsPersister jobResultsPersister;
 
-    public JobRenormalizer(Settings settings, JobResultsPersister jobResultsPersister) {
+    public JobRenormalizedResultsPersister(Settings settings, JobResultsPersister jobResultsPersister) {
         super(settings);
         this.jobResultsPersister = jobResultsPersister;
     }

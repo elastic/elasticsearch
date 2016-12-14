@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
+import org.elasticsearch.xpack.prelert.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.UsagePersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
@@ -35,7 +36,10 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectR
 import org.elasticsearch.xpack.prelert.job.process.autodetect.output.StateProcessor;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
-import org.elasticsearch.xpack.prelert.job.process.normalizer.noop.NoOpRenormalizer;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.NormalizerFactory;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.Renormalizer;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.ScoresUpdater;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.ShortCircuitingRenormalizer;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
@@ -64,10 +68,12 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     private final JobProvider jobProvider;
     private final AutodetectResultsParser parser;
     private final AutodetectProcessFactory autodetectProcessFactory;
+    private final NormalizerFactory normalizerFactory;
 
     private final UsagePersister usagePersister;
     private final StateProcessor stateProcessor;
     private final JobResultsPersister jobResultsPersister;
+    private final JobRenormalizedResultsPersister jobRenormalizedResultsPersister;
     private final JobDataCountsPersister jobDataCountsPersister;
 
     private final ConcurrentMap<String, AutodetectCommunicator> autoDetectCommunicatorByJob;
@@ -76,18 +82,22 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
 
     public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool, JobManager jobManager,
                                     JobProvider jobProvider, JobResultsPersister jobResultsPersister,
+                                    JobRenormalizedResultsPersister jobRenormalizedResultsPersister,
                                     JobDataCountsPersister jobDataCountsPersister, AutodetectResultsParser parser,
-                                    AutodetectProcessFactory autodetectProcessFactory, ClusterSettings clusterSettings) {
+                                    AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
+                                    ClusterSettings clusterSettings) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
         this.maxAllowedRunningJobs = MAX_RUNNING_JOBS_PER_NODE.get(settings);
         this.parser = parser;
         this.autodetectProcessFactory = autodetectProcessFactory;
+        this.normalizerFactory = normalizerFactory;
         this.jobManager = jobManager;
         this.jobProvider = jobProvider;
 
         this.jobResultsPersister = jobResultsPersister;
+        this.jobRenormalizedResultsPersister = jobRenormalizedResultsPersister;
         this.stateProcessor = new StateProcessor(settings, jobResultsPersister);
         this.usagePersister = new UsagePersister(settings, client);
         this.jobDataCountsPersister = jobDataCountsPersister;
@@ -175,12 +185,14 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         UsageReporter usageReporter = new UsageReporter(settings, job.getId(), usagePersister);
         try (StatusReporter statusReporter = new StatusReporter(threadPool, settings, job.getId(), jobProvider.dataCounts(jobId),
                 usageReporter, jobDataCountsPersister)) {
-            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(new NoOpRenormalizer(), jobResultsPersister, parser);
+            ScoresUpdater scoresUpdator = new ScoresUpdater(job, jobProvider, jobRenormalizedResultsPersister, normalizerFactory);
+            Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdator,
+                    threadPool.executor(PrelertPlugin.THREAD_POOL_NAME), job.getAnalysisConfig().getUsePerPartitionNormalization());
+            AutoDetectResultProcessor processor = new AutoDetectResultProcessor(renormalizer, jobResultsPersister, parser);
 
             AutodetectProcess process = null;
             try {
                 process = autodetectProcessFactory.createAutodetectProcess(job, ignoreDowntime, executorService);
-                // TODO Port the normalizer from the old project
                 return new AutodetectCommunicator(executorService, job, process, statusReporter, processor, stateProcessor);
             } catch (Exception e) {
                 try {

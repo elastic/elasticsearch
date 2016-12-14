@@ -47,26 +47,27 @@ public class NormalizerTests extends ESTestCase {
 
     public void testNormalize() throws IOException {
         ExecutorService threadpool = Executors.newScheduledThreadPool(1);
+        try {
+            NormalizerProcessFactory processFactory = mock(NormalizerProcessFactory.class);
+            when(processFactory.createNormalizerProcess(eq(JOB_ID), eq(QUANTILES_STATE), eq(BUCKET_SPAN), eq(false),
+                    any())).thenReturn(new MultiplyingNormalizerProcess(Settings.EMPTY, FACTOR));
+            Normalizer normalizer = new Normalizer(JOB_ID, processFactory, threadpool);
 
-        NormalizerProcessFactory processFactory = mock(NormalizerProcessFactory.class);
-        when(processFactory.createNormalizerProcess(eq(JOB_ID), eq(QUANTILES_STATE), eq(BUCKET_SPAN), eq(false),
-                any())).thenReturn(new MultiplyingNormalizerProcess(Settings.EMPTY, FACTOR));
-        Normalizer normalizer = new Normalizer(JOB_ID, processFactory, threadpool);
+            Bucket bucket = generateBucket(new Date(0));
+            bucket.setAnomalyScore(0.0);
+            bucket.addBucketInfluencer(createTimeBucketInfluencer(bucket.getTimestamp(), 0.07, INITIAL_SCORE));
+            Deque<Bucket> buckets = new ArrayDeque<>();
+            buckets.add(bucket);
 
-        Bucket bucket = generateBucket(new Date(0));
-        bucket.setAnomalyScore(0.0);
-        bucket.addBucketInfluencer(createTimeBucketInfluencer(bucket.getTimestamp(), 0.07, INITIAL_SCORE));
-        Deque<Bucket> buckets = new ArrayDeque<>();
-        buckets.add(bucket);
+            List<Normalizable> asNormalizables = buckets.stream()
+                    .map(b -> new BucketNormalizable(b)).collect(Collectors.toList());
 
-        List<Normalizable> asNormalizables = buckets.stream()
-                .map(b -> new BucketNormalizable(b)).collect(Collectors.toList());
+            normalizer.normalize(BUCKET_SPAN, false, asNormalizables, QUANTILES_STATE);
 
-        normalizer.normalize(BUCKET_SPAN, false, asNormalizables, QUANTILES_STATE);
-
-        threadpool.shutdown();
-
-        assertEquals(1, asNormalizables.size());
-        assertEquals(FACTOR * INITIAL_SCORE, asNormalizables.get(0).getNormalizedScore(), 0.0001);
+            assertEquals(1, asNormalizables.size());
+            assertEquals(FACTOR * INITIAL_SCORE, asNormalizables.get(0).getNormalizedScore(), 0.0001);
+        } finally {
+            threadpool.shutdown();
+        }
     }
 }

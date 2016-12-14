@@ -72,7 +72,7 @@ public class NativeController {
         }
 
         synchronized (commandStream) {
-            LOGGER.info("Starting process with command: " + command);
+            LOGGER.debug("Starting process with command: " + command);
             commandStream.write(START_COMMAND.getBytes(StandardCharsets.UTF_8));
             for (String arg : command) {
                 commandStream.write('\t');

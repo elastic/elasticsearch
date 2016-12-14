@@ -15,20 +15,7 @@ public interface Renormalizer {
     void renormalize(Quantiles quantiles);
 
     /**
-     * Update the anomaly score field on all previously persisted buckets
-     * and all contained records and aggregate records to the partition
-     * level
-     */
-    void renormalizeWithPartition(Quantiles quantiles);
-
-
-    /**
-     * Blocks until the renormalizer is idle and no further normalization tasks are pending.
+     * Blocks until the renormalizer is idle and no further quantiles updates are pending.
      */
     void waitUntilIdle();
-
-    /**
-     * Shut down the renormalizer
-     */
-    boolean shutdown();
 }

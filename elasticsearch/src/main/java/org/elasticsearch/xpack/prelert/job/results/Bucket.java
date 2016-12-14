@@ -306,6 +306,13 @@ public class Bucket extends ToXContentToBytes implements Writeable {
         this.perPartitionMaxProbability = perPartitionMaxProbability;
     }
 
+    public double partitionInitialAnomalyScore(String partitionValue) {
+        Optional<PartitionScore> first = partitionScores.stream().filter(s -> partitionValue.equals(s.getPartitionFieldValue()))
+                .findFirst();
+
+        return first.isPresent() ? first.get().getInitialAnomalyScore() : 0.0;
+    }
+
     public double partitionAnomalyScore(String partitionValue) {
         Optional<PartitionScore> first = partitionScores.stream().filter(s -> partitionValue.equals(s.getPartitionFieldValue()))
                 .findFirst();

@@ -5,16 +5,20 @@
  */
 package org.elasticsearch.xpack.prelert.job.process.normalizer;
 
+import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 
-/**
- * Factory interface for creating implementations of {@link Normalizer}
- */
-public interface NormalizerFactory {
-    /**
-     *  Create an implementation of {@link Normalizer}
-     *
-     * @param jobId The job ID
-     * @return The normalizer
-     */
-    Normalizer create(String jobId);
+public class NormalizerFactory {
+
+    private final NormalizerProcessFactory processFactory;
+    private final ExecutorService executorService;
+
+    public NormalizerFactory(NormalizerProcessFactory processFactory, ExecutorService executorService) {
+        this.processFactory = Objects.requireNonNull(processFactory);
+        this.executorService = Objects.requireNonNull(executorService);
+    }
+
+    public Normalizer create(String jobId) {
+        return new Normalizer(jobId, processFactory, executorService);
+    }
 }

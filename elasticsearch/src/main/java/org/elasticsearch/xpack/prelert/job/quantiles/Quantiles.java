@@ -46,32 +46,26 @@ public class Quantiles extends ToXContentToBytes implements Writeable {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), QUANTILE_STATE);
     }
 
-    private String jobId;
-    private Date timestamp;
-    private String quantileState;
+    private final String jobId;
+    private final Date timestamp;
+    private final String quantileState;
 
-    public Quantiles(String jobId, Date timestamp, String quantilesState) {
+    public Quantiles(String jobId, Date timestamp, String quantileState) {
         this.jobId = jobId;
-        this.timestamp = timestamp;
-        quantileState = quantilesState == null ? "" : quantilesState;
+        this.timestamp = Objects.requireNonNull(timestamp);
+        this.quantileState = Objects.requireNonNull(quantileState);
     }
 
     public Quantiles(StreamInput in) throws IOException {
         jobId = in.readString();
-        if (in.readBoolean()) {
-            timestamp = new Date(in.readLong());
-        }
+        timestamp = new Date(in.readLong());
         quantileState = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(jobId);
-        boolean hasTimestamp = timestamp != null;
-        out.writeBoolean(hasTimestamp);
-        if (hasTimestamp) {
-            out.writeLong(timestamp.getTime());
-        }
+        out.writeLong(timestamp.getTime());
         out.writeOptionalString(quantileState);
     }
 

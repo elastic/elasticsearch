@@ -66,7 +66,7 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
                 List<PartitionScore> partitionScores = new ArrayList<>(size);
                 for (int i = 0; i < size; i++) {
                     partitionScores.add(new PartitionScore(randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
-                            randomDouble(), randomDouble()));
+                            randomDouble(), randomDouble(), randomDouble()));
                 }
                 bucket.setPartitionScores(partitionScores);
             }

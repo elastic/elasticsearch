@@ -48,8 +48,8 @@ public class BucketNormalizableTests extends ESTestCase {
         bucket.setRecords(Arrays.asList(record1, record2));
 
         List<PartitionScore> partitionScores = new ArrayList<>();
-        partitionScores.add(new PartitionScore("pf1", "pv1", 0.2, 0.1));
-        partitionScores.add(new PartitionScore("pf1", "pv2", 0.4, 0.01));
+        partitionScores.add(new PartitionScore("pf1", "pv1", 0.3, 0.2, 0.1));
+        partitionScores.add(new PartitionScore("pf1", "pv2", 0.5, 0.4, 0.01));
         bucket.setPartitionScores(partitionScores);
     }
 

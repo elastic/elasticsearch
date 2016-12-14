@@ -72,7 +72,7 @@ class NativeNormalizerProcess implements NormalizerProcess {
             if (cppLogHandler.seenFatalError()) {
                 throw ExceptionsHelper.serverError(cppLogHandler.getErrors());
             }
-            LOGGER.info("[{}] Normalizer process exited", jobId);
+            LOGGER.debug("[{}] Normalizer process exited", jobId);
         } catch (ExecutionException | TimeoutException e) {
             LOGGER.warn(new ParameterizedMessage("[{}] Exception closing the running normalizer process", new Object[] { jobId }), e);
         } catch (InterruptedException e) {

@@ -50,8 +50,9 @@ public class AutodetectCommunicator implements Closeable {
 
     final AtomicReference<CountDownLatch> inUse = new AtomicReference<>();
 
-    public AutodetectCommunicator(ExecutorService autoDetectExecutor, Job job, AutodetectProcess process, StatusReporter statusReporter,
-                                  AutoDetectResultProcessor autoDetectResultProcessor, StateProcessor stateProcessor) {
+    public AutodetectCommunicator(ExecutorService autoDetectExecutor, Job job, AutodetectProcess process,
+                                  StatusReporter statusReporter, AutoDetectResultProcessor autoDetectResultProcessor,
+                                  StateProcessor stateProcessor) {
         this.jobId = job.getId();
         this.autodetectProcess = process;
         this.statusReporter = statusReporter;
@@ -63,7 +64,7 @@ public class AutodetectCommunicator implements Closeable {
             autoDetectResultProcessor.process(jobId, process.getProcessOutStream(), usePerPartitionNormalization)
         );
         autoDetectExecutor.execute(() ->
-            stateProcessor.process(job.getId(), process.getPersistStream())
+            stateProcessor.process(jobId, process.getPersistStream())
         );
         this.autoDetectWriter = createProcessWriter(job, process, statusReporter);
     }

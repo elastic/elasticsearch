@@ -13,24 +13,12 @@ import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
  * This should be removed when the normalizer code is ported
  */
 public class NoOpRenormalizer implements Renormalizer {
-    // NORELEASE Remove once the normalizer code is ported
+
     @Override
     public void renormalize(Quantiles quantiles) {
-
-    }
-
-    @Override
-    public void renormalizeWithPartition(Quantiles quantiles) {
-
     }
 
     @Override
     public void waitUntilIdle() {
-
-    }
-
-    @Override
-    public boolean shutdown() {
-        return true;
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectCommunicator;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectR
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.params.TimeRange;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.prelert.job.results.AutodetectResult;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -74,14 +76,18 @@ public class AutodetectProcessManagerTests extends ESTestCase {
     private JobManager jobManager;
     private JobProvider jobProvider;
     private JobResultsPersister jobResultsPersister;
+    private JobRenormalizedResultsPersister jobRenormalizedResultsPersister;
     private JobDataCountsPersister jobDataCountsPersister;
+    private NormalizerFactory normalizerFactory;
 
     @Before
     public void initMocks() {
         jobManager = mock(JobManager.class);
         jobProvider = mock(JobProvider.class);
         jobResultsPersister = mock(JobResultsPersister.class);
+        jobRenormalizedResultsPersister = mock(JobRenormalizedResultsPersister.class);
         jobDataCountsPersister = mock(JobDataCountsPersister.class);
+        normalizerFactory = mock(NormalizerFactory.class);
         givenAllocationWithStatus(JobStatus.OPENED);
     }
 
@@ -136,8 +142,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         settingSet.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingSet.add(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingSet);
-        AutodetectProcessManager manager = new AutodetectProcessManager(settings.build(), client, threadPool,
-                jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, clusterSettings);
+        AutodetectProcessManager manager = new AutodetectProcessManager(settings.build(), client, threadPool, jobManager, jobProvider,
+                jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory,
+                normalizerFactory, clusterSettings);
 
         manager.openJob("foo", false);
         manager.openJob("bar", false);
@@ -283,8 +290,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory = (j, i, e) -> autodetectProcess;
-        AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool,
-                jobManager, jobProvider, jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, clusterSettings);
+        AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
+                jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory,
+                normalizerFactory, clusterSettings);
 
         expectThrows(EsRejectedExecutionException.class, () -> manager.create("_id", false));
         verify(autodetectProcess, times(1)).close();
@@ -309,8 +317,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         settingSet.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         settingSet.add(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingSet);
-        AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager,
-                jobProvider, jobResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory, clusterSettings);
+        AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
+                jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory,
+                normalizerFactory, clusterSettings);
         manager = spy(manager);
         doReturn(communicator).when(manager).create(any(), anyBoolean());
         return manager;

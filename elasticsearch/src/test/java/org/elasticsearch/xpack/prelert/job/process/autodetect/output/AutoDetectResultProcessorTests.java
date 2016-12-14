@@ -56,7 +56,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         JobResultsPersister persister = mock(JobResultsPersister.class);
         AutoDetectResultProcessor processor = new AutoDetectResultProcessor(renormalizer, persister, parser);
         processor.process(JOB_ID, mock(InputStream.class), randomBoolean());
-        verify(renormalizer, times(1)).shutdown();
+        verify(renormalizer, times(1)).waitUntilIdle();
         assertEquals(0, processor.completionLatch.getCount());
     }
 
@@ -307,24 +307,4 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         verifyNoMoreInteractions(persister);
         verifyNoMoreInteractions(renormalizer);
     }
-
-    public void testProcessResult_quantiles_isPerPartitionNormalization() {
-        Renormalizer renormalizer = mock(Renormalizer.class);
-        JobResultsPersister persister = mock(JobResultsPersister.class);
-        JobResultsPersister.Builder bulkBuilder = mock(JobResultsPersister.Builder.class);
-        AutoDetectResultProcessor processor = new AutoDetectResultProcessor(renormalizer, persister, null);
-
-        AutoDetectResultProcessor.Context context = new AutoDetectResultProcessor.Context(JOB_ID, true, bulkBuilder);
-        context.deleteInterimRequired = false;
-        AutodetectResult result = mock(AutodetectResult.class);
-        Quantiles quantiles = mock(Quantiles.class);
-        when(result.getQuantiles()).thenReturn(quantiles);
-        processor.processResult(context, result);
-
-        verify(persister, times(1)).persistQuantiles(quantiles);
-        verify(renormalizer, times(1)).renormalizeWithPartition(quantiles);
-        verifyNoMoreInteractions(persister);
-        verifyNoMoreInteractions(renormalizer);
-    }
-
 }

@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleterFactory;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.process.NativeController;
 import org.elasticsearch.xpack.prelert.job.process.ProcessCtrl;
@@ -70,6 +71,7 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcessF
 import org.elasticsearch.xpack.prelert.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.NativeAutodetectProcessFactory;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectResultsParser;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunner;
 import org.elasticsearch.xpack.prelert.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.prelert.job.process.normalizer.MultiplyingNormalizerProcess;
@@ -157,6 +159,8 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
 
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
         JobProvider jobProvider = new JobProvider(client, 0, parseFieldMatcherSupplier.getParseFieldMatcher());
+        JobRenormalizedResultsPersister jobRenormalizedResultsPersister = new JobRenormalizedResultsPersister(settings,
+                jobResultsPersister);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
 
         JobManager jobManager = new JobManager(settings, jobProvider, jobResultsPersister, clusterService);
@@ -177,10 +181,12 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, perPartitionNormalization,
                                         executorService) -> new MultiplyingNormalizerProcess(settings, 1.0);
         }
+        NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
+                threadPool.executor(PrelertPlugin.THREAD_POOL_NAME));
         AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings, parseFieldMatcherSupplier);
         DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
-                jobResultsPersister, jobDataCountsPersister, autodetectResultsParser, autodetectProcessFactory,
-                clusterService.getClusterSettings());
+                jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, autodetectResultsParser,
+                autodetectProcessFactory, normalizerFactory, clusterService.getClusterSettings());
         ScheduledJobRunner scheduledJobRunner = new ScheduledJobRunner(threadPool, client, clusterService, jobProvider,
                 // norelease: we will no longer need to pass the client here after we switch to a client based data extractor
                 new HttpDataExtractorFactory(client),
@@ -266,15 +272,11 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
         return env.configFile().resolve(NAME).resolve(name);
     }
 
-    public static Path resolveLogFile(Environment env, String name) {
-        return env.logsFile().resolve(NAME).resolve(name);
-    }
-
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         int maxNumberOfJobs = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.get(settings);
         FixedExecutorBuilder prelert = new FixedExecutorBuilder(settings, THREAD_POOL_NAME,
-                maxNumberOfJobs, 1000, "xpack.prelert.thread_pool");
+                maxNumberOfJobs * 2, 1000, "xpack.prelert.thread_pool");
 
         // fail quick to run autodetect process / scheduler, so no queues
         // 4 threads: for c++ logging, result processing, state processing and restore state

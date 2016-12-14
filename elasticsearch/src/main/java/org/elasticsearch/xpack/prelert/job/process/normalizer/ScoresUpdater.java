@@ -11,11 +11,10 @@ import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.persistence.BatchedDocumentsIterator;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
-import org.elasticsearch.xpack.prelert.job.persistence.JobRenormalizer;
+import org.elasticsearch.xpack.prelert.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
-import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 
 import java.util.ArrayList;
 import java.util.Deque;
@@ -27,7 +26,7 @@ import java.util.stream.Collectors;
  * Thread safe class that updates the scores of all existing results
  * with the renormalized scores
  */
-class ScoresUpdater {
+public class ScoresUpdater {
     private static final Logger LOGGER = Loggers.getLogger(ScoresUpdater.class);
 
     /**
@@ -45,16 +44,17 @@ class ScoresUpdater {
 
     private final Job job;
     private final JobProvider jobProvider;
-    private final JobRenormalizer updatesPersister;
+    private final JobRenormalizedResultsPersister updatesPersister;
     private final NormalizerFactory normalizerFactory;
     private int bucketSpan;
     private long normalizationWindow;
     private boolean perPartitionNormalization;
 
-    public ScoresUpdater(Job job, JobProvider jobProvider, JobRenormalizer jobRenormalizer, NormalizerFactory normalizerFactory) {
+    public ScoresUpdater(Job job, JobProvider jobProvider, JobRenormalizedResultsPersister jobRenormalizedResultsPersister,
+                         NormalizerFactory normalizerFactory) {
         this.job = job;
         this.jobProvider = Objects.requireNonNull(jobProvider);
-        updatesPersister = Objects.requireNonNull(jobRenormalizer);
+        updatesPersister = Objects.requireNonNull(jobRenormalizedResultsPersister);
         this.normalizerFactory = Objects.requireNonNull(normalizerFactory);
         bucketSpan = getBucketSpanOrDefault(job.getAnalysisConfig());
         normalizationWindow = getNormalizationWindowOrDefault(job);
@@ -181,7 +181,7 @@ class ScoresUpdater {
     private void updateBucketIfItHasBigChange(Bucket bucket, int[] counts, boolean perPartitionNormalization) {
         if (bucket.hadBigNormalizedUpdate()) {
             if (perPartitionNormalization) {
-                updatesPersister.updatePerPartitionMaxProbabilities(bucket.getJobId(), bucket.getRecords());
+                updatesPersister.updatePerPartitionMaxProbabilities(job.getId(), bucket.getRecords());
             }
             updatesPersister.updateBucket(bucket);
 
@@ -204,7 +204,7 @@ class ScoresUpdater {
         }
 
         if (!toUpdate.isEmpty()) {
-            updatesPersister.updateRecords(bucket.getId(), toUpdate);
+            updatesPersister.updateRecords(job.getId(), toUpdate);
         }
     }
 

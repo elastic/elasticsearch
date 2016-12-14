@@ -314,7 +314,8 @@ public class LongTermsIT extends AbstractTermsTestCase {
         testIncludeExcludeResults(0, empty, excludes, new long[] { 0, 1, 3 }, new long[] {5, 6, 7, 8, 9, 10, 11});
     }
 
-    private void testIncludeExcludeResults(int minDocCount, long[] includes, long[] excludes, long[] expectedWithCounts, long[] expectedZeroCounts) {
+    private void testIncludeExcludeResults(int minDocCount, long[] includes, long[] excludes,
+                                           long[] expectedWithCounts, long[] expectedZeroCounts) {
         SearchResponse response = client().prepareSearch("idx").setTypes("type")
                 .addAggregation(terms("terms")
                         .field(SINGLE_VALUED_FIELD_NAME)

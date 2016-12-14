@@ -1300,7 +1300,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         .getMaxThreadCount());
                 if (maxThreadCount != mergeSchedulerConfig.getMaxThreadCount()) {
                     logger.info("updating [{}] from [{}] to [{}]", MergeSchedulerConfig.MAX_THREAD_COUNT, mergeSchedulerConfig
-                            .getMaxMergeCount(), maxThreadCount);
+                            .getMaxThreadCount(), maxThreadCount);
                     mergeSchedulerConfig.setMaxThreadCount(maxThreadCount);
                     change = true;
                 }

@@ -30,21 +30,27 @@ import java.util.function.Supplier;
  * A set of static methods to get {@link Token} from {@link XContentParser}
  * while checking for their types and throw {@link ParsingException} if needed.
  */
-public class XContentParserUtils {
+public final class XContentParserUtils {
 
-    /**
-     * Throws a {@link ParsingException} if the token is not of type Token.FIELD_NAME
-     *
-     * @return the token, definitely a Token.FIELD_NAME
-     */
-    public static Token ensureFieldName(XContentParser parser, Token token) throws IOException {
-        return ensureType(Token.FIELD_NAME, token, parser::getTokenLocation);
+    private XContentParserUtils() {
     }
 
     /**
-     * Throws a {@link ParsingException} if the token is not of type Token.FIELD_NAME or is not equal to the given field name.
+     * Makes sure that current token is of type {@link XContentParser.Token#FIELD_NAME}
      *
-     * @return the token, definitely a Token.FIELD_NAME
+     * @return the token
+     * @throws ParsingException if the token is not of type {@link XContentParser.Token#FIELD_NAME}
+     */
+    public static Token ensureFieldName(Token token, Supplier<XContentLocation> location) throws IOException {
+        return ensureType(Token.FIELD_NAME, token, location);
+    }
+
+    /**
+     * Makes sure that current token is of type {@link XContentParser.Token#FIELD_NAME} and the the field name is equal to the provided one
+     *
+     * @return the token
+     * @throws ParsingException if the token is not of type {@link XContentParser.Token#FIELD_NAME} or is not equal to the given
+     *                          field name
      */
     public static Token ensureFieldName(XContentParser parser, Token token, String fieldName) throws IOException {
         Token t = ensureType(Token.FIELD_NAME, token, parser::getTokenLocation);
@@ -58,13 +64,19 @@ public class XContentParserUtils {
     }
 
     /**
-     * Throws a {@link ParsingException} with a "unknown field found" reason.
+     * @throws ParsingException with a "unknown field found" reason
      */
     public static void throwUnknownField(String field, XContentLocation location) {
         String message = "Failed to parse object: unknown field [%s] found";
         throw new ParsingException(location, String.format(Locale.ROOT, message, field));
     }
 
+    /**
+     * Makes sure that current token is of the expected type
+     *
+     * @return the token
+     * @throws ParsingException if the token is not equal to the expected type
+     */
     private static Token ensureType(Token expected, Token current, Supplier<XContentLocation> location) {
         if (current != expected) {
             String message = "Failed to parse object: expecting token of type [%s] but found [%s]";

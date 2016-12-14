@@ -157,7 +157,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     protected void doStart() {
         // Doesn't make sense to manage shards on non-master and non-data nodes
         if (DiscoveryNode.isDataNode(settings) || DiscoveryNode.isMasterNode(settings)) {
-            clusterService.addApplierFirst(this);
+            clusterService.addHighPriorityApplier(this);
         }
     }
 

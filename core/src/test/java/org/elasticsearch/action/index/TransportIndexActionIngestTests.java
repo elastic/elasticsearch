@@ -128,7 +128,7 @@ public class TransportIndexActionIngestTests extends ESTestCase {
             when(event.state()).thenReturn(state);
             ((ClusterStateApplier)invocation.getArguments()[0]).applyClusterState(event);
             return null;
-        }).when(clusterService).addApplier(any(ClusterStateApplier.class));
+        }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         // setup the mocked ingest service for capturing calls
         ingestService = mock(IngestService.class);
         executionService = mock(PipelineExecutionService.class);

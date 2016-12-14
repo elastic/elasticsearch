@@ -114,7 +114,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.allowIdGeneration = this.settings.getAsBoolean("action.bulk.action.allow_id_generation", true);
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
-        clusterService.addApplier(this.ingestForwarder);
+        clusterService.addStateApplier(this.ingestForwarder);
     }
 
     @Override

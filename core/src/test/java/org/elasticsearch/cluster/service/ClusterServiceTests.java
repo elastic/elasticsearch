@@ -33,8 +33,10 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
@@ -1192,8 +1194,10 @@ public class ClusterServiceTests extends ESTestCase {
 
     public void testClusterStateApplierCantSampleClusterState() throws InterruptedException {
         AtomicReference<Throwable> error = new AtomicReference<>();
-        clusterService.addApplier(event -> {
+        AtomicBoolean applierCalled = new AtomicBoolean();
+        clusterService.addStateApplier(event -> {
             try {
+                applierCalled.set(true);
                 clusterService.state();
                 error.set(new AssertionError("successfully sampled state"));
             } catch (AssertionError e) {
@@ -1203,11 +1207,27 @@ public class ClusterServiceTests extends ESTestCase {
             }
         });
 
+        AtomicBoolean settingUpdaterCalled = new AtomicBoolean();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING,
+            allocation -> {
+                try {
+                    settingUpdaterCalled.set(true);
+                    clusterService.state();
+                    error.set(new AssertionError("successfully sampled state"));
+                } catch (AssertionError e) {
+                    if (e.getMessage().contains("should not be called when updating the settings") == false) {
+                        error.set(e);
+                    }
+                }
+            });
+
         CountDownLatch latch = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return ClusterState.builder(currentState).build();
+                MetaData.Builder metaData = MetaData.builder(currentState.metaData()).transientSettings(
+                    Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "NONE").build());
+                return ClusterState.builder(currentState).metaData(metaData).build();
             }
 
             @Override
@@ -1223,6 +1243,8 @@ public class ClusterServiceTests extends ESTestCase {
 
         latch.await();
         assertNull(error.get());
+        assertTrue(applierCalled.get());
+        assertTrue(settingUpdaterCalled.get());
     }
 
     private static class SimpleTask {

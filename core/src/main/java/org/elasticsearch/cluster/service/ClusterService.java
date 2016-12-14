@@ -49,6 +49,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.AbstractScopedSettings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -116,16 +117,16 @@ public class ClusterService extends AbstractLifecycleComponent {
     /**
      * Those 3 state listeners are changing infrequently - CopyOnWriteArrayList is just fine
      */
-    private final Collection<ClusterStateApplier> priorityClusterStateAppliers = new CopyOnWriteArrayList<>();
-    private final Collection<ClusterStateApplier> normalClusterStateAppliers = new CopyOnWriteArrayList<>();
-    private final Collection<ClusterStateApplier> lastClusterStateAppliers = new CopyOnWriteArrayList<>();
+    private final Collection<ClusterStateApplier> highPriorityStateAppliers = new CopyOnWriteArrayList<>();
+    private final Collection<ClusterStateApplier> normalPriorityStateAppliers = new CopyOnWriteArrayList<>();
+    private final Collection<ClusterStateApplier> lowPriorityStateAppliers = new CopyOnWriteArrayList<>();
     final Map<ClusterStateTaskExecutor, LinkedHashSet<UpdateTask>> updateTasksPerExecutor = new HashMap<>();
-    // TODO this is rather frequently changing I guess a Synced Set would be better here and a dedicated remove API
+    private final Iterable<ClusterStateApplier> clusterStateAppliers = Iterables.concat(highPriorityStateAppliers,
+        normalPriorityStateAppliers, lowPriorityStateAppliers);
+
     private final Collection<ClusterStateListener> clusterStateListeners = new CopyOnWriteArrayList<>();
     private final Collection<TimeoutClusterStateListener> timeoutClusterStateListeners =
         Collections.newSetFromMap(new ConcurrentHashMap<TimeoutClusterStateListener, Boolean>());
-    private final Iterable<ClusterStateApplier> clusterStateAppliers = Iterables.concat(priorityClusterStateAppliers,
-        normalClusterStateAppliers, lastClusterStateAppliers);
 
     private final LocalNodeMasterListeners localNodeMasterListeners;
 
@@ -265,33 +266,33 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Adds a priority applier of updated cluster states.
+     * Adds a high priority applier of updated cluster states.
      */
-    public void addApplierFirst(ClusterStateApplier applier) {
-        priorityClusterStateAppliers.add(applier);
+    public void addHighPriorityApplier(ClusterStateApplier applier) {
+        highPriorityStateAppliers.add(applier);
     }
 
     /**
-     * Adds an applier which will be called after all priority and normal appliers have been called.
+     * Adds an applier which will be called after all high priority and normal appliers have been called.
      */
-    public void addApplierLast(ClusterStateApplier applier) {
-        lastClusterStateAppliers.add(applier);
+    public void addLowPriorityApplier(ClusterStateApplier applier) {
+        lowPriorityStateAppliers.add(applier);
     }
 
     /**
      * Adds a applier of updated cluster states.
      */
-    public void addApplier(ClusterStateApplier applier) {
-        normalClusterStateAppliers.add(applier);
+    public void addStateApplier(ClusterStateApplier applier) {
+        normalPriorityStateAppliers.add(applier);
     }
 
     /**
      * Removes an applier of updated cluster states.
      */
     public void removeApplier(ClusterStateApplier applier) {
-        normalClusterStateAppliers.remove(applier);
-        priorityClusterStateAppliers.remove(applier);
-        lastClusterStateAppliers.remove(applier);
+        normalPriorityStateAppliers.remove(applier);
+        highPriorityStateAppliers.remove(applier);
+        lowPriorityStateAppliers.remove(applier);
     }
 
     /**
@@ -563,6 +564,9 @@ public class ClusterService extends AbstractLifecycleComponent {
                 if (element.getClassName().equals(ClusterService.class.getName())
                     && element.getMethodName().equals("callClusterStateAppliers")) {
                    throw new AssertionError("should not be called by a cluster state applier. reason [" + reason + "]");
+                } else if (element.getClassName().equals(AbstractScopedSettings.class.getName())
+                    && element.getMethodName().equals("applySettings")) {
+                    throw new AssertionError("should not be called when updating the settings. reason [" + reason + "]");
                 }
             }
         }

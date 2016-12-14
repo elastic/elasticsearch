@@ -545,7 +545,7 @@ public class IndicesService extends AbstractLifecycleComponent
             listener.beforeIndexRemoved(indexService, reason);
             logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
             indexService.close(extraInfo, reason == IndexRemovalReason.DELETED);
-            logger.debug("{} closed... (reason [{}])", index, reason);
+            logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
             final IndexSettings indexSettings = indexService.getIndexSettings();
             listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
             if (reason == IndexRemovalReason.DELETED) {

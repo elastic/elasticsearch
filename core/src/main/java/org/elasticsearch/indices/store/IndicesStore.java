@@ -361,12 +361,12 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                             }
                         }
                     }, newState -> {
-                            // the shard is not there in which case we want to send back a false (shard is not active), so the cluster state listener must be notified
-                            // or the shard is active in which case we want to send back that the shard is active
-                            // here we could also evaluate the cluster state and get the information from there. we
-                            // don't do it because we would have to write another method for this that would have the same effect
-                            IndexShard currentShard= getShard(request);
-                            return currentShard == null || shardActive(currentShard);
+                        // the shard is not there in which case we want to send back a false (shard is not active), so the cluster state listener must be notified
+                        // or the shard is active in which case we want to send back that the shard is active
+                        // here we could also evaluate the cluster state and get the information from there. we
+                        // don't do it because we would have to write another method for this that would have the same effect
+                        IndexShard currentShard = getShard(request);
+                        return currentShard == null || shardActive(currentShard);
                     });
                 }
             }

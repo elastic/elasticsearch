@@ -119,8 +119,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         if (DiscoveryNode.isDataNode(settings)) {
             // this is only useful on the nodes that can hold data
-            // addApplierLast to make sure that Repository will be created before snapshot
-            clusterService.addApplierLast(this);
+            // addLowPriorityApplier to make sure that Repository will be created before snapshot
+            clusterService.addLowPriorityApplier(this);
         }
 
         if (DiscoveryNode.isMasterNode(settings)) {

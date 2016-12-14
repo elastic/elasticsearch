@@ -577,7 +577,7 @@ public class Node implements Closeable {
         // playing nice with the life cycle interfaces
         clusterService.setLocalNode(localNode);
         transportService.setLocalNode(localNode);
-        clusterService.addApplier(transportService.getTaskManager());
+        clusterService.addStateApplier(transportService.getTaskManager());
 
         clusterService.start();
 

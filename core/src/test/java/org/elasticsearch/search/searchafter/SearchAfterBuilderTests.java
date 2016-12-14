@@ -25,9 +25,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
@@ -108,7 +108,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
     // ensure that every number type remain the same before/after xcontent (de)serialization.
     // This is not a problem because the final type of each field value is extracted from associated sort field.
     // This little trick ensure that equals and hashcode are the same when using the xcontent serialization.
-    private static SearchAfterBuilder randomJsonSearchFromBuilder() throws IOException {
+    private SearchAfterBuilder randomJsonSearchFromBuilder() throws IOException {
         int numSearchAfter = randomIntBetween(1, 10);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         jsonBuilder.startObject();
@@ -150,7 +150,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         }
         jsonBuilder.endArray();
         jsonBuilder.endObject();
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, jsonBuilder.bytes());
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
@@ -188,7 +188,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             builder.startObject();
             searchAfterBuilder.innerToXContent(builder);
             builder.endObject();
-            XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
+            XContentParser parser = createParser(shuffleXContent(builder));
             new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             parser.nextToken();

@@ -603,7 +603,12 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     public void testOfficialPluginsHelpSorted() throws Exception {
         MockTerminal terminal = new MockTerminal();
-        new InstallPluginCommand().main(new String[] { "--help" }, terminal);
+        new InstallPluginCommand() {
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        }.main(new String[] { "--help" }, terminal);
         try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
             String line = reader.readLine();
 
@@ -625,7 +630,12 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     public void testOfficialPluginsIncludesXpack() throws Exception {
         MockTerminal terminal = new MockTerminal();
-        new InstallPluginCommand().main(new String[] { "--help" }, terminal);
+        new InstallPluginCommand() {
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        }.main(new String[] { "--help" }, terminal);
         assertTrue(terminal.getOutput(), terminal.getOutput().contains("x-pack"));
     }
 

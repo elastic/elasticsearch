@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -38,10 +37,10 @@ import static org.mockito.Mockito.mock;
 
 public class RestClearScrollActionTests extends ESTestCase {
     public void testParseClearScrollRequest() throws Exception {
-        XContentParser content = XContentHelper.createParser(XContentFactory.jsonBuilder()
+        XContentParser content = createParser(XContentFactory.jsonBuilder()
                 .startObject()
                     .array("scroll_id", "value_1", "value_2")
-                .endObject().bytes());
+                .endObject());
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         RestClearScrollAction.buildFromContent(content, clearScrollRequest);
         assertThat(clearScrollRequest.scrollIds(), contains("value_1", "value_2"));
@@ -55,11 +54,11 @@ public class RestClearScrollActionTests extends ESTestCase {
     }
 
     public void testParseClearScrollRequestWithUnknownParamThrowsException() throws Exception {
-        XContentParser invalidContent = XContentHelper.createParser(XContentFactory.jsonBuilder()
+        XContentParser invalidContent = createParser(XContentFactory.jsonBuilder()
                 .startObject()
                     .array("scroll_id", "value_1", "value_2")
                     .field("unknown", "keyword")
-                .endObject().bytes());
+                .endObject());
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
 
         Exception e = expectThrows(IllegalArgumentException.class,

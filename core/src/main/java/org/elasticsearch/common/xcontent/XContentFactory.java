@@ -39,7 +39,7 @@ import java.io.OutputStream;
  */
 public class XContentFactory {
 
-    private static int GUESS_HEADER_LENGTH = 20;
+    private static final int GUESS_HEADER_LENGTH = 20;
 
     /**
      * Returns a content builder using JSON format ({@link org.elasticsearch.common.xcontent.XContentType#JSON}.

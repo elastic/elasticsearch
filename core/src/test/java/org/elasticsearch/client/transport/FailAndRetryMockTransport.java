@@ -48,7 +48,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 abstract class FailAndRetryMockTransport<Response extends TransportResponse> implements Transport {
 
@@ -63,6 +65,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     private final AtomicInteger failures = new AtomicInteger();
     private final AtomicInteger successes = new AtomicInteger();
     private final Set<DiscoveryNode> triedNodes = new CopyOnWriteArraySet<>();
+    private final AtomicLong requestId = new AtomicLong();
 
     FailAndRetryMockTransport(Random random, ClusterName clusterName) {
         this.random = new Random(random.nextLong());
@@ -220,5 +223,10 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
     @Override
     public Map<String, BoundTransportAddress> profileBoundAddresses() {
         return Collections.emptyMap();
+    }
+
+    @Override
+    public long newRequestId() {
+        return requestId.incrementAndGet();
     }
 }

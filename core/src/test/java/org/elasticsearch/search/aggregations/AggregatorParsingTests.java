@@ -22,7 +22,7 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
@@ -77,23 +77,23 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     public void testTwoTypes() throws Exception {
-        String source = JsonXContent.contentBuilder()
+        XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
-                .startObject("in_stock")
-                .startObject("filter")
-                .startObject("range")
-                .startObject("stock")
-                .field("gt", 0)
-                .endObject()
-                .endObject()
-                .endObject()
-                .startObject("terms")
-                .field("field", "stock")
-                .endObject()
-                .endObject()
-                .endObject().string();
+                    .startObject("in_stock")
+                        .startObject("filter")
+                            .startObject("range")
+                                .startObject("stock")
+                                    .field("gt", 0)
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                        .startObject("terms")
+                            .field("field", "stock")
+                        .endObject()
+                    .endObject()
+                .endObject();
         try {
-            XContentParser parser = XContentFactory.xContent(source).createParser(source);
+            XContentParser parser = createParser(source);
             QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
@@ -106,7 +106,7 @@ public class AggregatorParsingTests extends ESTestCase {
     public void testTwoAggs() throws Exception {
         assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
             JsonXContent.isStrictDuplicateDetectionEnabled());
-        String source = JsonXContent.contentBuilder()
+        XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
                     .startObject("by_date")
                         .startObject("date_histogram")
@@ -128,9 +128,9 @@ public class AggregatorParsingTests extends ESTestCase {
                             .endObject()
                         .endObject()
                     .endObject()
-                .endObject().string();
+                .endObject();
         try {
-            XContentParser parser = XContentFactory.xContent(source).createParser(source);
+            XContentParser parser = createParser(source);
             QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
@@ -156,7 +156,7 @@ public class AggregatorParsingTests extends ESTestCase {
             }
         }
 
-        String source = JsonXContent.contentBuilder()
+        XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
                     .startObject(name)
                         .startObject("filter")
@@ -167,9 +167,9 @@ public class AggregatorParsingTests extends ESTestCase {
                             .endObject()
                         .endObject()
                     .endObject()
-                .endObject().string();
+                .endObject();
         try {
-            XContentParser parser = XContentFactory.xContent(source).createParser(source);
+            XContentParser parser = createParser(source);
             QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
@@ -183,21 +183,21 @@ public class AggregatorParsingTests extends ESTestCase {
         assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
             JsonXContent.isStrictDuplicateDetectionEnabled());
         final String name = randomAsciiOfLengthBetween(1, 10);
-        String source = JsonXContent.contentBuilder()
+        XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
-                .startObject(name)
-                .startObject("terms")
-                .field("field", "a")
-                .endObject()
-                .endObject()
-                .startObject(name)
-                .startObject("terms")
-                .field("field", "b")
-                .endObject()
-                .endObject()
-                .endObject().string();
+                    .startObject(name)
+                        .startObject("terms")
+                            .field("field", "a")
+                        .endObject()
+                    .endObject()
+                    .startObject(name)
+                        .startObject("terms")
+                            .field("field", "b")
+                        .endObject()
+                    .endObject()
+                .endObject();
         try {
-            XContentParser parser = XContentFactory.xContent(source).createParser(source);
+            XContentParser parser = createParser(source);
             QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
@@ -208,7 +208,7 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     public void testMissingName() throws Exception {
-        String source = JsonXContent.contentBuilder()
+        XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
                     .startObject("by_date")
                         .startObject("date_histogram")
@@ -224,9 +224,9 @@ public class AggregatorParsingTests extends ESTestCase {
                             //.endObject()
                         .endObject()
                     .endObject()
-                .endObject().string();
+                .endObject();
         try {
-            XContentParser parser = XContentFactory.xContent(source).createParser(source);
+            XContentParser parser = createParser(source);
             QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
@@ -237,7 +237,7 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     public void testMissingType() throws Exception {
-        String source = JsonXContent.contentBuilder()
+        XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
                     .startObject("by_date")
                         .startObject("date_histogram")
@@ -253,9 +253,9 @@ public class AggregatorParsingTests extends ESTestCase {
                             .endObject()
                         .endObject()
                     .endObject()
-                .endObject().string();
+                .endObject();
         try {
-            XContentParser parser = XContentFactory.xContent(source).createParser(source);
+            XContentParser parser = createParser(source);
             QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);

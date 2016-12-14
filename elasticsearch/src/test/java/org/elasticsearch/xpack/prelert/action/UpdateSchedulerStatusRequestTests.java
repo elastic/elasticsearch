@@ -9,7 +9,7 @@ import org.elasticsearch.xpack.prelert.action.UpdateSchedulerStatusAction.Reques
 import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
-public class UpdateJobSchedulerStatusRequestTests extends AbstractStreamableTestCase<Request> {
+public class UpdateSchedulerStatusRequestTests extends AbstractStreamableTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {

@@ -19,7 +19,7 @@ import static org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunnerTe
 import static org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunnerTests.createSchedulerConfig;
 import static org.hamcrest.Matchers.equalTo;
 
-public class StopJobSchedulerActionRequestTests extends AbstractStreamableTestCase<StopSchedulerAction.Request> {
+public class StopSchedulerActionRequestTests extends AbstractStreamableTestCase<StopSchedulerAction.Request> {
 
     @Override
     protected Request createTestInstance() {

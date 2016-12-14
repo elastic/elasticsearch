@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -31,12 +30,10 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
-import org.elasticsearch.search.slice.SliceBuilder;
 
 import java.io.IOException;
-
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
 
 public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuilder> {
 
@@ -90,7 +87,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         builder.startObject();
         builder.startArray("filters").endArray();
         builder.endObject();
-        XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
+        XContentParser parser = createParser(shuffleXContent(builder));
         parser.nextToken();
         QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(), parser,
             ParseFieldMatcher.STRICT);
@@ -103,7 +100,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         builder.startArray("filters").endArray();
         builder.field("other_bucket_key", "some_key");
         builder.endObject();
-        parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
+        parser = createParser(shuffleXContent(builder));
         parser.nextToken();
         context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
         filters = FiltersAggregationBuilder.parse("agg_name", context);
@@ -116,7 +113,7 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         builder.field("other_bucket", false);
         builder.field("other_bucket_key", "some_key");
         builder.endObject();
-        parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
+        parser = createParser(shuffleXContent(builder));
         parser.nextToken();
         context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
         filters = FiltersAggregationBuilder.parse("agg_name", context);

@@ -31,10 +31,10 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Unit tests for the teardown section parser
  */
-public class TeardownSectionParserTests extends AbstractParserTestCase {
+public class TeardownSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
 
     public void testParseTeardownSection() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "  - do:\n" +
                 "      delete:\n" +
                 "        index: foo\n" +
@@ -60,7 +60,7 @@ public class TeardownSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseWithSkip() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
             "  - skip:\n" +
                 "      version:  \"2.0.0 - 2.3.0\"\n" +
                 "      reason:   \"there is a reason\"\n" +

@@ -50,8 +50,7 @@ public abstract class QueryContextTestCase<QC extends ToXContent> extends ESTest
             QC toXContent = createTestModel();
             XContentBuilder builder = XContentFactory.jsonBuilder();
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            BytesReference bytesReference = builder.bytes();
-            XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference);
+            XContentParser parser = createParser(builder);
             parser.nextToken();
             QC fromXContext = fromXContent(new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT));
             assertEquals(toXContent, fromXContext);

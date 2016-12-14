@@ -475,8 +475,8 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     private void assertQueryBuilder(BytesRef actual, QueryBuilder expected) throws IOException {
-        XContentParser sourceParser = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent()
-                .createParser(actual.bytes, actual.offset, actual.length);
+        XContentParser sourceParser = createParser(PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent(),
+                new BytesArray(actual));
         QueryParseContext qsc = indexService.newQueryShardContext(
                 randomInt(20), null, () -> { throw new UnsupportedOperationException(); })
                 .newParseContext(sourceParser);

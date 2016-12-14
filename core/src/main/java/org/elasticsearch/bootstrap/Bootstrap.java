@@ -56,7 +56,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
-import java.util.Map;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -222,13 +222,14 @@ final class Bootstrap {
         };
     }
 
-    private static Environment initialEnvironment(boolean foreground, Path pidFile, Map<String, String> esSettings) {
+    private static Environment initialEnvironment(boolean foreground, Path pidFile, Settings initialSettings) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
-        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, esSettings);
+        builder.put(initialSettings);
+        return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap());
     }
 
     private void start() throws NodeValidationException {
@@ -258,7 +259,7 @@ final class Bootstrap {
             final boolean foreground,
             final Path pidFile,
             final boolean quiet,
-            final Map<String, String> esSettings) throws BootstrapException, NodeValidationException, UserException {
+            final Settings initialSettings) throws BootstrapException, NodeValidationException, UserException {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
@@ -268,7 +269,7 @@ final class Bootstrap {
 
         INSTANCE = new Bootstrap();
 
-        Environment environment = initialEnvironment(foreground, pidFile, esSettings);
+        Environment environment = initialEnvironment(foreground, pidFile, initialSettings);
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {

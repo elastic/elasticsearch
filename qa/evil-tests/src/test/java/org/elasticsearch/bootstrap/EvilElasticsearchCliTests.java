@@ -19,6 +19,8 @@
 
 package org.elasticsearch.bootstrap;
 
+import java.util.Map;
+
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
@@ -39,8 +41,9 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 true,
                 output -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
-                    assertThat(esSettings.size(), equalTo(1));
-                    assertThat(esSettings, hasEntry("path.home", value));
+                    Map<String, String> settings = esSettings.getAsMap();
+                    assertThat(settings.size(), equalTo(1));
+                    assertThat(settings, hasEntry("path.home", value));
                 });
 
         System.clearProperty("es.path.home");
@@ -50,8 +53,9 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 true,
                 output -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
-                    assertThat(esSettings.size(), equalTo(1));
-                    assertThat(esSettings, hasEntry("path.home", commandLineValue));
+                    Map<String, String> settings = esSettings.getAsMap();
+                    assertThat(settings.size(), equalTo(1));
+                    assertThat(settings, hasEntry("path.home", commandLineValue));
                 },
                 "-Epath.home=" + commandLineValue);
 

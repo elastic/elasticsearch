@@ -320,7 +320,7 @@ class InstallPluginCommand extends SettingCommand {
     /** Downloads a zip from the url, as well as a SHA1 checksum, and checks the checksum. */
     private Path downloadZipAndChecksum(Terminal terminal, String urlString, Path tmpDir) throws Exception {
         Path zip = downloadZip(terminal, urlString, tmpDir);
-
+        pathsToDeleteOnShutdown.add(zip);
         URL checksumUrl = new URL(urlString + ".sha1");
         final String expectedChecksum;
         try (InputStream in = checksumUrl.openStream()) {
@@ -344,9 +344,9 @@ class InstallPluginCommand extends SettingCommand {
         // unzip plugin to a staging temp dir
 
         final Path target = stagingDirectory(pluginsDir);
+        pathsToDeleteOnShutdown.add(target);
 
         boolean hasEsDir = false;
-        // TODO: we should wrap this in a try/catch and try deleting the target dir on failure?
         try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
             ZipEntry entry;
             byte[] buffer = new byte[8192];
@@ -605,4 +605,12 @@ class InstallPluginCommand extends SettingCommand {
             Files.setPosixFilePermissions(path, permissions);
         }
     }
+
+    private final List<Path> pathsToDeleteOnShutdown = new ArrayList<>();
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[pathsToDeleteOnShutdown.size()]));
+    }
+
 }

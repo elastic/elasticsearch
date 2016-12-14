@@ -29,7 +29,7 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class XContentParsingExceptionsTests extends ESTestCase {
+public class XContentParserUtilsTests extends ESTestCase {
 
     private XContentType xContentType;
 
@@ -44,14 +44,14 @@ public class XContentParsingExceptionsTests extends ESTestCase {
             XContentParser parser = createParser(createBuilder().startObject().endObject().bytes());
             // Parser current token is null
             assertNull(parser.currentToken());
-            XContentParserUtils.ensureFieldName(parser, parser.currentToken());
+            XContentParserUtils.ensureFieldName(parser.currentToken(), parser::getTokenLocation);
         });
         assertThat(e.getMessage(), equalTo("Failed to parse object: expecting token of type [FIELD_NAME] but found [null]"));
 
         e = expectThrows(ParsingException.class, () -> {
             XContentParser parser = createParser(createBuilder().startObject().field("foo", "bar").endObject().bytes());
             // Parser next token is a start object
-            XContentParserUtils.ensureFieldName(parser, parser.nextToken());
+            XContentParserUtils.ensureFieldName(parser.nextToken(), parser::getTokenLocation);
         });
         assertThat(e.getMessage(), equalTo("Failed to parse object: expecting token of type [FIELD_NAME] but found [START_OBJECT]"));
 

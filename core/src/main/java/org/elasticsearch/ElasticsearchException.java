@@ -357,7 +357,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * instances.
      */
     public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = ensureFieldName(parser, parser.nextToken());
+        XContentParser.Token token = ensureFieldName(parser.nextToken(), parser::getTokenLocation);
 
         String type = null, reason = null, stack = null;
         ElasticsearchException cause = null;

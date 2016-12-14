@@ -37,8 +37,6 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static java.util.Collections.singleton;
-import static org.hamcrest.CoreMatchers.allOf;
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.startsWith;
@@ -64,8 +62,12 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         e = new ElasticsearchException("foo", new IllegalStateException("bar"));
         assertExceptionAsJson(e, false, equalTo("{\"type\":\"exception\",\"reason\":\"foo\"," +
                 "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}"));
-        assertExceptionAsJson(e, true, allOf(startsWith("{\"type\":\"exception\",\"reason\":\"foo\""),
-                containsString("\"stack_trace\":\"java.lang.IllegalStateException: bar")));
+
+        // Test the same exception but with the "rest.exception.stacktrace.skip" parameter disabled: the stack_trace must be present
+        // in the JSON. Since the stack can be large, it only checks the beginning of the JSON.
+        assertExceptionAsJson(e, true, startsWith("{\"type\":\"exception\",\"reason\":\"foo\"," +
+                "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"," +
+                "\"stack_trace\":\"java.lang.IllegalStateException: bar"));
     }
 
     public void testToXContentWithHeaders() throws IOException {
@@ -112,22 +114,22 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         assertNotNull(parsed);
-        assertThat(parsed.getMessage(), equalTo("Elasticsearch exception [type=exception, reason=foo]"));
+        assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
         assertThat(parsed.getHeaderKeys(), hasSize(4));
-        assertThat(parsed.getHeader("header_foo_0").get(0), equalTo("foo_0"));
-        assertThat(parsed.getHeader("header_foo_1").get(0), equalTo("foo_1"));
-        assertThat(parsed.getHeader("foo_0").get(0), equalTo("0"));
-        assertThat(parsed.getHeader("foo_1").get(0), equalTo("1"));
+        assertEquals(parsed.getHeader("header_foo_0").get(0), "foo_0");
+        assertEquals(parsed.getHeader("header_foo_1").get(0), "foo_1");
+        assertEquals(parsed.getHeader("foo_0").get(0), "0");
+        assertEquals(parsed.getHeader("foo_1").get(0), "1");
 
         ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
-        assertThat(cause.getMessage(), equalTo("Elasticsearch exception [type=exception, reason=bar]"));
+        assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
 
         cause = (ElasticsearchException) cause.getCause();
-        assertThat(cause.getMessage(), equalTo("Elasticsearch exception [type=exception, reason=baz]"));
+        assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=baz]");
 
         cause = (ElasticsearchException) cause.getCause();
-        assertThat(cause.getMessage(),
-                equalTo("Elasticsearch exception [type=cluster_block_exception, reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]"));
+        assertEquals(cause.getMessage(),
+                "Elasticsearch exception [type=cluster_block_exception, reason=blocked by: [SERVICE_UNAVAILABLE/2/no master];]");
     }
 
     public void testFromXContent() throws IOException {
@@ -148,7 +150,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         assertNotNull(parsed);
-        assertThat(parsed.getMessage(), equalTo("Elasticsearch exception [type=foo, reason=something went wrong, stack_trace=...]"));
+        assertEquals(parsed.getMessage(), "Elasticsearch exception [type=foo, reason=something went wrong, stack_trace=...]");
     }
 
     public void testFromXContentWithCause() throws IOException {
@@ -169,17 +171,17 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         assertNotNull(parsed);
-        assertThat(parsed.getMessage(), equalTo("Elasticsearch exception [type=exception, reason=foo]"));
+        assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
 
         ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
-        assertThat(cause.getMessage(), equalTo("Elasticsearch exception [type=exception, reason=bar]"));
+        assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
 
         cause = (ElasticsearchException) cause.getCause();
-        assertThat(cause.getMessage(), equalTo("Elasticsearch exception [type=exception, reason=baz]"));
+        assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=baz]");
 
         cause = (ElasticsearchException) cause.getCause();
-        assertThat(cause.getMessage(),
-                equalTo("Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]"));
+        assertEquals(cause.getMessage(),
+                "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
         assertThat(cause.getHeaderKeys(), hasSize(2));
         assertThat(cause.getHeader("index"), hasItem("_test"));
         assertThat(cause.getHeader("index_uuid"), hasItem("_na_"));
@@ -212,20 +214,20 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         }
 
         assertNotNull(parsed);
-        assertThat(parsed.getMessage(), equalTo("Elasticsearch exception [type=exception, reason=foo]"));
+        assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
         assertThat(parsed.getHeaderKeys(), hasSize(2));
         assertThat(parsed.getHeader("foo_0"), hasItem("foo0"));
         assertThat(parsed.getHeader("foo_1"), hasItem("foo1"));
 
         ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
-        assertThat(cause.getMessage(), equalTo("Elasticsearch exception [type=exception, reason=bar]"));
+        assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=bar]");
         assertThat(cause.getHeaderKeys(), hasSize(3));
         assertThat(cause.getHeader("bar_0"), hasItem("bar0"));
         assertThat(cause.getHeader("bar_1"), hasItem("bar1"));
         assertThat(cause.getHeader("bar_2"), hasItem("bar2"));
 
         cause = (ElasticsearchException) cause.getCause();
-        assertThat(cause.getMessage(), equalTo("Elasticsearch exception [type=exception, reason=baz]"));
+        assertEquals(cause.getMessage(), "Elasticsearch exception [type=exception, reason=baz]");
         assertThat(cause.getHeaderKeys(), hasSize(4));
         assertThat(cause.getHeader("baz_0"), hasItem("baz0"));
         assertThat(cause.getHeader("baz_1"), hasItem("baz1"));
@@ -233,8 +235,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertThat(cause.getHeader("baz_3"), hasItem("baz3"));
 
         cause = (ElasticsearchException) cause.getCause();
-        assertThat(cause.getMessage(),
-                equalTo("Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]"));
+        assertEquals(cause.getMessage(),
+                "Elasticsearch exception [type=routing_missing_exception, reason=routing is required for [_test]/[_type]/[_id]]");
         assertThat(cause.getHeaderKeys(), hasSize(2));
         assertThat(cause.getHeader("index"), hasItem("_test"));
         assertThat(cause.getHeader("index_uuid"), hasItem("_na_"));
@@ -243,13 +245,13 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     /**
      * Builds a {@link ToXContent} using a JSON XContentBuilder and check the resulting string with the given {@link Matcher}.
      *
-     * By default, the stack trace of the exception is not rendered. The parameter `printStackTrace` forces the stack trace to
+     * By default, the stack trace of the exception is not rendered. The parameter `errorTrace` forces the stack trace to
      * be rendered like the REST API does when the "error_trace" parameter is set to true.
      */
-    private static void assertExceptionAsJson(ElasticsearchException e, boolean printStackTrace, Matcher<String> expected)
+    private static void assertExceptionAsJson(ElasticsearchException e, boolean errorTrace, Matcher<String> expected)
             throws IOException {
         ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        if (printStackTrace) {
+        if (errorTrace) {
             params = new ToXContent.MapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
         }
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {

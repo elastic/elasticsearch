@@ -49,7 +49,7 @@ public abstract class MultiValuesSourceAggregatorFactory<VS extends ValuesSource
         HashMap<String, VS> valuesSources = new HashMap<>();
 
         for (Map.Entry<String, ValuesSourceConfig<VS>> config : configs.entrySet()) {
-            VS vs = config.getValue().toValuesSource(context);
+            VS vs = config.getValue().toValuesSource(context.getQueryShardContext());
             if (vs != null) {
                 valuesSources.put(config.getKey(), vs);
             }

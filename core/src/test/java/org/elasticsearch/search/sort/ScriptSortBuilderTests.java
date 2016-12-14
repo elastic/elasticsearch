@@ -22,8 +22,8 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -167,7 +167,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                     "\"mode\" : \"max\",\n" +
                     "\"order\" : \"asc\"\n" +
                 "} }\n";
-        XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort);
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
@@ -193,7 +193,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
                 "\"mode\" : \"max\",\n" +
                 "\"order\" : \"asc\"\n" +
                 "} }\n";
-        XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort);
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
@@ -213,7 +213,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
     public void testParseBadFieldNameExceptions() throws IOException {
         String scriptSort = "{\"_script\" : {" + "\"bad_field\" : \"number\"" + "} }";
-        XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort);
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
@@ -226,7 +226,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
     public void testParseBadFieldNameExceptionsOnStartObject() throws IOException {
 
         String scriptSort = "{\"_script\" : {" + "\"bad_field\" : { \"order\" : \"asc\" } } }";
-        XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort);
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
@@ -238,7 +238,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
 
     public void testParseUnexpectedToken() throws IOException {
         String scriptSort = "{\"_script\" : {" + "\"script\" : [ \"order\" : \"asc\" ] } }";
-        XContentParser parser = XContentFactory.xContent(scriptSort).createParser(scriptSort);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, scriptSort);
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();

@@ -20,11 +20,12 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -50,7 +51,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
                 "  }" +
                 "}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"terms\":{\"status\":[\"{{#status}}\",\"{{.}}\",\"{{/status}}\"]}}}"));
         assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams(), nullValue());
@@ -69,7 +70,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
                 "    }" +
                 "}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"match\":{\"{{my_field}}\":\"{{my_value}}\"}},\"size\":\"{{my_size}}\"}"));
         assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams().size(), equalTo(3));
@@ -81,7 +82,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     public void testParseInlineTemplateAsString() throws Exception {
         String source = "{'inline' : '{\\\"query\\\":{\\\"bool\\\":{\\\"must\\\":{\\\"match\\\":{\\\"foo\\\":\\\"{{text}}\\\"}}}}}'}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"bool\":{\"must\":{\"match\":{\"foo\":\"{{text}}\"}}}}}"));
         assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams(), nullValue());
@@ -92,7 +93,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
         String source = "{'inline' : '{\\\"query\\\":{\\\"match\\\":{\\\"{{field}}\\\":\\\"{{value}}\\\"}}}', " +
                 "'params': {'status': ['pending', 'published']}}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
         assertThat(request.getScript(), equalTo("{\"query\":{\"match\":{\"{{field}}\":\"{{value}}\"}}}"));
         assertThat(request.getScriptType(), equalTo(ScriptType.INLINE));
         assertThat(request.getScriptParams().size(), equalTo(1));
@@ -103,7 +104,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     public void testParseFileTemplate() throws Exception {
         String source = "{'file' : 'fileTemplate'}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
         assertThat(request.getScript(), equalTo("fileTemplate"));
         assertThat(request.getScriptType(), equalTo(ScriptType.FILE));
         assertThat(request.getScriptParams(), nullValue());
@@ -112,7 +113,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     public void testParseFileTemplateWithParams() throws Exception {
         String source = "{'file' : 'template_foo', 'params' : {'foo': 'bar', 'size': 500}}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
         assertThat(request.getScript(), equalTo("template_foo"));
         assertThat(request.getScriptType(), equalTo(ScriptType.FILE));
         assertThat(request.getScriptParams().size(), equalTo(2));
@@ -123,7 +124,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     public void testParseStoredTemplate() throws Exception {
         String source = "{'id' : 'storedTemplate'}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
         assertThat(request.getScript(), equalTo("storedTemplate"));
         assertThat(request.getScriptType(), equalTo(ScriptType.STORED));
         assertThat(request.getScriptParams(), nullValue());
@@ -132,7 +133,7 @@ public class SearchTemplateRequestTests extends ESTestCase {
     public void testParseStoredTemplateWithParams() throws Exception {
         String source = "{'id' : 'another_template', 'params' : {'bar': 'foo'}}";
 
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(newBytesReference(source));
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(newParser(source));
         assertThat(request.getScript(), equalTo("another_template"));
         assertThat(request.getScriptType(), equalTo(ScriptType.STORED));
         assertThat(request.getScriptParams().size(), equalTo(1));
@@ -141,14 +142,14 @@ public class SearchTemplateRequestTests extends ESTestCase {
 
     public void testParseWrongTemplate() {
         // Unclosed template id
-        expectThrows(ParsingException.class, () -> RestSearchTemplateAction.parse(newBytesReference("{'id' : 'another_temp }")));
+        expectThrows(ParsingException.class, () -> RestSearchTemplateAction.parse(newParser("{'id' : 'another_temp }")));
     }
 
     /**
-     * Creates a {@link BytesReference} with the given string while replacing single quote to double quotes.
+     * Creates a {@link XContentParser} with the given String while replacing single quote to double quotes.
      */
-    private static BytesReference newBytesReference(String s) {
+    private XContentParser newParser(String s) throws IOException {
         assertNotNull(s);
-        return new BytesArray(s.replace("'", "\""));
+        return createParser(JsonXContent.jsonXContent, s.replace("'", "\""));
     }
 }

@@ -153,11 +153,12 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testMinCompatVersion() {
-        assertThat(Version.V_2_0_0_beta1.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0_beta1));
-        assertThat(Version.V_2_1_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
-        assertThat(Version.V_2_2_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
-        assertThat(Version.V_2_3_0.minimumCompatibilityVersion(), equalTo(Version.V_2_0_0));
-        assertThat(Version.V_5_0_0_alpha1.minimumCompatibilityVersion(), equalTo(Version.V_5_0_0_alpha1));
+        Version prerelease = VersionUtils.getFirstVersion();
+        assertThat(prerelease.minimumCompatibilityVersion(), equalTo(prerelease));
+        Version major = Version.fromString("2.0.0");
+        assertThat(Version.fromString("2.0.0").minimumCompatibilityVersion(), equalTo(major));
+        assertThat(Version.fromString("2.2.0").minimumCompatibilityVersion(), equalTo(major));
+        assertThat(Version.fromString("2.3.0").minimumCompatibilityVersion(), equalTo(major));
         // from 6.0 on we are supporting the latest minor of the previous major... this might fail once we add a new version ie. 5.x is
         // released since we need to bump the supported minor in Version#minimumCompatibilityVersion()
         Version lastVersion = VersionUtils.getPreviousVersion(Version.V_6_0_0_alpha1_UNRELEASED);
@@ -169,9 +170,9 @@ public class VersionTests extends ESTestCase {
 
     public void testToString() {
         // with 2.0.beta we lowercase
-        assertEquals("2.0.0-beta1", Version.V_2_0_0_beta1.toString());
+        assertEquals("2.0.0-beta1", Version.fromString("2.0.0-beta1").toString());
         assertEquals("5.0.0-alpha1", Version.V_5_0_0_alpha1.toString());
-        assertEquals("2.3.0", Version.V_2_3_0.toString());
+        assertEquals("2.3.0", Version.fromString("2.3.0").toString());
         assertEquals("0.90.0.Beta1", Version.fromString("0.90.0.Beta1").toString());
         assertEquals("1.0.0.Beta1", Version.fromString("1.0.0.Beta1").toString());
         assertEquals("2.0.0-beta1", Version.fromString("2.0.0-beta1").toString());
@@ -180,7 +181,7 @@ public class VersionTests extends ESTestCase {
     }
 
     public void testIsBeta() {
-        assertTrue(Version.V_2_0_0_beta1.isBeta());
+        assertTrue(Version.fromString("2.0.0-beta1").isBeta());
         assertTrue(Version.fromString("1.0.0.Beta1").isBeta());
         assertTrue(Version.fromString("0.90.0.Beta1").isBeta());
     }

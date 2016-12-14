@@ -40,7 +40,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Match query is a query that analyzes the text and constructs a query as the
@@ -524,7 +523,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return NAME;
     }
 
-    public static Optional<MatchQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static MatchQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         String fieldName = null;
         MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
@@ -646,7 +645,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         matchQuery.zeroTermsQuery(zeroTermsQuery);
         matchQuery.queryName(queryName);
         matchQuery.boost(boost);
-        return Optional.of(matchQuery);
+        return matchQuery;
     }
 
 }

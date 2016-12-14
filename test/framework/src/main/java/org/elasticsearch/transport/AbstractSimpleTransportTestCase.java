@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -48,9 +49,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.sql.Time;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,7 +118,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         };
         serviceA.addConnectionListener(waitForConnection);
         serviceB.addConnectionListener(waitForConnection);
-
+        int numHandshakes = 1;
         if (useLocalNode) {
             logger.info("--> using local node optimization");
             serviceA.setLocalNode(nodeA);
@@ -128,36 +127,69 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             logger.info("--> actively connecting to local node");
             serviceA.connectToNode(nodeA);
             serviceB.connectToNode(nodeB);
+            assertNumHandshakes(numHandshakes, serviceA.getOriginalTransport());
+            assertNumHandshakes(numHandshakes, serviceB.getOriginalTransport());
+            numHandshakes++;
         }
-
         serviceA.connectToNode(nodeB);
         serviceB.connectToNode(nodeA);
+        assertNumHandshakes(numHandshakes, serviceA.getOriginalTransport());
+        assertNumHandshakes(numHandshakes, serviceB.getOriginalTransport());
 
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
         serviceA.removeConnectionListener(waitForConnection);
         serviceB.removeConnectionListener(waitForConnection);
     }
 
-    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
+    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
+                                              Settings settings, boolean acceptRequests) {
         MockTransportService service = build(
             Settings.builder()
+                .put(settings)
                 .put(Node.NODE_NAME_SETTING.getKey(), name)
                 .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
                 .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .build(),
             version,
             clusterSettings);
-        service.acceptIncomingRequests();
+        if (acceptRequests) {
+            service.acceptIncomingRequests();
+        }
         return service;
+    }
+
+    private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
+        return buildService(name, version, clusterSettings, Settings.EMPTY, true);
     }
 
     @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        serviceA.close();
-        serviceB.close();
-        terminate(threadPool);
+        try {
+            assertNoPendingHandshakes(serviceA.getOriginalTransport());
+            assertNoPendingHandshakes(serviceB.getOriginalTransport());
+        } finally {
+            IOUtils.close(serviceA, serviceB, () -> {
+                try {
+                    terminate(threadPool);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+        }
+    }
+
+    public void assertNumHandshakes(long expected, Transport transport) {
+        if (transport instanceof TcpTransport) {
+            assertEquals(expected, ((TcpTransport) transport).getNumHandshakes());
+        }
+    }
+
+    public void assertNoPendingHandshakes(Transport transport) {
+        if (transport instanceof TcpTransport) {
+            assertEquals(0, ((TcpTransport) transport).getNumPendingHandshakes());
+        }
     }
 
     public void testHelloWorld() {
@@ -568,17 +600,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
                         final String info = sender + "_" + iter;
                         final DiscoveryNode node = nodeB; // capture now
-                        serviceA.sendRequest(node, "test", new TestRequest(info),
-                            new ActionListenerResponseHandler<>(listener, TestResponse::new));
                         try {
-                            listener.actionGet();
-                        } catch (ConnectTransportException e) {
-                            // ok!
-                        } catch (Exception e) {
-                            logger.error(
-                                (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node), e);
-                            sendingErrors.add(e);
+                            serviceA.sendRequest(node, "test", new TestRequest(info),
+                                new ActionListenerResponseHandler<>(listener, TestResponse::new));
+                            try {
+                                listener.actionGet();
+                            } catch (ConnectTransportException e) {
+                                // ok!
+                            } catch (Exception e) {
+                                logger.error(
+                                    (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", node), e);
+                                sendingErrors.add(e);
+                            }
+                        } catch (NodeNotConnectedException ex) {
+                            // ok
                         }
+
                     }
                 }
 
@@ -1184,16 +1221,13 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testVersionFrom1to1() throws Exception {
         serviceB.registerRequestHandler("/version", Version1Request::new, ThreadPool.Names.SAME,
-            new TransportRequestHandler<Version1Request>() {
-                @Override
-                public void messageReceived(Version1Request request, TransportChannel channel) throws Exception {
-                    assertThat(request.value1, equalTo(1));
-                    assertThat(request.value2, equalTo(2));
-                    Version1Response response = new Version1Response();
-                    response.value1 = 1;
-                    response.value2 = 2;
-                    channel.sendResponse(response);
-                }
+            (request, channel) -> {
+                assertThat(request.value1, equalTo(1));
+                assertThat(request.value2, equalTo(2));
+                Version1Response response = new Version1Response();
+                response.value1 = 1;
+                response.value2 = 2;
+                channel.sendResponse(response);
             });
 
         Version1Request version1Request = new Version1Request();
@@ -1266,7 +1300,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version0Response.value1, equalTo(1));
     }
 
-    public void testMockFailToSendNoConnectRule() {
+    public void testMockFailToSendNoConnectRule() throws IOException {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
             new TransportRequestHandler<StringMessageRequest>() {
                 @Override
@@ -1318,12 +1352,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try {
             serviceB.connectToNodeAndHandshake(nodeA, 100);
             fail("exception should be thrown");
-        } catch (ConnectTransportException e) {
+        } catch (IllegalStateException e) {
             // all is well
         }
     }
 
-    public void testMockUnresponsiveRule() {
+    public void testMockUnresponsiveRule() throws IOException {
         serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC,
             new TransportRequestHandler<StringMessageRequest>() {
                 @Override
@@ -1376,7 +1410,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         try {
             serviceB.connectToNodeAndHandshake(nodeA, 100);
             fail("exception should be thrown");
-        } catch (ConnectTransportException e) {
+        } catch (IllegalStateException e) {
             // all is well
         }
     }
@@ -1426,56 +1460,52 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testBlockingIncomingRequests() throws Exception {
-        TransportService service = build(
-            Settings.builder()
-                .put("name", "TS_TEST")
-                .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "")
-                .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
-                .build(),
-            version0,
-            null);
-        AtomicBoolean requestProcessed = new AtomicBoolean();
-        service.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
-            (request, channel) -> {
-                requestProcessed.set(true);
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        try (TransportService service = buildService("TS_TEST", version0, null,
+            Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), false)) {
+            AtomicBoolean requestProcessed = new AtomicBoolean(false);
+            service.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
+                (request, channel) -> {
+                    requestProcessed.set(true);
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                });
+
+            DiscoveryNode node =
+                new DiscoveryNode("TS_TEST", "TS_TEST", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+            serviceA.close();
+            serviceA = buildService("TS_A", version0, null,
+                Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), true);
+            serviceA.connectToNode(node);
+
+            CountDownLatch latch = new CountDownLatch(1);
+            serviceA.sendRequest(node, "action", new TestRequest(), new TransportResponseHandler<TestResponse>() {
+                @Override
+                public TestResponse newInstance() {
+                    return new TestResponse();
+                }
+
+                @Override
+                public void handleResponse(TestResponse response) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    latch.countDown();
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
             });
 
-        DiscoveryNode node =
-            new DiscoveryNode("TS_TEST", "TS_TEST", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
-        serviceA.connectToNode(node);
+            assertFalse(requestProcessed.get());
 
-        CountDownLatch latch = new CountDownLatch(1);
-        serviceA.sendRequest(node, "action", new TestRequest(), new TransportResponseHandler<TestResponse>() {
-            @Override
-            public TestResponse newInstance() {
-                return new TestResponse();
-            }
+            service.acceptIncomingRequests();
+            assertBusy(() -> assertTrue(requestProcessed.get()));
 
-            @Override
-            public void handleResponse(TestResponse response) {
-                latch.countDown();
-            }
-
-            @Override
-            public void handleException(TransportException exp) {
-                latch.countDown();
-            }
-
-            @Override
-            public String executor() {
-                return ThreadPool.Names.SAME;
-            }
-        });
-
-        assertFalse(requestProcessed.get());
-
-        service.acceptIncomingRequests();
-        assertBusy(() -> assertTrue(requestProcessed.get()));
-
-        latch.await();
-        service.close();
-
+            latch.await();
+        }
     }
 
     public static class TestRequest extends TransportRequest {
@@ -1752,21 +1782,69 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.RECOVERY,
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE);
-
             // connection with one connection and a large timeout -- should consume the one spot in the backlog queue
-            serviceA.connectToNode(first, builder.build());
-            builder.setConnectTimeout(TimeValue.timeValueMillis(1));
-            final ConnectionProfile profile = builder.build();
-            // now with the 1ms timeout we got and test that is it's applied
-            long startTime = System.nanoTime();
-            ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> {
-                serviceA.connectToNode(second, profile);
-            });
-            final long now = System.nanoTime();
-            final long timeTaken = TimeValue.nsecToMSec(now - startTime);
-            assertTrue("test didn't timeout quick enough, time taken: [" + timeTaken + "]",
-                timeTaken < TimeValue.timeValueSeconds(5).millis());
-            assertEquals(ex.getMessage(), "[][" + second.getAddress() + "] connect_timeout[1ms]");
+            try (TransportService service = buildService("TS_TPC", Version.CURRENT, null,
+                Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), true)) {
+                service.connectToNode(first, builder.build());
+                builder.setConnectTimeout(TimeValue.timeValueMillis(1));
+                final ConnectionProfile profile = builder.build();
+                // now with the 1ms timeout we got and test that is it's applied
+                long startTime = System.nanoTime();
+                ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> service.connectToNode(second, profile));
+                final long now = System.nanoTime();
+                final long timeTaken = TimeValue.nsecToMSec(now - startTime);
+                assertTrue("test didn't timeout quick enough, time taken: [" + timeTaken + "]",
+                    timeTaken < TimeValue.timeValueSeconds(5).millis());
+                assertEquals(ex.getMessage(), "[][" + second.getAddress() + "] connect_timeout[1ms]");
+            }
+        }
+    }
+
+    public void testTcpHandshake() throws IOException, InterruptedException {
+        assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
+        TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null,
+            Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), true)) {
+            // this acts like a node that doesn't have support for handshakes
+            DiscoveryNode node =
+                new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+            serviceA.connectToNode(node);
+            TcpTransport.NodeChannels connection = originalTransport.getConnection(node);
+            Version version = originalTransport.executeHandshake(node, connection.channel(TransportRequestOptions.Type.PING),
+                TimeValue.timeValueSeconds(10));
+            assertNull(version);
+            serviceA.disconnectFromNode(node);
+        }
+
+        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {
+            DiscoveryNode node =
+                new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+            serviceA.connectToNode(node);
+            TcpTransport.NodeChannels connection = originalTransport.getConnection(node);
+            Version version = originalTransport.executeHandshake(node, connection.channel(TransportRequestOptions.Type.PING),
+                TimeValue.timeValueSeconds(10));
+            assertEquals(version, Version.CURRENT);
+        }
+    }
+
+    public void testTcpHandshakeTimeout() throws IOException {
+        try (ServerSocket socket = new ServerSocket()) {
+            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+            socket.setReuseAddress(true);
+            DiscoveryNode dummy = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),
+                socket.getLocalPort()), emptyMap(),
+                emptySet(), version0);
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(1,
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE);
+            builder.setHandshakeTimeout(TimeValue.timeValueMillis(1));
+            ConnectTransportException ex = expectThrows(ConnectTransportException.class,
+                () -> serviceA.connectToNode(dummy, builder.build()));
+            assertEquals("[][" + dummy.getAddress() +"] handshake_timeout[1ms]", ex.getMessage());
         }
     }
 }

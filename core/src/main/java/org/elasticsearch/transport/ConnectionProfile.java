@@ -44,16 +44,19 @@ public final class ConnectionProfile {
             TransportRequestOptions.Type.PING,
             TransportRequestOptions.Type.RECOVERY,
             TransportRequestOptions.Type.REG,
-            TransportRequestOptions.Type.STATE))), 1, null);
+            TransportRequestOptions.Type.STATE))), 1, null, null);
 
     private final List<ConnectionTypeHandle> handles;
     private final int numConnections;
     private final TimeValue connectTimeout;
+    private final TimeValue handshakeTimeout;
 
-    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout) {
+    private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout, TimeValue handshakeTimeout)
+    {
         this.handles = handles;
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
+        this.handshakeTimeout = handshakeTimeout;
     }
 
     /**
@@ -64,15 +67,26 @@ public final class ConnectionProfile {
         private final Set<TransportRequestOptions.Type> addedTypes = EnumSet.noneOf(TransportRequestOptions.Type.class);
         private int offset = 0;
         private TimeValue connectTimeout;
+        private TimeValue handshakeTimeout;
 
         /**
-         * Sets a connect connectTimeout for this connection profile
+         * Sets a connect timeout for this connection profile
          */
         public void setConnectTimeout(TimeValue connectTimeout) {
             if (connectTimeout.millis() < 0) {
                 throw new IllegalArgumentException("connectTimeout must be non-negative but was: " + connectTimeout);
             }
             this.connectTimeout = connectTimeout;
+        }
+
+        /**
+         * Sets a handshake timeout for this connection profile
+         */
+        public void setHandshakeTimeout(TimeValue handshakeTimeout) {
+            if (handshakeTimeout.millis() < 0) {
+                throw new IllegalArgumentException("handshakeTimeout must be non-negative but was: " + handshakeTimeout);
+            }
+            this.handshakeTimeout = handshakeTimeout;
         }
 
         /**
@@ -104,7 +118,7 @@ public final class ConnectionProfile {
             if (types.isEmpty() == false) {
                 throw new IllegalStateException("not all types are added for this connection profile - missing types: " + types);
             }
-            return new ConnectionProfile(Collections.unmodifiableList(handles), offset, connectTimeout);
+            return new ConnectionProfile(Collections.unmodifiableList(handles), offset, connectTimeout, handshakeTimeout);
         }
 
     }
@@ -114,6 +128,13 @@ public final class ConnectionProfile {
      */
     public TimeValue getConnectTimeout() {
         return connectTimeout;
+    }
+
+    /**
+     * Returns the handshake timeout or <code>null</code> if no explicit timeout is set on this profile.
+     */
+    public TimeValue getHandshakeTimeout() {
+        return handshakeTimeout;
     }
 
     /**

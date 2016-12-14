@@ -148,7 +148,7 @@ final class DocumentParser {
     private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
         return new ParsedDocument(
             context.version(),
-            context.seqNo(),
+            context.seqID(),
             context.sourceToParse().id(),
             context.sourceToParse().type(),
             source.routing(),

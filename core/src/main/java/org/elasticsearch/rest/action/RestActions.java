@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -27,15 +26,11 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -200,53 +195,10 @@ public class RestActions {
         return queryBuilder;
     }
 
-    /**
-     * Get Rest content from either payload or source parameter
-     * @param request Rest request
-     * @return rest content
-     */
-    public static BytesReference getRestContent(RestRequest request) {
-        assert request != null;
-
-        BytesReference content = request.content();
-        if (!request.hasContent()) {
-            String source = request.param("source");
-            if (source != null) {
-                content = new BytesArray(source);
-            }
-        }
-
-        return content;
-    }
-
-    public static QueryBuilder getQueryContent(BytesReference source, IndicesQueriesRegistry indicesQueriesRegistry,
+    public static QueryBuilder getQueryContent(XContentParser requestParser, IndicesQueriesRegistry indicesQueriesRegistry,
                                                ParseFieldMatcher parseFieldMatcher) {
-        try (XContentParser requestParser = XContentFactory.xContent(source).createParser(source)) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, requestParser, parseFieldMatcher);
-            return context.parseTopLevelQueryBuilder();
-        } catch (IOException e) {
-            throw new ElasticsearchException("failed to parse source", e);
-        }
-    }
-
-    /**
-     * guesses the content type from either payload or source parameter
-     * @param request Rest request
-     * @return rest content type or <code>null</code> if not applicable.
-     */
-    public static XContentType guessBodyContentType(final RestRequest request) {
-        final BytesReference restContent = RestActions.getRestContent(request);
-        if (restContent == null) {
-            return null;
-        }
-        return XContentFactory.xContentType(restContent);
-    }
-
-    /**
-     * Returns <code>true</code> if either payload or source parameter is present. Otherwise <code>false</code>
-     */
-    public static boolean hasBodyContent(final RestRequest request) {
-        return request.hasContent() || request.hasParam("source");
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, requestParser, parseFieldMatcher);
+        return context.parseTopLevelQueryBuilder();
     }
 
     /**

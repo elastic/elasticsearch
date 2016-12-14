@@ -20,15 +20,14 @@ x * Licensed to Elasticsearch under one or more contributor
 package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
@@ -238,8 +237,8 @@ public class SortBuilderTests extends ESTestCase {
         assertEquals(new ScoreSortBuilder(), result.get(5));
     }
 
-    private static List<SortBuilder<?>> parseSort(String jsonString) throws IOException {
-        XContentParser itemParser = XContentHelper.createParser(new BytesArray(jsonString));
+    private List<SortBuilder<?>> parseSort(String jsonString) throws IOException {
+        XContentParser itemParser = createParser(JsonXContent.jsonXContent, jsonString);
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
 
         assertEquals(XContentParser.Token.START_OBJECT, itemParser.nextToken());

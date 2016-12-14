@@ -59,6 +59,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
@@ -386,19 +387,28 @@ public abstract class StreamInput extends InputStream {
      * Reads a boolean.
      */
     public final boolean readBoolean() throws IOException {
-        return readByte() != 0;
+        return readBoolean(readByte());
+    }
+
+    private boolean readBoolean(final byte value) {
+        if (value == 0) {
+            return false;
+        } else if (value == 1) {
+            return true;
+        } else {
+            final String message = String.format(Locale.ROOT, "unexpected byte [0x%02x]", value);
+            throw new IllegalStateException(message);
+        }
     }
 
     @Nullable
     public final Boolean readOptionalBoolean() throws IOException {
-        byte val = readByte();
-        if (val == 2) {
+        final byte value = readByte();
+        if (value == 2) {
             return null;
+        } else {
+            return readBoolean(value);
         }
-        if (val == 1) {
-            return true;
-        }
-        return false;
     }
 
     /**

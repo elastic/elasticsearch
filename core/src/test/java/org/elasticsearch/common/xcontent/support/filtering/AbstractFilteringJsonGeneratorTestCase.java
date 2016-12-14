@@ -58,8 +58,8 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
 
         try {
             XContent xContent = XContentFactory.xContent(builder.contentType());
-            XContentParser jsonParser = xContent.createParser(expected.bytes());
-            XContentParser testParser = xContent.createParser(builder.bytes());
+            XContentParser jsonParser = createParser(xContent, expected.bytes());
+            XContentParser testParser = createParser(xContent, builder.bytes());
 
             while (true) {
                 XContentParser.Token token1 = jsonParser.nextToken();

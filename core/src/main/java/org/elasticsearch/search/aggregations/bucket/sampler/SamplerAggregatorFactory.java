@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +34,7 @@ public class SamplerAggregatorFactory extends AggregatorFactory<SamplerAggregato
 
     private final int shardSize;
 
-    public SamplerAggregatorFactory(String name, Type type, int shardSize, AggregationContext context, AggregatorFactory<?> parent,
+    public SamplerAggregatorFactory(String name, Type type, int shardSize, SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactories, Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
         this.shardSize = shardSize;

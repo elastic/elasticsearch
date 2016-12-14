@@ -28,7 +28,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,19 +43,19 @@ public class FiltersAggregatorFactory extends AggregatorFactory<FiltersAggregato
     private final String otherBucketKey;
 
     public FiltersAggregatorFactory(String name, Type type, List<KeyedFilter> filters, boolean keyed, boolean otherBucket,
-            String otherBucketKey, AggregationContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories,
+            String otherBucketKey, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories,
             Map<String, Object> metaData) throws IOException {
         super(name, type, context, parent, subFactories, metaData);
         this.keyed = keyed;
         this.otherBucket = otherBucket;
         this.otherBucketKey = otherBucketKey;
-        IndexSearcher contextSearcher = context.searchContext().searcher();
+        IndexSearcher contextSearcher = context.searcher();
         weights = new Weight[filters.size()];
         keys = new String[filters.size()];
         for (int i = 0; i < filters.size(); ++i) {
             KeyedFilter keyedFilter = filters.get(i);
             this.keys[i] = keyedFilter.key();
-            Query filter = keyedFilter.filter().toFilter(context.searchContext().getQueryShardContext());
+            Query filter = keyedFilter.filter().toFilter(context.getQueryShardContext());
             this.weights[i] = contextSearcher.createNormalizedWeight(filter, false);
         }
     }

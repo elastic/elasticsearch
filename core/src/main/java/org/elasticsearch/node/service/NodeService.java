@@ -111,7 +111,7 @@ public class NodeService extends AbstractComponent implements Closeable {
                 threadPool ? this.threadPool.stats() : null,
                 fs ? monitorService.fsService().stats() : null,
                 transport ? transportService.stats() : null,
-                http ? httpServer.stats() : null,
+                http ? (httpServer == null ? null : httpServer.stats()) : null,
                 circuitBreaker ? circuitBreakerService.stats() : null,
                 script ? scriptService.stats() : null,
                 discoveryStats ? discovery.stats() : null,
@@ -127,4 +127,5 @@ public class NodeService extends AbstractComponent implements Closeable {
     public void close() throws IOException {
         indicesService.close();
     }
+
 }

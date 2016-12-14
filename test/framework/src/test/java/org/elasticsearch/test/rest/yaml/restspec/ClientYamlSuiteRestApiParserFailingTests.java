@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.yaml.restspec;
 
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ESTestCase;
 
@@ -71,6 +72,8 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     }
 
     public void testDuplicateParts() throws Exception {
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         parseAndExpectFailure("{\n" +
                 "  \"ping\": {" +
                 "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
@@ -103,6 +106,8 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     }
 
     public void testDuplicateParams() throws Exception {
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         parseAndExpectFailure("{\n" +
                 "  \"ping\": {" +
                 "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +

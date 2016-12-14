@@ -67,7 +67,7 @@ public class FieldStatsRequestTests extends ESTestCase {
         assertThat(request.getIndexConstraints()[3].getComparison(), equalTo(LTE));
         assertThat(request.getIndexConstraints()[4].getField(), equalTo("field5"));
         assertThat(request.getIndexConstraints()[4].getValue(), equalTo("2"));
-        assertThat(request.getIndexConstraints()[4].getProperty(), equalTo(MAX));
+        assertThat(request.getIndexConstraints()[4].getProperty(), equalTo(MIN));
         assertThat(request.getIndexConstraints()[4].getComparison(), equalTo(GT));
         assertThat(request.getIndexConstraints()[5].getField(), equalTo("field5"));
         assertThat(request.getIndexConstraints()[5].getValue(), equalTo("9"));

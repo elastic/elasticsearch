@@ -21,23 +21,18 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 import java.util.Random;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -68,11 +63,7 @@ public class AggregatorParsingTests extends ESTestCase {
         Settings settings = Settings.builder().put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false).build();
-        IndicesModule indicesModule = new IndicesModule(Collections.emptyList()) ;
         SearchModule searchModule = new SearchModule(settings, false, emptyList());
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        entries.addAll(indicesModule.getNamedWriteables());
-        entries.addAll(searchModule.getNamedWriteables());
         aggParsers = searchModule.getSearchRequestParsers().aggParsers;
         // create some random type with some default field, those types will
         // stick around for all of the subclasses
@@ -113,6 +104,8 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     public void testTwoAggs() throws Exception {
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
                     .startObject("by_date")
@@ -187,6 +180,8 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     public void testSameAggregationName() throws Exception {
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         final String name = randomAsciiOfLengthBetween(1, 10);
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()

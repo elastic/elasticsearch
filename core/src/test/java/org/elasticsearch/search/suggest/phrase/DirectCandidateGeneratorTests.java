@@ -149,9 +149,13 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
                 "Required [field]");
 
         // test two fieldnames
-        directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
-        assertIllegalXContent(directGenerator, ParsingException.class,
+        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+        } else {
+            directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
+            assertIllegalXContent(directGenerator, ParsingException.class,
                 "[direct_generator] failed to parse field [field]");
+        }
 
         // test unknown field
         directGenerator = "{ \"unknown_param\" : \"f1\" }";

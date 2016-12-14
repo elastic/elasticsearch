@@ -39,7 +39,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -277,15 +276,8 @@ public class CreateIndexIT extends ESIntegTestCase {
                 .startObject("text")
                     .field("type", "text")
                 .endObject().endObject().endObject());
-        try {
-            b.get();
-        } catch (MapperParsingException e) {
-            StringBuilder messages = new StringBuilder();
-            for (Exception rootCause: e.guessRootCauses()) {
-                messages.append(rootCause.getMessage());
-            }
-            assertThat(messages.toString(), containsString("mapper [text] is used by multiple types"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> b.get());
+        assertThat(e.getMessage(), containsString("mapper [text] is used by multiple types"));
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {

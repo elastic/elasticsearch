@@ -26,8 +26,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.store.Store;
 
@@ -123,8 +122,8 @@ final class LocalShardSnapshot implements Closeable {
         }
     }
 
-    ImmutableOpenMap<String, MappingMetaData> getMappings() {
-        return shard.indexSettings.getIndexMetaData().getMappings();
+    IndexMetaData getIndexMetaData() {
+        return shard.indexSettings.getIndexMetaData();
     }
 
     @Override

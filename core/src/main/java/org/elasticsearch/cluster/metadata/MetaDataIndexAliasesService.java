@@ -141,15 +141,11 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                 // temporarily create the index and add mappings so we can parse the filter
                                 try {
                                     indexService = indicesService.createIndex(index, emptyList(), shardId -> {});
+                                    indicesToClose.add(index.getIndex());
                                 } catch (IOException e) {
                                     throw new ElasticsearchException("Failed to create temporary index for parsing the alias", e);
                                 }
-                                for (ObjectCursor<MappingMetaData> cursor : index.getMappings().values()) {
-                                    MappingMetaData mappingMetaData = cursor.value;
-                                    indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(),
-                                        MapperService.MergeReason.MAPPING_RECOVERY, false);
-                                }
-                                indicesToClose.add(index.getIndex());
+                                indexService.mapperService().merge(index, MapperService.MergeReason.MAPPING_RECOVERY, false);
                             }
                             indices.put(action.getIndex(), indexService);
                         }

@@ -22,7 +22,6 @@ package org.elasticsearch.action.get;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetField;
@@ -31,9 +30,9 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.index.get.GetFieldTests.assertSameOutput;
 import static org.elasticsearch.index.get.GetResultTests.copyGetResult;
 import static org.elasticsearch.index.get.GetResultTests.mutateGetResult;
 import static org.elasticsearch.index.get.GetResultTests.randomGetResult;
@@ -49,16 +48,14 @@ public class GetResponseTests extends ESTestCase {
         BytesReference originalBytes = toXContent(getResponse, xContentType, false);
         //test that we can parse what we print out
         GetResponse parsedGetResponse;
-        try (XContentParser parser = xContentType.xContent().createParser(originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             parsedGetResponse = GetResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
         assertEquals(expectedGetResponse, parsedGetResponse);
         //print the parsed object out and test that the output is the same as the original output
         BytesReference finalBytes = toXContent(parsedGetResponse, xContentType, false);
-        Map<String, Object> originalMap = XContentHelper.convertToMap(originalBytes, false).v2();
-        Map<String, Object> finalMap = XContentHelper.convertToMap(finalBytes, false).v2();
-        assertEquals(originalMap, finalMap);
+        assertSameOutput(originalBytes, finalBytes, xContentType);
     }
 
     public void testToXContent() throws IOException {

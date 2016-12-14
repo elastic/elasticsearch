@@ -23,7 +23,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -36,6 +35,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.index.get.GetFieldTests.assertSameOutput;
 import static org.elasticsearch.index.get.GetFieldTests.randomGetField;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
@@ -49,16 +49,14 @@ public class GetResultTests extends ESTestCase {
         BytesReference originalBytes = toXContent(getResult, xContentType, false);
         //test that we can parse what we print out
         GetResult parsedGetResult;
-        try (XContentParser parser = xContentType.xContent().createParser(originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             parsedGetResult = GetResult.fromXContent(parser);
             assertNull(parser.nextToken());
         }
         assertEquals(expectedGetResult, parsedGetResult);
         //print the parsed object out and test that the output is the same as the original output
         BytesReference finalBytes = toXContent(parsedGetResult, xContentType, false);
-        Map<String, Object> originalMap = XContentHelper.convertToMap(originalBytes, false).v2();
-        Map<String, Object> finalMap = XContentHelper.convertToMap(finalBytes, false).v2();
-        assertEquals(originalMap, finalMap);
+        assertSameOutput(originalBytes, finalBytes, xContentType);
     }
 
     public void testEqualsAndHashcode() {
@@ -98,7 +96,6 @@ public class GetResultTests extends ESTestCase {
         BytesReference source = null;
         Map<String, GetField> fields = null;
         Map<String, GetField> expectedFields = null;
-
         if (frequently()) {
             version = randomPositiveLong();
             exists = true;
@@ -120,7 +117,7 @@ public class GetResultTests extends ESTestCase {
     }
 
     private static Tuple<Map<String, GetField>,Map<String, GetField>> randomGetFields(XContentType xContentType) {
-        int numFields = randomIntBetween(1, 10);
+        int numFields = randomIntBetween(2, 10);
         Map<String, GetField> fields = new HashMap<>(numFields);
         Map<String, GetField> expectedFields = new HashMap<>(numFields);
         for (int i = 0; i < numFields; i++) {
@@ -149,7 +146,7 @@ public class GetResultTests extends ESTestCase {
         int numFields = randomIntBetween(1, 5);
         for (int i = 0; i < numFields; i++) {
             if (frequently()) {
-                builder.field(randomAsciiOfLengthBetween(3, 10), randomAsciiOfLengthBetween(3, 10));
+                builder.field(randomAsciiOfLengthBetween(3, 10), randomFieldValue());
             }
             if (randomBoolean() && currentDepth < 5) {
                 builder.startObject(randomAsciiOfLengthBetween(3, 10));
@@ -159,17 +156,33 @@ public class GetResultTests extends ESTestCase {
             if (randomBoolean() && currentDepth < 5) {
                 builder.startArray(randomAsciiOfLengthBetween(3, 10));
                 int numElements = randomIntBetween(1, 5);
+                boolean object = randomBoolean();
                 for (int j = 0; j < numElements; j++) {
-                    if (frequently()) {
-                        builder.value(randomBoolean() ? randomLong() : randomAsciiOfLengthBetween(3, 10));
-                    } else {
+                    if (object) {
                         builder.startObject();
                         addFields(builder, currentDepth + 1);
                         builder.endObject();
+                    } else {
+                        builder.value(randomFieldValue());
                     }
                 }
                 builder.endArray();
             }
+        }
+    }
+
+    private static Object randomFieldValue() {
+        switch(randomIntBetween(0, 3)) {
+            case 0:
+                return randomAsciiOfLengthBetween(3, 10);
+            case 1:
+                return randomUnicodeOfLengthBetween(3, 10);
+            case 2:
+                return randomLong();
+            case 3:
+                return randomDouble();
+            default:
+                throw new UnsupportedOperationException();
         }
     }
 }

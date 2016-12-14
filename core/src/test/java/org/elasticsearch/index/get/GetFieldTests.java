@@ -62,7 +62,7 @@ public class GetFieldTests extends ESTestCase {
         BytesReference originalBytes = toXContent(getField, xContentType, true);
         //test that we can parse what we print out
         GetField parsedGetField;
-        try (XContentParser parser = xContentType.xContent().createParser(originalBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
             //we need to move to the next token, the start object one that we manually added is not expected
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -102,22 +102,19 @@ public class GetFieldTests extends ESTestCase {
 
     //TODO move this to some utility class
     /**
-     * Asserts that the provided {@link BytesReference}s hold the same content. The comparison is done byte per byte, unless we know that
-     * the content type is SMILE, in which case the map representation of the provided objects will be compared.
+     * Asserts that the provided {@link BytesReference}s hold the same content. The comparison is done between the map
+     * representation of the provided objects.
      */
     public static void assertSameOutput(BytesReference expected, BytesReference actual, XContentType xContentType) throws IOException {
-        if (xContentType == XContentType.SMILE) {
-            //Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision),
-            //hence the byte per byte comparison fails. We rather re-parse both expected and actual bytes into a map and compare those two.
-            try (XContentParser parser = xContentType.xContent().createParser(actual)) {
-                Map<String, Object> finalMap = parser.map();
-                try (XContentParser parser2 = xContentType.xContent().createParser(expected)) {
-                    Map<String, Object> originalMap = parser2.map();
-                    assertEquals(originalMap, finalMap);
-                }
+        //we tried comparing byte per byte, but that didn't fly for a couple of reasons:
+        //1) whenever anything goes through a map, ordering is not preserved, which is perfectly ok
+        //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
+        try (XContentParser parser = xContentType.xContent().createParser(actual)) {
+            Map<String, Object> finalMap = parser.map();
+            try (XContentParser parser2 = xContentType.xContent().createParser(expected)) {
+                Map<String, Object> originalMap = parser2.map();
+                assertEquals(originalMap, finalMap);
             }
-        } else {
-            assertEquals(expected, actual);
         }
     }
 
@@ -182,7 +179,7 @@ public class GetFieldTests extends ESTestCase {
                     expectedParsedValues.add(randomBoolean);
                     break;
                 case 7:
-                    String randomString = randomUnicodeOfLengthBetween(3, 10);
+                    String randomString = randomBoolean() ? randomAsciiOfLengthBetween(3, 10 ) : randomUnicodeOfLengthBetween(3, 10);
                     originalValues.add(randomString);
                     expectedParsedValues.add(randomString);
                     break;

@@ -161,7 +161,11 @@ public class ActionWriteResponse extends ActionResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return "ShardInfo{" +
+                "total=" + total +
+                ", successful=" + successful +
+                ", failures=" + Arrays.toString(failures) +
+                '}';
         }
 
         public static ShardInfo readShardInfo(StreamInput in) throws IOException {

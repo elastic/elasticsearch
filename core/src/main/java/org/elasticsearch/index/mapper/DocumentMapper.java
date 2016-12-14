@@ -327,6 +327,10 @@ public class DocumentMapper implements ToXContent {
      */
     public DocumentMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         Mapping updated = this.mapping.updateFieldType(fullNameToFieldType);
+        if (updated == this.mapping) {
+            // no change
+            return this;
+        }
         return new DocumentMapper(mapperService, updated);
     }
 

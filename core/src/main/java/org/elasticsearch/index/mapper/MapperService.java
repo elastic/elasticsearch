@@ -391,7 +391,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             Collections.addAll(fieldMappers, mapper.mapping().metadataMappers);
             MapperUtils.collect(mapper.root(), new ArrayList<>(), fieldMappers);
             for (FieldMapper fieldMapper : fieldMappers) {
-                assert fieldMapper.fieldType() == fieldTypes.get(fieldMapper.name()) : fieldMapper.name();
+                assert fieldMapper.fieldType().equals(fieldTypes.get(fieldMapper.name())) : fieldMapper.name();
             }
         }
         return true;

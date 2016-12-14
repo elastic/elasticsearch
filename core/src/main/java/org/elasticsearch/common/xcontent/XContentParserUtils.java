@@ -22,9 +22,7 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
-import java.io.IOException;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -34,22 +32,6 @@ import java.util.function.Supplier;
 public final class XContentParserUtils {
 
     private XContentParserUtils() {
-    }
-
-    /**
-     * Makes sure that the provided token is of type {@link XContentParser.Token#FIELD_NAME} and the field name is equal to the provided one
-     *
-     * @throws ParsingException if the token is not of type {@link XContentParser.Token#FIELD_NAME} or the current field name is not equal
-     *                          to the expected one
-     */
-    public static void ensureFieldName(String expectedFieldName, Token actualToken, String actualFieldName,
-                                       Supplier<XContentLocation> location) throws IOException {
-        Objects.requireNonNull(expectedFieldName, "expectedFieldName must not be null");
-        ensureExpectedToken(Token.FIELD_NAME, actualToken, location);
-        if (expectedFieldName.equals(actualFieldName) == false) {
-            String message = "Failed to parse object: expecting field with name [%s] but found [%s]";
-            throw new ParsingException(location.get(), String.format(Locale.ROOT, message, expectedFieldName, actualFieldName));
-        }
     }
 
     /**

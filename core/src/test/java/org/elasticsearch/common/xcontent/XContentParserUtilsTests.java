@@ -26,7 +26,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
 
 public class XContentParserUtilsTests extends ESTestCase {
 
@@ -40,18 +39,6 @@ public class XContentParserUtilsTests extends ESTestCase {
             assertEquals("Failed to parse object: expecting token of type [" + randomToken + "] but found [null]", e.getMessage());
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser::getTokenLocation);
-        }
-    }
-
-    public void testEnsureFieldName() throws IOException {
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"foo\":\"bar\"}")) {
-            // Moves to start object
-            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            ParsingException e = expectThrows(ParsingException.class, () ->
-                ensureFieldName("test", parser.nextToken(), parser.currentName(), parser::getTokenLocation)
-            );
-            assertEquals("Failed to parse object: expecting field with name [test] but found [foo]", e.getMessage());
-            ensureFieldName("foo", parser.currentToken(), parser.currentName(), parser::getTokenLocation);
         }
     }
 }

@@ -17,7 +17,7 @@
  * under the License.
  */
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.integ-test'
+apply plugin: 'elasticsearch.rest-test'
 
 group = 'org.elasticsearch.client'
 

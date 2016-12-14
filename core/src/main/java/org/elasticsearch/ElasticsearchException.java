@@ -44,8 +44,8 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
-import static org.elasticsearch.common.xcontent.XContentParsingExceptions.ensureFieldName;
-import static org.elasticsearch.common.xcontent.XContentParsingExceptions.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 
 /**
  * A base class for all elasticsearch exceptions.
@@ -351,29 +351,22 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
     /**
      * Generate a {@link ElasticsearchException} from a {@link XContentParser}. This does not
-     * returns the original exception type (ie NodeClosedException for example) but just wraps
-     * the type, the reason and the cause of the exception.
+     * return the original exception type (ie NodeClosedException for example) but just wraps
+     * the type, the reason and the cause of the exception. It also recursively parses the
+     * tree structure of the cause, returning it as a tree structure of {@link ElasticsearchException}
+     * instances.
      */
     public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = ensureFieldName(parser, parser::nextToken);
+        XContentParser.Token token = ensureFieldName(parser, parser.nextToken());
 
         String type = null, reason = null, stack = null;
         ElasticsearchException cause = null;
         Map<String, Object> headers = new HashMap<>();
 
-        String currentFieldName = parser.currentName();
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (CAUSED_BY.equals(currentFieldName)) {
-                    cause = fromXContent(parser);
-                } else if (HEADER.equals(currentFieldName)) {
-                    headers.putAll(parser.map());
-                } else {
-                    throwUnknownField(currentFieldName, parser::getTokenLocation);
-                }
-            } else if (token.isValue()) {
+        do {
+            String currentFieldName = parser.currentName();
+            token = parser.nextToken();
+            if (token.isValue()) {
                 if (TYPE.equals(currentFieldName)) {
                     type = parser.text();
                 } else if (REASON.equals(currentFieldName)) {
@@ -384,8 +377,16 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                     // Everything else is considered as a header
                     headers.put(currentFieldName, parser.text());
                 }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (CAUSED_BY.equals(currentFieldName)) {
+                    cause = fromXContent(parser);
+                } else if (HEADER.equals(currentFieldName)) {
+                    headers.putAll(parser.map());
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
             }
-        }
+        } while ((token = parser.nextToken()) == XContentParser.Token.FIELD_NAME);
 
         StringBuilder message = new StringBuilder("Elasticsearch exception [");
         message.append(TYPE).append('=').append(type).append(", ");

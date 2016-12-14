@@ -44,14 +44,14 @@ public class XContentParsingExceptionsTests extends ESTestCase {
             XContentParser parser = createParser(createBuilder().startObject().endObject().bytes());
             // Parser current token is null
             assertNull(parser.currentToken());
-            XContentParsingExceptions.ensureFieldName(parser, parser::currentToken);
+            XContentParserUtils.ensureFieldName(parser, parser.currentToken());
         });
         assertThat(e.getMessage(), equalTo("Failed to parse object: expecting token of type [FIELD_NAME] but found [null]"));
 
         e = expectThrows(ParsingException.class, () -> {
             XContentParser parser = createParser(createBuilder().startObject().field("foo", "bar").endObject().bytes());
             // Parser next token is a start object
-            XContentParsingExceptions.ensureFieldName(parser, parser::nextToken);
+            XContentParserUtils.ensureFieldName(parser, parser.nextToken());
         });
         assertThat(e.getMessage(), equalTo("Failed to parse object: expecting token of type [FIELD_NAME] but found [START_OBJECT]"));
 
@@ -60,7 +60,7 @@ public class XContentParsingExceptionsTests extends ESTestCase {
             // Moves to start object
             assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
             // Expected field name is "foo", not "test"
-            XContentParsingExceptions.ensureFieldName(parser, parser::nextToken, "test");
+            XContentParserUtils.ensureFieldName(parser, parser.nextToken(), "test");
         });
         assertThat(e.getMessage(), equalTo("Failed to parse object: expecting field with name [test] but found [foo]"));
 
@@ -68,7 +68,7 @@ public class XContentParsingExceptionsTests extends ESTestCase {
         final String randomFieldName = randomAsciiOfLength(5);
         XContentParser parser = createParser(createBuilder().startObject().field(randomFieldName, 0).endObject().bytes());
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
-        XContentParsingExceptions.ensureFieldName(parser, parser::nextToken, randomFieldName);
+        XContentParserUtils.ensureFieldName(parser, parser.nextToken(), randomFieldName);
     }
 
     private XContentBuilder createBuilder() throws IOException {

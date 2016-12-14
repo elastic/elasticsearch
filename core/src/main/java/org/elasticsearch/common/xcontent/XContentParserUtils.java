@@ -20,36 +20,34 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.function.Supplier;
 
 /**
- * A set of static methods to get {@link org.elasticsearch.common.xcontent.XContentParser.Token} from {@link XContentParser}
+ * A set of static methods to get {@link Token} from {@link XContentParser}
  * while checking for their types and throw {@link ParsingException} if needed.
  */
-public class XContentParsingExceptions {
+public class XContentParserUtils {
 
-    @FunctionalInterface
-    public interface TokenSupplier {
-        XContentParser.Token getToken() throws IOException;
+    /**
+     * Throws a {@link ParsingException} if the token is not of type Token.FIELD_NAME
+     *
+     * @return the token, definitely a Token.FIELD_NAME
+     */
+    public static Token ensureFieldName(XContentParser parser, Token token) throws IOException {
+        return ensureType(Token.FIELD_NAME, token, parser::getTokenLocation);
     }
 
     /**
-     * Get the Token using the TokenSupplier and throws a {@link ParsingException}
-     * if the token is not of type Token.FIELD_NAME
+     * Throws a {@link ParsingException} if the token is not of type Token.FIELD_NAME or is not equal to the given field name.
+     *
+     * @return the token, definitely a Token.FIELD_NAME
      */
-    public static XContentParser.Token ensureFieldName(XContentParser parser, TokenSupplier token) throws IOException {
-        return ensureType(parser, XContentParser.Token.FIELD_NAME, token.getToken());
-    }
-
-    /**
-     * Get the Token using the TokenSupplier and throws a {@link ParsingException}
-     * if the token is not of type Token.FIELD_NAME or does not equal to the given fieldName
-     */
-    public static XContentParser.Token ensureFieldName(XContentParser parser, TokenSupplier token, String fieldName) throws IOException {
-        XContentParser.Token t = ensureType(parser, XContentParser.Token.FIELD_NAME, token.getToken());
+    public static Token ensureFieldName(XContentParser parser, Token token, String fieldName) throws IOException {
+        Token t = ensureType(Token.FIELD_NAME, token, parser::getTokenLocation);
 
         String current = parser.currentName() != null ? parser.currentName() : "<null>";
         if (current.equals(fieldName) == false) {
@@ -62,15 +60,15 @@ public class XContentParsingExceptions {
     /**
      * Throws a {@link ParsingException} with a "unknown field found" reason.
      */
-    public static void throwUnknownField(String field, Supplier<XContentLocation> location) {
+    public static void throwUnknownField(String field, XContentLocation location) {
         String message = "Failed to parse object: unknown field [%s] found";
-        throw new ParsingException(location.get(), String.format(Locale.ROOT, message, field));
+        throw new ParsingException(location, String.format(Locale.ROOT, message, field));
     }
 
-    private static XContentParser.Token ensureType(XContentParser parser, XContentParser.Token expected, XContentParser.Token current) {
+    private static Token ensureType(Token expected, Token current, Supplier<XContentLocation> location) {
         if (current != expected) {
             String message = "Failed to parse object: expecting token of type [%s] but found [%s]";
-            throw new ParsingException(parser.getTokenLocation(), String.format(Locale.ROOT, message, expected, current));
+            throw new ParsingException(location.get(), String.format(Locale.ROOT, message, expected, current));
         }
         return current;
     }

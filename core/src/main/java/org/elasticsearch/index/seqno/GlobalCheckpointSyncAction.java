@@ -115,6 +115,11 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
         public PrimaryRequest(ShardId shardId) {
             super(shardId);
         }
+
+        @Override
+        public String toString() {
+            return "GlobalCkpSyncPrimary{" + shardId + "}";
+        }
     }
 
     public static final class ReplicaRequest extends ReplicationRequest<GlobalCheckpointSyncAction.ReplicaRequest> {
@@ -143,6 +148,14 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
 
         public long getCheckpoint() {
             return checkpoint;
+        }
+
+        @Override
+        public String toString() {
+            return "GlobalCkpSyncReplica{" +
+                "checkpoint=" + checkpoint +
+                ", shardId=" + shardId +
+                '}';
         }
     }
 

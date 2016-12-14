@@ -984,6 +984,11 @@ public class TransportReplicationActionTests extends ESTestCase {
             super.onRetry();
             isRetrySet.set(true);
         }
+
+        @Override
+        public String toString() {
+            return "Request{}";
+        }
     }
 
     static class Response extends ReplicationResponse {

@@ -236,13 +236,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     @Override
-    public String toString() {
-        if (shardId != null) {
-            return shardId.toString();
-        } else {
-            return index;
-        }
-    }
+    public abstract String toString(); // force a proper to string to ease debugging
 
     @Override
     public String getDescription() {

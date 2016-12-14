@@ -264,9 +264,7 @@ public class EmailActionTests extends ESTestCase {
                 }
                 builder.endObject();
             }
-        }
-
-        if (textBody != null || htmlBody != null) {
+        } else if (textBody != null || htmlBody != null) {
             builder.startObject("body");
             if (textBody != null) {
                 if (randomBoolean()) {

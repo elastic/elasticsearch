@@ -194,6 +194,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
     }
 
     public void testParseContainsDuplicateOperator() throws IOException {
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+                JsonXContent.isStrictDuplicateDetectionEnabled());
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
@@ -245,6 +247,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
     }
 
     public void testParseContainsDuplicateValue() throws IOException {
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+                JsonXContent.isStrictDuplicateDetectionEnabled());
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
@@ -270,6 +274,8 @@ public class ArrayCompareConditionTests extends ESTestCase {
     }
 
     public void testParseContainsDuplicateQuantifier() throws IOException {
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+                JsonXContent.isStrictDuplicateDetectionEnabled());
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);

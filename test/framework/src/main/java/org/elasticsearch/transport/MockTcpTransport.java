@@ -336,6 +336,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             if (isOpen.compareAndSet(true, false)) {
                 //establish a happens-before edge between closing and accepting a new connection
                 synchronized (this) {
+                    onChannelClosed(this);
                     IOUtils.close(serverSocket, activeChannel, () -> IOUtils.close(workerChannels.keySet()),
                         () -> cancellableThreads.cancel("channel closed"), onClose);
                 }

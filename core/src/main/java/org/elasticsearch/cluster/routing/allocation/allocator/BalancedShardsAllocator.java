@@ -449,7 +449,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             }
 
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {
-                AllocationDecision allocationDecision = allocation.hasPendingAsyncFetch() ? AllocationDecision.FETCH_PENDING :
+                AllocationDecision allocationDecision = allocation.hasPendingAsyncFetch() ? AllocationDecision.AWAITING_INFO :
                                                             AllocationDecision.fromDecisionType(canRebalance.type());
                 return MoveDecision.cannotRebalance(canRebalance, allocationDecision, currentNodeWeightRanking, nodeDecisions);
             } else {

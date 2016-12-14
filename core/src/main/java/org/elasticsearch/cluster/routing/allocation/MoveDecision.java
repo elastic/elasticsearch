@@ -223,7 +223,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         String explanation;
         if (clusterRebalanceDecision != null) {
             // it was a decision to rebalance the shard, because the shard was allowed to remain on its current node
-            if (allocationDecision == AllocationDecision.FETCH_PENDING) {
+            if (allocationDecision == AllocationDecision.AWAITING_INFO) {
                 explanation = "cannot rebalance as information about existing copies of this shard in the cluster is still being gathered";
             } else if (clusterRebalanceDecision.type() == Type.NO) {
                 explanation = "rebalancing is not allowed on the cluster" + (atLeastOneNodeWithYesDecision() ? " even though there " +
@@ -233,7 +233,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             } else {
                 assert clusterRebalanceDecision.type() == Type.YES;
                 if (getTargetNode() != null) {
-                    if (allocationDecision == AllocationDecision.THROTTLE) {
+                    if (allocationDecision == AllocationDecision.THROTTLED) {
                         explanation = "shard rebalancing throttled";
                     } else {
                         explanation = "can rebalance shard";
@@ -248,7 +248,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
             assert canRemain() == false;
             if (allocationDecision == AllocationDecision.YES) {
                 explanation = "shard cannot remain on this node and is force-moved to another node";
-            } else if (allocationDecision == AllocationDecision.THROTTLE) {
+            } else if (allocationDecision == AllocationDecision.THROTTLED) {
                 explanation = "shard cannot remain on this node but is throttled on moving to another node";
             } else {
                 assert allocationDecision == AllocationDecision.NO;

@@ -154,7 +154,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         // verify decision objects
         assertTrue(allocateDecision.isDecisionTaken());
         assertFalse(moveDecision.isDecisionTaken());
-        assertEquals(AllocationDecision.DELAYED_ALLOCATION, allocateDecision.getAllocationDecision());
+        assertEquals(AllocationDecision.ALLOCATION_DELAYED, allocateDecision.getAllocationDecision());
         assertThat(allocateDecision.getExplanation(), startsWith("cannot allocate because the cluster is still waiting"));
         assertThat(allocateDecision.getExplanation(), containsString(
             "despite being allowed to allocate the shard to at least one other node"));
@@ -261,8 +261,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertTrue(allocateDecision.isDecisionTaken());
         assertFalse(moveDecision.isDecisionTaken());
         AllocationDecision decisionToAllocate = allocateDecision.getAllocationDecision();
-        assertTrue(decisionToAllocate == AllocationDecision.FETCH_PENDING || decisionToAllocate == AllocationDecision.NO);
-        if (decisionToAllocate == AllocationDecision.FETCH_PENDING) {
+        assertTrue(decisionToAllocate == AllocationDecision.AWAITING_INFO || decisionToAllocate == AllocationDecision.NO);
+        if (decisionToAllocate == AllocationDecision.AWAITING_INFO) {
             assertEquals("cannot allocate because information about existing shard data is still being retrieved from some of the nodes",
                 allocateDecision.getExplanation());
         } else {

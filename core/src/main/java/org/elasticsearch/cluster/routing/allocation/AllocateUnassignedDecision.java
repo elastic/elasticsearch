@@ -241,9 +241,9 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         AllocationDecision allocationDecision = getAllocationDecision();
         if (allocationDecision == AllocationDecision.YES) {
             return "can allocate the shard";
-        } else if (allocationDecision == AllocationDecision.THROTTLE) {
+        } else if (allocationDecision == AllocationDecision.THROTTLED) {
             return "allocation temporarily throttled";
-        } else if (allocationDecision == AllocationDecision.FETCH_PENDING) {
+        } else if (allocationDecision == AllocationDecision.AWAITING_INFO) {
             return "cannot allocate because information about existing shard data is still being retrieved from some of the nodes";
         } else if (allocationDecision == AllocationDecision.NO_VALID_SHARD_COPY) {
             if (getNodeDecisions() != null && getNodeDecisions().isEmpty() == false) {
@@ -251,7 +251,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
             } else {
                 return "cannot allocate because a previous copy of the primary shard existed but could not be found";
             }
-        } else if (allocationDecision == AllocationDecision.DELAYED_ALLOCATION) {
+        } else if (allocationDecision == AllocationDecision.ALLOCATION_DELAYED) {
             return "cannot allocate because the cluster is still waiting " +
                               TimeValue.timeValueMillis(remainingDelayInMillis) +
                               " for the departed node holding a replica to rejoin" +

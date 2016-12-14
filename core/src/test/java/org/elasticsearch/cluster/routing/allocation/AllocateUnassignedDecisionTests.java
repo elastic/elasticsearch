@@ -107,7 +107,7 @@ public class AllocateUnassignedDecisionTests extends ESTestCase {
         nodeDecisions.add(new NodeAllocationResult(node2, Decision.THROTTLE, 2));
         AllocateUnassignedDecision throttleDecision = AllocateUnassignedDecision.throttle(nodeDecisions);
         assertTrue(throttleDecision.isDecisionTaken());
-        assertEquals(AllocationDecision.THROTTLE, throttleDecision.getAllocationDecision());
+        assertEquals(AllocationDecision.THROTTLED, throttleDecision.getAllocationDecision());
         assertEquals(AllocationStatus.DECIDERS_THROTTLED, throttleDecision.getAllocationStatus());
         assertThat(throttleDecision.getExplanation(), startsWith("allocation temporarily throttled"));
         assertEquals(nodeDecisions.stream().sorted().collect(Collectors.toList()), throttleDecision.getNodeDecisions());

@@ -246,19 +246,16 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (!isExists()) {
-            builder.field(_INDEX, index);
-            builder.field(_TYPE, type);
-            builder.field(_ID, id);
-            builder.field(FOUND, false);
-        } else {
-            builder.field(_INDEX, index);
-            builder.field(_TYPE, type);
-            builder.field(_ID, id);
+        builder.field(_INDEX, index);
+        builder.field(_TYPE, type);
+        builder.field(_ID, id);
+        if (isExists()) {
             if (version != -1) {
                 builder.field(_VERSION, version);
             }
             toXContentEmbedded(builder, params);
+        } else {
+            builder.field(FOUND, false);
         }
         builder.endObject();
         return builder;
@@ -266,7 +263,10 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
 
     public static GetResult fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.START_OBJECT;
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new ParsingException(parser.getTokenLocation(),
+                    "expected " + XContentParser.Token.START_OBJECT + " - found " + parser.currentToken());
+        }
         String currentFieldName = null;
         String index = null, type = null, id = null;
         long version = -1;

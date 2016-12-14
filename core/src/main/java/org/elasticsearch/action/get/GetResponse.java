@@ -183,8 +183,8 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        GetResponse getFields = (GetResponse) o;
-        return Objects.equals(getResult, getFields.getResult);
+        GetResponse getResponse = (GetResponse) o;
+        return Objects.equals(getResult, getResponse.getResult);
     }
 
     @Override

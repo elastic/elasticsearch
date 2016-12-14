@@ -53,6 +53,9 @@ public class RestToXContentListener<Response extends ToXContent> extends RestRes
     }
 
     protected boolean wrapInObject() {
+        //Ideally, the toXContent method starts with startObject and ends with endObject.
+        //In practice, we have many places where toXContent produces a json fragment that's not valid by itself. We will
+        //migrate those step by step, so that we never have to start objects here, and we can remove this method.
         return true;
     }
 

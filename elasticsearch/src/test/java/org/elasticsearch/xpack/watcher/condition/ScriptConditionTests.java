@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -42,7 +41,6 @@ import org.joda.time.DateTimeZone;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
@@ -127,7 +125,7 @@ public class ScriptConditionTests extends ESTestCase {
 
         XContentBuilder builder = createConditionContent("ctx.payload.hits.total > 1", null, ScriptType.INLINE);
 
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         ScriptCondition executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
@@ -138,7 +136,7 @@ public class ScriptConditionTests extends ESTestCase {
 
 
         builder = createConditionContent("return true", null, ScriptType.INLINE);
-        parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        parser = createParser(builder);
         parser.nextToken();
         executable = ScriptCondition.parse(scriptService, "_watch", parser);
 
@@ -150,7 +148,7 @@ public class ScriptConditionTests extends ESTestCase {
     public void testParserInvalid() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject().endObject();
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         try {
             ScriptCondition.parse(scriptService, "_id", parser);
@@ -179,7 +177,7 @@ public class ScriptConditionTests extends ESTestCase {
                 script = "foo = = 1";
         }
         XContentBuilder builder = createConditionContent(script, "painless", scriptType);
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
 
         expectThrows(expectedException,
@@ -189,7 +187,7 @@ public class ScriptConditionTests extends ESTestCase {
     public void testScriptConditionParser_badLang() throws Exception {
         String script = "return true";
         XContentBuilder builder = createConditionContent(script, "not_a_valid_lang", ScriptType.INLINE);
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> ScriptCondition.parse(scriptService, "_watch", parser));

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 
@@ -24,7 +23,7 @@ public class NeverConditionTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.endObject();
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
 
         Condition executable = NeverCondition.parse("_id", parser);
@@ -36,7 +35,7 @@ public class NeverConditionTests extends ESTestCase {
         builder.startObject();
         builder.field("foo", "bar");
         builder.endObject();
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         try {
             NeverCondition.parse("_id", parser);

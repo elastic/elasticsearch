@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -157,8 +156,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         try (XContentBuilder builder = jsonBuilder()) {
             result.executedRequest().toXContent(builder, ToXContent.EMPTY_PARAMS);
 
-            String jsonQuery = builder.string();
-            Map<String, Object> map = XContentFactory.xContent(jsonQuery).createParser(jsonQuery).map();
+            Map<String, Object> map = createParser(builder).map();
             assertThat(map, hasKey("body"));
             assertThat(map.get("body"), instanceOf(Map.class));
 

@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -16,7 +15,6 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -36,7 +34,7 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         licensesMetaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
-        LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
+        LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(createParser(builder));
         assertThat(licensesMetaDataFromXContent.getLicense(), equalTo(license));
     }
 
@@ -60,9 +58,8 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         builder.startObject();
         builder = metaDataBuilder.build().toXContent(builder, params);
         builder.endObject();
-        String serializedMetaData = builder.string();
         // deserialize metadata again
-        MetaData metaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(serializedMetaData));
+        MetaData metaData = MetaData.Builder.fromXContent(createParser(builder));
         // check that custom metadata still present
         assertThat(metaData.custom(licensesMetaData.type()), notNullValue());
         assertThat(metaData.custom(repositoriesMetaData.type()), notNullValue());
@@ -84,7 +81,7 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         licensesMetaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
-        LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
+        LicensesMetaData licensesMetaDataFromXContent = getLicensesMetaDataFromXContent(createParser(builder));
         assertThat(licensesMetaDataFromXContent.getLicense(), equalTo(trialLicense));
     }
 
@@ -95,12 +92,11 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         builder.nullField("license");
         builder.endObject();
         builder.endObject();
-        LicensesMetaData metaDataFromXContent = getLicensesMetaDataFromXContent(builder.bytes());
+        LicensesMetaData metaDataFromXContent = getLicensesMetaDataFromXContent(createParser(builder));
         assertThat(metaDataFromXContent.getLicense(), equalTo(LicensesMetaData.LICENSE_TOMBSTONE));
     }
 
-    private static LicensesMetaData getLicensesMetaDataFromXContent(BytesReference bytes) throws Exception {
-        final XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(bytes);
+    private static LicensesMetaData getLicensesMetaDataFromXContent(XContentParser parser) throws Exception {
         parser.nextToken(); // consume null
         parser.nextToken(); // consume "licenses"
         LicensesMetaData licensesMetaDataFromXContent = LicensesMetaData.PROTO.fromXContent(parser);

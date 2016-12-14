@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -28,7 +27,7 @@ public class AlwaysConditionTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         builder.endObject();
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         Condition executable = AlwaysCondition.parse("_id", parser);
         assertTrue(executable.execute(null).met());
@@ -39,7 +38,7 @@ public class AlwaysConditionTests extends ESTestCase {
                 .startObject()
                 .field("foo", "bar")
                 .endObject();
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         try {
             AlwaysCondition.parse( "_id", parser);

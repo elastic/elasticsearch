@@ -12,7 +12,6 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptService;
@@ -34,7 +33,6 @@ import org.elasticsearch.xpack.watcher.support.Variables;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Before;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -56,14 +54,6 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class JiraActionTests extends ESTestCase {
-
-    private JiraService service;
-
-    @Before
-    public void init() throws Exception {
-        service = mock(JiraService.class);
-    }
-
     public void testParser() throws Exception {
         final String accountName = randomAsciiOfLength(10);
         final Map<String, Object> issueDefaults = JiraAccountTests.randomIssueDefaults();
@@ -118,42 +108,40 @@ public class JiraActionTests extends ESTestCase {
     public void testToXContent() throws Exception {
         final JiraAction action = randomJiraAction();
 
-        BytesReference bytes = null;
         try (XContentBuilder builder = randomFrom(jsonBuilder(), smileBuilder(), yamlBuilder(), cborBuilder())) {
             action.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            bytes = builder.bytes();
-        }
 
-        String parsedAccount = null;
-        HttpProxy parsedProxy = null;
-        Map<String, Object> parsedFields = null;
+            String parsedAccount = null;
+            HttpProxy parsedProxy = null;
+            Map<String, Object> parsedFields = null;
 
-        try (XContentParser parser = XContentHelper.createParser(bytes)) {
-            assertNull(parser.currentToken());
-            parser.nextToken();
+            try (XContentParser parser = createParser(builder)) {
+                assertNull(parser.currentToken());
+                parser.nextToken();
 
-            XContentParser.Token token = parser.currentToken();
-            assertThat(token, is(XContentParser.Token.START_OBJECT));
+                XContentParser.Token token = parser.currentToken();
+                assertThat(token, is(XContentParser.Token.START_OBJECT));
 
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if ("account".equals(currentFieldName)) {
-                    parsedAccount = parser.text();
-                } else if ("proxy".equals(currentFieldName)) {
-                    parsedProxy = HttpProxy.parse(parser);
-                } else if ("fields".equals(currentFieldName)) {
-                    parsedFields = parser.map();
-                } else {
-                    fail("unknown field [" + currentFieldName + "]");
+                String currentFieldName = null;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if ("account".equals(currentFieldName)) {
+                        parsedAccount = parser.text();
+                    } else if ("proxy".equals(currentFieldName)) {
+                        parsedProxy = HttpProxy.parse(parser);
+                    } else if ("fields".equals(currentFieldName)) {
+                        parsedFields = parser.map();
+                    } else {
+                        fail("unknown field [" + currentFieldName + "]");
+                    }
                 }
             }
-        }
 
-        assertThat(parsedAccount, equalTo(action.getAccount()));
-        assertThat(parsedProxy, equalTo(action.proxy));
-        assertThat(parsedFields, equalTo(action.fields));
+            assertThat(parsedAccount, equalTo(action.getAccount()));
+            assertThat(parsedProxy, equalTo(action.proxy));
+            assertThat(parsedFields, equalTo(action.fields));
+        }
     }
 
     public void testEquals() throws Exception {

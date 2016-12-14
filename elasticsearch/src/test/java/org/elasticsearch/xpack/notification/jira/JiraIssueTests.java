@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.notification.jira;
 
 import org.apache.http.HttpStatus;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpMethod;
@@ -41,61 +39,60 @@ public class JiraIssueTests extends ESTestCase {
     public void testToXContent() throws Exception {
         final JiraIssue issue = randomJiraIssue();
 
-        BytesReference bytes = null;
         try (XContentBuilder builder = randomFrom(jsonBuilder(), smileBuilder(), yamlBuilder(), cborBuilder())) {
             issue.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            bytes = builder.bytes();
-        }
 
-        Map<String, Object> parsedFields = null;
-        Map<String, Object> parsedResult = null;
-
-        HttpRequest parsedRequest = null;
-        HttpResponse parsedResponse = null;
-        String parsedAccount = null;
-        String parsedReason = null;
-
-        try (XContentParser parser = XContentHelper.createParser(bytes)) {
-            assertNull(parser.currentToken());
-            parser.nextToken();
-
-            XContentParser.Token token = parser.currentToken();
-            assertThat(token, is(XContentParser.Token.START_OBJECT));
-
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if ("account".equals(currentFieldName)) {
-                    parsedAccount = parser.text();
-                } else if ("result".equals(currentFieldName)) {
-                    parsedResult = parser.map();
-                } else if ("request".equals(currentFieldName)) {
-                    HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
-                    HttpRequest.Parser httpRequestParser = new HttpRequest.Parser(registry);
-                    parsedRequest = httpRequestParser.parse(parser);
-                } else if ("response".equals(currentFieldName)) {
-                    parsedResponse = HttpResponse.parse(parser);
-                } else if ("fields".equals(currentFieldName)) {
-                    parsedFields = parser.map();
-                } else if ("reason".equals(currentFieldName)) {
-                    parsedReason = parser.text();
-                } else {
-                    fail("unknown field [" + currentFieldName + "]");
+            Map<String, Object> parsedFields = null;
+            Map<String, Object> parsedResult = null;
+    
+            HttpRequest parsedRequest = null;
+            HttpResponse parsedResponse = null;
+            String parsedAccount = null;
+            String parsedReason = null;
+    
+            try (XContentParser parser = createParser(builder)) {
+                assertNull(parser.currentToken());
+                parser.nextToken();
+    
+                XContentParser.Token token = parser.currentToken();
+                assertThat(token, is(XContentParser.Token.START_OBJECT));
+    
+                String currentFieldName = null;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if ("account".equals(currentFieldName)) {
+                        parsedAccount = parser.text();
+                    } else if ("result".equals(currentFieldName)) {
+                        parsedResult = parser.map();
+                    } else if ("request".equals(currentFieldName)) {
+                        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
+                        HttpRequest.Parser httpRequestParser = new HttpRequest.Parser(registry);
+                        parsedRequest = httpRequestParser.parse(parser);
+                    } else if ("response".equals(currentFieldName)) {
+                        parsedResponse = HttpResponse.parse(parser);
+                    } else if ("fields".equals(currentFieldName)) {
+                        parsedFields = parser.map();
+                    } else if ("reason".equals(currentFieldName)) {
+                        parsedReason = parser.text();
+                    } else {
+                        fail("unknown field [" + currentFieldName + "]");
+                    }
                 }
             }
-        }
-
-        assertThat(parsedAccount, equalTo(issue.getAccount()));
-        assertThat(parsedFields, equalTo(issue.getFields()));
-        if (issue.successful()) {
-            assertThat(parsedResult, hasEntry("key", "TEST"));
-            assertNull(parsedRequest);
-            assertNull(parsedResponse);
-        } else {
-            assertThat(parsedRequest, equalTo(issue.getRequest()));
-            assertThat(parsedResponse, equalTo(issue.getResponse()));
-            assertThat(parsedReason, equalTo(resolveFailureReason(issue.getResponse())));
+            
+    
+            assertThat(parsedAccount, equalTo(issue.getAccount()));
+            assertThat(parsedFields, equalTo(issue.getFields()));
+            if (issue.successful()) {
+                assertThat(parsedResult, hasEntry("key", "TEST"));
+                assertNull(parsedRequest);
+                assertNull(parsedResponse);
+            } else {
+                assertThat(parsedRequest, equalTo(issue.getRequest()));
+                assertThat(parsedResponse, equalTo(issue.getResponse()));
+                assertThat(parsedReason, equalTo(resolveFailureReason(issue.getResponse())));
+            }
         }
     }
 

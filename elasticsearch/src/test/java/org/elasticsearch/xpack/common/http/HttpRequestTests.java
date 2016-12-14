@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.common.http;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
@@ -119,21 +117,19 @@ public class HttpRequestTests extends ESTestCase {
         final HttpRequest httpRequest = builder.build();
         assertNotNull(httpRequest);
 
-        BytesReference bytes = null;
         try (XContentBuilder xContentBuilder = randomFrom(jsonBuilder(), smileBuilder(), yamlBuilder(), cborBuilder())) {
             httpRequest.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-            bytes = xContentBuilder.bytes();
-        }
 
-        HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
-        HttpRequest.Parser httpRequestParser = new HttpRequest.Parser(registry);
-
-        try (XContentParser parser = XContentHelper.createParser(bytes)) {
-            assertNull(parser.currentToken());
-            parser.nextToken();
-
-            HttpRequest parsedRequest = httpRequestParser.parse(parser);
-            assertEquals(httpRequest, parsedRequest);
+            HttpAuthRegistry registry = new HttpAuthRegistry(singletonMap(BasicAuth.TYPE, new BasicAuthFactory(null)));
+            HttpRequest.Parser httpRequestParser = new HttpRequest.Parser(registry);
+    
+            try (XContentParser parser = createParser(xContentBuilder)) {
+                assertNull(parser.currentToken());
+                parser.nextToken();
+    
+                HttpRequest parsedRequest = httpRequestParser.parse(parser);
+                assertEquals(httpRequest, parsedRequest);
+            }
         }
     }
 

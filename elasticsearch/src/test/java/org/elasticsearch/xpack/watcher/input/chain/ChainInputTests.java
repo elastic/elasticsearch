@@ -82,7 +82,7 @@ public class ChainInputTests extends ESTestCase {
                 .endArray().endObject();
 
         // first pass JSON and check for correct inputs
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         ChainInput chainInput = chainInputFactory.parseInput("test", parser);
 
@@ -128,7 +128,7 @@ public class ChainInputTests extends ESTestCase {
         ChainInputFactory chainInputFactory = new ChainInputFactory(Settings.EMPTY, inputRegistry);
         factories.put("chain", chainInputFactory);
 
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         ChainInput parsedChainInput = ChainInput.parse("testWatchId", parser, inputRegistry);
         assertThat(parsedChainInput.getInputs(), hasSize(2));
@@ -192,7 +192,7 @@ public class ChainInputTests extends ESTestCase {
                 .startObject("second").startObject("simple").field("spam", "eggs").endObject().endObject()
                 .endObject().endArray().endObject();
 
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         ElasticsearchParseException e =
                 expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));
@@ -222,7 +222,7 @@ public class ChainInputTests extends ESTestCase {
                 .endObject().endArray().endObject()
                 .endArray().endObject();
 
-        XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
         ElasticsearchParseException e =
                 expectThrows(ElasticsearchParseException.class, () -> chainInputFactory.parseInput("test", parser));

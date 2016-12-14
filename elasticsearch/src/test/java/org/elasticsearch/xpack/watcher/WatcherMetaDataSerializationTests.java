@@ -8,13 +8,11 @@ package org.elasticsearch.xpack.watcher;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -33,7 +31,7 @@ public class WatcherMetaDataSerializationTests extends ESTestCase {
         watcherMetaData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
         builder.endObject();
-        WatcherMetaData watchersMetaDataFromXContent = getWatcherMetaDataFromXContent(builder.bytes());
+        WatcherMetaData watchersMetaDataFromXContent = getWatcherMetaDataFromXContent(createParser(builder));
         assertThat(watchersMetaDataFromXContent.manuallyStopped(), equalTo(manuallyStopped));
     }
 
@@ -58,16 +56,14 @@ public class WatcherMetaDataSerializationTests extends ESTestCase {
         builder.startObject();
         builder = metaDataBuilder.build().toXContent(builder, params);
         builder.endObject();
-        String serializedMetaData = builder.string();
         // deserialize metadata again
-        MetaData metaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(serializedMetaData));
+        MetaData metaData = MetaData.Builder.fromXContent(createParser(builder));
         // check that custom metadata still present
         assertThat(metaData.custom(watcherMetaData.type()), notNullValue());
         assertThat(metaData.custom(repositoriesMetaData.type()), notNullValue());
     }
 
-    private static WatcherMetaData getWatcherMetaDataFromXContent(BytesReference bytes) throws Exception {
-        final XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(bytes);
+    private static WatcherMetaData getWatcherMetaDataFromXContent(XContentParser parser) throws Exception {
         parser.nextToken(); // consume null
         parser.nextToken(); // consume "watcher"
         WatcherMetaData watcherMetaDataFromXContent = (WatcherMetaData)WatcherMetaData.PROTO.fromXContent(parser);

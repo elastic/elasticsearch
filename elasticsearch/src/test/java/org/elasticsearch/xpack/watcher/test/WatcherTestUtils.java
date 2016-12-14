@@ -16,7 +16,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptContextRegistry;
@@ -65,7 +64,6 @@ import org.elasticsearch.xpack.watcher.watch.WatchStatus;
 import org.hamcrest.Matcher;
 import org.joda.time.DateTime;
 
-import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -73,6 +71,8 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.mail.internet.AddressException;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
 import static java.util.Collections.emptyMap;
@@ -102,10 +102,6 @@ public final class WatcherTestUtils {
 
     public static void assertValue(XContentSource source, String path, Matcher<?> matcher) {
         assertThat(source.getValue(path), (Matcher<Object>) matcher);
-    }
-
-    public static XContentParser xContentParser(XContentBuilder builder) throws IOException {
-        return builder.contentType().xContent().createParser(builder.bytes());
     }
 
     public static WatcherSearchTemplateRequest templateRequest(SearchSourceBuilder sourceBuilder, String... indices) {

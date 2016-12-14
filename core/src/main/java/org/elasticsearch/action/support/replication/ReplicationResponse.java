@@ -34,6 +34,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * Base class for write action responses.
@@ -118,6 +119,25 @@ public class ReplicationResponse extends ActionResponse {
                 }
             }
             return status;
+        }
+
+        @Override
+        public boolean equals(Object that) {
+            if (this == that) {
+                return true;
+            }
+            if (that == null || getClass() != that.getClass()) {
+                return false;
+            }
+            ShardInfo other = (ShardInfo) that;
+            return Objects.equals(total, other.total) &&
+                    Objects.equals(successful, other.successful) &&
+                    Arrays.equals(failures, other.failures);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(total, successful, failures);
         }
 
         @Override
@@ -249,6 +269,27 @@ public class ReplicationResponse extends ActionResponse {
              */
             public boolean primary() {
                 return primary;
+            }
+
+            @Override
+            public boolean equals(Object that) {
+                if (this == that) {
+                    return true;
+                }
+                if (that == null || getClass() != that.getClass()) {
+                    return false;
+                }
+                Failure failure = (Failure) that;
+                return Objects.equals(primary, failure.primary) &&
+                        Objects.equals(shardId, failure.shardId) &&
+                        Objects.equals(nodeId, failure.nodeId) &&
+                        Objects.equals(cause, failure.cause) &&
+                        Objects.equals(status, failure.status);
+            }
+
+            @Override
+            public int hashCode() {
+                return Objects.hash(shardId, nodeId, cause, status, primary);
             }
 
             @Override

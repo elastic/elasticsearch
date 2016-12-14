@@ -9,6 +9,7 @@ import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
+import org.elasticsearch.xpack.prelert.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.prelert.job.usage.Usage;
 
@@ -43,6 +44,8 @@ public final class ReservedFieldNames {
      * in a given index.)
      */
     private static final String[] RESERVED_FIELD_NAME_ARRAY = {
+            ElasticsearchMappings.ALL_FIELD_VALUES,
+
             AnomalyCause.PROBABILITY.getPreferredName(),
             AnomalyCause.OVER_FIELD_NAME.getPreferredName(),
             AnomalyCause.OVER_FIELD_VALUE.getPreferredName(),

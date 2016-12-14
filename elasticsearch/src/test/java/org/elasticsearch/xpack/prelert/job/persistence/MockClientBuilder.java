@@ -217,17 +217,12 @@ public class MockClientBuilder {
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public MockClientBuilder createIndexRequest(String index) {
-        ArgumentMatcher<CreateIndexRequest> argumentMatcher = new ArgumentMatcher<CreateIndexRequest>() {
-            @Override
-            public boolean matches(Object o) {
-                return index.equals(((CreateIndexRequest) o).index());
-            }
-        };
+    public MockClientBuilder createIndexRequest(String index, ArgumentCaptor<CreateIndexRequest> requestCapture) {
+
         doAnswer(invocation -> {
             ((ActionListener) invocation.getArguments()[1]).onResponse(mock(CreateIndexResponse.class));
             return null;
-        }).when(indicesAdminClient).create(argThat(argumentMatcher), any(ActionListener.class));
+        }).when(indicesAdminClient).create(requestCapture.capture(), any(ActionListener.class));
         return this;
     }
 

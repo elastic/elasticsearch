@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.prelert.job.audit.AuditMessage;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
-import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.prelert.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.prelert.job.results.Result;
 import org.elasticsearch.xpack.prelert.job.usage.Usage;
@@ -73,10 +72,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(ElasticsearchMappings.COPY_TO);
         overridden.add(ElasticsearchMappings.DYNAMIC);
         overridden.add(ElasticsearchMappings.ENABLED);
-        overridden.add(ElasticsearchMappings.INCLUDE_IN_ALL);
-        overridden.add(ElasticsearchMappings.INDEX);
         overridden.add(ElasticsearchMappings.NESTED);
-        overridden.add(ElasticsearchMappings.NO);
         overridden.add(ElasticsearchMappings.PROPERTIES);
         overridden.add(ElasticsearchMappings.TYPE);
         overridden.add(ElasticsearchMappings.WHITESPACE);

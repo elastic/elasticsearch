@@ -7,10 +7,12 @@ package org.elasticsearch.xpack.prelert.job.persistence;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -21,9 +23,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
 import org.elasticsearch.xpack.prelert.job.AnalysisLimits;
 import org.elasticsearch.xpack.prelert.job.CategorizerState;
+import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.ModelState;
+import org.elasticsearch.xpack.prelert.job.audit.AuditActivity;
+import org.elasticsearch.xpack.prelert.job.audit.AuditMessage;
 import org.elasticsearch.xpack.prelert.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
 import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
@@ -32,6 +37,7 @@ import org.elasticsearch.xpack.prelert.job.results.CategoryDefinition;
 import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.job.results.Result;
+import org.elasticsearch.xpack.prelert.job.usage.Usage;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 
@@ -138,13 +144,61 @@ public class JobProviderTests extends ESTestCase {
         clientBuilder.verifyIndexCreated(JobProvider.PRELERT_USAGE_INDEX);
     }
 
+    public void testIndexSettings() {
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
+        JobProvider provider = createProvider(clientBuilder.build());
+        Settings settings = provider.prelertIndexSettings().build();
+
+        assertEquals("1", settings.get("index.number_of_shards"));
+        assertEquals("0", settings.get("index.number_of_replicas"));
+        assertEquals("async", settings.get("index.translog.durability"));
+        assertEquals("true", settings.get("index.mapper.dynamic"));
+        assertEquals("all_field_values", settings.get("index.query.default_field"));
+    }
+
+    public void testCreateJobRelatedIndicies() {
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
+        ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
+        clientBuilder.createIndexRequest(JobResultsPersister.getJobIndexName("foo"), captor);
+
+        Job.Builder job = buildJobBuilder("foo");
+        JobProvider provider = createProvider(clientBuilder.build());
+
+        provider.createJobRelatedIndices(job.build(), new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean aBoolean) {
+                CreateIndexRequest request = captor.getValue();
+                assertNotNull(request);
+                assertEquals(provider.prelertIndexSettings().build(), request.settings());
+                assertTrue(request.mappings().containsKey(Result.TYPE.getPreferredName()));
+                assertTrue(request.mappings().containsKey(CategorizerState.TYPE));
+                assertTrue(request.mappings().containsKey(CategoryDefinition.TYPE.getPreferredName()));
+                assertTrue(request.mappings().containsKey(Quantiles.TYPE.getPreferredName()));
+                assertTrue(request.mappings().containsKey(ModelState.TYPE.getPreferredName()));
+                assertTrue(request.mappings().containsKey(ModelSnapshot.TYPE.getPreferredName()));
+                assertTrue(request.mappings().containsKey(DataCounts.TYPE.getPreferredName()));
+                assertTrue(request.mappings().containsKey(Usage.TYPE));
+                assertTrue(request.mappings().containsKey(AuditMessage.TYPE.getPreferredName()));
+                assertTrue(request.mappings().containsKey(AuditActivity.TYPE.getPreferredName()));
+                assertEquals(10, request.mappings().size());
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e.toString());
+            }
+        });
+    }
+
+
     public void testCreateJob() throws InterruptedException, ExecutionException {
         Job.Builder job = buildJobBuilder("marscapone");
         job.setDescription("This is a very cheesy job");
         AnalysisLimits limits = new AnalysisLimits(9878695309134L, null);
         job.setAnalysisLimits(limits);
 
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).createIndexRequest("prelertresults-" + job.getId());
+        ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).createIndexRequest("prelertresults-" + job.getId(), captor);
 
         Client client = clientBuilder.build();
         JobProvider provider = createProvider(client);

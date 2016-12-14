@@ -29,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -47,6 +49,8 @@ import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.ModelState;
+import org.elasticsearch.xpack.prelert.job.audit.AuditActivity;
+import org.elasticsearch.xpack.prelert.job.audit.AuditMessage;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.persistence.BucketsQueryBuilder.BucketsQuery;
 import org.elasticsearch.xpack.prelert.job.persistence.InfluencersQueryBuilder.InfluencersQuery;
@@ -71,7 +75,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
@@ -90,11 +93,7 @@ public class JobProvider {
      */
     private static final String PRELERT_INFO_INDEX = "prelert-int";
 
-    private static final String SETTING_TRANSLOG_DURABILITY = "index.translog.durability";
     private static final String ASYNC = "async";
-    private static final String SETTING_MAPPER_DYNAMIC = "index.mapper.dynamic";
-    private static final String SETTING_DEFAULT_ANALYZER_TYPE = "index.analysis.analyzer.default.type";
-    private static final String KEYWORD = "keyword";
 
     private static final List<String> SECONDARY_SORT = Arrays.asList(
             AnomalyRecord.ANOMALY_SCORE.getPreferredName(),
@@ -157,7 +156,7 @@ public class JobProvider {
      * @return An Elasticsearch builder initialised with the desired settings
      * for Prelert indexes.
      */
-    private Settings.Builder prelertIndexSettings() {
+    Settings.Builder prelertIndexSettings() {
         return Settings.builder()
                 // Our indexes are small and one shard puts the
                 // least possible burden on Elasticsearch
@@ -166,12 +165,12 @@ public class JobProvider {
                 // Sacrifice durability for performance: in the event of power
                 // failure we can lose the last 5 seconds of changes, but it's
                 // much faster
-                .put(SETTING_TRANSLOG_DURABILITY, ASYNC)
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), ASYNC)
                 // We need to allow fields not mentioned in the mappings to
                 // pick up default mappings and be used in queries
-                .put(SETTING_MAPPER_DYNAMIC, true)
-                // By default "analyzed" fields won't be tokenised
-                .put(SETTING_DEFAULT_ANALYZER_TYPE, KEYWORD);
+                .put(MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey(), true)
+                // set the default all search field
+                .put(IndexSettings.DEFAULT_FIELD_SETTING.getKey(), ElasticsearchMappings.ALL_FIELD_VALUES);
     }
 
     /**
@@ -188,11 +187,15 @@ public class JobProvider {
             XContentBuilder modelStateMapping = ElasticsearchMappings.modelStateMapping();
             XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
             XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
+            XContentBuilder usageMapping = ElasticsearchMappings.usageMapping();
+            XContentBuilder auditMessageMapping = ElasticsearchMappings.auditMessageMapping();
+            XContentBuilder auditActivityMapping = ElasticsearchMappings.auditActivityMapping();
 
             String jobId = job.getId();
             LOGGER.trace("ES API CALL: create index {}", job.getId());
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(JobResultsPersister.getJobIndexName(jobId));
-            createIndexRequest.settings(prelertIndexSettings());
+            Settings.Builder settingsBuilder = prelertIndexSettings();
+            createIndexRequest.settings(settingsBuilder);
             createIndexRequest.mapping(Result.TYPE.getPreferredName(), resultsMapping);
             createIndexRequest.mapping(CategorizerState.TYPE, categorizerStateMapping);
             createIndexRequest.mapping(CategoryDefinition.TYPE.getPreferredName(), categoryDefinitionMapping);
@@ -200,6 +203,11 @@ public class JobProvider {
             createIndexRequest.mapping(ModelState.TYPE.getPreferredName(), modelStateMapping);
             createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
             createIndexRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);
+            // NORELASE These mappings shouldn't go in the results index once the index
+            // strategy has been reworked
+            createIndexRequest.mapping(Usage.TYPE, usageMapping);
+            createIndexRequest.mapping(AuditMessage.TYPE.getPreferredName(), auditMessageMapping);
+            createIndexRequest.mapping(AuditActivity.TYPE.getPreferredName(), auditActivityMapping);
 
             client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
                 @Override

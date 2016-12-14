@@ -37,7 +37,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.StringJoiner;
 
 /**
  * Helper class that exposes static methods to unify the way requests are logged.

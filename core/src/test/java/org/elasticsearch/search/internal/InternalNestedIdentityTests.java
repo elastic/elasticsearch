@@ -57,7 +57,7 @@ public class InternalNestedIdentityTests extends ESTestCase {
             builder.prettyPrint();
         }
         builder = nestedIdentity.innerToXContent(builder, ToXContent.EMPTY_PARAMS);
-        XContentParser parser = xcontentType.xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         InternalNestedIdentity parsedNestedIdentity = InternalNestedIdentity.fromXContent(parser);
         assertEquals(nestedIdentity, parsedNestedIdentity);
         assertNull(parser.nextToken());

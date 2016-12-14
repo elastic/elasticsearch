@@ -86,8 +86,6 @@ public class TransportService extends AbstractLifecycleComponent {
 
     final ConcurrentMapLong<RequestHolder> clientHandlers = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
 
-    private final AtomicLong requestIds = new AtomicLong();
-
     final CopyOnWriteArrayList<TransportConnectionListener> connectionListeners = new CopyOnWriteArrayList<>();
 
     private final TransportInterceptor interceptor;
@@ -520,7 +518,7 @@ public class TransportService extends AbstractLifecycleComponent {
             throw new IllegalStateException("can't send request to a null connection");
         }
         DiscoveryNode node = connection.getNode();
-        final long requestId = newRequestId();
+        final long requestId = transport.newRequestId();
         final TimeoutHandler timeoutHandler;
         try {
 
@@ -641,10 +639,6 @@ public class TransportService extends AbstractLifecycleComponent {
             return !Regex.simpleMatch(tracerLogExclude, action);
         }
         return true;
-    }
-
-    private long newRequestId() {
-        return requestIds.getAndIncrement();
     }
 
     public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws UnknownHostException {

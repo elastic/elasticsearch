@@ -25,8 +25,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -207,7 +207,7 @@ public class SearchModuleTests extends ModuleTestCase {
         assertThat(module.getQueryParserRegistry().getNames(), containsInAnyOrder(supportedQueries));
 
         IndicesQueriesRegistry indicesQueriesRegistry = module.getQueryParserRegistry();
-        XContentParser dummyParser = XContentHelper.createParser(new BytesArray("{}"));
+        XContentParser dummyParser = createParser(JsonXContent.jsonXContent, new BytesArray("{}"));
         for (String queryName : supportedQueries) {
             indicesQueriesRegistry.lookup(queryName, ParseFieldMatcher.EMPTY, dummyParser.getTokenLocation());
         }

@@ -184,6 +184,9 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
                         }
                     } else if (token.isValue()) {
                         if ("size".equals(currentFieldName)) {
+                            if (percolateRequest.onlyCount()) {
+                                throw new IllegalArgumentException("Cannot set size if onlyCount == true");
+                            }
                             searchSource.field("size", parser.intValue());
                         } else if ("sort".equals(currentFieldName)) {
                             searchSource.field("sort", parser.text());

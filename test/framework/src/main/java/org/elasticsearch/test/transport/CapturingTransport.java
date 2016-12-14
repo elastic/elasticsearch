@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 
@@ -75,6 +76,8 @@ public class CapturingTransport implements Transport {
 
     private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
     private BlockingQueue<CapturedRequest> capturedRequests = ConcurrentCollections.newBlockingQueue();
+    private final AtomicLong requestId = new AtomicLong();
+
 
     /** returns all requests captured so far. Doesn't clear the captured request list. See {@link #clear()} */
     public CapturedRequest[] capturedRequests() {
@@ -279,6 +282,10 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
+    public long newRequestId() {
+        return requestId.incrementAndGet();
+    }
+
     public Connection getConnection(DiscoveryNode node) {
         try {
             return openConnection(node, null);
@@ -286,5 +293,4 @@ public class CapturingTransport implements Transport {
             throw new UncheckedIOException(e);
         }
     }
-
 }

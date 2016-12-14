@@ -113,7 +113,10 @@ public class LongTermsAggregator extends TermsAggregator {
                     values.setDocument(docId);
                     final int valueCount = values.count();
                     for (int i = 0; i < valueCount; ++i) {
-                        bucketOrds.add(values.valueAt(i));
+                        long value = values.valueAt(i);
+                        if (longFilter == null || longFilter.accept(value)) {
+                            bucketOrds.add(value);
+                        }
                     }
                 }
             }

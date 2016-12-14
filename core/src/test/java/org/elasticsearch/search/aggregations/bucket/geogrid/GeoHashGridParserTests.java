@@ -33,7 +33,7 @@ public class GeoHashGridParserTests extends ESTestCase {
 
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(1, 12);
-        XContentParser stParser = JsonXContent.jsonXContent.createParser(
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, 
                 "{\"field\":\"my_loc\", \"precision\":" + precision + ", \"size\": 500, \"shard_size\": 550}");
         QueryParseContext parseContext = new QueryParseContext(mockRegistry,
                 stParser, ParseFieldMatcher.STRICT);
@@ -45,7 +45,7 @@ public class GeoHashGridParserTests extends ESTestCase {
 
     public void testParseValidFromStrings() throws Exception {
         int precision = randomIntBetween(1, 12);
-        XContentParser stParser = JsonXContent.jsonXContent.createParser(
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, 
                 "{\"field\":\"my_loc\", \"precision\":\"" + precision + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
         QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
@@ -55,7 +55,7 @@ public class GeoHashGridParserTests extends ESTestCase {
     }
 
     public void testParseErrorOnNonIntPrecision() throws Exception {
-        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":\"2.0\"}");
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":\"2.0\"}");
         QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
@@ -69,7 +69,7 @@ public class GeoHashGridParserTests extends ESTestCase {
     }
 
     public void testParseErrorOnBooleanPrecision() throws Exception {
-        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":false}");
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":false}");
         QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
@@ -82,7 +82,7 @@ public class GeoHashGridParserTests extends ESTestCase {
     }
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {
-        XContentParser stParser = JsonXContent.jsonXContent.createParser("{\"field\":\"my_loc\", \"precision\":\"13\"}");
+        XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":\"13\"}");
         QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);

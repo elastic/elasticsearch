@@ -21,6 +21,8 @@ package org.elasticsearch.search.suggest.term;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SortBy;
@@ -215,8 +217,8 @@ public class TermSuggestionBuilderTests extends AbstractSuggestionBuilderTestCas
                          "    }\n" +
                          "  }\n" +
                          "}";
-        try {
-            final SuggestBuilder suggestBuilder = SuggestBuilder.fromXContent(newParseContext(suggest), suggesters);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, suggest)) {
+            final SuggestBuilder suggestBuilder = SuggestBuilder.fromXContent(newParseContext(parser), suggesters);
             fail("Should not have been able to create SuggestBuilder from malformed JSON: " + suggestBuilder);
         } catch (Exception e) {
             assertThat(e.getMessage(), containsString("parsing failed"));

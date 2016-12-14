@@ -112,7 +112,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         }
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
-        XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
+        XContentParser parser = createParser(shuffled);
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         String contentString = factoriesBuilder.toString();
         logger.info("Content string: {}", contentString);

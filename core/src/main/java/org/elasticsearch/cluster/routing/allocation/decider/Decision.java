@@ -126,10 +126,6 @@ public abstract class Decision implements ToXContent, Writeable {
             return false;
         }
 
-        public String value() {
-            return toString().toLowerCase(Locale.ROOT);
-        }
-
     }
 
     /**
@@ -256,7 +252,7 @@ public abstract class Decision implements ToXContent, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("decider", label);
-            builder.field("decision", type.value());
+            builder.field("decision", type);
             String explanation = getExplanation();
             builder.field("explanation", explanation != null ? explanation : "none");
             builder.endObject();

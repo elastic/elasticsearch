@@ -1112,8 +1112,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             assertEquals("decision", parser.currentName());
             parser.nextToken();
             String decisionText = parser.text();
-            if ((allocationDecision == AllocationDecision.NO && decisionText.equals("no")
-                     || (allocationDecision == AllocationDecision.THROTTLED && decisionText.equals("throttle")))) {
+            if ((allocationDecision == AllocationDecision.NO && decisionText.equals("NO")
+                     || (allocationDecision == AllocationDecision.THROTTLED && decisionText.equals("THROTTLE")))) {
                 atLeastOneMatchingDecisionFound = true;
             }
             assertNotNull(decisionText);

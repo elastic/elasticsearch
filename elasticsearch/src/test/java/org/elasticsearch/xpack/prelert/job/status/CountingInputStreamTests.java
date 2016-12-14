@@ -29,9 +29,7 @@ public class CountingInputStreamTests extends ESTestCase {
 
         try (CountingInputStream counting = new CountingInputStream(source, statusReporter)) {
             while (counting.read() >= 0) {}
-            // an extra byte is read because we don't check the return
-            // value of the read() method
-            Assert.assertEquals(TEXT.length() + 1, usageReporter.getBytesReadSinceLastReport());
+            Assert.assertEquals(TEXT.length(), usageReporter.getBytesReadSinceLastReport());
 
             Assert.assertEquals(usageReporter.getBytesReadSinceLastReport(), statusReporter.getBytesRead());
         }
@@ -48,10 +46,7 @@ public class CountingInputStreamTests extends ESTestCase {
         try (CountingInputStream counting = new CountingInputStream(source, statusReporter)) {
             byte buf[] = new byte[256];
             while (counting.read(buf) >= 0) {}
-            // one less byte is reported because we don't check
-            // the return value of the read() method
-            Assert.assertEquals(TEXT.length() - 1, usageReporter.getBytesReadSinceLastReport());
-
+            Assert.assertEquals(TEXT.length(), usageReporter.getBytesReadSinceLastReport());
             Assert.assertEquals(usageReporter.getBytesReadSinceLastReport(), statusReporter.getBytesRead());
         }
     }
@@ -67,10 +62,7 @@ public class CountingInputStreamTests extends ESTestCase {
         try (CountingInputStream counting = new CountingInputStream(source, statusReporter)) {
             byte buf[] = new byte[8];
             while (counting.read(buf, 0, 8) >= 0) {}
-            // an extra byte is read because we don't check the return
-            // value of the read() method
-            Assert.assertEquals(TEXT.length() - 1, usageReporter.getBytesReadSinceLastReport());
-
+            Assert.assertEquals(TEXT.length(), usageReporter.getBytesReadSinceLastReport());
             Assert.assertEquals(usageReporter.getBytesReadSinceLastReport(), statusReporter.getBytesRead());
         }
     }

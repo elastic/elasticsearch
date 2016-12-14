@@ -31,7 +31,7 @@ setup:
 
   - match: { processed_record_count: 2 }
   - match: { processed_field_count: 4}
-  - match: { input_bytes: 177 }
+  - match: { input_bytes: 178 }
   - match: { input_field_count: 6 }
   - match: { invalid_date_count: 0 }
   - match: { missing_field_count: 0 }
@@ -63,7 +63,7 @@ setup:
 
   - match: { _source.processed_record_count: 2 }
   - match: { _source.processed_field_count: 4}
-  - match: { _source.input_bytes: 177 }
+  - match: { _source.input_bytes: 178 }
   - match: { _source.input_field_count: 6 }
   - match: { _source.invalid_date_count: 0 }
   - match: { _source.missing_field_count: 0 }

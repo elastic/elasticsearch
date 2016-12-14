@@ -31,45 +31,30 @@ public class CountingInputStream extends FilterInputStream {
     }
 
     /**
-     * We don't care if the count is one byte out
-     * because we don't check for the case where read
-     * returns -1.
-     * <p>
-     * One of the buffered read(..) methods is more likely to
-     * be called anyway.
+     * Report 1 byte read
      */
     @Override
     public int read() throws IOException {
-        statusReporter.reportBytesRead(1);
+        int read = in.read();
+        statusReporter.reportBytesRead(read < 0 ? 0 : 1);
 
-        return in.read();
+        return read;
     }
 
-    /**
-     * Don't bother checking for the special case where
-     * the stream is closed/finished and read returns -1.
-     * Our count will be 1 byte out.
-     */
     @Override
     public int read(byte[] b) throws IOException {
         int read = in.read(b);
 
-        statusReporter.reportBytesRead(read);
+        statusReporter.reportBytesRead(read < 0 ? 0 : read);
 
         return read;
     }
 
-    /**
-     * Don't bother checking for the special case where
-     * the stream is closed/finished and read returns -1.
-     * Our count will be 1 byte out.
-     */
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         int read = in.read(b, off, len);
 
-        statusReporter.reportBytesRead(read);
+        statusReporter.reportBytesRead(read < 0 ? 0 : read);
         return read;
     }
-
 }

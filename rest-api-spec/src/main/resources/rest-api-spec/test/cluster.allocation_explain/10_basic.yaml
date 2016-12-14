@@ -30,7 +30,7 @@
   - match: { can_remain_on_current_node: "yes" }
   - match: { can_rebalance_cluster: "no" }
   - match: { can_rebalance_to_other_node: "no" }
-  - match: { rebalance_explanation: "rebalancing is not allowed on the cluster" }
+  - match: { rebalance_explanation: "rebalancing is not allowed" }
 
 ---
 "cluster shard allocation explanation test with empty request":

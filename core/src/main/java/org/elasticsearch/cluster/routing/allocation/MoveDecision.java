@@ -288,7 +288,6 @@ public final class MoveDecision extends AbstractAllocationDecision {
             builder.field("can_move_to_other_node", forceMove() ? "yes" : "no");
             builder.field("move_explanation", getExplanation());
         }
-
         nodeDecisionsToXContent(nodeDecisions, builder, params);
         return builder;
     }

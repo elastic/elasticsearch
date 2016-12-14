@@ -52,7 +52,7 @@ import java.util.List;
  * master node in the cluster.
  */
 public class TransportClusterAllocationExplainAction
-    extends TransportMasterNodeAction<ClusterAllocationExplainRequest, ClusterAllocationExplainResponse> {
+        extends TransportMasterNodeAction<ClusterAllocationExplainRequest, ClusterAllocationExplainResponse> {
 
     private final ClusterInfoService clusterInfoService;
     private final AllocationDeciders allocationDeciders;
@@ -94,7 +94,7 @@ public class TransportClusterAllocationExplainAction
         final RoutingNodes routingNodes = state.getRoutingNodes();
         final ClusterInfo clusterInfo = clusterInfoService.getClusterInfo();
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state,
-            clusterInfo, System.nanoTime(), false);
+                clusterInfo, System.nanoTime(), false);
 
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {

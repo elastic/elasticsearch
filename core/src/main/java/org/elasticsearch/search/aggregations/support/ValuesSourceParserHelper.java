@@ -67,6 +67,17 @@ public final class ValuesSourceParserHelper {
         objectParser.declareField(ValuesSourceAggregationBuilder::missing, XContentParser::objectText,
                 new ParseField("missing"), ObjectParser.ValueType.VALUE);
 
+        objectParser.declareField(ValuesSourceAggregationBuilder::valueType, p -> {
+            ValueType valueType = ValueType.resolveForScript(p.text());
+            if (targetValueType != null && valueType.isNotA(targetValueType)) {
+                throw new ParsingException(p.getTokenLocation(),
+                        "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
+                                + valueType + "]. It can only work on value of type ["
+                                + targetValueType + "]");
+            }
+            return valueType;
+        }, new ParseField("value_type", "valueType"), ObjectParser.ValueType.STRING);
+
         if (formattable) {
             objectParser.declareField(ValuesSourceAggregationBuilder::format, XContentParser::text,
                     new ParseField("format"), ObjectParser.ValueType.STRING);
@@ -75,17 +86,6 @@ public final class ValuesSourceParserHelper {
         if (scriptable) {
             objectParser.declareField(ValuesSourceAggregationBuilder::script, org.elasticsearch.script.Script::parse,
                     Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
-
-            objectParser.declareField(ValuesSourceAggregationBuilder::valueType, p -> {
-                ValueType valueType = ValueType.resolveForScript(p.text());
-                if (targetValueType != null && valueType.isNotA(targetValueType)) {
-                    throw new ParsingException(p.getTokenLocation(),
-                            "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["
-                                    + valueType + "]. It can only work on value of type ["
-                                    + targetValueType + "]");
-                }
-                return valueType;
-            }, new ParseField("value_type", "valueType"), ObjectParser.ValueType.STRING);
         }
 
         if (timezoneAware) {

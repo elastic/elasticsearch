@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedConsumer;
@@ -230,6 +229,30 @@ public abstract class RestRequest implements ToXContent.Params {
     }
 
     /**
+     * A parser for the contents of this request if there is a body, otherwise throws an {@link ElasticsearchParseException}. Use
+     * {@link #applyContentParser(CheckedConsumer)} if you want to gracefully handle when the request doesn't have any contents. Use
+     * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
+     */
+    public final XContentParser contentParser() throws IOException {
+        BytesReference content = content();
+        if (content.length() == 0) {
+            throw new ElasticsearchParseException("Body required");
+        }
+        return XContentFactory.xContent(content).createParser(content);
+    }
+
+    /**
+     * If there is any content then call {@code applyParser} with the parser, otherwise do nothing.
+     */
+    public final void applyContentParser(CheckedConsumer<XContentParser, IOException> applyParser) throws IOException {
+        if (hasContent()) {
+            try (XContentParser parser = contentParser()) {
+                applyParser.accept(parser);
+            }
+        }
+    }
+
+    /**
      * Does this request have content or a {@code source} parameter? Use this instead of {@link #hasContent()} if this
      * {@linkplain RestHandler} treats the {@code source} parameter like the body content.
      */
@@ -256,16 +279,13 @@ public abstract class RestRequest implements ToXContent.Params {
      * back to the user when there isn't request content.
      */
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
-        XContentParser parser = null;
         BytesReference content = contentOrSourceParam();
         if (content.length() > 0) {
-            parser = XContentFactory.xContent(content).createParser(content);
-        }
-
-        try {
-            withParser.accept(parser);
-        } finally {
-            IOUtils.close(parser);
+            try (XContentParser parser = XContentFactory.xContent(content).createParser(content)) {
+                withParser.accept(parser);
+            }
+        } else {
+            withParser.accept(null);
         }
     }
 

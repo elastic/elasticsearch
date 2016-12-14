@@ -88,9 +88,8 @@ public class RestUpdateAction extends BaseRestHandler {
             deprecationLogger.deprecated("The [ttl] parameter of index requests is deprecated");
         }
 
-        // see if we have it in the body
-        if (request.hasContent()) {
-            updateRequest.fromXContent(request.content());
+        request.applyContentParser(parser -> {
+            updateRequest.fromXContent(parser);
             IndexRequest upsertRequest = updateRequest.upsertRequest();
             if (upsertRequest != null) {
                 upsertRequest.routing(request.param("routing"));
@@ -113,7 +112,7 @@ public class RestUpdateAction extends BaseRestHandler {
                 doc.version(RestActions.parseVersion(request));
                 doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
             }
-        }
+        });
 
         return channel ->
             client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));

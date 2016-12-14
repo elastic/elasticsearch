@@ -22,7 +22,6 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -404,8 +403,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
                                 .version(version).versionType(versionType)
                                 .routing(routing)
-                                .parent(parent)
-                                .fromXContent(data.slice(from, nextMarker - from));
+                                .parent(parent);
+                        try (XContentParser sliceParser = xContent.createParser(data.slice(from, nextMarker - from))) {
+                            updateRequest.fromXContent(sliceParser);
+                        }
                         if (fetchSourceContext != null) {
                             updateRequest.fetchSource(fetchSourceContext);
                         }

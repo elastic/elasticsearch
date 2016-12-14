@@ -76,7 +76,7 @@ public class ClientYamlSuiteTestParserTests extends ESTestCase {
                         "        index: test_index\n" +
                         "\n");
         }
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                         testSpecBuilder.toString() +
                         "---\n" +
                         "\"Get index mapping\":\n" +
@@ -177,7 +177,7 @@ public class ClientYamlSuiteTestParserTests extends ESTestCase {
     }
 
     public void testParseTestSingleTestSection() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
         "---\n" +
                 "\"Index with ID\":\n" +
                 "\n" +
@@ -275,7 +275,7 @@ public class ClientYamlSuiteTestParserTests extends ESTestCase {
     }
 
     public void testParseTestMultipleTestSections() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
         "---\n" +
                 "\"Missing document (partial doc)\":\n" +
                 "\n" +
@@ -366,7 +366,7 @@ public class ClientYamlSuiteTestParserTests extends ESTestCase {
     }
 
     public void testParseTestDuplicateTestSections() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "---\n" +
                         "\"Missing document (script)\":\n" +
                         "\n" +

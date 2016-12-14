@@ -94,8 +94,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
             PercolateRequestBuilder percolateRequestBuilder = preparePercolate(client())
                     .setIndices(INDEX_NAME)
                     .setDocumentType("type")
-                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()))
-                    .setSize(expectedCount[i % numUniqueQueries]);
+                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()));
 
             SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
             percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2").collectMode(aggCollectionMode));
@@ -103,15 +102,17 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 percolateRequestBuilder.setPercolateQuery(matchAllQuery());
             }
-            if (randomBoolean()) {
-                percolateRequestBuilder.setScore(true);
-            } else {
-                percolateRequestBuilder.setSortByScore(true).setSize(numQueries);
-            }
 
             boolean countOnly = randomBoolean();
             if (countOnly) {
                 percolateRequestBuilder.setOnlyCount(countOnly);
+            } else {
+                // can only set size if we also keep track of matches (i.e. countOnly == false)
+                if (randomBoolean()) {
+                    percolateRequestBuilder.setScore(true).setSize(expectedCount[i % numUniqueQueries]);
+                } else {
+                    percolateRequestBuilder.setSortByScore(true).setSize(numQueries);
+                }
             }
 
             PercolateResponse response = percolateRequestBuilder.execute().actionGet();
@@ -161,8 +162,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
             PercolateRequestBuilder percolateRequestBuilder = preparePercolate(client())
                     .setIndices(INDEX_NAME)
                     .setDocumentType("type")
-                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()))
-                    .setSize(expectedCount[i % numUniqueQueries]);
+                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()));
 
             SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
             percolateRequestBuilder.addAggregation(AggregationBuilders.terms("a").field("field2").collectMode(aggCollectionMode));
@@ -170,15 +170,17 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 percolateRequestBuilder.setPercolateQuery(matchAllQuery());
             }
-            if (randomBoolean()) {
-                percolateRequestBuilder.setScore(true);
-            } else {
-                percolateRequestBuilder.setSortByScore(true).setSize(numQueries);
-            }
 
             boolean countOnly = randomBoolean();
             if (countOnly) {
                 percolateRequestBuilder.setOnlyCount(countOnly);
+            } else {
+                // can only set size if we also keep track of matches (i.e. countOnly == false)
+                if (randomBoolean()) {
+                    percolateRequestBuilder.setScore(true).setSize(expectedCount[i % numUniqueQueries]);
+                } else {
+                    percolateRequestBuilder.setSortByScore(true).setSize(numQueries);
+                }
             }
 
             percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_a", "a>_count"));
@@ -243,8 +245,7 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
             PercolateRequestBuilder percolateRequestBuilder = preparePercolate(client())
                     .setIndices(INDEX_NAME)
                     .setDocumentType("type")
-                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()))
-                    .setSize(numQueries);
+                    .setPercolateDoc(docBuilder().setDoc(jsonBuilder().startObject().field("field1", value).endObject()));
 
             SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
             percolateRequestBuilder.addAggregation(AggregationBuilders.terms("terms").field("field2").collectMode(aggCollectionMode)
@@ -253,15 +254,17 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
             if (randomBoolean()) {
                 percolateRequestBuilder.setPercolateQuery(matchAllQuery());
             }
-            if (randomBoolean()) {
-                percolateRequestBuilder.setScore(true);
-            } else {
-                percolateRequestBuilder.setSortByScore(true).setSize(numQueries);
-            }
 
             boolean countOnly = randomBoolean();
             if (countOnly) {
                 percolateRequestBuilder.setOnlyCount(countOnly);
+            } else {
+                // can only set size if we also keep track of matches (i.e. countOnly == false)
+                if (randomBoolean()) {
+                    percolateRequestBuilder.setScore(true).setSize(numQueries);
+                } else {
+                    percolateRequestBuilder.setSortByScore(true).setSize(numQueries);
+                }
             }
 
             percolateRequestBuilder.addAggregation(PipelineAggregatorBuilders.maxBucket("max_terms", "terms>_count"));

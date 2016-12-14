@@ -68,6 +68,7 @@ public enum ValueType implements Writeable {
         }
     },
     IP((byte) 6, "ip", "ip", ValuesSourceType.BYTES, IndexFieldData.class, DocValueFormat.IP),
+    // TODO: what is the difference between "number" and "numeric"?
     NUMERIC((byte) 7, "numeric", "numeric", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.RAW) {
         @Override
         public boolean isNumeric() {
@@ -78,6 +79,12 @@ public enum ValueType implements Writeable {
         @Override
         public boolean isGeoPoint() {
             return true;
+        }
+    },
+    BOOLEAN((byte) 9, "boolean", "boolean", ValuesSourceType.NUMERIC, IndexNumericFieldData.class, DocValueFormat.BOOLEAN) {
+        @Override
+        public boolean isNumeric() {
+            return super.isNumeric();
         }
     };
 
@@ -150,7 +157,9 @@ public enum ValueType implements Writeable {
             case "byte":    return LONG;
             case "date":    return DATE;
             case "ip":      return IP;
+            case "boolean": return BOOLEAN;
             default:
+                // TODO: do not be lenient here
                 return null;
         }
     }

@@ -70,9 +70,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     /**
      * Convert the entity from a {@link Response} into a map of maps.
      */
-    public static Map<String, Object> entityAsMap(Response response) throws IOException {
+    public Map<String, Object> entityAsMap(Response response) throws IOException {
         XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-        try (XContentParser parser = xContentType.xContent().createParser(response.getEntity().getContent())) {
+        try (XContentParser parser = createParser(xContentType.xContent(), response.getEntity().getContent())) {
             return parser.map();
         }
     }

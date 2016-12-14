@@ -25,6 +25,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.AbstractObjectParser.NoContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -41,7 +42,7 @@ public class ObjectParserTests extends ESTestCase {
     private static final ParseFieldMatcherSupplier STRICT_PARSING = () -> ParseFieldMatcher.STRICT;
 
     public void testBasics() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
                   "{\n"
                 + "  \"test\" : \"foo\",\n"
                 + "  \"test_number\" : 2,\n"
@@ -97,17 +98,17 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testObjectOrDefault() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser("{\"object\" : { \"test\": 2}}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"object\" : { \"test\": 2}}");
         ObjectParser<StaticTestStruct, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
         objectParser.declareInt(StaticTestStruct::setTest, new ParseField("test"));
         objectParser.declareObjectOrDefault(StaticTestStruct::setObject, objectParser, StaticTestStruct::new, new ParseField("object"));
         StaticTestStruct s = objectParser.parse(parser, STRICT_PARSING);
         assertEquals(s.object.test, 2);
-        parser = XContentType.JSON.xContent().createParser("{\"object\" : false }");
+        parser = createParser(JsonXContent.jsonXContent, "{\"object\" : false }");
         s = objectParser.parse(parser, STRICT_PARSING);
         assertNull(s.object);
 
-        parser = XContentType.JSON.xContent().createParser("{\"object\" : true }");
+        parser = createParser(JsonXContent.jsonXContent, "{\"object\" : true }");
         s = objectParser.parse(parser, STRICT_PARSING);
         assertNotNull(s.object);
         assertEquals(s.object.test, 0);
@@ -191,7 +192,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testExceptions() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser("{\"test\" : \"foo\"}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"test\" : \"foo\"}");
         class TestStruct {
             public void setTest(int test) {
             }
@@ -208,7 +209,7 @@ public class ObjectParserTests extends ESTestCase {
             assertTrue(ex.getCause() instanceof NumberFormatException);
         }
 
-        parser = XContentType.JSON.xContent().createParser("{\"not_supported_field\" : \"foo\"}");
+        parser = createParser(JsonXContent.jsonXContent, "{\"not_supported_field\" : \"foo\"}");
         try {
             objectParser.parse(parser, s, STRICT_PARSING);
             fail("field not supported");
@@ -218,7 +219,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testDeprecationFail() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser("{\"old_test\" : \"foo\"}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"old_test\" : \"foo\"}");
         class TestStruct {
             public String test;
         }
@@ -235,13 +236,13 @@ public class ObjectParserTests extends ESTestCase {
 
         }
         assertNull(s.test);
-        parser = XContentType.JSON.xContent().createParser("{\"old_test\" : \"foo\"}");
+        parser = createParser(JsonXContent.jsonXContent, "{\"old_test\" : \"foo\"}");
         objectParser.parse(parser, s, () -> ParseFieldMatcher.EMPTY);
         assertEquals("foo", s.test);
     }
 
     public void testFailOnValueType() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser("{\"numeric_value\" : false}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"numeric_value\" : false}");
         class TestStruct {
             public String test;
         }
@@ -258,7 +259,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNested() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser("{ \"test\" : 1, \"object\" : { \"test\": 2}}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test\" : 1, \"object\" : { \"test\": 2}}");
         class TestStruct {
             public int test;
             TestStruct object;
@@ -275,7 +276,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNestedShortcut() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser("{ \"test\" : 1, \"object\" : { \"test\": 2}}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test\" : 1, \"object\" : { \"test\": 2}}");
         ObjectParser<StaticTestStruct, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
         objectParser.declareInt(StaticTestStruct::setTest, new ParseField("test"));
         objectParser.declareObject(StaticTestStruct::setObject, objectParser, new ParseField("object"));
@@ -285,7 +286,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testEmptyObject() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser("{\"object\" : {}}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"object\" : {}}");
         ObjectParser<StaticTestStruct, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
         objectParser.declareObject(StaticTestStruct::setObject, objectParser, new ParseField("object"));
         StaticTestStruct s = objectParser.parse(parser, STRICT_PARSING);
@@ -293,7 +294,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testEmptyObjectInArray() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser("{\"object_array\" : [{}]}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"object_array\" : [{}]}");
         ObjectParser<StaticTestStruct, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo", StaticTestStruct::new);
         objectParser.declareObjectArray(StaticTestStruct::setObjectArray, objectParser, new ParseField("object_array"));
         StaticTestStruct s = objectParser.parse(parser, STRICT_PARSING);
@@ -330,7 +331,7 @@ public class ObjectParserTests extends ESTestCase {
                 test = value;
             }
         }
-        XContentParser parser = XContentType.JSON.xContent().createParser("{ \"test\" : \"FOO\" }");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test\" : \"FOO\" }");
         ObjectParser<TestStruct, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo");
         objectParser.declareString((struct, value) -> struct.set(TestEnum.valueOf(value)), new ParseField("test"));
         TestStruct s = objectParser.parse(parser, new TestStruct(), STRICT_PARSING);
@@ -374,7 +375,7 @@ public class ObjectParserTests extends ESTestCase {
         builder.field("boolean_field", nullValue);
         builder.field("string_or_null", nullValue ? null : "5");
         builder.endObject();
-        XContentParser parser = XContentType.JSON.xContent().createParser(builder.string());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string());
         class TestStruct {
             int int_field;
             long long_field;
@@ -466,7 +467,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObject() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
                   "{\"named\": {\n"
                 + "  \"a\": {}"
                 + "}}");
@@ -477,7 +478,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectInOrder() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
                   "{\"named\": [\n"
                 + "  {\"a\": {}}"
                 + "]}");
@@ -488,7 +489,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectTwoFieldsInArray() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
                   "{\"named\": [\n"
                 + "  {\"a\": {}, \"b\": {}}"
                 + "]}");
@@ -500,7 +501,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectNoFieldsInArray() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
                   "{\"named\": [\n"
                 + "  {}"
                 + "]}");
@@ -512,7 +513,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectJunkInArray() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent, 
                   "{\"named\": [\n"
                 + "  \"junk\""
                 + "]}");
@@ -524,7 +525,7 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectInOrderNotSupported() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\"named\": [\n"
                 + "  {\"a\": {}}"
                 + "]}");
@@ -549,7 +550,7 @@ public class ObjectParserTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        XContentParser parser = XContentType.JSON.xContent().createParser(b.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, b.bytes());
 
         class TestStruct {
             public String test;
@@ -573,7 +574,7 @@ public class ObjectParserTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        XContentParser parser = XContentType.JSON.xContent().createParser(b.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, b.bytes());
 
         class TestStruct {
             public String test;
@@ -601,7 +602,7 @@ public class ObjectParserTests extends ESTestCase {
         }
         b.endObject();
         b = shuffleXContent(b);
-        XContentParser parser = XContentType.JSON.xContent().createParser(b.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, b.bytes());
         class TestStruct {
             public String test;
         }

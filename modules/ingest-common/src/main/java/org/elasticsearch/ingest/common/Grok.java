@@ -29,6 +29,7 @@ import org.joni.Syntax;
 import org.joni.exception.ValueException;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
@@ -125,12 +126,25 @@ final class Grok {
         return grokPattern;
     }
 
+    /**
+     * Checks whether a specific text matches the defined grok expression.
+     *
+     * @param text the string to match
+     * @return true if grok expression matches text, false otherwise.
+     */
     public boolean match(String text) {
         Matcher matcher = compiledExpression.matcher(text.getBytes(StandardCharsets.UTF_8));
         int result = matcher.search(0, text.length(), Option.DEFAULT);
         return (result != -1);
     }
 
+    /**
+     * Matches and returns any named captures within a compiled grok expression that matched
+     * within the provided text.
+     *
+     * @param text the text to match and extract values from.
+     * @return a map containing field names and their respective coerced values that matched.
+     */
     public Map<String, Object> captures(String text) {
         byte[] textAsBytes = text.getBytes(StandardCharsets.UTF_8);
         Map<String, Object> fields = new HashMap<>();
@@ -140,16 +154,17 @@ final class Grok {
             Region region = matcher.getEagerRegion();
             for (Iterator<NameEntry> entry = compiledExpression.namedBackrefIterator(); entry.hasNext();) {
                 NameEntry e = entry.next();
-                int number = e.getBackRefs()[0];
-
                 String groupName = new String(e.name, e.nameP, e.nameEnd - e.nameP, StandardCharsets.UTF_8);
-                String matchValue = null;
-                if (region.beg[number] >= 0) {
-                    matchValue = new String(textAsBytes, region.beg[number], region.end[number] - region.beg[number],
+                for (int number : e.getBackRefs()) {
+                    if (region.beg[number] >= 0) {
+                        String matchValue = new String(textAsBytes, region.beg[number], region.end[number] - region.beg[number],
                             StandardCharsets.UTF_8);
+                        GrokMatchGroup match = new GrokMatchGroup(groupName, matchValue);
+                        fields.put(match.getName(), match.getValue());
+                        break;
+                    }
                 }
-                GrokMatchGroup match = new GrokMatchGroup(groupName, matchValue);
-                fields.put(match.getName(), match.getValue());
+
             }
             return fields;
         } else if (result != -1) {

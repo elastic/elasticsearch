@@ -26,8 +26,8 @@ import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeAggregato
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,7 +35,7 @@ import java.util.Map;
 public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<DateRangeAggregatorFactory, Range> {
 
     public DateRangeAggregatorFactory(String name, Type type, ValuesSourceConfig<Numeric> config, Range[] ranges, boolean keyed,
-            Factory<?, ?> rangeFactory, AggregationContext context, AggregatorFactory<?> parent,
+            Factory<?, ?> rangeFactory, SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder, metaData);
     }

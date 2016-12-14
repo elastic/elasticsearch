@@ -133,7 +133,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         XContentBuilder builder = jsonBuilder().startObject();
         completionFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
-        Map<String, Object> serializedMap = JsonXContent.jsonXContent.createParser(builder.bytes()).map();
+        Map<String, Object> serializedMap = createParser(JsonXContent.jsonXContent, builder.bytes()).map();
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("completion");
         assertThat(configMap.get("analyzer").toString(), is("simple"));
         assertThat(configMap.get("search_analyzer").toString(), is("standard"));

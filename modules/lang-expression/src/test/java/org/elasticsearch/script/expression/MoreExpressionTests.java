@@ -196,10 +196,24 @@ public class MoreExpressionTests extends ESIntegTestCase {
     public void testMultiValueMethods() throws Exception {
         ElasticsearchAssertions.assertAcked(prepareCreate("test").addMapping("doc", "double0", "type=double", "double1", "type=double", "double2", "type=double"));
         ensureGreen("test");
+
+        Map<String, Object> doc1 = new HashMap<>();
+        doc1.put("double0", new Double[]{5.0d, 1.0d, 1.5d});
+        doc1.put("double1", new Double[]{1.2d, 2.4d});
+        doc1.put("double2", 3.0d);
+
+        Map<String, Object> doc2 = new HashMap<>();
+        doc2.put("double0", 5.0d);
+        doc2.put("double1", 3.0d);
+
+        Map<String, Object> doc3 = new HashMap<>();
+        doc3.put("double0", new Double[]{5.0d, 1.0d, 1.5d, -1.5d});
+        doc3.put("double1", 4.0d);
+
         indexRandom(true,
-                client().prepareIndex("test", "doc", "1").setSource("double0", "5.0", "double0", "1.0", "double0", "1.5", "double1", "1.2", "double1", "2.4", "double2", "3.0"),
-                client().prepareIndex("test", "doc", "2").setSource("double0", "5.0", "double1", "3.0"),
-                client().prepareIndex("test", "doc", "3").setSource("double0", "5.0", "double0", "1.0", "double0", "1.5", "double0", "-1.5", "double1", "4.0"));
+                client().prepareIndex("test", "doc", "1").setSource(doc1),
+                client().prepareIndex("test", "doc", "2").setSource(doc2),
+                client().prepareIndex("test", "doc", "3").setSource(doc3));
 
 
         SearchResponse rsp = buildRequest("doc['double0'].count() + doc['double1'].count()").get();

@@ -366,7 +366,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 fieldType.getClass() + " != " + newFieldType.getClass() + " on field " + fieldType.name());
         }
         MultiFields updatedMultiFields = multiFields.updateFieldType(fullNameToFieldType);
-        if (fieldType.equals(newFieldType) && multiFields == updatedMultiFields) {
+        if (fieldType == newFieldType && multiFields == updatedMultiFields) {
             return this; // no change
         }
         FieldMapper updated = clone();

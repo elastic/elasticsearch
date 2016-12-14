@@ -1,8 +1,5 @@
 ---
 "Test script processor with inline script and params":
-  - skip:
-      features: warnings
-
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -76,6 +73,9 @@
 
 ---
 "Test script processor with stored script":
+  - skip:
+      features: warnings
+
   - do:
       warnings:
         - "specifying lang [painless] as part of the url path is deprecated, use request content instead"

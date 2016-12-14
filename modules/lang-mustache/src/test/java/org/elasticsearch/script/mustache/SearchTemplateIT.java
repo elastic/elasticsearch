@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -93,9 +94,13 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testTemplateQueryAsEscapedString() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
-        String query = "{" + "  \"inline\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
-                + "  \"params\":{" + "    \"size\": 1" + "  }" + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(new BytesArray(query));
+        String query =
+                  "{" + "  \"inline\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
+                + "  \"params\":{"
+                + "    \"size\": 1"
+                + "  }"
+                + "}";
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, query));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));
@@ -108,10 +113,15 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testTemplateQueryAsEscapedStringStartingWithConditionalClause() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
-        String templateString = "{"
+        String templateString =
+                  "{"
                 + "  \"inline\" : \"{ {{#use_size}} \\\"size\\\": \\\"{{size}}\\\", {{/use_size}} \\\"query\\\":{\\\"match_all\\\":{}}}\","
-                + "  \"params\":{" + "    \"size\": 1," + "    \"use_size\": true" + "  }" + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(new BytesArray(templateString));
+                + "  \"params\":{"
+                + "    \"size\": 1,"
+                + "    \"use_size\": true"
+                + "  }"
+                + "}";
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));
@@ -124,10 +134,15 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
     public void testTemplateQueryAsEscapedStringWithConditionalClauseAtEnd() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
-        String templateString = "{"
+        String templateString =
+                  "{"
                 + "  \"inline\" : \"{ \\\"query\\\":{\\\"match_all\\\":{}} {{#use_size}}, \\\"size\\\": \\\"{{size}}\\\" {{/use_size}} }\","
-                + "  \"params\":{" + "    \"size\": 1," + "    \"use_size\": true" + "  }" + "}";
-        SearchTemplateRequest request = RestSearchTemplateAction.parse(new BytesArray(templateString));
+                + "  \"params\":{"
+                + "    \"size\": 1,"
+                + "    \"use_size\": true"
+                + "  }"
+                + "}";
+        SearchTemplateRequest request = RestSearchTemplateAction.parse(createParser(JsonXContent.jsonXContent, templateString));
         request.setRequest(searchRequest);
         SearchTemplateResponse searchResponse = client().execute(SearchTemplateAction.INSTANCE, request).get();
         assertThat(searchResponse.getResponse().getHits().hits().length, equalTo(1));

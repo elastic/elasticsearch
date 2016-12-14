@@ -22,14 +22,13 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -70,10 +69,10 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
+    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         // TODO this sucks we need a rewrite phase for aggregations too
-        final QueryBuilder rewrittenFilter = QueryBuilder.rewriteQuery(filter, context.searchContext().getQueryShardContext());
+        final QueryBuilder rewrittenFilter = QueryBuilder.rewriteQuery(filter, context.getQueryShardContext());
         return new FilterAggregatorFactory(name, type, rewrittenFilter, context, parent, subFactoriesBuilder, metaData);
     }
 
@@ -86,7 +85,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     public static FilterAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
-        QueryBuilder filter = context.parseInnerQueryBuilder().orElse(new MatchAllQueryBuilder());
+        QueryBuilder filter = context.parseInnerQueryBuilder();
         return new FilterAggregationBuilder(aggregationName, filter);
     }
 

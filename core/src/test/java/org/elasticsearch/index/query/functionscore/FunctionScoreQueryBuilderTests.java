@@ -27,6 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
@@ -35,7 +36,9 @@ import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -360,7 +363,10 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
 
             if (i < XContentType.values().length) {
-                queryBuilder = parseQuery(((AbstractQueryBuilder) queryBuilder).buildAsBytes(XContentType.values()[i]));
+                BytesReference bytes = ((AbstractQueryBuilder) queryBuilder).buildAsBytes(XContentType.values()[i]);
+                try (XContentParser parser = createParser(XContentType.values()[i].xContent(), bytes)) {
+                    queryBuilder = parseQuery(parser);
+                }
             }
         }
     }
@@ -412,7 +418,10 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
             assertThat(functionScoreQueryBuilder.maxBoost(), equalTo(10f));
 
             if (i < XContentType.values().length) {
-                queryBuilder = parseQuery(((AbstractQueryBuilder) queryBuilder).buildAsBytes(XContentType.values()[i]));
+                BytesReference bytes = ((AbstractQueryBuilder) queryBuilder).buildAsBytes(XContentType.values()[i]);
+                try (XContentParser parser = createParser(XContentType.values()[i].xContent(), bytes)) {
+                    queryBuilder = parseQuery(parser);
+                }
             }
         }
     }
@@ -550,7 +559,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testCustomWeightFactorQueryBuilderWithFunctionScore() throws IOException {
-        Query parsedQuery = parseQuery(functionScoreQuery(termQuery("name.last", "banon"), weightFactorFunction(1.3f)).buildAsBytes())
+        Query parsedQuery = parseQuery(functionScoreQuery(termQuery("name.last", "banon"), weightFactorFunction(1.3f)))
                 .toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
@@ -559,7 +568,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testCustomWeightFactorQueryBuilderWithFunctionScoreWithoutQueryGiven() throws IOException {
-        Query parsedQuery = parseQuery(functionScoreQuery(weightFactorFunction(1.3f)).buildAsBytes()).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(functionScoreQuery(weightFactorFunction(1.3f))).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
         assertThat(functionScoreQuery.getSubQuery() instanceof MatchAllDocsQuery, equalTo(true));
@@ -722,6 +731,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testMalformedQueryMultipleQueryElements() throws IOException {
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
         String json = "{\n" +
                 "    \"function_score\":{\n" +
                 "        \"query\":{\n" +
@@ -740,12 +751,12 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         expectParsingException(json, "[query] is already defined.");
     }
 
-    private static void expectParsingException(String json, Matcher<String> messageMatcher) {
+    private void expectParsingException(String json, Matcher<String> messageMatcher) {
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertThat(e.getMessage(), messageMatcher);
     }
 
-    private static void expectParsingException(String json, String message) {
+    private void expectParsingException(String json, String message) {
         expectParsingException(json, equalTo("failed to parse [function_score] query. " + message));
     }
 

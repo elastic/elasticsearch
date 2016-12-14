@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -56,8 +57,8 @@ public class XContentParserTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> List<T> readList(String source) throws IOException {
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(source)) {
+    private <T> List<T> readList(String source) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             XContentParser.Token token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
             token = parser.nextToken();
@@ -89,9 +90,8 @@ public class XContentParserTests extends ESTestCase {
         assertThat(map.size(), equalTo(0));
     }
 
-    @SuppressWarnings("unchecked")
-    private static Map<String, String> readMapStrings(String source) throws IOException {
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(source)) {
+    private Map<String, String> readMapStrings(String source) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             XContentParser.Token token = parser.nextToken();
             assertThat(token, equalTo(XContentParser.Token.START_OBJECT));
             token = parser.nextToken();

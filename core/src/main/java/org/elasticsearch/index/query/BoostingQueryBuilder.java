@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * The BoostingQuery class can be used to effectively demote results that match a given query.
@@ -137,12 +136,12 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
         builder.endObject();
     }
 
-    public static Optional<BoostingQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static BoostingQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        Optional<QueryBuilder> positiveQuery = null;
+        QueryBuilder positiveQuery = null;
         boolean positiveQueryFound = false;
-        Optional<QueryBuilder> negativeQuery = null;
+        QueryBuilder negativeQuery = null;
         boolean negativeQueryFound = false;
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         float negativeBoost = -1;
@@ -186,15 +185,12 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             throw new ParsingException(parser.getTokenLocation(),
                     "[boosting] query requires 'negative_boost' to be set to be a positive value'");
         }
-        if (positiveQuery.isPresent() == false || negativeQuery.isPresent() == false) {
-            return Optional.empty();
-        }
 
-        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery.get(), negativeQuery.get());
+        BoostingQueryBuilder boostingQuery = new BoostingQueryBuilder(positiveQuery, negativeQuery);
         boostingQuery.negativeBoost(negativeBoost);
         boostingQuery.boost(boost);
         boostingQuery.queryName(queryName);
-        return Optional.of(boostingQuery);
+        return boostingQuery;
     }
 
     @Override

@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.List;
 
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -163,6 +164,14 @@ public abstract class Plugin implements Closeable {
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         return Collections.emptyList();
     }
+
+    /**
+     * Returns a list of checks that are enforced when a node starts up once a node has the transport protocol bound to a non-loopback
+     * interface. In this case we assume the node is running in production and all bootstrap checks must pass. This allows plugins
+     * to provide a better out of the box experience by pre-configuring otherwise (in production) mandatory settings or to enforce certain
+     * configurations like OS settings or 3rd party resources.
+     */
+    public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
 
     /**
      * Close the resources opened by this plugin.

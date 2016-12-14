@@ -25,8 +25,8 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.AbstractObjectParser.ContextParser;
 import org.elasticsearch.common.xcontent.AbstractObjectParser.NoContextParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
@@ -81,7 +81,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         expected.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder = shuffleXContent(builder);
         BytesReference bytes = builder.bytes();
-        try (XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes)) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, bytes)) {
             HasCtorArguments parsed = randomFrom(HasCtorArguments.ALL_PARSERS).apply(parser, MATCHER);
             assertEquals(expected.animal, parsed.animal);
             assertEquals(expected.vegetable, parsed.vegetable);
@@ -98,7 +98,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testMissingAllConstructorArgs() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\n"
                 + "  \"mineral\": 1\n"
                 + "}");
@@ -113,7 +113,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testMissingAllConstructorArgsButNotRequired() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                 "{\n"
               + "  \"mineral\": 1\n"
               + "}");
@@ -122,7 +122,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testMissingSecondConstructorArg() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\n"
                 + "  \"mineral\": 1,\n"
                 + "  \"animal\": \"cat\"\n"
@@ -133,7 +133,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testMissingSecondConstructorArgButNotRequired() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                 "{\n"
               + "  \"mineral\": 1,\n"
               + "  \"animal\": \"cat\"\n"
@@ -146,7 +146,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testMissingFirstConstructorArg() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\n"
                 + "  \"mineral\": 1,\n"
                 + "  \"vegetable\": 2\n"
@@ -158,7 +158,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testMissingFirstConstructorArgButNotRequired() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                 "{\n"
               + "  \"mineral\": 1,\n"
               + "  \"vegetable\": 2\n"
@@ -169,7 +169,9 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testRepeatedConstructorParam() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
+            JsonXContent.isStrictDuplicateDetectionEnabled());
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\n"
                 + "  \"vegetable\": 1,\n"
                 + "  \"vegetable\": 2\n"
@@ -182,7 +184,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testBadParam() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\n"
                 + "  \"animal\": \"cat\",\n"
                 + "  \"vegetable\": 2,\n"
@@ -196,7 +198,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testBadParamBeforeObjectBuilt() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\n"
                 + "  \"a\": \"supercalifragilisticexpialidocious\",\n"
                 + "  \"animal\": \"cat\"\n,"
@@ -221,7 +223,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         ConstructingObjectParser<NoConstructorArgs, ParseFieldMatcherSupplier> parser = new ConstructingObjectParser<>(
                 "constructor_args_required", (a) -> new NoConstructorArgs());
         try {
-            parser.apply(XContentType.JSON.xContent().createParser("{}"), null);
+            parser.apply(createParser(JsonXContent.jsonXContent, "{}"), null);
             fail("Expected AssertionError");
         } catch (AssertionError e) {
             assertEquals("[constructor_args_required] must configure at least on constructor argument. If it doesn't have any it should "
@@ -256,7 +258,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         parser.declareString(ctorArgOptional ? optionalConstructorArg() : constructorArg(), new ParseField("yeah"));
 
         // ctor arg first so we can test for the bug we found one time
-        XContentParser xcontent = XContentType.JSON.xContent().createParser(
+        XContentParser xcontent = createParser(JsonXContent.jsonXContent,
                 "{\n"
               + "  \"yeah\": \"!\",\n"
               + "  \"foo\": \"foo\"\n"
@@ -265,7 +267,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         assertTrue(result.fooSet);
 
         // and ctor arg second just in case
-        xcontent = XContentType.JSON.xContent().createParser(
+        xcontent = createParser(JsonXContent.jsonXContent,
                 "{\n"
               + "  \"foo\": \"foo\",\n"
               + "  \"yeah\": \"!\"\n"
@@ -275,7 +277,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
 
         if (ctorArgOptional) {
             // and without the constructor arg if we've made it optional
-            xcontent = XContentType.JSON.xContent().createParser(
+            xcontent = createParser(JsonXContent.jsonXContent,
                     "{\n"
                   + "  \"foo\": \"foo\"\n"
                   + "}");
@@ -285,7 +287,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testIgnoreUnknownFields() throws IOException {
-        XContentParser parser = XContentType.JSON.xContent().createParser(
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
                   "{\n"
                 + "  \"test\" : \"foo\",\n"
                 + "  \"junk\" : 2\n"

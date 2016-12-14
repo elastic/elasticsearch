@@ -351,3 +351,117 @@ setup:
   - match: { aggregations.date_terms.buckets.0.key_as_string: "2014-09-01T00:00:00.000Z" }
 
   - match: { aggregations.date_terms.buckets.0.doc_count: 1 }
+
+---
+"Partitioned string test":
+
+  - skip:
+    version: " - 5.1.99"
+    reason:  Partitioning is a 5.2.0 feature
+    
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: { "str" : "abc" }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 2
+        body: { "str": "abc" }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 3
+        body: { "str": "bcd" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition":0, "num_partitions":2 } } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.str_terms.buckets: 1 }
+
+  - match: { aggregations.str_terms.buckets.0.key: "bcd" }
+
+  - is_false: aggregations.str_terms.buckets.0.key_as_string
+
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "str", "include" : {"partition":1, "num_partitions":2 } } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.str_terms.buckets: 1 }
+
+  - match: { aggregations.str_terms.buckets.0.key: "abc" }
+
+  - is_false: aggregations.str_terms.buckets.0.key_as_string
+
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+
+---
+"Partitioned integer test":
+
+  - skip:
+    version: " - 5.1.99"
+    reason:  Partitioning is a 5.2.0 feature
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: { "integer": 1234 }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 2
+        body: { "integer": 5678 }
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 3
+        body: { "integer": 1234 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition":0, "num_partitions":2 } } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.str_terms.buckets: 1 }
+
+  - match: { aggregations.str_terms.buckets.0.key: 5678 }
+
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "str_terms" : { "terms" : { "field" : "integer", "include" : {"partition":1, "num_partitions":2 } } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.str_terms.buckets: 1 }
+
+  - match: { aggregations.str_terms.buckets.0.key: 1234 }
+
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }

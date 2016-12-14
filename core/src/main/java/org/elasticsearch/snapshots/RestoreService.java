@@ -185,16 +185,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
             final Snapshot snapshot = new Snapshot(request.repositoryName, snapshotId);
             List<String> filteredIndices = SnapshotUtils.filterIndices(snapshotInfo.indices(), request.indices(), request.indicesOptions());
-            MetaData metaDataIn = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
-
-            final MetaData metaData;
-            if (snapshotInfo.version().before(Version.V_2_0_0_beta1)) {
-                // ES 2.0 now requires units for all time and byte-sized settings, so we add the default unit if it's missing in this snapshot:
-                metaData = MetaData.addDefaultUnitsIfNeeded(logger, metaDataIn);
-            } else {
-                // Units are already enforced:
-                metaData = metaDataIn;
-            }
+            MetaData metaData = repository.getSnapshotMetaData(snapshotInfo, repositoryData.resolveIndices(filteredIndices));
 
             // Make sure that we can restore from this snapshot
             validateSnapshotRestorable(request.repositoryName, snapshotInfo);

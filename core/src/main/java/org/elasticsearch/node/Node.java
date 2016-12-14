@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -456,7 +457,6 @@ public class Node implements Closeable {
                 .map(injector::getInstance).collect(Collectors.toList()));
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-
             client.initialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}));
 
             logger.info("initialized");
@@ -568,8 +568,8 @@ public class Node implements Closeable {
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
         transportService.start();
-
-        validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
+        validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress(), pluginsService.filterPlugins(Plugin.class).stream()
+            .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
         DiscoveryNode localNode = DiscoveryNode.createLocal(settings,
             transportService.boundAddress().publishAddress(), injector.getInstance(NodeEnvironment.class).nodeId());
@@ -790,7 +790,7 @@ public class Node implements Closeable {
     @SuppressWarnings("unused")
     protected void validateNodeBeforeAcceptingRequests(
         final Settings settings,
-        final BoundTransportAddress boundTransportAddress) throws NodeValidationException {
+        final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
     }
 
     /** Writes a file to the logs dir containing the ports for the given transport type */

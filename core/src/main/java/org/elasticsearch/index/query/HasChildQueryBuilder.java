@@ -43,7 +43,6 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A query builder for <tt>has_child</tt> query.
@@ -222,7 +221,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         builder.endObject();
     }
 
-    public static Optional<HasChildQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static HasChildQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         float boost = AbstractQueryBuilder.DEFAULT_BOOST;
         String childType = null;
@@ -234,7 +233,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         InnerHitBuilder innerHitBuilder = null;
         String currentFieldName = null;
         XContentParser.Token token;
-        Optional<QueryBuilder> iqb = Optional.empty();
+        QueryBuilder iqb = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -268,13 +267,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 }
             }
         }
-
-        if (iqb.isPresent() == false) {
-            // if inner query is empty, bubble this up to caller so they can decide how to deal with it
-            return Optional.empty();
-        }
-
-        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb.get(), scoreMode);
+        HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb, scoreMode);
         if (innerHitBuilder != null) {
             hasChildQueryBuilder.innerHit(innerHitBuilder);
         }
@@ -282,7 +275,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         hasChildQueryBuilder.queryName(queryName);
         hasChildQueryBuilder.boost(boost);
         hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
-        return Optional.of(hasChildQueryBuilder);
+        return hasChildQueryBuilder;
     }
 
     public static ScoreMode parseScoreMode(String scoreModeString) {

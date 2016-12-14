@@ -84,7 +84,9 @@ import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TcpTransport;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -953,13 +955,19 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         nonMasterTransportService.addDelegate(masterTranspotService, new MockTransportService.DelegateTransport(nonMasterTransportService
             .original()) {
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions
-                options) throws IOException, TransportException {
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                       TransportRequestOptions options) throws IOException {
                 if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME)) {
                     countDownLatch.countDown();
                 }
-                super.sendRequest(node, requestId, action, request, options);
+                super.sendRequest(connection, requestId, action, request, options);
             }
+
+            @Override
+            public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+                return super.openConnection(node, profile);
+            }
+
         });
 
         countDownLatch.await();

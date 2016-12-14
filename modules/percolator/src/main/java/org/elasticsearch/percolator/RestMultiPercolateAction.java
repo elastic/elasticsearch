@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -60,7 +59,7 @@ public class RestMultiPercolateAction extends BaseRestHandler {
         multiPercolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, multiPercolateRequest.indicesOptions()));
         multiPercolateRequest.indices(Strings.splitStringByCommaToArray(restRequest.param("index")));
         multiPercolateRequest.documentType(restRequest.param("type"));
-        multiPercolateRequest.add(RestActions.getRestContent(restRequest), allowExplicitIndex);
+        multiPercolateRequest.add(restRequest.contentOrSourceParam(), allowExplicitIndex);
         return channel -> client.execute(MultiPercolateAction.INSTANCE, multiPercolateRequest, new RestToXContentListener<>(channel));
     }
 

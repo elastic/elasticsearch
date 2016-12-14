@@ -55,7 +55,6 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -727,8 +726,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         context.terminateAfter(source.terminateAfter());
         if (source.aggregations() != null) {
             try {
-                AggregationContext aggContext = new AggregationContext(context);
-                AggregatorFactories factories = source.aggregations().build(aggContext, null);
+                AggregatorFactories factories = source.aggregations().build(context, null);
                 factories.validate();
                 context.aggregations(new SearchContextAggregations(factories));
             } catch (IOException e) {

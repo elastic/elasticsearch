@@ -46,9 +46,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
@@ -486,7 +485,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 "       ,{\"cancel\" : {\"index\" : \"test\", \"shard\" : 4, \"node\" : \"node5\", \"allow_primary\" : true}} \n" +
                 "    ]\n" +
                 "}\n";
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(commands);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, commands);
         // move two tokens, parser expected to be "on" `commands` field
         parser.nextToken();
         parser.nextToken();

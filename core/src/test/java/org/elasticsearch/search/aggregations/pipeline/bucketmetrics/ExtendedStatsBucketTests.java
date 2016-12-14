@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregationBuilder;
 
@@ -45,7 +46,7 @@ public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<Exte
             .endObject()
             .string();
 
-        XContentParser parser = XContentFactory.xContent(content).createParser(content);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, content);
         QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         parser.nextToken(); // skip object start
 

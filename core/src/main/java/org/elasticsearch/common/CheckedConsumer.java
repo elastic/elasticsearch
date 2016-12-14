@@ -17,24 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml.parser;
+package org.elasticsearch.common;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
+import java.util.function.Consumer;
 
-import static org.hamcrest.Matchers.nullValue;
-
-public abstract class AbstractParserTestCase extends ESTestCase {
-
-    protected XContentParser parser;
-
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        //this is the way to make sure that we consumed the whole yaml
-        assertThat(parser.currentToken(), nullValue());
-        parser.close();
-    }
+/**
+ * A {@link Consumer}-like interface which allows throwing checked exceptions.
+ */
+@FunctionalInterface
+public interface CheckedConsumer<T, E extends Exception> {
+    void accept(T t) throws E;
 }

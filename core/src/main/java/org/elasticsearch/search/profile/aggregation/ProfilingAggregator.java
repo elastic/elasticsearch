@@ -23,7 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -54,7 +54,7 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public AggregationContext context() {
+    public SearchContext context() {
         return delegate.context();
     }
 

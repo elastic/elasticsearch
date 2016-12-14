@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -219,14 +220,14 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
     }
 
     @Override
-    protected final MultiValuesSourceAggregatorFactory<VS, ?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
+    protected final MultiValuesSourceAggregatorFactory<VS, ?> doBuild(SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         Map<String, ValuesSourceConfig<VS>> configs = resolveConfig(context);
         MultiValuesSourceAggregatorFactory<VS, ?> factory = innerBuild(context, configs, parent, subFactoriesBuilder);
         return factory;
     }
 
-    protected Map<String, ValuesSourceConfig<VS>> resolveConfig(AggregationContext context) {
+    protected Map<String, ValuesSourceConfig<VS>> resolveConfig(SearchContext context) {
         HashMap<String, ValuesSourceConfig<VS>> configs = new HashMap<>();
         for (String field : fields) {
             ValuesSourceConfig<VS> config = config(context, field, null);
@@ -235,11 +236,11 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
         return configs;
     }
 
-    protected abstract MultiValuesSourceAggregatorFactory<VS, ?> innerBuild(AggregationContext context,
+    protected abstract MultiValuesSourceAggregatorFactory<VS, ?> innerBuild(SearchContext context,
             Map<String, ValuesSourceConfig<VS>> configs, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException;
 
-    public ValuesSourceConfig<VS> config(AggregationContext context, String field, Script script) {
+    public ValuesSourceConfig<VS> config(SearchContext context, String field, Script script) {
 
         ValueType valueType = this.valueType != null ? this.valueType : targetValueType;
 
@@ -262,7 +263,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
             return config.format(resolveFormat(format, valueType));
         }
 
-        MappedFieldType fieldType = context.searchContext().smartNameFieldType(field);
+        MappedFieldType fieldType = context.smartNameFieldType(field);
         if (fieldType == null) {
             ValuesSourceType valuesSourceType = valueType != null ? valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);
@@ -271,7 +272,7 @@ public abstract class MultiValuesSourceAggregationBuilder<VS extends ValuesSourc
             return config.unmapped(true);
         }
 
-        IndexFieldData<?> indexFieldData = context.searchContext().fieldData().getForField(fieldType);
+        IndexFieldData<?> indexFieldData = context.fieldData().getForField(fieldType);
 
         ValuesSourceConfig<VS> config;
         if (valuesSourceType == ValuesSourceType.ANY) {

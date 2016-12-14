@@ -140,7 +140,12 @@ public class RemovePluginCommandTests extends ESTestCase {
         assertEquals("plugin fake not found; run 'elasticsearch-plugin list' to get list of installed plugins", e.getMessage());
 
         MockTerminal terminal = new MockTerminal();
-        new RemovePluginCommand().main(new String[] { "-Epath.home=" + home, "fake" }, terminal);
+        new RemovePluginCommand() {
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        }.main(new String[] { "-Epath.home=" + home, "fake" }, terminal);
         try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
             assertEquals("-> Removing fake...", reader.readLine());
             assertEquals("ERROR: plugin fake not found; run 'elasticsearch-plugin list' to get list of installed plugins",

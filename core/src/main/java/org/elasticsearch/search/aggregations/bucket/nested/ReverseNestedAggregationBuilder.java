@@ -33,7 +33,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -82,16 +82,16 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
         if (findNestedAggregatorFactory(parent) == null) {
-            throw new SearchParseException(context.searchContext(),
+            throw new SearchParseException(context,
                     "Reverse nested aggregation [" + name + "] can only be used inside a [nested] aggregation", null);
         }
 
         ObjectMapper parentObjectMapper = null;
         if (path != null) {
-            parentObjectMapper = context.searchContext().getObjectMapper(path);
+            parentObjectMapper = context.getObjectMapper(path);
             if (parentObjectMapper == null) {
                 return new ReverseNestedAggregatorFactory(name, type, true, null, context, parent, subFactoriesBuilder, metaData);
             }
@@ -100,7 +100,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
             }
         }
 
-        NestedScope nestedScope = context.searchContext().getQueryShardContext().nestedScope();
+        NestedScope nestedScope = context.getQueryShardContext().nestedScope();
         try {
             nestedScope.nextLevel(parentObjectMapper);
             return new ReverseNestedAggregatorFactory(name, type, false, parentObjectMapper, context, parent, subFactoriesBuilder,

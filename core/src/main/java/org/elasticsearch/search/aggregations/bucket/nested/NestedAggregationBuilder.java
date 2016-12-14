@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -78,9 +78,9 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
-        ObjectMapper childObjectMapper = context.searchContext().getObjectMapper(path);
+        ObjectMapper childObjectMapper = context.getObjectMapper(path);
         if (childObjectMapper == null) {
             // in case the path has been unmapped:
             return new NestedAggregatorFactory(name, type, null, null, context, parent, subFactoriesBuilder, metaData);
@@ -90,11 +90,11 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
             throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
         }
         try {
-            ObjectMapper parentObjectMapper = context.searchContext().getQueryShardContext().nestedScope().nextLevel(childObjectMapper);
+            ObjectMapper parentObjectMapper = context.getQueryShardContext().nestedScope().nextLevel(childObjectMapper);
             return new NestedAggregatorFactory(name, type, parentObjectMapper, childObjectMapper, context, parent, subFactoriesBuilder,
                     metaData);
         } finally {
-            context.searchContext().getQueryShardContext().nestedScope().previousLevel();
+            context.getQueryShardContext().nestedScope().previousLevel();
         }
     }
 

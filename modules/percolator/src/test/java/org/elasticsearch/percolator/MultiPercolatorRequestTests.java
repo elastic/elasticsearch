@@ -21,6 +21,7 @@ package org.elasticsearch.percolator;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 
@@ -45,7 +46,7 @@ public class MultiPercolatorRequestTests extends ESTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        Map sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        Map sourceMap = createParser(JsonXContent.jsonXContent, percolateRequest.source()).map();
         assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value1").map()));
 
         percolateRequest = request.requests().get(1);
@@ -58,7 +59,7 @@ public class MultiPercolatorRequestTests extends ESTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        sourceMap = createParser(JsonXContent.jsonXContent, percolateRequest.source()).map();
         assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value2").map()));
 
         percolateRequest = request.requests().get(2);
@@ -71,7 +72,7 @@ public class MultiPercolatorRequestTests extends ESTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(true));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        sourceMap = createParser(JsonXContent.jsonXContent, percolateRequest.source()).map();
         assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value3").map()));
 
         percolateRequest = request.requests().get(3);
@@ -111,7 +112,7 @@ public class MultiPercolatorRequestTests extends ESTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        sourceMap = createParser(JsonXContent.jsonXContent, percolateRequest.source()).map();
         assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value4").map()));
 
         percolateRequest = request.requests().get(6);
@@ -127,7 +128,7 @@ public class MultiPercolatorRequestTests extends ESTestCase {
         assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.strictExpandOpenAndForbidClosed()));
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        sourceMap = createParser(JsonXContent.jsonXContent, percolateRequest.source()).map();
         assertThat(sourceMap.get("doc"), nullValue());
 
         percolateRequest = request.requests().get(7);
@@ -143,7 +144,7 @@ public class MultiPercolatorRequestTests extends ESTestCase {
         assertThat(percolateRequest.indicesOptions(), equalTo(IndicesOptions.fromOptions(false, false, true, false, IndicesOptions.strictExpandOpenAndForbidClosed())));
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        sourceMap = createParser(JsonXContent.jsonXContent, percolateRequest.source()).map();
         assertThat(sourceMap.get("doc"), nullValue());
     }
 
@@ -163,7 +164,7 @@ public class MultiPercolatorRequestTests extends ESTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        Map sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        Map sourceMap = createParser(JsonXContent.jsonXContent, percolateRequest.source()).map();
         assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value1").map()));
 
         percolateRequest = request.requests().get(1);
@@ -175,7 +176,7 @@ public class MultiPercolatorRequestTests extends ESTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        sourceMap = createParser(JsonXContent.jsonXContent, percolateRequest.source()).map();
         assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value2").map()));
 
         percolateRequest = request.requests().get(2);
@@ -185,7 +186,7 @@ public class MultiPercolatorRequestTests extends ESTestCase {
         assertThat(percolateRequest.onlyCount(), equalTo(false));
         assertThat(percolateRequest.getRequest(), nullValue());
         assertThat(percolateRequest.source(), notNullValue());
-        sourceMap = XContentFactory.xContent(percolateRequest.source()).createParser(percolateRequest.source()).map();
+        sourceMap = createParser(JsonXContent.jsonXContent, percolateRequest.source()).map();
         assertThat(sourceMap.get("doc"), equalTo((Object) MapBuilder.newMapBuilder().put("field1", "value3").map()));
     }
 

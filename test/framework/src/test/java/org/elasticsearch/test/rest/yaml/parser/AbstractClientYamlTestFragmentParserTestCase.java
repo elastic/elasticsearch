@@ -25,7 +25,10 @@ import org.junit.After;
 
 import static org.hamcrest.Matchers.nullValue;
 
-public abstract class AbstractParserTestCase extends ESTestCase {
+/**
+ * Superclass for tests of subclasses of {@link ClientYamlTestFragmentParser}.
+ */
+public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTestCase {
 
     protected XContentParser parser;
 

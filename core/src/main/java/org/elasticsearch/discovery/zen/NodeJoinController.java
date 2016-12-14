@@ -468,17 +468,25 @@ public class NodeJoinController extends AbstractComponent {
 
         private ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<DiscoveryNode> joiningNodes) {
             assert currentState.nodes().getMasterNodeId() == null : currentState;
-            DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes());
+            DiscoveryNodes currentNodes = currentState.nodes();
+            DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
             nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
             ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks())
                 .removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
             for (final DiscoveryNode joiningNode : joiningNodes) {
-                final DiscoveryNode existingNode = nodesBuilder.get(joiningNode.getId());
-                if (existingNode != null && existingNode.equals(joiningNode) == false) {
-                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", existingNode, joiningNode);
-                    nodesBuilder.remove(existingNode.getId());
+                final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
+                if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
+                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
+                    nodesBuilder.remove(nodeWithSameId.getId());
+                }
+                final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
+                if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
+                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameAddress,
+                        joiningNode);
+                    nodesBuilder.remove(nodeWithSameAddress.getId());
                 }
             }
+
 
             // now trim any left over dead nodes - either left there when the previous master stepped down
             // or removed by us above

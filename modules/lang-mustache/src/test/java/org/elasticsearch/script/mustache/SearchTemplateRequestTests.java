@@ -20,9 +20,8 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
@@ -149,8 +148,8 @@ public class SearchTemplateRequestTests extends ESTestCase {
     /**
      * Creates a {@link XContentParser} with the given String while replacing single quote to double quotes.
      */
-    private static XContentParser newParser(String s) throws IOException {
+    private XContentParser newParser(String s) throws IOException {
         assertNotNull(s);
-        return XContentHelper.createParser(new BytesArray(s.replace("'", "\"")));
+        return createParser(JsonXContent.jsonXContent, s.replace("'", "\""));
     }
 }

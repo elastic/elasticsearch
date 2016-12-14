@@ -43,7 +43,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 /**
  * A command for the plugin cli to remove a plugin from elasticsearch.
  */
-final class RemovePluginCommand extends SettingCommand {
+class RemovePluginCommand extends SettingCommand {
 
     private final OptionSpec<String> arguments;
 

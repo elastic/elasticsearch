@@ -72,7 +72,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
     public void testParserEmpty() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().endObject();
         BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         YearlySchedule schedule = new YearlySchedule.Parser().parse(parser);
         assertThat(schedule, notNullValue());
@@ -94,7 +94,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
                 .endObject()
                 .endObject();
         BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         YearlySchedule schedule = new YearlySchedule.Parser().parse(parser);
         assertThat(schedule, notNullValue());
@@ -117,7 +117,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
                 .endObject()
                 .endObject();
         BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         try {
             new MonthlySchedule.Parser().parse(parser);
@@ -131,7 +131,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
         YearTimes[] times = validYearTimes();
         XContentBuilder builder = jsonBuilder().value(times);
         BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         YearlySchedule schedule = new YearlySchedule.Parser().parse(parser);
         assertThat(schedule, notNullValue());
@@ -150,7 +150,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
                 .array("at", (Object[]) times)
                 .endObject();
         BytesReference bytes = builder.bytes();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
         parser.nextToken(); // advancing to the start object
         try {
             new YearlySchedule.Parser().parse(parser);

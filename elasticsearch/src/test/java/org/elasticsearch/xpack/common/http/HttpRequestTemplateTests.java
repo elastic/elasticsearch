@@ -6,13 +6,13 @@
 package org.elasticsearch.xpack.common.http;
 
 import io.netty.handler.codec.http.HttpHeaders;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
@@ -84,7 +84,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         HttpRequestTemplate template = builder.build();
 
         XContentBuilder xContentBuilder = template.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(xContentBuilder.bytes());
+        XContentParser xContentParser = createParser(xContentBuilder);
         xContentParser.nextToken();
 
         HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(mock(HttpAuthRegistry.class));
@@ -139,7 +139,7 @@ public class HttpRequestTemplateTests extends ESTestCase {
         HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(registry);
 
         XContentBuilder xContentBuilder = template.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(xContentBuilder.bytes());
+        XContentParser xContentParser = createParser(xContentBuilder);
         xContentParser.nextToken();
         HttpRequestTemplate parsed = parser.parse(xContentParser);
 
@@ -195,14 +195,14 @@ public class HttpRequestTemplateTests extends ESTestCase {
 
     private void assertThatManualBuilderEqualsParsingFromUrl(String url, HttpRequestTemplate.Builder builder) throws Exception {
         XContentBuilder urlContentBuilder = jsonBuilder().startObject().field("url", url).endObject();
-        XContentParser urlContentParser = JsonXContent.jsonXContent.createParser(urlContentBuilder.bytes());
+        XContentParser urlContentParser = createParser(urlContentBuilder);
         urlContentParser.nextToken();
 
         HttpRequestTemplate.Parser parser = new HttpRequestTemplate.Parser(mock(HttpAuthRegistry.class));
         HttpRequestTemplate urlParsedTemplate = parser.parse(urlContentParser);
 
         XContentBuilder xContentBuilder = builder.build().toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(xContentBuilder.bytes());
+        XContentParser xContentParser = createParser(xContentBuilder);
         xContentParser.nextToken();
         HttpRequestTemplate parsedTemplate = parser.parse(xContentParser);
 

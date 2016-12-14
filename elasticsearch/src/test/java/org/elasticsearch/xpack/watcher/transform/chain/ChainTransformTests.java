@@ -121,7 +121,7 @@ public class ChainTransformTests extends ESTestCase {
                 .startObject().field("named", "name4").endObject()
                 .endArray();
 
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         parser.nextToken();
         ExecutableChainTransform executable = transformParser.parseExecutable("_id", parser);
         assertThat(executable, notNullValue());

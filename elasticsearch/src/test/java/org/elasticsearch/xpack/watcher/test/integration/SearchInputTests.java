@@ -10,7 +10,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.plugins.Plugin;
@@ -142,7 +141,7 @@ public class SearchInputTests extends ESIntegTestCase {
         TimeValue timeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
         XContentBuilder builder = jsonBuilder().value(
                 new SearchInput(WatcherTestUtils.templateRequest(source), null, timeout, null));
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
         parser.nextToken();
 
         IndicesQueriesRegistry indicesQueryRegistry = internalCluster().getInstance(IndicesQueriesRegistry.class);

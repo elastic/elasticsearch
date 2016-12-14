@@ -11,7 +11,6 @@ import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
@@ -113,7 +112,7 @@ public class LoggingActionTests extends ESTestCase {
         }
         builder.endObject();
 
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser xContentParser = createParser(builder);
         xContentParser.nextToken();
 
         ExecutableLoggingAction executable = parser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(3), xContentParser);
@@ -138,7 +137,7 @@ public class LoggingActionTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder();
         executable.toXContent(builder, Attachment.XContent.EMPTY_PARAMS);
 
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser xContentParser = createParser(builder);
         xContentParser.nextToken();
 
         ExecutableLoggingAction parsedAction = parser.parseExecutable(randomAsciiOfLength(5), randomAsciiOfLength(5), xContentParser);
@@ -162,7 +161,7 @@ public class LoggingActionTests extends ESTestCase {
         LoggingAction action = actionBuilder.build();
 
         XContentBuilder builder = jsonBuilder().value(action);
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser xContentParser = createParser(builder);
 
         assertThat(xContentParser.nextToken(), is(XContentParser.Token.START_OBJECT));
         ExecutableLoggingAction executable = parser.parseExecutable(randomAsciiOfLength(4), randomAsciiOfLength(5), xContentParser);
@@ -179,7 +178,7 @@ public class LoggingActionTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder()
                 .startObject().endObject();
 
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser xContentParser = createParser(builder);
         xContentParser.nextToken();
 
         try {

@@ -10,7 +10,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.Scheme;
@@ -58,7 +57,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
                 .endObject();
 
         logger.info("JSON: {}", builder.string());
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser xContentParser = createParser(builder);
         EmailAttachments attachments = parser.parse(xContentParser);
         assertThat(attachments.getAttachments(), hasSize(2));
 
@@ -80,7 +79,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         String type = randomAsciiOfLength(8);
         builder.startObject().startObject("some-id").startObject(type).endObject().endObject().endObject();
 
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser xContentParser = createParser(builder);
         try {
             parser.parse(xContentParser);
             fail("Expected random parser of type [" + type + "] to throw an exception");
@@ -132,7 +131,7 @@ public class EmailAttachmentParsersTests extends ESTestCase {
         builder.endObject();
         logger.info("JSON is: " + builder.string());
 
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser xContentParser = createParser(builder);
         try {
             XContentParser.Token token = xContentParser.currentToken();
             assertNull(token);

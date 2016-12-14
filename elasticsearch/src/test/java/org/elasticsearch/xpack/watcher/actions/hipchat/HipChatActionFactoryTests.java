@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.actions.hipchat;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.hipchat.HipChatAccount;
@@ -43,7 +41,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
 
         HipChatAction action = hipchatAction("_account1", "_body").build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
 
         ExecutableHipChatAction parsedAction = factory.parseExecutable("_w1", "_a1", parser);
@@ -58,7 +56,7 @@ public class HipChatActionFactoryTests extends ESTestCase {
         factory = new HipChatActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), hipchatService);
         HipChatAction action = hipchatAction("_unknown", "_body").build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
         expectThrows(IllegalArgumentException.class, () -> factory.parseExecutable("_w1", "_a1", parser));
     }

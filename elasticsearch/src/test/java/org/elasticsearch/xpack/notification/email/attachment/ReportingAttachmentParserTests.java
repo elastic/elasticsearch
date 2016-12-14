@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.notification.email.attachment;
 
 import com.fasterxml.jackson.core.io.JsonEOFException;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -14,7 +15,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.HttpClient;
 import org.elasticsearch.xpack.common.http.HttpMethod;
@@ -123,7 +123,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
         }
 
         builder.endObject().endObject().endObject();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(builder);
 
         EmailAttachments emailAttachments = emailAttachmentsParser.parse(parser);
         assertThat(emailAttachments.getAttachments(), hasSize(1));

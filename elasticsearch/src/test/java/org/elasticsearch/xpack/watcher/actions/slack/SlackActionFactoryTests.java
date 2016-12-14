@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher.actions.slack;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
 import org.elasticsearch.xpack.notification.slack.SlackAccount;
@@ -20,8 +18,8 @@ import org.junit.Before;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.slackAction;
 import static org.elasticsearch.xpack.notification.slack.message.SlackMessageTests.createRandomTemplate;
+import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.slackAction;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -42,7 +40,7 @@ public class SlackActionFactoryTests extends ESTestCase {
 
         SlackAction action = slackAction("_account1", createRandomTemplate()).build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
 
         SlackAction parsedAction = SlackAction.parse("_w1", "_a1", parser);
@@ -55,7 +53,7 @@ public class SlackActionFactoryTests extends ESTestCase {
         factory = new SlackActionFactory(Settings.EMPTY, mock(TextTemplateEngine.class), service);
         SlackAction action = slackAction("_unknown", createRandomTemplate()).build();
         XContentBuilder jsonBuilder = jsonBuilder().value(action);
-        XContentParser parser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        XContentParser parser = createParser(jsonBuilder);
         parser.nextToken();
         expectThrows(IllegalArgumentException.class, () -> factory.parseExecutable("_w1", "_a1", parser));
     }

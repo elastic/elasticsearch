@@ -30,11 +30,11 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.ESTestCase.terminate;
 
@@ -49,13 +49,12 @@ import static org.elasticsearch.test.ESTestCase.terminate;
 public class MockWebServer implements Closeable {
 
     private HttpServer server;
-    private final AtomicInteger index = new AtomicInteger(0);
-    private final List<MockResponse> responses = new ArrayList<>();
-    private final List<MockRequest> requests = new ArrayList<>();
+    private final Queue<MockResponse> responses = ConcurrentCollections.newQueue();
+    private final Queue<MockRequest> requests = ConcurrentCollections.newQueue();
     private final Logger logger;
     private final SSLContext sslContext;
-    private boolean needClientAuth;
-    private Set<CountDownLatch> latches = ConcurrentCollections.newConcurrentSet();
+    private final boolean needClientAuth;
+    private final Set<CountDownLatch> latches = ConcurrentCollections.newConcurrentSet();
 
     /**
      * Instantiates a webserver without https
@@ -93,12 +92,15 @@ public class MockWebServer implements Closeable {
 
         server.start();
         server.createContext("/", s -> {
-            logger.debug("incoming HTTP request [{} {}]", s.getRequestMethod(), s.getRequestURI());
-
             try {
-                MockResponse response = responses.get(index.getAndAdd(1));
+                MockResponse response = responses.poll();
                 MockRequest request = createRequest(s);
                 requests.add(request);
+
+                if (logger.isDebugEnabled()) {
+                    logger.debug("[{}:{}] incoming HTTP request [{} {}], returning status [{}] body [{}]", getHostName(), getPort(),
+                            s.getRequestMethod(), s.getRequestURI(), response.getStatusCode(), getStartOfBody(response));
+                }
 
                 sleepIfNeeded(response.getBeforeReplyDelay());
 
@@ -196,6 +198,10 @@ public class MockWebServer implements Closeable {
      * @param response The created mock response
      */
     public void enqueue(MockResponse response) {
+        if (logger.isTraceEnabled()) {
+            logger.trace("[{}:{}] Enqueueing response [{}], status [{}] body [{}]", getHostName(), getPort(), responses.size(),
+                    response.getStatusCode(), getStartOfBody(response));
+        }
         responses.add(response);
     }
 
@@ -203,15 +209,23 @@ public class MockWebServer implements Closeable {
      * @return The requests that have been made to this mock web server
      */
     public List<MockRequest> requests() {
-        return requests;
+        return new ArrayList<>(requests);
     }
 
     /**
      * Removes the first request in the list of requests and returns it to the caller.
-     * This can be used as a queue if you know the order of your requests deone.
+     * This can be used as a queue if you are sure the order of your requests.
      */
     public MockRequest takeRequest() {
-        return requests.remove(0);
+        return requests.poll();
+    }
+
+    /**
+     * A utility method to peek into the requests and find out if #MockWebServer.takeRequests will not throw an out of bound exception
+     * @return true if more requests are available, false otherwise
+     */
+    public boolean hasMoreRequests() {
+        return requests.isEmpty() == false;
     }
 
     /**
@@ -220,7 +234,7 @@ public class MockWebServer implements Closeable {
      */
     @Override
     public void close() {
-        logger.debug("Counting down all latches before terminating executor");
+        logger.debug("[{}:{}] Counting down all latches before terminating executor", getHostName(), getPort());
         latches.forEach(CountDownLatch::countDown);
 
         if (server.getExecutor() instanceof ExecutorService) {
@@ -230,5 +244,18 @@ public class MockWebServer implements Closeable {
             }
         }
         server.stop(0);
+    }
+
+    /**
+     * Helper method to return the first 20 chars of a request's body
+     * @param response The MockResponse to inspect
+     * @return Returns the first 20 chars or an empty string if the response body is not configured
+     */
+    private String getStartOfBody(MockResponse response) {
+        if (Strings.isEmpty(response.getBody())) {
+            return "";
+        }
+        int length = Math.min(20, response.getBody().length());
+        return response.getBody().substring(0, length).replaceAll("\n", "");
     }
 }

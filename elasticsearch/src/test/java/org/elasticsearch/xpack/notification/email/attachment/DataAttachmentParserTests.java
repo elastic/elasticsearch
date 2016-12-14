@@ -31,7 +31,7 @@ public class DataAttachmentParserTests extends ESTestCase {
         XContentBuilder builder = jsonBuilder().startObject().startObject(id)
                 .startObject(DataAttachmentParser.TYPE).field("format", randomFrom("yaml", "json")).endObject()
                 .endObject().endObject();
-        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         logger.info("JSON: {}", builder.string());
 
         EmailAttachments emailAttachments = emailAttachmentsParser.parse(parser);

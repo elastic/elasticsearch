@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -229,10 +230,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             // pretend that one of the templates is missing
             for (Tuple<String, String> template : monitoringTemplates()) {
                 if (template.v1().contains(MonitoringBulkTimestampedResolver.Data.DATA)) {
-                    enqueueResponse(secondWebServer, 200, "template [" + template + "] exists");
+                    enqueueResponse(secondWebServer, 200, "template [" + template.v1() + "] exists");
                 } else {
-                    enqueueResponse(secondWebServer, 404, "template [" + template + "] does not exist");
-                    enqueueResponse(secondWebServer, 201, "template [" + template + "] created");
+                    enqueueResponse(secondWebServer, 404, "template [" + template.v1() + "] does not exist");
+                    enqueueResponse(secondWebServer, 201, "template [" + template.v1() + "] created");
                 }
             }
             // opposite of if it existed before
@@ -450,6 +451,8 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
                                    @Nullable final Map<String, String[]> customHeaders, @Nullable final String basePath)
             throws Exception {
         final String pathPrefix = basePathToAssertablePrefix(basePath);
+        // the bulk request is fired off asynchronously so we might need to take a while, until we can get the request from the webserver
+        assertBusy(() -> assertThat("Waiting for further requests in web server", webServer.hasMoreRequests(), is(true)));
         final MockRequest request = webServer.takeRequest();
 
         assertThat(request.getMethod(), equalTo("POST"));

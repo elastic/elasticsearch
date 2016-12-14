@@ -12,7 +12,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
@@ -140,14 +139,14 @@ public class HttpRequestTests extends ESTestCase {
 
     private void assertThatManualBuilderEqualsParsingFromUrl(String url, HttpRequest.Builder builder) throws Exception {
         XContentBuilder urlContentBuilder = jsonBuilder().startObject().field("url", url).endObject();
-        XContentParser urlContentParser = JsonXContent.jsonXContent.createParser(urlContentBuilder.bytes());
+        XContentParser urlContentParser = createParser(urlContentBuilder);
         urlContentParser.nextToken();
 
         HttpRequest.Parser parser = new HttpRequest.Parser(mock(HttpAuthRegistry.class));
         HttpRequest urlParsedRequest = parser.parse(urlContentParser);
 
         XContentBuilder xContentBuilder = builder.build().toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
-        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(xContentBuilder.bytes());
+        XContentParser xContentParser = createParser(xContentBuilder);
         xContentParser.nextToken();
         HttpRequest parsedRequest = parser.parse(xContentParser);
 

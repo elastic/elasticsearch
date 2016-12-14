@@ -69,7 +69,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<Globa
                                       ActionListener<ReplicationOperation.ReplicaResponse> listener) {
         if (node.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
             super.sendReplicaRequest(concreteShardRequest, node, listener);
-        } {
+        } else {
             listener.onResponse(
                 new ReplicaResponse(concreteShardRequest.getTargetAllocationID(), SequenceNumbersService.UNASSIGNED_SEQ_NO));
         }

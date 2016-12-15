@@ -55,7 +55,7 @@ public class Auditor {
     }
 
     private void indexDoc(String type, ToXContent toXContent) {
-        client.prepareIndex(index, AuditActivity.TYPE.getPreferredName())
+        client.prepareIndex(index, type)
                 .setSource(toXContentBuilder(toXContent))
                 .execute(new ActionListener<IndexResponse>() {
                     @Override

@@ -67,6 +67,7 @@ public class ReplicationResponse extends ActionResponse {
 
     public static class ShardInfo implements Streamable, ToXContent {
 
+        private static final String _SHARDS = "_shards";
         private static final String TOTAL = "total";
         private static final String SUCCESSFUL = "successful";
         private static final String FAILED = "failed";
@@ -170,7 +171,7 @@ public class ReplicationResponse extends ActionResponse {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
+            builder.startObject(_SHARDS);
             builder.field(TOTAL, total);
             builder.field(SUCCESSFUL, successful);
             builder.field(FAILED, getFailed());
@@ -337,27 +338,6 @@ public class ReplicationResponse extends ActionResponse {
                 builder.endObject();
                 return builder;
             }
-
-            private static class Fields {
-
-                private static final String _INDEX = "_index";
-                private static final String _SHARD = "_shard";
-                private static final String _NODE = "_node";
-                private static final String REASON = "reason";
-                private static final String STATUS = "status";
-                private static final String PRIMARY = "primary";
-
-            }
-        }
-
-        private static class Fields {
-
-            private static final String _SHARDS = "_shards";
-            private static final String TOTAL = "total";
-            private static final String SUCCESSFUL = "successful";
-            private static final String FAILED = "failed";
-            private static final String FAILURES = "failures";
-
         }
     }
 }

@@ -43,13 +43,13 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.junit.Assert.assertThat;
 
 public class RequestLoggerTests extends RestClientTestCase {
-
     public void testTraceRequest() throws IOException, URISyntaxException {
         HttpHost host = new HttpHost("localhost", 9200, getRandom().nextBoolean() ? "http" : "https");
 
@@ -99,7 +99,7 @@ public class RequestLoggerTests extends RestClientTestCase {
             expected += " -d '" + requestBody + "'";
             HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
             HttpEntity entity;
-            switch(RandomNumbers.randomIntBetween(getRandom(), 0, 3)) {
+            switch(randomIntBetween(0, 4)) {
                 case 0:
                     entity = new StringEntity(requestBody, StandardCharsets.UTF_8);
                     break;
@@ -111,6 +111,10 @@ public class RequestLoggerTests extends RestClientTestCase {
                     break;
                 case 3:
                     entity = new NByteArrayEntity(requestBody.getBytes(StandardCharsets.UTF_8));
+                    break;
+                case 4:
+                    // Evil entity without a charset
+                    entity = new StringEntity(requestBody, (Charset) null);
                     break;
                 default:
                     throw new UnsupportedOperationException();
@@ -146,11 +150,20 @@ public class RequestLoggerTests extends RestClientTestCase {
             expected += "\n#   \"field\": \"value\"";
             expected += "\n# }";
             HttpEntity entity;
-            if (getRandom().nextBoolean()) {
+            switch(randomIntBetween(0, 2)) {
+            case 0:
                 entity = new StringEntity(responseBody, StandardCharsets.UTF_8);
-            } else {
+                break;
+            case 1:
                 //test a non repeatable entity
                 entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)));
+                break;
+            case 2:
+                // Evil entity without a charset
+                entity = new StringEntity(responseBody, (Charset) null);
+                break;
+            default:
+                throw new UnsupportedOperationException();
             }
             httpResponse.setEntity(entity);
         }

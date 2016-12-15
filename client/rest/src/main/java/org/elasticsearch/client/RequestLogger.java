@@ -134,7 +134,7 @@ final class RequestLogger {
             httpResponse.setEntity(entity);
             ContentType contentType = ContentType.get(entity);
             Charset charset = StandardCharsets.UTF_8;
-            if (contentType != null) {
+            if (contentType != null && contentType.getCharset() != null) {
                 charset = contentType.getCharset();
             }
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(entity.getContent(), charset))) {

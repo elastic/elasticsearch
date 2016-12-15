@@ -30,7 +30,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -83,7 +83,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.min;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_CREATION_DATE;
@@ -115,7 +114,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * which removes {@link RestoreInProgress} when all shards are completed. In case of
  * restore failure a normal recovery fail-over process kicks in.
  */
-public class RestoreService extends AbstractComponent implements ClusterStateListener {
+public class RestoreService extends AbstractComponent implements ClusterStateApplier {
 
     private static final Set<String> UNMODIFIABLE_SETTINGS = unmodifiableSet(newHashSet(
             SETTING_NUMBER_OF_SHARDS,
@@ -160,7 +159,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
-        clusterService.add(this);
+        clusterService.addStateApplier(this);
         this.clusterSettings = clusterSettings;
         this.cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor(logger);
     }
@@ -793,7 +792,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
+    public void applyClusterState(ClusterChangedEvent event) {
         try {
             if (event.localNodeMaster()) {
                 cleanupRestoreState(event);

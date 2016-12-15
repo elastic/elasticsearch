@@ -39,12 +39,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.function.Supplier;
@@ -124,7 +124,7 @@ public abstract class TransportInstanceSingleOperationAction<Request extends Ins
         }
 
         protected void doStart() {
-            final ClusterState clusterState = observer.observedState().getClusterState();
+            final ClusterState clusterState = observer.observedState();
             nodes = clusterState.nodes();
             try {
                 ClusterBlockException blockException = checkGlobalBlock(clusterState);

@@ -293,7 +293,7 @@ public class TribeService extends AbstractLifecycleComponent {
     public void startNodes() {
         for (Node node : nodes) {
             try {
-                getClusterService(node).add(new TribeClusterStateListener(node));
+                getClusterService(node).addListener(new TribeClusterStateListener(node));
                 node.start();
             } catch (Exception e) {
                 // calling close is safe for non started nodes, we can just iterate over all

@@ -714,7 +714,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
         BlockingClusterStateListener snapshotListener = new BlockingClusterStateListener(clusterService, "update_snapshot [", "update snapshot state", Priority.HIGH);
         try {
-            clusterService.addFirst(snapshotListener);
+            clusterService.addListener(snapshotListener);
             logger.info("--> snapshot");
             dataNodeClient().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
 
@@ -728,7 +728,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             snapshotListener.unblock();
 
         } finally {
-            clusterService.remove(snapshotListener);
+            clusterService.removeListener(snapshotListener);
         }
 
         logger.info("--> wait until the snapshot is done");

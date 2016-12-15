@@ -197,8 +197,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
             IndexSettings indexSettings = new IndexSettings(indexMetadata.build(), Settings.EMPTY);
             final long nowInMillis = randomPositiveLong();
             QueryShardContext context = new QueryShardContext(
-                0, indexSettings, null, null, null, null, null, queriesRegistry, null, null, null,
-                () -> nowInMillis);
+                0, indexSettings, null, null, null, null, null, queriesRegistry, null, null, () -> nowInMillis);
             readRequest.rewrite(context);
             QueryBuilder queryBuilder = readRequest.filteringAliases();
             assertEquals(queryBuilder, QueryBuilders.boolQuery()

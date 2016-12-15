@@ -133,7 +133,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, master);
         final ArrayList<ClusterState> statesFound = new ArrayList<>();
         final CountDownLatch nodesStopped = new CountDownLatch(1);
-        clusterService.add(event -> {
+        clusterService.addStateApplier(event -> {
             statesFound.add(event.state());
             try {
                 // block until both nodes have stopped to accumulate node failures

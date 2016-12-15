@@ -21,6 +21,7 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -268,7 +269,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final byte[] randomBytes = randomBytes();
         BytesReference bytes = builder().startObject().field("binary", randomBytes).endObject().bytes();
 
-        XContentParser parser = xcontentType().xContent().createParser(bytes);
+        XContentParser parser = createParser(xcontentType().xContent(), bytes);
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "binary");
@@ -284,7 +285,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final byte[] randomBytes = randomBytes();
         BytesReference bytes = builder().startObject().field("binary").value(randomBytes).endObject().bytes();
 
-        XContentParser parser = xcontentType().xContent().createParser(bytes);
+        XContentParser parser = createParser(xcontentType().xContent(), bytes);
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "binary");
@@ -309,7 +310,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
         builder.endObject();
 
-        XContentParser parser = xcontentType().xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "bin");
@@ -331,7 +332,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
         builder.endObject();
 
-        XContentParser parser = xcontentType().xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "utf8");
@@ -349,7 +350,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final BytesReference random = new BytesArray(randomBytes());
         XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
 
-        XContentParser parser = xcontentType().xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "text");

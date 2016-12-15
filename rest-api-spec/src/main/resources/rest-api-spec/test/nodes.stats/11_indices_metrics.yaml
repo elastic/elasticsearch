@@ -157,6 +157,9 @@
 
 ---
 "Metric - _all include_segment_file_sizes":
+  - skip:
+      version: " - 5.1.99"
+      reason:  this was fixed in 5.2.0
   - do:
       cluster.state: {}
 
@@ -184,6 +187,9 @@
 
 ---
 "Metric - segments include_segment_file_sizes":
+  - skip:
+      version: " - 5.1.99"
+      reason:  this was fixed in 5.2.0
   - do:
       cluster.state: {}
 
@@ -208,4 +214,3 @@
   - is_false:  nodes.$master.indices.translog
   - is_false:  nodes.$master.indices.recovery
   - is_true:   nodes.$master.indices.segments.file_sizes
-

@@ -145,6 +145,9 @@ setup:
 
 ---
 "Metric - segments include_segment_file_sizes":
+  - skip:
+      version: " - 5.1.99"
+      reason:  this was fixed in 5.2.0
   - do:
       indices.stats: { metric: segments, include_segment_file_sizes: true }
 

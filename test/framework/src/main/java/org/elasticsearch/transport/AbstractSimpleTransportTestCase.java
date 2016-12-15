@@ -39,7 +39,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,6 +52,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -69,11 +69,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
@@ -829,15 +831,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
     }
 
-    @TestLogging(value = "org.elasticsearch.test.transport.tracer:TRACE")
     public void testTracerLog() throws InterruptedException {
-        TransportRequestHandler handler = new TransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
-                channel.sendResponse(new StringMessageResponse(""));
-            }
-        };
-
+        TransportRequestHandler handler = (request, channel) -> channel.sendResponse(new StringMessageResponse(""));
         TransportRequestHandler handlerWithError = new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
@@ -1865,9 +1860,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             Thread t = new Thread() {
                 @Override
                 public void run() {
-                    try {
-                        Socket accept = socket.accept();
-                        accept.close();
+                    try (Socket accept = socket.accept()) {
+                        if (randomBoolean()) { // sometimes wait until the other side sends the message
+                            accept.getInputStream().read();
+                        }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -1884,8 +1880,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
             ConnectTransportException ex = expectThrows(ConnectTransportException.class,
                 () -> serviceA.connectToNode(dummy, builder.build()));
-            assertEquals("[][" + dummy.getAddress() +"] general node connection failure", ex.getMessage());
-            assertEquals("handshake failed", ex.getCause().getMessage());
+            assertEquals(ex.getMessage(), "[][" + dummy.getAddress() +"] general node connection failure");
+            assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
             t.join();
         }
     }

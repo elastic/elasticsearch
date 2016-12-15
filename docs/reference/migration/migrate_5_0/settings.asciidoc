@@ -133,7 +133,7 @@ Recovery settings deprecated in 1.x have been removed:
  * `index.shard.recovery.translog_size` is superseded by `indices.recovery.translog_size`
  * `index.shard.recovery.translog_ops` is superseded by `indices.recovery.translog_ops`
  * `index.shard.recovery.file_chunk_size` is superseded by `indices.recovery.file_chunk_size`
- * `index.shard.recovery.concurrent_streams` is superseded by `indices.recovery.concurrent_streams`
+ * `indices.recovery.concurrent_streams` is superseded by `cluster.routing.allocation.node_concurrent_recoveries`
  * `index.shard.recovery.concurrent_small_file_streams` is superseded by `indices.recovery.concurrent_small_file_streams`
  * `indices.recovery.max_size_per_sec` is superseded by `indices.recovery.max_bytes_per_sec`
 

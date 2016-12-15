@@ -1,3 +1,21 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -11,24 +29,18 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.core.IsEqual.equalTo;
 
-/**
- * Created by makeyang on 2016/12/8.
- */
-public class MultiFieldIncludeInAllMapperTests extends ESTestCase {
-    public void testExceptionForCopyToInMultiFields() throws IOException {
-        XContentBuilder mapping = createMappinmgWithIncludeInAllInMultiField();
 
-        // first check that for newer versions we throw exception if copy_to is found withing multi field
+public class MultiFieldIncludeInAllMapperTests extends ESTestCase {
+    public void testExceptionForIncludeInAllInMultiFields() throws IOException {
+        XContentBuilder mapping = createMappingWithIncludeInAllInMultiField();
+
+        // first check that for newer versions we throw exception if include_in_all is found withing multi field
         MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY);
-        try {
-            mapperService.parse("type", new CompressedXContent(mapping.string()), true);
-            fail("Parsing should throw an exception because the mapping contains a include_in_all in a multi field");
-        } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), equalTo("include_in_all in multi fields is not allowed. Found the include_in_all in field [c] which is within a multi field."));
-        }
+        Exception e = expectThrows(MapperParsingException.class, () -> mapperService.parse("type", new CompressedXContent(mapping.string()), true));
+        assertThat(e.getMessage(), equalTo("include_in_all in multi fields is not allowed. Found the include_in_all in field [c] which is within a multi field."));
     }
 
-    private static XContentBuilder createMappinmgWithIncludeInAllInMultiField() throws IOException {
+    private static XContentBuilder createMappingWithIncludeInAllInMultiField() throws IOException {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject()
                 .startObject("type")

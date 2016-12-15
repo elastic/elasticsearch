@@ -19,8 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import java.util.Map;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
@@ -30,7 +28,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
+
+import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.Strings.hasLength;
@@ -139,7 +138,7 @@ public final class ScriptProcessor extends AbstractProcessor {
 
             // verify script is able to be compiled before successfully creating processor.
             try {
-                scriptService.compile(script, ScriptContext.Standard.INGEST, script.getOptions());
+                scriptService.compile(script, ScriptContext.Standard.INGEST);
             } catch (ScriptException e) {
                 throw newConfigurationException(TYPE, processorTag, scriptPropertyUsed, e);
             }

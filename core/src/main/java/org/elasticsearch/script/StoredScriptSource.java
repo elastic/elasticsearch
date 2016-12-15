@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.IllegalFormatCodePointException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -138,6 +139,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
          * Appends the user-defined compiler options with the internal compiler options.
          */
         private void setOptions(Map<String, String> options) {
+            if (options.containsKey(Script.CONTENT_TYPE_OPTION)) {
+                throw new IllegalArgumentException(Script.CONTENT_TYPE_OPTION + " cannot be user-specified");
+            }
+
             this.options.putAll(options);
         }
 
@@ -294,7 +299,8 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
                     token = parser.nextToken();
 
                     if (token == Token.VALUE_STRING) {
-                        return new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
+                        return new StoredScriptSource(lang, parser.text(),
+                            Collections.singletonMap(Script.CONTENT_TYPE_OPTION, parser.contentType().mediaType()));
                     }
                 }
 

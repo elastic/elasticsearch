@@ -107,7 +107,7 @@ public class ScriptProcessorFactoryTests extends ESTestCase {
         ScriptService mockedScriptService = mock(ScriptService.class);
         ScriptException thrownException = new ScriptException("compile-time exception", new RuntimeException(),
             Collections.emptyList(), "script", "mockscript");
-        when(mockedScriptService.compile(any(), any(), any())).thenThrow(thrownException);
+        when(mockedScriptService.compile(any(), any())).thenThrow(thrownException);
         factory = new ScriptProcessor.Factory(mockedScriptService);
 
         Map<String, Object> configMap = new HashMap<>();

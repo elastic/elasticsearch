@@ -524,8 +524,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
         if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            // timestamp, at this point #proccess was called which for previous versions meant this was set
-            // nocommit: can we fix this in 5.x? how?
+            // timestamp, at this point #proccess was called which for 5.x meant this was set
             out.writeOptionalString("0");
             out.writeOptionalWriteable(null);
         }

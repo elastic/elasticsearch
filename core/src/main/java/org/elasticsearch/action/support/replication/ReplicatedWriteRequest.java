@@ -38,8 +38,7 @@ import java.io.IOException;
 public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>> extends ReplicationRequest<R> implements WriteRequest<R> {
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
-    long seqNo;
-
+    private long seqNo;
 
     /**
      * Constructor for deserialization.
@@ -87,12 +86,12 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
      * Returns the sequence number for this operation. The sequence number is assigned while the operation
      * is performed on the primary shard.
      */
-    public long seqNo() {
+    public long getSeqNo() {
         return seqNo;
     }
 
     /** sets the sequence number for this operation. should only be called on the primary shard */
-    public void seqNo(long seqNo) {
+    public void setSeqNo(long seqNo) {
         this.seqNo = seqNo;
     }
 }

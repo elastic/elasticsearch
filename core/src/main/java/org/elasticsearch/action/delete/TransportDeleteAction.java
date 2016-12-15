@@ -20,6 +20,7 @@
 package org.elasticsearch.action.delete;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -39,7 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -157,7 +157,7 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
 
     public static Engine.DeleteResult executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) {
         final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(),
-                request.seqNo(), request.primaryTerm(), request.version(), request.versionType());
+                request.getSeqNo(), request.primaryTerm(), request.version(), request.versionType());
         return replica.delete(delete);
     }
 

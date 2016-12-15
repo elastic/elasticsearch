@@ -28,6 +28,8 @@ setup:
 "Suggest API should have deprecation warning":
   - skip:
       features: 'warnings'
+      version: ' - 5.2.0'
+      reason: 'no deprecation logging prior to 5.2'
   - do:
       warnings:
         - "[POST /_suggest] is deprecated! Use [POST /_search] instead."

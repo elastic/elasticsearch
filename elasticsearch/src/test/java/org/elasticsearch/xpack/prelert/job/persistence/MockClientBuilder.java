@@ -171,8 +171,10 @@ public class MockClientBuilder {
             ActionListener<DeleteJobAction.Response> actionListener) throws InterruptedException, ExecutionException, IOException {
         DeleteIndexResponse response = DeleteIndexAction.INSTANCE.newResponse();
         StreamInput si = mock(StreamInput.class);
-        when(si.readByte()).thenReturn((byte) 0x41);
-        when(si.readMap()).thenReturn(mock(Map.class));
+        // this looks complicated but Mockito can't mock the final method
+        // DeleteIndexResponse.isAcknowledged() and the only way to create
+        // one with a true response is reading from a stream.
+        when(si.readByte()).thenReturn((byte) 0x01);
         response.readFrom(si);
 
         doAnswer(invocation -> {

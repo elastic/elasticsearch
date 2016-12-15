@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -424,7 +425,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return ScriptMetaData.putStoredScript(currentState, request.id(), source);
+                ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
+                smd = smd.putStoredScript(request.id(), source);
+                MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+
+                return ClusterState.builder(currentState).metaData(mdb).build();
             }
         });
     }
@@ -445,7 +450,11 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return ScriptMetaData.deleteStoredScript(currentState, request.id(), request.lang());
+                ScriptMetaData smd = currentState.metaData().custom(ScriptMetaData.TYPE);
+                smd = smd.deleteStoredScript(request.id(), request.lang());
+                MetaData.Builder mdb = MetaData.builder(currentState.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+
+                return ClusterState.builder(currentState).metaData(mdb).build();
             }
         });
     }

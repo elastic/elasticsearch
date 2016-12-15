@@ -22,6 +22,7 @@ package org.elasticsearch.script;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
@@ -56,8 +57,11 @@ public class ScriptContextTests extends ESTestCase {
         ScriptService scriptService = new ScriptService(settings, new Environment(settings), null, scriptEngineRegistry, scriptContextRegistry, scriptSettings);
 
         ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
-        ClusterState state = ScriptMetaData.putStoredScript(empty, "1", new StoredScriptSource(MockScriptEngine.NAME, "1", Collections.emptyMap()));
-        scriptService.clusterChanged(new ClusterChangedEvent("test", state, empty));
+        ScriptMetaData smd = empty.metaData().custom(ScriptMetaData.TYPE);
+        smd = smd.putStoredScript("1", new StoredScriptSource(MockScriptEngine.NAME, "1", Collections.emptyMap()));
+        MetaData.Builder mdb = MetaData.builder(empty.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
+        ClusterState stored = ClusterState.builder(empty).metaData(mdb).build();
+        scriptService.clusterChanged(new ClusterChangedEvent("test", stored, empty));
 
         return scriptService;
     }

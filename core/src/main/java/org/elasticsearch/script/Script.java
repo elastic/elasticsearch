@@ -48,9 +48,45 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Script represents used-defined input that can be used to
+ * {@link Script} represents used-defined input that can be used to
  * compile and execute a script from the {@link ScriptService}
  * based on the {@link ScriptType}.
+ *
+ * There are three types of scripts specified by {@link ScriptType}.
+ *
+ * The following describes the expected parameters for each type of script:
+ *
+ * <p><ul>
+ * <li> {@link ScriptType#INLINE}
+ * <ul>
+ * <li> {@link Script#lang}     - specifies the language, defaults to {@link Script#DEFAULT_SCRIPT_LANG}
+ * <li> {@link Script#idOrCode} - specifies the code to be compiled, must not be {@code null}
+ * <li> {@link Script#options}  - specifies the compiler options for this script; must not be {@code null},
+ *                                use an empty {@link Map} to specify no options
+ * <li> {@link Script#params}   - {@link Map} of user-defined parameters; must not be {@code null},
+ *                                use an empty {@link Map} to specify no params
+ * </ul>
+ * <li> {@link ScriptType#STORED}
+ * <ul>
+ * <li> {@link Script#lang}     - the language will be specified when storing the script, so this should
+ *                                be {@code null}; however, this can be specified to look up a stored
+ *                                script as part of the deprecated API
+ * <li> {@link Script#idOrCode} - specifies the id of the stored script to be looked up, must not be {@code null}
+ * <li> {@link Script#options}  - compiler options will be specified when a stored script is stored,
+ *                                so they have no meaning here and must be {@code null}
+ * <li> {@link Script#params}   - {@link Map} of user-defined parameters; must not be {@code null},
+ *                                use an empty {@link Map} to specify no params
+ * </ul>
+ * <li> {@link ScriptType#FILE}
+ * <ul>
+ * <li> {@link Script#lang}     - specifies the language for look up, defaults to {@link Script#DEFAULT_SCRIPT_LANG}
+ * <li> {@link Script#idOrCode} - specifies the id of the file script to be looked up, must not be {@code null}
+ * <li> {@link Script#options}  - compiler options will be specified when a file script is loaded,
+ *                                so they have no meaning here and must be {@code null}
+ * <li> {@link Script#params}   - {@link Map} of user-defined parameters; must not be {@code null},
+ *                                use an empty {@link Map} to specify no params
+ * </ul>
+ * </ul></p>
  */
 public final class Script implements ToXContent, Writeable {
 
@@ -396,7 +432,9 @@ public final class Script implements ToXContent, Writeable {
     /**
      * Constructor for a script that does not need to use compiler options.
      * @param type     The {@link ScriptType}.
-     * @param lang     The lang for this {@link Script}.
+     * @param lang     The language for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE} or
+     *                 {@link ScriptType#FILE}.  For {@link ScriptType#STORED} scripts this should be null, but can
+     *                 be specified to access scripts stored as part of the stored scripts deprecated API.
      * @param idOrCode The id for this {@link Script} if the {@link ScriptType} is {@link ScriptType#FILE} or {@link ScriptType#STORED}.
      *                 The code for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE}.
      * @param params   The user-defined params to be bound for script execution.
@@ -408,10 +446,13 @@ public final class Script implements ToXContent, Writeable {
     /**
      * Constructor for a script that requires the use of compiler options.
      * @param type     The {@link ScriptType}.
-     * @param lang     The lang for this {@link Script}.
+     * @param lang     The language for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE} or
+     *                 {@link ScriptType#FILE}.  For {@link ScriptType#STORED} scripts this should be null, but can
+     *                 be specified to access scripts stored as part of the stored scripts deprecated API.
      * @param idOrCode The id for this {@link Script} if the {@link ScriptType} is {@link ScriptType#FILE} or {@link ScriptType#STORED}.
      *                 The code for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE}.
-     * @param options  The options to be passed to the compiler for use at compile-time.
+     * @param options  The map of compiler options for this {@link Script} if the {@link ScriptType}
+     *                 is {@link ScriptType#INLINE}, {@code null} otherwise.
      * @param params   The user-defined params to be bound for script execution.
      */
     public Script(ScriptType type, String lang, String idOrCode, Map<String, String> options, Map<String, Object> params) {
@@ -635,6 +676,22 @@ public final class Script implements ToXContent, Writeable {
     }
 
     /**
+     * @return The {@link ScriptType} for this {@link Script}.
+     */
+    public ScriptType getType() {
+        return type;
+    }
+
+    /**
+     * @return The language for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE} or
+     *         {@link ScriptType#FILE}.  For {@link ScriptType#STORED} scripts this should be null, but can
+     *         be specified to access scripts stored as part of the stored scripts deprecated API.
+     */
+    public String getLang() {
+        return lang;
+    }
+
+    /**
      * @return The id for this {@link Script} if the {@link ScriptType} is {@link ScriptType#FILE} or {@link ScriptType#STORED}.
      *         The code for this {@link Script} if the {@link ScriptType} is {@link ScriptType#INLINE}.
      */
@@ -643,21 +700,8 @@ public final class Script implements ToXContent, Writeable {
     }
 
     /**
-     * @return The {@link ScriptType} for this {@link Script}.
-     */
-    public ScriptType getType() {
-        return type;
-    }
-
-    /**
-     * @return The language for this {@link Script}.
-     */
-    public String getLang() {
-        return lang;
-    }
-
-    /**
-     * @return The map of compiler options for this {@link Script}.
+     * @return The map of compiler options for this {@link Script} if the {@link ScriptType}
+     *         is {@link ScriptType#INLINE}, {@code null} otherwise.
      */
     public Map<String, String> getOptions() {
         return options;

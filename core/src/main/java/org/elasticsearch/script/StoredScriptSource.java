@@ -20,7 +20,9 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
@@ -46,6 +48,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+/**
+ * {@link StoredScriptSource} represents user-defined parameters for a script
+ * saved in the {@link ClusterState}.
+ */
 public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> implements Writeable, ToXContent {
 
     /**
@@ -64,7 +70,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     public static final ParseField LANG_PARSE_FIELD = new ParseField("lang");
 
     /**
-     * Standard {@link ParseField} for lang on the inner level.
+     * Standard {@link ParseField} for code on the inner level.
      */
     public static final ParseField CODE_PARSE_FIELD = new ParseField("code");
 
@@ -73,6 +79,10 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      */
     public static final ParseField OPTIONS_PARSE_FIELD = new ParseField("options");
 
+    /**
+     * Helper class used by {@link ObjectParser} to match names against fields
+     * parsed from XContent.
+     */
     private static final class MatcherSupplier implements ParseFieldMatcherSupplier {
 
         ParseFieldMatcher matcher = new ParseFieldMatcher(false);
@@ -164,6 +174,75 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         PARSER.declareField(Builder::setOptions, XContentParser::mapStrings, OPTIONS_PARSE_FIELD, ValueType.OBJECT);
     }
 
+    /**
+     * This will parse XContent into a {@link StoredScriptSource}.  The following formats can be parsed:
+     *
+     * The simple script format with no compiler options or user-defined params:
+     *
+     * Example:
+     * {@code
+     * {"script": "return Math.log(doc.popularity) * 100;"}
+     * }
+     *
+     * The above format requires the lang to be specified using the deprecated stored script namespace
+     * (as a url parameter during a put request).  See {@link ScriptMetaData} for more information about
+     * the stored script namespaces.
+     *
+     * The complex script format using the new stored script namespace
+     * where lang and code are required but options is optional:
+     *
+     * {@code
+     * {
+     *     "script" : {
+     *         "lang" : "<lang>",
+     *         "code" : "<code>",
+     *         "options" : {
+     *             "option0" : "<option0>",
+     *             "option1" : "<option1>",
+     *             ...
+     *         }
+     *     }
+     * }
+     * }
+     *
+     * Example:
+     * {@code
+     * {
+     *     "script": {
+     *         "lang" : "painless",
+     *         "code" : "return Math.log(doc.popularity) * params.multiplier"
+     *     }
+     * }
+     * }
+     *
+     * The simple template format:
+     *
+     * {@code
+     * {
+     *     "query" : ...
+     * }
+     * }
+     *
+     * The complex template format:
+     *
+     * {@code
+     * {
+     *     "template": {
+     *         "query" : ...
+     *     }
+     * }
+     * }
+     *
+     * Note that templates can be handled as both strings and complex JSON objects.
+     * Also templates may be part of the 'code' parameter in a script.  The Parser
+     * can handle this case as well.
+     *
+     * @param lang    An optional parameter to allow for use of the deprecated stored
+     *                script namespace.  This will be used to specify the language
+     *                coming in as a url parameter from a request or for stored templates.
+     * @param content The content from the request to be parsed as described above.
+     * @return        The parsed {@link StoredScriptSource}.
+     */
     public static StoredScriptSource parse(String lang, BytesReference content) {
         try (XContentParser parser = XContentHelper.createParser(content)) {
             Token token = parser.nextToken();
@@ -186,7 +265,8 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
 
                 if (token == Token.VALUE_STRING) {
                     if (lang == null) {
-                        throw new IllegalArgumentException("must specify lang as a url parameter when using the old stored script format");
+                        throw new IllegalArgumentException(
+                            "must specify lang as a url parameter when using the deprecated stored script namespace");
                     }
 
                     return new StoredScriptSource(lang, parser.text(), Collections.emptyMap());
@@ -236,6 +316,26 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         }
     }
 
+    /**
+     * This will parse XContent into a {@link StoredScriptSource}. The following format is what will be parsed:
+     *
+     * {@code
+     * {
+     *     "script" : {
+     *         "lang" : "<lang>",
+     *         "code" : "<code>",
+     *         "options" : {
+     *             "option0" : "<option0>",
+     *             "option1" : "<option1>",
+     *             ...
+     *         }
+     *     }
+     * }
+     * }
+     *
+     * Note that the "code" parameter can also handle template parsing including from
+     * a complex JSON object.
+     */
     public static StoredScriptSource fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, new MatcherSupplier()).build();
     }
@@ -244,24 +344,43 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
     private final String code;
     private final Map<String, String> options;
 
-    public StoredScriptSource() {
+    /**
+     * Empty constructor for use with {@link ScriptMetaData.ScriptMetadataDiff}.
+     */
+    StoredScriptSource() {
         this.lang = null;
         this.code = null;
         this.options = null;
     }
 
+    /**
+     * Constructor for use with {@link GetStoredScriptResponse}
+     * to support the deprecated stored script namespace.
+     */
     public StoredScriptSource(String code) {
         this.lang = null;
         this.code = Objects.requireNonNull(code);
         this.options = null;
     }
 
+    /**
+     * Standard StoredScriptSource constructor.
+     * @param lang    The language to compile the script with.  Must not be {@code null}.
+     * @param code    The source code to compile with.  Must not be {@code null}.
+     * @param options Compiler options to be compiled with.  Must not be {@code null},
+     *                use an empty {@link Map} to represent no options.
+     */
     public StoredScriptSource(String lang, String code, Map<String, String> options) {
         this.lang = Objects.requireNonNull(lang);
         this.code = Objects.requireNonNull(code);
         this.options = Collections.unmodifiableMap(Objects.requireNonNull(options));
     }
 
+    /**
+     * Reads a {@link StoredScriptSource} from a stream.  Version 5.2+ will read
+     * all of the lang, code, and options parameters.  For versions prior to 5.2,
+     * only the code parameter will be read in as a bytes reference.
+     */
     public StoredScriptSource(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
             this.lang = in.readString();
@@ -276,11 +395,21 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         }
     }
 
+    /**
+     * Required for {@link ScriptMetaData.ScriptMetadataDiff}.  Uses
+     * the {@link StoredScriptSource#StoredScriptSource(StreamInput)}
+     * constructor.
+     */
     @Override
     public StoredScriptSource readFrom(StreamInput in) throws IOException {
         return new StoredScriptSource(in);
     }
 
+    /**
+     * Writes a {@link StoredScriptSource} to a stream.  Version 5.2+ will write
+     * all of the lang, code, and options parameters.  For versions prior to 5.2,
+     * only the code parameter will be read in as a bytes reference.
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
@@ -294,6 +423,25 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         }
     }
 
+    /**
+     * This will write XContent from a {@link StoredScriptSource}. The following format will be written:
+     *
+     * {@code
+     * {
+     *     "script" : {
+     *         "lang" : "<lang>",
+     *         "code" : "<code>",
+     *         "options" : {
+     *             "option0" : "<option0>",
+     *             "option1" : "<option1>",
+     *             ...
+     *         }
+     *     }
+     * }
+     * }
+     *
+     * Note that the 'code' parameter can also handle templates written as complex JSON.
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -305,14 +453,23 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         return builder;
     }
 
+    /**
+     * @return The language used for compiling this script.
+     */
     public String getLang() {
         return lang;
     }
 
+    /**
+     * @return The code used for compiling this script.
+     */
     public String getCode() {
         return code;
     }
 
+    /**
+     * @return The compiler options used for this script.
+     */
     public Map<String, String> getOptions() {
         return options;
     }

@@ -413,29 +413,22 @@ public class ScriptServiceTests extends ESTestCase {
                     .field("script", "abc")
                 .endObject().bytes();
 
-        ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
-        ClusterState result = ScriptMetaData.putStoredScript(empty, "_id",
-            StoredScriptSource.parse("_lang", script));
-        ScriptMetaData scriptMetaData = result.getMetaData().custom(ScriptMetaData.TYPE);
+        ScriptMetaData scriptMetaData =
+            new ScriptMetaData(Collections.emptyMap()).putStoredScript("_id", StoredScriptSource.parse("_lang", script));
         assertNotNull(scriptMetaData);
         assertEquals("abc", scriptMetaData.getStoredScript("_id", "_lang").getCode());
     }
 
     public void testDeleteScript() throws Exception {
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder()
-                        .putCustom(ScriptMetaData.TYPE,
-                                new ScriptMetaData.Builder(null).storeScript("_id",
-                                    StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}"))).build()))
-                .build();
-
-        ClusterState result = ScriptMetaData.deleteStoredScript(cs, "_id", "_lang");
-        ScriptMetaData scriptMetaData = result.getMetaData().custom(ScriptMetaData.TYPE);
+        ScriptMetaData scriptMetaData = new ScriptMetaData(Collections.emptyMap()).putStoredScript("_id",
+            StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}")));
+        scriptMetaData = scriptMetaData.deleteStoredScript("_id", "_lang");
         assertNotNull(scriptMetaData);
         assertNull(scriptMetaData.getStoredScript("_id", "_lang"));
 
+        ScriptMetaData deleteMetaData = scriptMetaData;
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> {
-            ScriptMetaData.deleteStoredScript(result, "_id", "_lang");
+            deleteMetaData.deleteStoredScript("_id", "_lang");
         });
         assertEquals("stored script [_id] using lang [_lang] does not exist and cannot be deleted", e.getMessage());
     }

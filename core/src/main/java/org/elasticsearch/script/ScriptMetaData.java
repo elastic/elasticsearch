@@ -40,16 +40,48 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * {@link ScriptMetaData} is used to store user-defined scripts
+ * as part of the {@link ClusterState}.  Currently scripts can
+ * be stored as part of the new namespace for a stored script where
+ * only an id is used or as part of the deprecated namespace where
+ * both a language and an id are used.
+ */
 public final class ScriptMetaData implements MetaData.Custom {
 
+    /**
+     * A builder used to modify the currently stored scripts data held within
+     * the {@link ClusterState}.  Scripts can be added or deleted, then built
+     * to generate a new {@link Map} of scripts that will be used to update
+     * the current {@link ClusterState}.
+     */
     public static final class Builder {
 
         private final Map<String, StoredScriptSource> scripts;
 
+        /**
+         * @param previous The current {@link ScriptMetaData} or {@code null} if there
+         *                 is no existing {@link ScriptMetaData}.
+         */
         public Builder(ScriptMetaData previous) {
             this.scripts = previous == null ? new HashMap<>() :new HashMap<>(previous.scripts);
         }
 
+        /**
+         * Add a new script to the existing stored scripts.  The script will be added under
+         * both the new namespace and the deprecated namespace, so that look ups under
+         * the deprecated namespace will continue to work.  Should a script already exist under
+         * the new namespace using a different language, it will be replaced and a deprecation
+         * warning will be issued.  The replaced script will still exist under the deprecated
+         * namespace and can continue to be looked up this way until it is deleted.
+         * <p>
+         * Take for example script 'A' with lang 'L0' and data 'D0'.  If we add script 'A' to the
+         * empty set, the scripts {@link Map} will be {"A" -> D0, "A#L0" -> D0}.  If a script
+         * 'A' with lang 'L1' and data 'D1' is then added, the scripts {@link Map} will be
+         * {"A" -> D1, "A#L1" -> D1, "A#L0" -> D0}.
+         * @param id The user-specified id to use for the look up.
+         * @param source The user-specified stored script data held in {@link StoredScriptSource}.
+         */
         public Builder storeScript(String id, StoredScriptSource source) {
             StoredScriptSource previous = scripts.put(id, source);
             scripts.put(source.getLang() + "#" + id, source);
@@ -62,6 +94,21 @@ public final class ScriptMetaData implements MetaData.Custom {
             return this;
         }
 
+        /**
+         * Delete a script from the existing stored scripts.  The script will be removed from the
+         * new namespace if the script language matches the current script under the same id or
+         * if the script language is {@code null}.  The script will be removed from the deprecated
+         * namespace on any delete either using using the specified lang parameter or the language
+         * found from looking up the script in the new namespace.
+         * <p>
+         * Take for example a scripts {@link} Map with {"A" -> D1, "A#L1" -> D1, "A#L0" -> D0}.
+         * If a script is removed specified by an id 'A' and lang {@code null} then the scripts
+         * {@link Map} will be {"A#L0" -> D0}.  To remove the final script, the deprecated
+         * namespace must be used, so an id 'A' and lang 'L0' would need to be specified.
+         * @param id The user-specified id to use for the look up.
+         * @param lang The user-specified language to use for the look up if using the deprecated
+         *             namespace, otherwise {@code null}.
+         */
         public Builder deleteScript(String id, String lang) {
             StoredScriptSource source = scripts.get(id);
 
@@ -91,8 +138,11 @@ public final class ScriptMetaData implements MetaData.Custom {
             return this;
         }
 
+        /**
+         * @return A {@link ScriptMetaData} with the updated {@link Map} of scripts.
+         */
         public ScriptMetaData build() {
-            return new ScriptMetaData(Collections.unmodifiableMap(scripts));
+            return new ScriptMetaData(scripts);
         }
     }
 
@@ -119,40 +169,36 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
     }
 
+    /**
+     * Standard logger necessary for allocation of the deprecation logger.
+     */
     private static final Logger LOGGER = ESLoggerFactory.getLogger(ScriptMetaData.class);
+
+    /**
+     * Deprecation logger necessary for namespace changes related to stored scripts.
+     */
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LOGGER);
 
+    /**
+     * The type of {@link ClusterState} data.
+     */
     public static final String TYPE = "stored_scripts";
+
+    /**
+     * The empty state used to register this metadata with the {@link ClusterState}.
+     */
     public static final ScriptMetaData PROTO = new ScriptMetaData(Collections.emptyMap());
-
-    static ClusterState putStoredScript(ClusterState currentState, String id, StoredScriptSource source) {
-        ScriptMetaData scriptMetadata = currentState.metaData().custom(TYPE);
-
-        Builder scriptMetadataBuilder = new Builder(scriptMetadata);
-        scriptMetadataBuilder.storeScript(id, source);
-
-        MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
-            .putCustom(ScriptMetaData.TYPE, scriptMetadataBuilder.build());
-
-        return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
-    }
-
-    static ClusterState deleteStoredScript(ClusterState currentState, String id, String lang) {
-        ScriptMetaData scriptMetadata = currentState.metaData().custom(ScriptMetaData.TYPE);
-
-        ScriptMetaData.Builder scriptMetadataBuilder = new ScriptMetaData.Builder(scriptMetadata);
-        scriptMetadataBuilder.deleteScript(id, lang);
-
-        MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
-            .putCustom(ScriptMetaData.TYPE, scriptMetadataBuilder.build());
-
-        return ClusterState.builder(currentState).metaData(metaDataBuilder).build();
-    }
 
     private final Map<String, StoredScriptSource> scripts;
 
+    /**
+     * Standard constructor to create metadata to store scripts.
+     * @param scripts The currently stored scripts.  Must not be {@code null},
+     *                use and empty {@link Map} to specify there were no
+     *                previously stored scripts.
+     */
     ScriptMetaData(Map<String, StoredScriptSource> scripts) {
-        this.scripts = scripts;
+        this.scripts = Collections.unmodifiableMap(scripts);
     }
 
     @Override
@@ -164,6 +210,10 @@ public final class ScriptMetaData implements MetaData.Custom {
         for (int i = 0; i < size; i++) {
             String id = in.readString();
 
+            // Prior to version 5.2 all scripts were stored using the deprecated namespace.
+            // Split the id to find the language then use StoredScriptSource to parse the
+            // expected BytesReference after which a new StoredScriptSource is created
+            // with the appropriate language and options.
             if (in.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
                 int split = id.indexOf('#');
 
@@ -173,6 +223,7 @@ public final class ScriptMetaData implements MetaData.Custom {
                     source = new StoredScriptSource(in);
                     source = new StoredScriptSource(id.substring(split + 1), source.getCode(), Collections.emptyMap());
                 }
+            // Version 5.2+ can just be parsed normally using StoredScriptSource.
             } else {
                 source = new StoredScriptSource(in);
             }
@@ -185,6 +236,8 @@ public final class ScriptMetaData implements MetaData.Custom {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        // Version 5.2+ will output the contents of the scripts' Map using
+        // StoredScriptSource to stored the language, code, and options.
         if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
             out.write(scripts.size());
 
@@ -192,6 +245,10 @@ public final class ScriptMetaData implements MetaData.Custom {
                 out.writeString(entry.getKey());
                 entry.getValue().writeTo(out);
             }
+        // Prior to Version 5.2, stored scripts can only be read using the deprecated
+        // namespace.  Scripts using the deprecated namespace are first isolated in a
+        // temporary Map, then written out.  Since all scripts will be stored using the
+        // deprecated namespace, no scripts will be lost.
         } else {
             Map<String, StoredScriptSource> filtered = new HashMap<>();
 
@@ -210,6 +267,32 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
     }
 
+    /**
+     * This will parse XContent into {@link ScriptMetaData}.
+     *
+     * The following format will be parsed for the new namespace:
+     *
+     * {@code
+     * {
+     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser)}>",
+     *     "<id>" : "<{@link StoredScriptSource#fromXContent(XContentParser)}>",
+     *     ...
+     * }
+     * }
+     *
+     * The following format will be parsed for the deprecated namespace:
+     *
+     * {@code
+     * {
+     *     "<id>" : "<code>",
+     *     "<id>" : "<code>",
+     *     ...
+     * }
+     * }
+     *
+     * Note when using the deprecated namespace, the language will be pulled from
+     * the id and options will be set to an empty {@link Map}.
+     */
     @Override
     public ScriptMetaData fromXContent(XContentParser parser) throws IOException {
         Map<String, StoredScriptSource> scripts = new HashMap<>();
@@ -258,6 +341,17 @@ public final class ScriptMetaData implements MetaData.Custom {
         return new ScriptMetaData(scripts);
     }
 
+    /**
+     * This will write XContent from {@link ScriptMetaData}.  The following format will be written:
+     *
+     * {@code
+     * {
+     *     "<id>" : "<{@link StoredScriptSource#toXContent(XContentBuilder, Params)}>",
+     *     "<id>" : "<{@link StoredScriptSource#toXContent(XContentBuilder, Params)}>",
+     *     ...
+     * }
+     * }
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
@@ -288,7 +382,34 @@ public final class ScriptMetaData implements MetaData.Custom {
         return MetaData.ALL_CONTEXTS;
     }
 
-    public StoredScriptSource getStoredScript(String id, String lang) {
+    /**
+     * Convenience method to build and return a new
+     * {@link ScriptMetaData} adding the specified stored script.
+     */
+    ScriptMetaData putStoredScript(String id, StoredScriptSource source) {
+        Builder builder = new Builder(this);
+        builder.storeScript(id, source);
+
+        return builder.build();
+    }
+
+    /**
+     * Convenience method to build and return a new
+     * {@link ScriptMetaData} deleting the specified stored script.
+     */
+    ScriptMetaData deleteStoredScript(String id, String lang) {
+        Builder builder = new ScriptMetaData.Builder(this);
+        builder.deleteScript(id, lang);
+
+        return builder.build();
+    }
+
+    /**
+     * Retrieves a stored script from the new namespace if lang is {@code null}.
+     * Otherwise, returns a stored script from the deprecated namespace.  Either
+     * way an id is required.
+     */
+    StoredScriptSource getStoredScript(String id, String lang) {
         if (lang == null) {
             return scripts.get(id);
         } else {

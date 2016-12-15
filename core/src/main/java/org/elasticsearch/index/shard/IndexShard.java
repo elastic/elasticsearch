@@ -1535,7 +1535,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         }
                     });
                 } else {
-                    final Exception e;
+                    final RuntimeException e;
                     if (numShards == -1) {
                         e = new IndexNotFoundException(mergeSourceIndex);
                     } else {
@@ -1543,7 +1543,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             + " are started yet, expected " + numShards + " found " + startedShards.size() + " can't recover shard "
                             + shardId());
                     }
-                    recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true);
+                    throw e;
                 }
                 break;
             default:

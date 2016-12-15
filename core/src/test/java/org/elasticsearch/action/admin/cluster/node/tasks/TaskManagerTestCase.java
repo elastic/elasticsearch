@@ -180,7 +180,7 @@ public abstract class TaskManagerTestCase extends ESTestCase {
                 }
             };
             transportService.start();
-            clusterService.add(transportService.getTaskManager());
+            clusterService.addStateApplier(transportService.getTaskManager());
             discoveryNode = new DiscoveryNode(name, transportService.boundAddress().publishAddress(),
                     emptyMap(), emptySet(), Version.CURRENT);
             IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(settings);

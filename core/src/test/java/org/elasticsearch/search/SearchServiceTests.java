@@ -61,6 +61,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -152,7 +153,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             public void run() {
                 startGun.countDown();
                 while(running.get()) {
-                    service.afterIndexDeleted(indexService.index(), indexService.getIndexSettings().getSettings());
+                    service.afterIndexRemoved(indexService.index(), indexService.getIndexSettings(), DELETED);
                     if (randomBoolean()) {
                         // here we trigger some refreshes to ensure the IR go out of scope such that we hit ACE if we access a search
                         // context in a non-sane way.

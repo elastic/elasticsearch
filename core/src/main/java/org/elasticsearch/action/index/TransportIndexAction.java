@@ -91,7 +91,7 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
         this.clusterService = clusterService;
         this.ingestService = ingestService;
         this.ingestForwarder = new IngestActionForwarder(transportService);
-        clusterService.add(this.ingestForwarder);
+        clusterService.addStateApplier(this.ingestForwarder);
     }
 
     @Override

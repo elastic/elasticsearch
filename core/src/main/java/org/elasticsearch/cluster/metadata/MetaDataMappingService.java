@@ -52,6 +52,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+
 /**
  * Service responsible for submitting mapping changes
  */
@@ -158,7 +161,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 }
             } finally {
                 if (removeIndex) {
-                    indicesService.removeIndex(index, "created for mapping processing");
+                    indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "created for mapping processing");
                 }
             }
         }

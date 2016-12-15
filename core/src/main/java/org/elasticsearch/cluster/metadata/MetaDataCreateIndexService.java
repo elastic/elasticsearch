@@ -71,6 +71,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -223,7 +224,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {
                         Index createdIndex = null;
-                        String removalReason = null;
+                        String removalExtraInfo = null;
+                        IndexRemovalReason removalReason = IndexRemovalReason.FAILURE;
                         try {
                             validate(request, currentState);
 
@@ -356,7 +358,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             try {
                                 mapperService.merge(mappings, request.updateAllTypes());
                             } catch (MapperParsingException mpe) {
-                                removalReason = "failed on parsing default mapping/mappings on index creation";
+                                removalExtraInfo = "failed on parsing default mapping/mappings on index creation";
                                 throw mpe;
                             }
 
@@ -407,7 +409,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             try {
                                 indexMetaData = indexMetaDataBuilder.build();
                             } catch (Exception e) {
-                                removalReason = "failed to build index metadata";
+                                removalExtraInfo = "failed to build index metadata";
                                 throw e;
                             }
 
@@ -440,12 +442,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                         ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
                                         "index [" + request.index() + "] created");
                             }
-                            removalReason = "cleaning up after validating index on master";
+                            removalExtraInfo = "cleaning up after validating index on master";
+                            removalReason = IndexRemovalReason.NO_LONGER_ASSIGNED;
                             return updatedState;
                         } finally {
                             if (createdIndex != null) {
                                 // Index was already partially created - need to clean up
-                                indicesService.removeIndex(createdIndex, removalReason != null ? removalReason : "failed to create index");
+                                indicesService.removeIndex(createdIndex, removalReason, removalExtraInfo);
                             }
                         }
                     }

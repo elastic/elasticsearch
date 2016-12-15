@@ -65,7 +65,7 @@ POST /hockey/player/1/_update
 }
 ---------------------------------------------------------
 // CONSOLE
-// TEST[continued catch:/painless_explain_error/]
+// TEST[continued s/_update/_update?error_trace=false/ catch:/painless_explain_error/]
 
 The response looks like:
 

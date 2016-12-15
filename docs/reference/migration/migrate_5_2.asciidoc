@@ -15,7 +15,7 @@ executing potentially leaving the end-user unaware of this situation. Starting i
 starting Elasticsearch due to this bootstrap check, you need to either fix your configuration so that the system call
 filter can be installed, or *at your own risk* disable the <<system-call-filter-check,system call filter check>>.
 
-[[breaking_51_java_api_changes]]
+[[breaking_52_java_api_changes]]
 [float]
 === Java API changes
 

@@ -570,6 +570,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 }
             } catch (IOException e) {
                 logger.warn("failed to close channel", e);
+            } finally {
+                onChannelClosed(channel);
             }
         });
     }
@@ -1527,6 +1529,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         pendingHandshakes.put(requestId, handler);
         boolean success = false;
         try {
+            if (isOpen(channel) == false) {
+                // we have to protect ourself here since sendRequestToChannel won't barf if the channel is closed.
+                // it's weird but to change it will cause a lot of impact on the exception handling code all over the codebase.
+                // yet, if we don't check the state here we might have registered a pending handshake handler but the close
+                // listener calling #onChannelClosed might have already run and we are waiting on the latch below unitl we time out.
+                throw new IllegalStateException("handshake failed, channel already closed");
+            }
             // for the request we use the minCompatVersion since we don't know what's the version of the node we talk to
             // we also have no payload on the request but the response will contain the actual version of the node we talk
             // to as the payload.
@@ -1575,7 +1584,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     /**
-     * Called by sub-classes for each channel that is closed
+     * Called once the channel is closed for instance due to a disconnect or a closed socket etc.
      */
     protected final void onChannelClosed(Channel channel) {
         Optional<Map.Entry<Long, HandshakeResponseHandler>> first = pendingHandshakes.entrySet().stream()

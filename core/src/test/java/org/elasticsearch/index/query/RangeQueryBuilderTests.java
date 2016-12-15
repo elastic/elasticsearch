@@ -387,7 +387,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "}";
 
         assertNotNull(parseQuery(deprecatedJson));
-        assertWarningHeaders("Deprecated field [_name] used, replaced by [query name is not supported in short version of range query]");
+        assertWarnings("Deprecated field [_name] used, replaced by [query name is not supported in short version of range query]");
     }
 
     public void testRewriteDateToMatchAll() throws IOException {

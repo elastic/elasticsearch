@@ -104,7 +104,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertTrue(e.getMessage().contains("[index.analysis.analyzer.default_index] is not supported"));
     }
 
-    public void testBackCompatOverrideDefaultIndexAnalyzer() {
+    public void testBackCompatOverrideDefaultIndexAnalyzer() throws IOException {
         Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
                 VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -113,6 +113,8 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
+        assertWarnings("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] " +
+                "instead for index [index]");
     }
 
     public void testOverrideDefaultSearchAnalyzer() {
@@ -125,7 +127,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
     }
 
-    public void testBackCompatOverrideDefaultIndexAndSearchAnalyzer() {
+    public void testBackCompatOverrideDefaultIndexAndSearchAnalyzer() throws IOException {
         Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
                 VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -137,6 +139,8 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertThat(indexAnalyzers.getDefaultIndexAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
+        assertWarnings("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] " +
+                "instead for index [index]");
     }
 
     public void testConfigureCamelCaseTokenFilter() throws IOException {

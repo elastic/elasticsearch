@@ -140,7 +140,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         builder.endObject();
         builder.endObject();
         parseQuery(builder.string());
-        assertWarningHeaders("Deprecated field [normalize] used, replaced by [validation_method]");
+        assertWarnings("Deprecated field [normalize] used, replaced by [validation_method]");
     }
 
     public void testParsingAndToQueryParsingExceptions() throws IOException {
@@ -266,7 +266,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "  }\n" +
                 "}";
         parseQuery(json);
-        assertWarningHeaders("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
+        assertWarnings("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     public void testFromJsonCoerceDeprecated() throws IOException {
@@ -282,7 +282,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "  }\n" +
                 "}";
         parseQuery(json);
-        assertWarningHeaders("Deprecated field [coerce] used, replaced by [validation_method]");
+        assertWarnings("Deprecated field [coerce] used, replaced by [validation_method]");
     }
 
     @Override

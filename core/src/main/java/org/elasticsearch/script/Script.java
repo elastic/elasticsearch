@@ -56,7 +56,7 @@ import java.util.Objects;
  *
  * The following describes the expected parameters for each type of script:
  *
- * <p><ul>
+ * <ul>
  * <li> {@link ScriptType#INLINE}
  * <ul>
  * <li> {@link Script#lang}     - specifies the language, defaults to {@link Script#DEFAULT_SCRIPT_LANG}
@@ -86,7 +86,7 @@ import java.util.Objects;
  * <li> {@link Script#params}   - {@link Map} of user-defined parameters; must not be {@code null},
  *                                use an empty {@link Map} to specify no params
  * </ul>
- * </ul></p>
+ * </ul>
  */
 public final class Script implements ToXContent, Writeable {
 

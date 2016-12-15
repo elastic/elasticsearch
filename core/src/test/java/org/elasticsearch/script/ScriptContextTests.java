@@ -58,7 +58,7 @@ public class ScriptContextTests extends ESTestCase {
 
         ClusterState empty = ClusterState.builder(new ClusterName("_name")).build();
         ScriptMetaData smd = empty.metaData().custom(ScriptMetaData.TYPE);
-        smd = smd.putStoredScript("1", new StoredScriptSource(MockScriptEngine.NAME, "1", Collections.emptyMap()));
+        smd = ScriptMetaData.putStoredScript(smd, "1", new StoredScriptSource(MockScriptEngine.NAME, "1", Collections.emptyMap()));
         MetaData.Builder mdb = MetaData.builder(empty.getMetaData()).putCustom(ScriptMetaData.TYPE, smd);
         ClusterState stored = ClusterState.builder(empty).metaData(mdb).build();
         scriptService.clusterChanged(new ClusterChangedEvent("test", stored, empty));

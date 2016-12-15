@@ -76,9 +76,9 @@ public final class ScriptMetaData implements MetaData.Custom {
          * namespace and can continue to be looked up this way until it is deleted.
          * <p>
          * Take for example script 'A' with lang 'L0' and data 'D0'.  If we add script 'A' to the
-         * empty set, the scripts {@link Map} will be {"A" -> D0, "A#L0" -> D0}.  If a script
+         * empty set, the scripts {@link Map} will be ["A" -- D0, "A#L0" -- D0].  If a script
          * 'A' with lang 'L1' and data 'D1' is then added, the scripts {@link Map} will be
-         * {"A" -> D1, "A#L1" -> D1, "A#L0" -> D0}.
+         * ["A" -- D1, "A#L1" -- D1, "A#L0" -- D0].
          * @param id The user-specified id to use for the look up.
          * @param source The user-specified stored script data held in {@link StoredScriptSource}.
          */
@@ -101,9 +101,9 @@ public final class ScriptMetaData implements MetaData.Custom {
          * namespace on any delete either using using the specified lang parameter or the language
          * found from looking up the script in the new namespace.
          * <p>
-         * Take for example a scripts {@link} Map with {"A" -> D1, "A#L1" -> D1, "A#L0" -> D0}.
+         * Take for example a scripts {@link Map} with {"A" -- D1, "A#L1" -- D1, "A#L0" -- D0}.
          * If a script is removed specified by an id 'A' and lang {@code null} then the scripts
-         * {@link Map} will be {"A#L0" -> D0}.  To remove the final script, the deprecated
+         * {@link Map} will be {"A#L0" -- D0}.  To remove the final script, the deprecated
          * namespace must be used, so an id 'A' and lang 'L0' would need to be specified.
          * @param id The user-specified id to use for the look up.
          * @param lang The user-specified language to use for the look up if using the deprecated
@@ -167,6 +167,28 @@ public final class ScriptMetaData implements MetaData.Custom {
         public void writeTo(StreamOutput out) throws IOException {
             pipelines.writeTo(out);
         }
+    }
+
+    /**
+     * Convenience method to build and return a new
+     * {@link ScriptMetaData} adding the specified stored script.
+     */
+    static ScriptMetaData putStoredScript(ScriptMetaData previous, String id, StoredScriptSource source) {
+        Builder builder = new Builder(previous);
+        builder.storeScript(id, source);
+
+        return builder.build();
+    }
+
+    /**
+     * Convenience method to build and return a new
+     * {@link ScriptMetaData} deleting the specified stored script.
+     */
+    static ScriptMetaData deleteStoredScript(ScriptMetaData previous, String id, String lang) {
+        Builder builder = new ScriptMetaData.Builder(previous);
+        builder.deleteScript(id, lang);
+
+        return builder.build();
     }
 
     /**
@@ -380,28 +402,6 @@ public final class ScriptMetaData implements MetaData.Custom {
     @Override
     public EnumSet<MetaData.XContentContext> context() {
         return MetaData.ALL_CONTEXTS;
-    }
-
-    /**
-     * Convenience method to build and return a new
-     * {@link ScriptMetaData} adding the specified stored script.
-     */
-    ScriptMetaData putStoredScript(String id, StoredScriptSource source) {
-        Builder builder = new Builder(this);
-        builder.storeScript(id, source);
-
-        return builder.build();
-    }
-
-    /**
-     * Convenience method to build and return a new
-     * {@link ScriptMetaData} deleting the specified stored script.
-     */
-    ScriptMetaData deleteStoredScript(String id, String lang) {
-        Builder builder = new ScriptMetaData.Builder(this);
-        builder.deleteScript(id, lang);
-
-        return builder.build();
     }
 
     /**

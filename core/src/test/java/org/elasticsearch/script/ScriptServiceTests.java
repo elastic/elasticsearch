@@ -413,22 +413,21 @@ public class ScriptServiceTests extends ESTestCase {
                     .field("script", "abc")
                 .endObject().bytes();
 
-        ScriptMetaData scriptMetaData =
-            new ScriptMetaData(Collections.emptyMap()).putStoredScript("_id", StoredScriptSource.parse("_lang", script));
+        ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id", StoredScriptSource.parse("_lang", script));
         assertNotNull(scriptMetaData);
         assertEquals("abc", scriptMetaData.getStoredScript("_id", "_lang").getCode());
     }
 
     public void testDeleteScript() throws Exception {
-        ScriptMetaData scriptMetaData = new ScriptMetaData(Collections.emptyMap()).putStoredScript("_id",
+        ScriptMetaData scriptMetaData = ScriptMetaData.putStoredScript(null, "_id",
             StoredScriptSource.parse("_lang", new BytesArray("{\"script\":\"abc\"}")));
-        scriptMetaData = scriptMetaData.deleteStoredScript("_id", "_lang");
+        scriptMetaData = ScriptMetaData.deleteStoredScript(scriptMetaData, "_id", "_lang");
         assertNotNull(scriptMetaData);
         assertNull(scriptMetaData.getStoredScript("_id", "_lang"));
 
-        ScriptMetaData deleteMetaData = scriptMetaData;
+        ScriptMetaData errorMetaData = scriptMetaData;
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> {
-            deleteMetaData.deleteStoredScript("_id", "_lang");
+            ScriptMetaData.deleteStoredScript(errorMetaData, "_id", "_lang");
         });
         assertEquals("stored script [_id] using lang [_lang] does not exist and cannot be deleted", e.getMessage());
     }

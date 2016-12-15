@@ -57,7 +57,7 @@
 
   - do:
       cat.health:
-        ts: 0
+        ts: false
 
   - match:
       $body: |

@@ -196,7 +196,13 @@ public abstract class RestRequest implements ToXContent.Params {
 
     @Override
     public boolean paramAsBoolean(String key, boolean defaultValue) {
-        return Booleans.parseBoolean(param(key), defaultValue);
+        String rawParam = param(key);
+        // treat the sheer presence of a parameter as "true"
+        if (rawParam != null && rawParam.length() == 0) {
+            return true;
+        } else {
+            return Booleans.parseBoolean(rawParam, defaultValue);
+        }
     }
 
     @Override

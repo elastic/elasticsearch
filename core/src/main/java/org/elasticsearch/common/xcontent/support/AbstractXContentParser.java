@@ -72,9 +72,6 @@ public abstract class AbstractXContentParser implements XContentParser {
         switch (currentToken()) {
             case VALUE_BOOLEAN:
                 return true;
-            case VALUE_NUMBER:
-                NumberType numberType = numberType();
-                return numberType == NumberType.LONG || numberType == NumberType.INT;
             case VALUE_STRING:
                 return Booleans.isBoolean(textCharacters(), textOffset(), textLength());
             default:
@@ -85,9 +82,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public boolean booleanValue() throws IOException {
         Token token = currentToken();
-        if (token == Token.VALUE_NUMBER) {
-            return intValue() != 0;
-        } else if (token == Token.VALUE_STRING) {
+        if (token == Token.VALUE_STRING) {
             return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
         }
         return doBooleanValue();

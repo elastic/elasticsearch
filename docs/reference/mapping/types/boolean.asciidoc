@@ -2,16 +2,16 @@
 === Boolean datatype
 
 Boolean fields accept JSON `true` and `false` values, but can also accept
-strings and numbers which are interpreted as either true or false:
+strings which are interpreted as either true or false:
 
 [horizontal]
 False values::
 
-    `false`, `"false"`, `"off"`, `"no"`, `"0"`, `""` (empty string), `0`, `0.0`
+    `false`, `"false"`
 
 True values::
 
-    Anything that isn't false.
+    `true`, `"true"`
 
 For example:
 
@@ -32,7 +32,7 @@ PUT my_index
 
 POST my_index/my_type/1
 {
-  "is_published": 1 <1>
+  "is_published": "true" <1>
 }
 
 GET my_index/_search
@@ -45,7 +45,7 @@ GET my_index/_search
 }
 --------------------------------------------------
 // CONSOLE
-<1> Indexing a document with `1`, which is interpreted as `true`.
+<1> Indexing a document with `"true"`, which is interpreted as `true`.
 <2> Searching for documents with a JSON `true`.
 
 Aggregations like the <<search-aggregations-bucket-terms-aggregation,`terms`

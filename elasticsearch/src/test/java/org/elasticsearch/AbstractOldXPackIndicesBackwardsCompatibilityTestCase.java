@@ -116,6 +116,8 @@ public abstract class AbstractOldXPackIndicesBackwardsCompatibilityTestCase exte
         }
     }
 
+    //TODO dm: fix me
+    @AwaitsFix(bugUrl = "We need to fix BWC first")
     public void testOldIndexes() throws Exception {
         Collections.shuffle(dataFiles, random());
         for (String dataFile : dataFiles) {

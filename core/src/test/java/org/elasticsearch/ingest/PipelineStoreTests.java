@@ -192,6 +192,42 @@ public class PipelineStoreTests extends ESTestCase {
         }
     }
 
+    public void testDeleteUsingWildcard() {
+        HashMap<String, PipelineConfiguration> pipelines = new HashMap<>();
+        BytesArray definition = new BytesArray(
+            "{\"processors\": [{\"set\" : {\"field\": \"_field\", \"value\": \"_value\"}}]}"
+        );
+        pipelines.put("p1", new PipelineConfiguration("p1", definition));
+        pipelines.put("p2", new PipelineConfiguration("p2", definition));
+        IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = clusterState;
+        clusterState = ClusterState.builder(clusterState).metaData(MetaData.builder()
+            .putCustom(IngestMetadata.TYPE, ingestMetadata)).build();
+        store.innerUpdatePipelines(previousClusterState, clusterState);
+        assertThat(store.get("p1"), notNullValue());
+        assertThat(store.get("p2"), notNullValue());
+
+        // Delete pipeline matching wildcard
+        DeletePipelineRequest deleteRequest = new DeletePipelineRequest("p*");
+        previousClusterState = clusterState;
+        clusterState = store.innerDelete(deleteRequest, clusterState);
+        store.innerUpdatePipelines(previousClusterState, clusterState);
+        assertThat(store.get("p1"), nullValue());
+        assertThat(store.get("p2"), nullValue());
+
+        // No exception when using delete all wildcard
+        store.innerDelete(new DeletePipelineRequest("*"), clusterState);
+
+        // Exception if we used name which does not exist
+        try {
+            store.innerDelete(new DeletePipelineRequest("unknown"), clusterState);
+            fail("exception expected");
+        } catch (ResourceNotFoundException e) {
+            assertThat(e.getMessage(), equalTo("pipeline [unknown] is missing"));
+        }
+    }
+
     public void testGetPipelines() {
         Map<String, PipelineConfiguration> configs = new HashMap<>();
         configs.put("_id1", new PipelineConfiguration(

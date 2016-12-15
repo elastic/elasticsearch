@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.Diff;
@@ -178,6 +179,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final Setting<Boolean> INDEX_SHADOW_REPLICAS_SETTING =
         Setting.boolSetting(SETTING_SHADOW_REPLICAS, false, Property.IndexScope);
 
+    public static final String SETTING_PARTITION_SIZE = "index.partition_size";
+    public static final Setting<Integer> INDEX_PARTITION_SIZE_SETTING =
+            Setting.intSetting(SETTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
+
     public static final String SETTING_SHARED_FILESYSTEM = "index.shared_filesystem";
     public static final Setting<Boolean> INDEX_SHARED_FILESYSTEM_SETTING =
         Setting.boolSetting(SETTING_SHARED_FILESYSTEM, false, Property.IndexScope);
@@ -265,6 +270,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     private final int numberOfShards;
     private final int numberOfReplicas;
+    private final int partitionSize;
 
     private final Index index;
     private final long version;
@@ -295,7 +301,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     private final ActiveShardCount waitForActiveShards;
 
-    private IndexMetaData(Index index, long version, long[] primaryTerms, State state, int numberOfShards, int numberOfReplicas, Settings settings,
+    private IndexMetaData(Index index, long version, long[] primaryTerms, State state, int numberOfShards, int numberOfReplicas, int partitionSize, Settings settings,
                           ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases,
                           ImmutableOpenMap<String, Custom> customs, ImmutableOpenIntMap<Set<String>> inSyncAllocationIds,
                           DiscoveryNodeFilters requireFilters, DiscoveryNodeFilters initialRecoveryFilters, DiscoveryNodeFilters includeFilters, DiscoveryNodeFilters excludeFilters,
@@ -309,6 +315,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.state = state;
         this.numberOfShards = numberOfShards;
         this.numberOfReplicas = numberOfReplicas;
+        this.partitionSize = partitionSize;
         this.totalNumberOfShards = numberOfShards * (numberOfReplicas + 1);
         this.settings = settings;
         this.mappings = mappings;
@@ -401,6 +408,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     public int getNumberOfReplicas() {
         return numberOfReplicas;
+    }
+
+    public int getPartitionSize() {
+        return partitionSize;
+    }
+
+    public boolean isPartitionedIndex() {
+        return partitionSize != 1;
     }
 
     public int getTotalNumberOfShards() {
@@ -812,6 +827,15 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
         }
 
+        public Builder partitionSize(int partitionSize) {
+            settings = Settings.builder().put(settings).put(SETTING_PARTITION_SIZE, partitionSize).build();
+            return this;
+        }
+
+        public int partitionSize() {
+            return settings.getAsInt(SETTING_PARTITION_SIZE, -1);
+        }
+
         public Builder creationDate(long creationDate) {
             settings = Settings.builder().put(settings).put(SETTING_CREATION_DATE, creationDate).build();
             return this;
@@ -877,7 +901,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         public Builder putInSyncAllocationIds(int shardId, Set<String> allocationIds) {
-            inSyncAllocationIds.put(shardId, new HashSet(allocationIds));
+            inSyncAllocationIds.put(shardId, new HashSet<>(allocationIds));
             return this;
         }
 
@@ -956,6 +980,16 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 throw new IllegalArgumentException("must specify non-negative number of shards for index [" + index + "]");
             }
 
+            Integer maybePartitionSize = settings.getAsInt(SETTING_PARTITION_SIZE, null);
+            if (maybePartitionSize == null) {
+                maybePartitionSize = 1;
+            }
+            int partitionSize = maybePartitionSize;
+            if (partitionSize <= 0 || (partitionSize != 1 && partitionSize >= getRoutingNumShards())) {
+                throw new IllegalArgumentException("partition size [" + partitionSize + "] should be a positive number less than"
+                        + " the number of shards [" + getRoutingNumShards() + "] for [" + index + "]");
+            }
+
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
             ImmutableOpenIntMap.Builder<Set<String>> filledInSyncAllocationIds = ImmutableOpenIntMap.builder();
             for (int i = 0; i < numberOfShards; i++) {
@@ -1022,7 +1056,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             }
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
-            return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
+            return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, partitionSize, tmpSettings, mappings.build(),
                 tmpAliases.build(), customs.build(), filledInSyncAllocationIds.build(), requireFilters, initialRecoveryFilters, includeFilters, excludeFilters,
                 indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion, getRoutingNumShards(), waitForActiveShards);
         }

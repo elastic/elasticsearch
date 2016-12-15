@@ -22,7 +22,6 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +34,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -43,8 +43,8 @@ import java.util.TreeMap;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.object.HasToString.hasToString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.object.HasToString.hasToString;
 
 public class OperationRoutingTests extends ESTestCase{
 
@@ -72,6 +72,56 @@ public class OperationRoutingTests extends ESTestCase{
             shrunkShard = OperationRouting.generateShardId(shrunk, term, null);
             shardIds = IndexMetaData.selectShrinkShards(shrunkShard, metaData, shrunk.getNumberOfShards());
             assertEquals(Arrays.toString(shardSplits), 1, shardIds.stream().filter((sid) -> sid.id() == shard).count());
+        }
+    }
+
+    public void testPartitionedIndexBWC() {
+        Map<String, Map<String, Integer>> routingIdToShard = new HashMap<>();
+
+        Map<String, Integer> routingA = new HashMap<>();
+        routingA.put("a_0", 3);
+        routingA.put("a_1", 2);
+        routingA.put("a_2", 2);
+        routingA.put("a_3", 3);
+        routingIdToShard.put("a", routingA);
+
+        Map<String, Integer> routingB = new HashMap<>();
+        routingB.put("b_0", 5);
+        routingB.put("b_1", 0);
+        routingB.put("b_2", 0);
+        routingB.put("b_3", 0);
+        routingIdToShard.put("b", routingB);
+
+        Map<String, Integer> routingC = new HashMap<>();
+        routingC.put("c_0", 4);
+        routingC.put("c_1", 4);
+        routingC.put("c_2", 3);
+        routingC.put("c_3", 4);
+        routingIdToShard.put("c", routingC);
+
+        Map<String, Integer> routingD = new HashMap<>();
+        routingD.put("d_0", 3);
+        routingD.put("d_1", 4);
+        routingD.put("d_2", 4);
+        routingD.put("d_3", 4);
+        routingIdToShard.put("d", routingD);
+
+        IndexMetaData metaData = IndexMetaData.builder("test")
+                .settings(settings(Version.CURRENT))
+                .numberOfShards(6)
+                .partitionSize(2)
+                .numberOfReplicas(1)
+                .build();
+
+        for (Map.Entry<String, Map<String, Integer>> routingIdEntry : routingIdToShard.entrySet()) {
+            String routing = routingIdEntry.getKey();
+
+            for (Map.Entry<String, Integer> idEntry : routingIdEntry.getValue().entrySet()) {
+                String id = idEntry.getKey();
+                int shard = idEntry.getValue();
+
+                assertEquals(shard, OperationRouting.generateShardId(metaData, id, routing));
+            }
         }
     }
 

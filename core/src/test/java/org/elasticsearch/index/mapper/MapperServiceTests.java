@@ -30,6 +30,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -38,22 +39,20 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
-import static org.elasticsearch.test.VersionUtils.getFirstVersion;
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.hasToString;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.startsWith;
-
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.concurrent.ExecutionException;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.test.VersionUtils.getFirstVersion;
+import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
+import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.startsWith;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
     @Rule
@@ -183,6 +182,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(searchFilter, Matchers.<Query>equalTo(new ConstantScoreQuery(expectedQuery)));
     }
 
+    @Test
     public void testMergeWithMap() throws Throwable {
         IndexService indexService1 = createIndex("index1");
         MapperService mapperService = indexService1.mapperService();
@@ -205,5 +205,36 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         } catch (MapperParsingException e) {
             assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
         }
+    }
+
+    @Test
+    public void testOtherDocumentMappersOnlyUpdatedWhenChangingFieldType() throws IOException {
+        IndexService indexService = createIndex("test");
+
+        CompressedXContent simpleMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "string")
+            .endObject()
+            .endObject().endObject().bytes());
+
+        indexService.mapperService().merge("type1", simpleMapping, MapperService.MergeReason.MAPPING_UPDATE, true);
+        DocumentMapper documentMapper = indexService.mapperService().documentMapper("type1");
+
+        indexService.mapperService().merge("type2", simpleMapping, MapperService.MergeReason.MAPPING_UPDATE, true);
+        assertSame(indexService.mapperService().documentMapper("type1"), documentMapper);
+
+        CompressedXContent normsDisabledMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "string")
+            .startObject("norms")
+            .field("enabled", false)
+            .endObject()
+            .endObject()
+            .endObject().endObject().bytes());
+
+        indexService.mapperService().merge("type3", normsDisabledMapping, MapperService.MergeReason.MAPPING_UPDATE, true);
+        assertNotSame(indexService.mapperService().documentMapper("type1"), documentMapper);
     }
 }

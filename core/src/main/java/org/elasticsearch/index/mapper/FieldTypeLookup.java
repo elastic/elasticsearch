@@ -114,7 +114,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             // is the update even legal?
             checkCompatibility(type, fieldMapper, updateAllTypes);
 
-            if (fieldType != fullNameFieldType || fieldType != indexNameFieldType) {
+            if (fieldType.equals(fullNameFieldType) == false || fieldType.equals(indexNameFieldType) == false) {
                 fullName = fullName.copyAndPut(fieldType.names().fullName(), fieldMapper.fieldType());
                 indexName = indexName.copyAndPut(fieldType.names().indexName(), fieldMapper.fieldType());
             }

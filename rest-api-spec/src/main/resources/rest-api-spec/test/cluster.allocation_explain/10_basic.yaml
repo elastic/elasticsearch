@@ -13,8 +13,6 @@
       cluster.state:
         metric: [ master_node ]
 
-  - set: {master_node: node_id}
-
     # This relies on there only being a single node in the test cluster, which
     # is currently true, but if this changes in the future this test will need
     # to be changed
@@ -23,7 +21,7 @@
         body: { "index": "test", "shard": 0, "primary": true }
 
   - match: { current_shard_state: "started" }
-  - match: { current_node.id: $node_id }
+  - is_true: current_node.id
   - match: { index: "test" }
   - match: { shard: 0 }
   - match: { primary: true }
@@ -42,8 +40,6 @@
   - do:
       cluster.state:
         metric: [ master_node ]
-
-  - set: {master_node: node_id}
 
   - do:
       cluster.allocation_explain:

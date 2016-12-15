@@ -9,7 +9,6 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.junit.After;
@@ -19,8 +18,6 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -134,62 +131,13 @@ public class ScheduledJobIT extends ESRestTestCase {
         }
     }
 
-    @After
-    public void clearPrelertState() throws IOException {
-        clearPrelertMetadata(adminClient());
-    }
-
-    public static void clearPrelertMetadata(RestClient client) throws IOException {
-        deleteAllSchedulers(client);
-        deleteAllJobs(client);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void deleteAllSchedulers(RestClient client) throws IOException {
-        Map<String, Object> clusterStateAsMap = entityAsMap(client.performRequest("GET", "/_cluster/state",
-                Collections.singletonMap("filter_path", "metadata.prelert.schedulers")));
-        List<Map<String, Object>> schedulers =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.prelert.schedulers", clusterStateAsMap);
-        if (schedulers == null) {
-            return;
-        }
-
-        for (Map<String, Object> scheduler : schedulers) {
-            Map<String, Object> schedulerMap = (Map<String, Object>) scheduler.get("config");
-            String schedulerId = (String) schedulerMap.get("scheduler_id");
-            try {
-                client.performRequest("POST", "/_xpack/prelert/schedulers/" + schedulerId + "/_stop");
-            } catch (Exception e) {
-                // ignore
-            }
-            client.performRequest("DELETE", "/_xpack/prelert/schedulers/" + schedulerId);
-        }
-    }
-
-    private static void deleteAllJobs(RestClient client) throws IOException {
-        Map<String, Object> clusterStateAsMap = entityAsMap(client.performRequest("GET", "/_cluster/state",
-                Collections.singletonMap("filter_path", "metadata.prelert.jobs")));
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> jobConfigs =
-                (List<Map<String, Object>>) XContentMapValues.extractValue("metadata.prelert.jobs", clusterStateAsMap);
-        if (jobConfigs == null) {
-            return;
-        }
-
-        for (Map<String, Object> jobConfig : jobConfigs) {
-            String jobId = (String) jobConfig.get("job_id");
-            try {
-                Response response = client.performRequest("POST", "/_xpack/prelert/anomaly_detectors/" + jobId + "/_close");
-                assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-            } catch (Exception e) {
-                // ignore
-            }
-            client.performRequest("DELETE", "/_xpack/prelert/anomaly_detectors/" + jobId);
-        }
-    }
-
     public static void openJob(RestClient client, String jobId) throws IOException {
         Response response = client.performRequest("post", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_open");
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+    }
+
+    @After
+    public void clearPrelertState() throws IOException {
+        new PrelertRestTestStateCleaner(client(), this).clearPrelertMetadata();
     }
 }

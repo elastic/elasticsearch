@@ -5,16 +5,13 @@
  */
 package org.elasticsearch.xpack.prelert.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 import org.junit.After;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import java.io.IOException;
-
-import static org.elasticsearch.xpack.prelert.integration.ScheduledJobIT.clearPrelertMetadata;
 
 /** Rest integration test. Runs against a cluster started by {@code gradle integTest} */
 public class PrelertYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -30,7 +27,6 @@ public class PrelertYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @After
     public void clearPrelertState() throws IOException {
-        clearPrelertMetadata(adminClient());
+        new PrelertRestTestStateCleaner(client(), this).clearPrelertMetadata();
     }
-
 }

@@ -16,9 +16,12 @@ public final class PrelertStrings {
     private static final Pattern NEEDS_QUOTING = Pattern.compile("\\W");
 
     /**
-     * Valid user entered id characters. Note that '.' is allowed but not documented.
+     * Valid user id pattern.
+     * Matches a string that contains lower case characters, digits, hyphens, underscores or dots.
+     * The string may start and end only in lower case characters or digits.
+     * Note that '.' is allowed but not documented.
      */
-    private static final Pattern VALID_ID_CHAR_PATTERN = Pattern.compile("[a-z0-9_\\-\\.]+");
+    private static final Pattern VALID_ID_CHAR_PATTERN = Pattern.compile("[a-z0-9](?:[a-z0-9_\\-\\.]*[a-z0-9])?");
 
     private PrelertStrings() {
     }

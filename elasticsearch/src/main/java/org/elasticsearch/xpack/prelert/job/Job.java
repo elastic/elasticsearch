@@ -705,7 +705,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
             }
             if (!PrelertStrings.isValidId(id)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_JOBID_CHARS));
+                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName()));
             }
             return new Job(
                     id, description, createTime, finishedTime, lastDataTime, timeout, analysisConfig, analysisLimits,

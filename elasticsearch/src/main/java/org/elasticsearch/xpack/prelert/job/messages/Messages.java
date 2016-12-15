@@ -27,6 +27,8 @@ public final class Messages {
     public static final String DATASTORE_ERROR_DELETING_MISSING_INDEX = "datastore.error.deleting.missing.index";
     public static final String DATASTORE_ERROR_EXECUTING_SCRIPT = "datastore.error.executing.script";
 
+    public static final String INVALID_ID = "invalid.id";
+
     public static final String LICENSE_LIMIT_DETECTORS = "license.limit.detectors";
     public static final String LICENSE_LIMIT_JOBS = "license.limit.jobs";
     public static final String LICENSE_LIMIT_DETECTORS_REACTIVATE = "license.limit.detectors.reactivate";
@@ -108,7 +110,6 @@ public final class Messages {
     public static final String JOB_CONFIG_ID_TOO_LONG = "job.config.id.too.long";
     public static final String JOB_CONFIG_ID_ALREADY_TAKEN = "job.config.id.already.taken";
     public static final String JOB_CONFIG_INVALID_FIELDNAME_CHARS = "job.config.invalid.fieldname.chars";
-    public static final String JOB_CONFIG_INVALID_JOBID_CHARS = "job.config.invalid.jobid.chars";
     public static final String JOB_CONFIG_INVALID_TIMEFORMAT = "job.config.invalid.timeformat";
     public static final String JOB_CONFIG_FUNCTION_INCOMPATIBLE_PRESUMMARIZED = "job.config.function.incompatible.presummarized";
     public static final String JOB_CONFIG_MISSING_ANALYSISCONFIG = "job.config.missing.analysisconfig";

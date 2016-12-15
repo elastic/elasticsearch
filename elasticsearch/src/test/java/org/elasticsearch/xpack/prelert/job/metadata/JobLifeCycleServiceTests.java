@@ -46,19 +46,19 @@ public class JobLifeCycleServiceTests extends ESTestCase {
 
     public void testStartStop() {
         Allocation.Builder allocation = new Allocation.Builder();
-        allocation.setJobId("_job_id");
+        allocation.setJobId("my_job_id");
         jobLifeCycleService.startJob(allocation.build());
-        assertTrue(jobLifeCycleService.localAssignedJobs.contains("_job_id"));
-        verify(dataProcessor).openJob("_job_id", false);
+        assertTrue(jobLifeCycleService.localAssignedJobs.contains("my_job_id"));
+        verify(dataProcessor).openJob("my_job_id", false);
 
-        jobLifeCycleService.stopJob("_job_id");
+        jobLifeCycleService.stopJob("my_job_id");
         assertTrue(jobLifeCycleService.localAssignedJobs.isEmpty());
-        verify(dataProcessor).closeJob("_job_id");
+        verify(dataProcessor).closeJob("my_job_id");
     }
 
     public void testClusterChanged_startJob() {
         PrelertMetadata.Builder pmBuilder = new PrelertMetadata.Builder();
-        pmBuilder.putJob(buildJobBuilder("_job_id").build(), false);
+        pmBuilder.putJob(buildJobBuilder("my_job_id").build(), false);
         ClusterState cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
@@ -66,12 +66,11 @@ public class JobLifeCycleServiceTests extends ESTestCase {
                         .localNodeId("_node_id"))
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
-        assertFalse("not allocated to a node",
-                jobLifeCycleService.localAssignedJobs.contains("_job_id"));
+        assertFalse("not allocated to a node", jobLifeCycleService.localAssignedJobs.contains("my_job_id"));
 
         pmBuilder = new PrelertMetadata.Builder();
-        pmBuilder.putJob(buildJobBuilder("_job_id").build(), false);
-        pmBuilder.updateStatus("_job_id", JobStatus.OPENING, null);
+        pmBuilder.putJob(buildJobBuilder("my_job_id").build(), false);
+        pmBuilder.updateStatus("my_job_id", JobStatus.OPENING, null);
         cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
@@ -79,13 +78,12 @@ public class JobLifeCycleServiceTests extends ESTestCase {
                         .localNodeId("_node_id"))
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
-        assertFalse("Status not started",
-                jobLifeCycleService.localAssignedJobs.contains("_job_id"));
+        assertFalse("Status not started", jobLifeCycleService.localAssignedJobs.contains("my_job_id"));
 
         pmBuilder = new PrelertMetadata.Builder();
-        pmBuilder.putJob(buildJobBuilder("_job_id").build(), false);
-        pmBuilder.updateStatus("_job_id", JobStatus.OPENING, null);
-        pmBuilder.assignToNode("_job_id", "_node_id");
+        pmBuilder.putJob(buildJobBuilder("my_job_id").build(), false);
+        pmBuilder.updateStatus("my_job_id", JobStatus.OPENING, null);
+        pmBuilder.assignToNode("my_job_id", "_node_id");
         cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
@@ -93,19 +91,19 @@ public class JobLifeCycleServiceTests extends ESTestCase {
                         .localNodeId("_node_id"))
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
-        assertTrue("Expect allocation, because job allocation says _job_id should be allocated locally",
-                jobLifeCycleService.localAssignedJobs.contains("_job_id"));
-        verify(dataProcessor, times(1)).openJob("_job_id", false);
+        assertTrue("Expect allocation, because job allocation says my_job_id should be allocated locally",
+                jobLifeCycleService.localAssignedJobs.contains("my_job_id"));
+        verify(dataProcessor, times(1)).openJob("my_job_id", false);
 
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
-        verify(dataProcessor, times(1)).openJob("_job_id", false);
+        verify(dataProcessor, times(1)).openJob("my_job_id", false);
     }
 
     public void testClusterChanged_stopJob() {
-        jobLifeCycleService.localAssignedJobs.add("_job_id");
+        jobLifeCycleService.localAssignedJobs.add("my_job_id");
 
         PrelertMetadata.Builder pmBuilder = new PrelertMetadata.Builder();
-        pmBuilder.putJob(buildJobBuilder("_job_id").build(), false);
+        pmBuilder.putJob(buildJobBuilder("my_job_id").build(), false);
         ClusterState cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
@@ -116,11 +114,11 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         assertEquals("Status is not closing, so nothing happened", jobLifeCycleService.localAssignedJobs.size(), 1);
 
         pmBuilder = new PrelertMetadata.Builder();
-        pmBuilder.putJob(buildJobBuilder("_job_id").build(), false);
-        pmBuilder.updateStatus("_job_id", JobStatus.OPENING, null);
-        pmBuilder.updateStatus("_job_id", JobStatus.OPENED, null);
-        pmBuilder.updateStatus("_job_id", JobStatus.CLOSING, null);
-        pmBuilder.assignToNode("_job_id", "_node_id");
+        pmBuilder.putJob(buildJobBuilder("my_job_id").build(), false);
+        pmBuilder.updateStatus("my_job_id", JobStatus.OPENING, null);
+        pmBuilder.updateStatus("my_job_id", JobStatus.OPENED, null);
+        pmBuilder.updateStatus("my_job_id", JobStatus.CLOSING, null);
+        pmBuilder.assignToNode("my_job_id", "_node_id");
         cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
@@ -129,15 +127,15 @@ public class JobLifeCycleServiceTests extends ESTestCase {
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
         assertEquals(jobLifeCycleService.localAssignedJobs.size(), 0);
-        verify(dataProcessor, times(1)).closeJob("_job_id");
+        verify(dataProcessor, times(1)).closeJob("my_job_id");
     }
 
     public void testClusterChanged_allocationRemovedStopJob() {
-        jobLifeCycleService.localAssignedJobs.add("_job_id");
+        jobLifeCycleService.localAssignedJobs.add("my_job_id");
 
         PrelertMetadata.Builder pmBuilder = new PrelertMetadata.Builder();
-        pmBuilder.putJob(buildJobBuilder("_job_id").build(), false);
-        pmBuilder.removeJob("_job_id");
+        pmBuilder.putJob(buildJobBuilder("my_job_id").build(), false);
+        pmBuilder.removeJob("my_job_id");
         ClusterState cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
@@ -146,28 +144,28 @@ public class JobLifeCycleServiceTests extends ESTestCase {
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
         assertEquals(jobLifeCycleService.localAssignedJobs.size(), 0);
-        verify(dataProcessor, times(1)).closeJob("_job_id");
+        verify(dataProcessor, times(1)).closeJob("my_job_id");
     }
 
     public void testStart_openJobFails() {
-        doThrow(new RuntimeException("error")).when(dataProcessor).openJob("_job_id", false);
+        doThrow(new RuntimeException("error")).when(dataProcessor).openJob("my_job_id", false);
         Allocation.Builder allocation = new Allocation.Builder();
-        allocation.setJobId("_job_id");
+        allocation.setJobId("my_job_id");
         jobLifeCycleService.startJob(allocation.build());
-        assertTrue(jobLifeCycleService.localAssignedJobs.contains("_job_id"));
-        verify(dataProcessor).openJob("_job_id", false);
-        UpdateJobStatusAction.Request expectedRequest = new UpdateJobStatusAction.Request("_job_id", JobStatus.FAILED);
+        assertTrue(jobLifeCycleService.localAssignedJobs.contains("my_job_id"));
+        verify(dataProcessor).openJob("my_job_id", false);
+        UpdateJobStatusAction.Request expectedRequest = new UpdateJobStatusAction.Request("my_job_id", JobStatus.FAILED);
         expectedRequest.setReason("failed to open, error");
         verify(client).execute(eq(UpdateJobStatusAction.INSTANCE), eq(expectedRequest), any());
     }
 
     public void testStart_closeJobFails() {
-        jobLifeCycleService.localAssignedJobs.add("_job_id");
-        doThrow(new RuntimeException("error")).when(dataProcessor).closeJob("_job_id");
-        jobLifeCycleService.stopJob("_job_id");
+        jobLifeCycleService.localAssignedJobs.add("my_job_id");
+        doThrow(new RuntimeException("error")).when(dataProcessor).closeJob("my_job_id");
+        jobLifeCycleService.stopJob("my_job_id");
         assertEquals(jobLifeCycleService.localAssignedJobs.size(), 0);
-        verify(dataProcessor).closeJob("_job_id");
-        UpdateJobStatusAction.Request expectedRequest = new UpdateJobStatusAction.Request("_job_id", JobStatus.FAILED);
+        verify(dataProcessor).closeJob("my_job_id");
+        UpdateJobStatusAction.Request expectedRequest = new UpdateJobStatusAction.Request("my_job_id", JobStatus.FAILED);
         expectedRequest.setReason("failed to close, error");
         verify(client).execute(eq(UpdateJobStatusAction.INSTANCE), eq(expectedRequest), any());
     }

@@ -228,19 +228,33 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     public void testCheckValidId_GivenAllValidChars() {
         Job.Builder builder = buildJobBuilder("foo");
-        builder.setId("abcdefghijklmnopqrstuvwxyz-0123456789_.");
+        builder.setId("abcdefghijklmnopqrstuvwxyz-._0123456789");
         builder.build();
     }
 
     public void testCheckValidId_ProhibitedChars() {
         String invalidChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()+?\"'~±/\\[]{},<>=";
         Job.Builder builder = buildJobBuilder("foo");
-        String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_INVALID_JOBID_CHARS);
+        String errorMessage = Messages.getMessage(Messages.INVALID_ID, Job.ID.getPreferredName());
         for (char c : invalidChars.toCharArray()) {
             builder.setId(Character.toString(c));
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
             assertEquals(errorMessage, e.getMessage());
         }
+    }
+
+    public void testCheckValidId_startsWithUnderscore() {
+        Job.Builder builder = buildJobBuilder("_foo");
+        String errorMessage = Messages.getMessage(Messages.INVALID_ID, Job.ID.getPreferredName());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
+        assertEquals(errorMessage, e.getMessage());
+    }
+
+    public void testCheckValidId_endsWithUnderscore() {
+        Job.Builder builder = buildJobBuilder("foo_");
+        String errorMessage = Messages.getMessage(Messages.INVALID_ID, Job.ID.getPreferredName());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
+        assertEquals(errorMessage, e.getMessage());
     }
 
     public void testCheckValidId_ControlChars() {

@@ -84,12 +84,12 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         startSchedulerRequest.setEndTime(now);
         client().execute(StartSchedulerAction.INSTANCE, startSchedulerRequest).get();
         assertBusy(() -> {
-            DataCounts dataCounts = getDataCounts("_job_id");
+            DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getInputRecordCount(), equalTo(numDocs));
 
             PrelertMetadata prelertMetadata = client().admin().cluster().prepareState().all().get()
                     .getState().metaData().custom(PrelertMetadata.TYPE);
-            assertThat(prelertMetadata.getSchedulerStatusByJobId("_job_id").get(), equalTo(SchedulerStatus.STOPPED));
+            assertThat(prelertMetadata.getSchedulerStatusByJobId(job.getId()).get(), equalTo(SchedulerStatus.STOPPED));
         });
     }
 
@@ -125,7 +125,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         });
         t.start();
         assertBusy(() -> {
-            DataCounts dataCounts = getDataCounts("_job_id");
+            DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getInputRecordCount(), equalTo(numDocs1));
         });
 
@@ -133,7 +133,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         now = System.currentTimeMillis();
         indexDocs(numDocs2, now + 5000, now + 6000);
         assertBusy(() -> {
-            DataCounts dataCounts = getDataCounts("_job_id");
+            DataCounts dataCounts = getDataCounts(job.getId());
             assertThat(dataCounts.getInputRecordCount(), equalTo(numDocs1 + numDocs2));
         }, 30, TimeUnit.SECONDS);
 
@@ -143,7 +143,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         assertBusy(() -> {
             PrelertMetadata prelertMetadata = client().admin().cluster().prepareState().all().get()
                     .getState().metaData().custom(PrelertMetadata.TYPE);
-            assertThat(prelertMetadata.getSchedulerStatusByJobId("_job_id").get(), equalTo(SchedulerStatus.STOPPED));
+            assertThat(prelertMetadata.getSchedulerStatusByJobId(job.getId()).get(), equalTo(SchedulerStatus.STOPPED));
         });
         assertThat(errorHolder.get(), nullValue());
     }
@@ -174,7 +174,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
 
         Job.Builder builder = new Job.Builder();
-        builder.setId("_job_id");
+        builder.setId("my_job_id");
 
         builder.setAnalysisConfig(analysisConfig);
         builder.setDataDescription(dataDescription);
@@ -194,7 +194,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         GetResponse getResponse = client().prepareGet(JobResultsPersister.getJobIndexName(jobId),
                 DataCounts.TYPE.getPreferredName(), jobId + "-data-counts").get();
         if (getResponse.isExists() == false) {
-            return new DataCounts("_job_id");
+            return new DataCounts(jobId);
         }
 
         try (XContentParser parser = XContentHelper.createParser(getResponse.getSourceAsBytesRef())) {

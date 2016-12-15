@@ -280,8 +280,8 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         ExecutorService executorService = mock(ExecutorService.class);
         doThrow(new EsRejectedExecutionException("")).when(executorService).execute(any());
         when(threadPool.executor(anyString())).thenReturn(executorService);
-        when(jobManager.getJobOrThrowIfUnknown("_id")).thenReturn(createJobDetails("_id"));
-        when(jobProvider.dataCounts("_id")).thenReturn(new DataCounts("_id"));
+        when(jobManager.getJobOrThrowIfUnknown("my_id")).thenReturn(createJobDetails("my_id"));
+        when(jobProvider.dataCounts("my_id")).thenReturn(new DataCounts("my_id"));
 
         Set<Setting<?>> settingSet = new HashSet<>();
         settingSet.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -294,7 +294,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory,
                 normalizerFactory, clusterSettings);
 
-        expectThrows(EsRejectedExecutionException.class, () -> manager.create("_id", false));
+        expectThrows(EsRejectedExecutionException.class, () -> manager.create("my_id", false));
         verify(autodetectProcess, times(1)).close();
     }
 

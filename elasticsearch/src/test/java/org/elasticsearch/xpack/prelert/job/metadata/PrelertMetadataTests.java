@@ -252,16 +252,16 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
 
     public void testUpdateAllocation_setFinishedTime() {
         PrelertMetadata.Builder builder = new PrelertMetadata.Builder();
-        builder.putJob(buildJobBuilder("_job_id").build(), false);
-        builder.updateStatus("_job_id", JobStatus.OPENING, null);
+        builder.putJob(buildJobBuilder("my_job_id").build(), false);
+        builder.updateStatus("my_job_id", JobStatus.OPENING, null);
 
-        builder.updateStatus("_job_id", JobStatus.OPENED, null);
+        builder.updateStatus("my_job_id", JobStatus.OPENED, null);
         PrelertMetadata prelertMetadata = builder.build();
-        assertThat(prelertMetadata.getJobs().get("_job_id").getFinishedTime(), nullValue());
+        assertThat(prelertMetadata.getJobs().get("my_job_id").getFinishedTime(), nullValue());
 
-        builder.updateStatus("_job_id", JobStatus.CLOSED, null);
+        builder.updateStatus("my_job_id", JobStatus.CLOSED, null);
         prelertMetadata = builder.build();
-        assertThat(prelertMetadata.getJobs().get("_job_id").getFinishedTime(), notNullValue());
+        assertThat(prelertMetadata.getJobs().get("my_job_id").getFinishedTime(), notNullValue());
     }
 
     public void testUpdateStatus_failBecauseJobDoesNotExist() {

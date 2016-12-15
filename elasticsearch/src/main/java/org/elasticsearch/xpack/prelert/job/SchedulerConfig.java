@@ -583,7 +583,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             ExceptionsHelper.requireNonNull(id, ID.getPreferredName());
             ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             if (!PrelertStrings.isValidId(id)) {
-                throw new IllegalArgumentException(ID.getPreferredName() + " [" + id + "] contains invalid characters");
+                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName()));
             }
             if (indexes == null || indexes.isEmpty() || indexes.contains(null) || indexes.contains("")) {
                 throw invalidOptionValue(INDEXES.getPreferredName(), indexes);

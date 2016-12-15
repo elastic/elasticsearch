@@ -26,10 +26,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class ScheduledJobIT extends ESRestTestCase {
 
     public void testStartJobScheduler_GivenLookbackOnly() throws Exception {
-        String jobId = "_id2";
+        String jobId = "job-1";
         createAirlineDataIndex();
         createJob(jobId);
-        String schedulerId = "_sched1";
+        String schedulerId = "sched-1";
         createScheduler(schedulerId, jobId);
         openJob(client(), jobId);
 
@@ -49,10 +49,10 @@ public class ScheduledJobIT extends ESRestTestCase {
     }
 
     public void testStartJobScheduler_GivenRealtime() throws Exception {
-        String jobId = "_id3";
+        String jobId = "job-2";
         createAirlineDataIndex();
         createJob(jobId);
-        String schedulerId = "_sched1";
+        String schedulerId = "sched-2";
         createScheduler(schedulerId, jobId);
         openJob(client(), jobId);
 

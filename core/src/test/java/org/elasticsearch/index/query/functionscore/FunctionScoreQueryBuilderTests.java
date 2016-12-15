@@ -654,11 +654,19 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testRewrite() throws IOException {
-        FunctionScoreQueryBuilder functionScoreQueryBuilder = new FunctionScoreQueryBuilder(
-                new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()));
+        FunctionScoreQueryBuilder functionScoreQueryBuilder =
+            new FunctionScoreQueryBuilder(new WrapperQueryBuilder(new TermQueryBuilder("foo", "bar").toString()))
+                .boostMode(CombineFunction.REPLACE)
+                .scoreMode(FiltersFunctionScoreQuery.ScoreMode.SUM)
+                .setMinScore(1)
+                .maxBoost(100);
         FunctionScoreQueryBuilder rewrite = (FunctionScoreQueryBuilder) functionScoreQueryBuilder.rewrite(createShardContext());
         assertNotSame(functionScoreQueryBuilder, rewrite);
         assertEquals(rewrite.query(), new TermQueryBuilder("foo", "bar"));
+        assertEquals(rewrite.boostMode(), CombineFunction.REPLACE);
+        assertEquals(rewrite.scoreMode(), FiltersFunctionScoreQuery.ScoreMode.SUM);
+        assertEquals(rewrite.getMinScore(), 1f, 0.0001);
+        assertEquals(rewrite.maxBoost(), 100f, 0.0001);
     }
 
     public void testRewriteWithFunction() throws IOException {

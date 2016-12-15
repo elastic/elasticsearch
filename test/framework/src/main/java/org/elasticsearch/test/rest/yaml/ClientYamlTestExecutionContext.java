@@ -55,7 +55,12 @@ public class ClientYamlTestExecutionContext {
                                     Map<String, String> headers) throws IOException {
         //makes a copy of the parameters before modifying them for this specific request
         HashMap<String, String> requestParams = new HashMap<>(params);
-        requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
+        // By default ask for error traces, this my be overridden by params
+        if (false == (esVersion().before(Version.V_5_2_0_UNRELEASED) && apiName.endsWith("put_settings"))) {
+            // But not for APIs for which it is broken....
+            // You should able to remove this branch and keep the statement below after releasing 5.2
+            requestParams.putIfAbsent("error_trace", "true");
+        }
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
             if (stash.containsStashedValue(entry.getValue())) {
                 entry.setValue(stash.getValue(entry.getValue()).toString());

@@ -1805,12 +1805,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // this acts like a node that doesn't have support for handshakes
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
-            serviceA.connectToNode(node);
-            TcpTransport.NodeChannels connection = originalTransport.getConnection(node);
-            Version version = originalTransport.executeHandshake(node, connection.channel(TransportRequestOptions.Type.PING),
-                TimeValue.timeValueSeconds(10));
-            assertNull(version);
-            serviceA.disconnectFromNode(node);
+            ConnectTransportException exception = expectThrows(ConnectTransportException.class, () -> serviceA.connectToNode(node));
+            assertTrue(exception.getCause() instanceof IllegalStateException);
+            assertEquals("handshake failed", exception.getCause().getMessage());
         }
 
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {

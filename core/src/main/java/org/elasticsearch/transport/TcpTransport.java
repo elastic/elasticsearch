@@ -245,7 +245,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     private static class HandshakeResponseHandler<Channel> implements TransportResponseHandler<VersionHandshakeResponse> {
         final AtomicReference<Version> versionRef = new AtomicReference<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        final AtomicBoolean handshakeNotSupported = new AtomicBoolean(false);
         final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
         final Channel channel;
 
@@ -261,24 +260,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         @Override
         public void handleResponse(VersionHandshakeResponse response) {
             final boolean success = versionRef.compareAndSet(null, response.version);
-            assert success;
             latch.countDown();
+            assert success;
         }
 
         @Override
         public void handleException(TransportException exp) {
-            Throwable cause = exp.getCause();
-            if (cause != null
-                && cause instanceof ActionNotFoundTransportException
-                // this will happen if we talk to a node (pre 5.2) that doesn't have a handshake handler
-                // we will just treat the node as a 5.0.0 node unless the discovery node that is used to connect has a higher version.
-                && cause.getMessage().equals("No handler for action [internal:tcp/handshake]")) {
-                    handshakeNotSupported.set(true);
-            } else {
-                final boolean success = exceptionRef.compareAndSet(null, exp);
-                assert success;
-            }
+            final boolean success = exceptionRef.compareAndSet(null, exp);
             latch.countDown();
+            assert success;
         }
 
         @Override
@@ -1546,12 +1536,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 throw new ConnectTransportException(node, "handshake_timeout[" + timeout + "]");
             }
             success = true;
-            if (handler.handshakeNotSupported.get()) {
-                // this is a BWC layer, if we talk to a pre 5.2 node then the handshake is not supported
-                // this will go away in master once it's all ported to 5.2 but for now we keep this to make
-                // the backport straight forward
-                return null;
-            }
             if (exceptionRef.get() != null) {
                 throw new IllegalStateException("handshake failed", exceptionRef.get());
             } else {

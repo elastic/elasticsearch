@@ -21,26 +21,18 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Optional;
 
 import static java.util.Collections.emptyList;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 
 public class QueryParseContextTests extends ESTestCase {
 
@@ -49,20 +41,6 @@ public class QueryParseContextTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, false, emptyList()).getQueryParserRegistry();
-    }
-
-    private ThreadContext threadContext;
-
-    @Before
-    public void beforeTest() throws IOException {
-        this.threadContext = new ThreadContext(Settings.EMPTY);
-        DeprecationLogger.setThreadContext(threadContext);
-    }
-
-    @After
-    public void teardown() throws IOException {
-        DeprecationLogger.removeThreadContext(this.threadContext);
-        this.threadContext.close();
     }
 
     public void testParseTopLevelBuilder() throws IOException {
@@ -109,9 +87,7 @@ public class QueryParseContextTests extends ESTestCase {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             Optional<QueryBuilder> emptyQuery = context.parseInnerQueryBuilder();
             assertFalse(emptyQuery.isPresent());
-            final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-            assertThat(warnings, hasSize(1));
-            assertThat(warnings, hasItem(equalTo("query malformed, empty clause found at [1:2]")));
+            assertWarnings("query malformed, empty clause found at [1:2]");
         }
     }
 
@@ -120,37 +96,30 @@ public class QueryParseContextTests extends ESTestCase {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             parser.nextToken();
             parser.nextToken(); // don't start with START_OBJECT to provoke exception
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             ParsingException exception = expectThrows(ParsingException.class, () ->  context.parseInnerQueryBuilder());
             assertEquals("[_na] query malformed, must start with start_object", exception.getMessage());
         }
 
         source = "{}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
-            IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->  context.parseInnerQueryBuilder());
-            assertEquals("query malformed, empty clause found at [1:2]", exception.getMessage());
-            final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-            assertThat(warnings, hasSize(1));
-            assertThat(warnings, hasItem(equalTo("query malformed, empty clause found at [1:2]")));
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+            context.parseInnerQueryBuilder();
+            assertWarnings("query malformed, empty clause found at [1:2]");
         }
 
         source = "{ \"foo\" : \"bar\" }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             ParsingException exception = expectThrows(ParsingException.class, () ->  context.parseInnerQueryBuilder());
             assertEquals("[foo] query malformed, no start_object after query name", exception.getMessage());
         }
 
         source = "{ \"foo\" : {} }";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             ParsingException exception = expectThrows(ParsingException.class, () ->  context.parseInnerQueryBuilder());
             assertEquals("no [query] registered for [foo]", exception.getMessage());
         }
-        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-        assertThat(warnings, hasSize(1));
-        assertThat(warnings, hasItem(equalTo("query malformed, empty clause found at [1:2]")));
     }
-
 }

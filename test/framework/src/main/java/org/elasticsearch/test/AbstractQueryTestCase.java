@@ -48,13 +48,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -130,8 +128,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
@@ -162,11 +158,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static Index index;
     private static String[] currentTypes;
     private static String[] randomTypes;
-
-    /**
-     * used to check warning headers of the deprecation logger
-     */
-    private ThreadContext threadContext;
 
     protected static Index getIndex() {
         return index;
@@ -220,8 +211,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             serviceHolder = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), this);
         }
         serviceHolder.clientInvocationHandler.delegate = this;
-        this.threadContext = new ThreadContext(Settings.EMPTY);
-        DeprecationLogger.setThreadContext(threadContext);
     }
 
     private static SearchContext getSearchContext(String[] types, QueryShardContext context) {
@@ -242,13 +231,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     @After
     public void afterTest() throws IOException {
-        //Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarningHeaders(String...)} in the
-        //appropriate test
-        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-        assertNull("unexpected warning headers", warnings);
-        DeprecationLogger.removeThreadContext(this.threadContext);
-        this.threadContext.close();
-
         serviceHolder.clientInvocationHandler.delegate = null;
     }
 
@@ -1028,23 +1010,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return query;
     }
 
-    protected void assertWarningHeaders(String... expectedWarnings) {
-        final List<String> actualWarnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-        assertThat(actualWarnings, hasSize(expectedWarnings.length));
-        for (String msg : expectedWarnings) {
-            assertThat(actualWarnings, hasItem(equalTo(msg)));
-        }
-        // "clear" current warning headers by setting a new ThreadContext
-        DeprecationLogger.removeThreadContext(this.threadContext);
-        try {
-            this.threadContext.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        this.threadContext = new ThreadContext(Settings.EMPTY);
-        DeprecationLogger.setThreadContext(this.threadContext);
-    }
-
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return serviceHolder.xContentRegistry;
@@ -1137,6 +1102,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                                 + "\"properties\":{\"" + DATE_FIELD_NAME + "\":{\"type\":\"date\"},\"" +
                                 INT_FIELD_NAME + "\":{\"type\":\"integer\"}}}}}"),
                         MapperService.MergeReason.MAPPING_UPDATE, false);
+                if (idxSettings.getIndexVersionCreated().before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+                    testCase.assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release",
+                            "geo_point geohash parameter is deprecated and will be removed in the next major release",
+                            "geo_point geohash_prefix parameter is deprecated and will be removed in the next major release");
+                }
             }
             testCase.initializeAdditionalMappings(mapperService);
         }

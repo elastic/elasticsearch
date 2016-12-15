@@ -132,7 +132,7 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
-        assertWarningHeaders("query malformed, empty clause found at [1:40]");
+        assertWarnings("query malformed, empty clause found at [1:40]");
     }
 
 }

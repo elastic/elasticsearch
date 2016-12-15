@@ -22,9 +22,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.AbstractObjectParser.NoContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser.NamedObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
@@ -38,8 +35,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 
 public class ObjectParserTests extends ESTestCase {
@@ -224,26 +219,16 @@ public class ObjectParserTests extends ESTestCase {
     }
 
     public void testDeprecationWarnings() throws IOException {
-        try (ThreadContext threadContext = new ThreadContext(Settings.EMPTY)) {
-            DeprecationLogger.setThreadContext(threadContext);
-            class TestStruct {
-                public String test;
-            }
-            ObjectParser<TestStruct, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo");
-            TestStruct s = new TestStruct();
-
-            objectParser.declareField((i, v, c) -> v.test = i.text(), new ParseField("test", "old_test"), ObjectParser.ValueType.STRING);
-
-            XContentParser parser = createParser(XContentType.JSON.xContent(), "{\"old_test\" : \"foo\"}");
-            objectParser.parse(parser, s, () -> ParseFieldMatcher.EMPTY);
-
-            assertEquals("foo", s.test);
-
-            final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-            assertThat(warnings, hasSize(1));
-            assertThat(warnings, hasItem(equalTo("Deprecated field [old_test] used, expected [test] instead")));
-            DeprecationLogger.removeThreadContext(threadContext);
+        class TestStruct {
+            public String test;
         }
+        ObjectParser<TestStruct, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo");
+        TestStruct s = new TestStruct();
+        XContentParser parser = createParser(XContentType.JSON.xContent(), "{\"old_test\" : \"foo\"}");
+        objectParser.declareField((i, v, c) -> v.test = i.text(), new ParseField("test", "old_test"), ObjectParser.ValueType.STRING);
+        objectParser.parse(parser, s, () -> ParseFieldMatcher.EMPTY);
+        assertEquals("foo", s.test);
+        assertWarnings("Deprecated field [old_test] used, expected [test] instead");
     }
 
     public void testFailOnValueType() throws IOException {

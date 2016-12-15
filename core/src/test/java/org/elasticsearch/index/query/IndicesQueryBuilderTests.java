@@ -33,8 +33,8 @@ public class IndicesQueryBuilderTests extends AbstractQueryTestCase<IndicesQuery
      * Instead of having to check them once in every single test, this is done here after each test is run
      */
     @After
-    void assertWarningHeaders() throws IOException {
-        assertWarningHeaders("indices query is deprecated. Instead search on the '_index' field");
+    void assertWarnings() throws IOException {
+        assertWarnings("indices query is deprecated. Instead search on the '_index' field");
     }
 
     @Override

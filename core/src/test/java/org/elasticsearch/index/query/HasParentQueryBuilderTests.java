@@ -154,7 +154,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         builder.endObject();
         HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string());
         assertEquals("foo", queryBuilder.type());
-        assertWarningHeaders("Deprecated field [type] used, expected [parent_type] instead");
+        assertWarnings("Deprecated field [type] used, expected [parent_type] instead");
     }
 
     public void testToQueryInnerQueryType() throws IOException {
@@ -218,7 +218,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertFalse(innerQueryBuilder.isPresent());
-        assertWarningHeaders("query malformed, empty clause found at [3:17]");
+        assertWarnings("query malformed, empty clause found at [3:17]");
     }
 
     public void testIgnoreUnmapped() throws IOException {

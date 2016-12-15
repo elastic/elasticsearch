@@ -97,6 +97,7 @@ public class EvilLoggerTests extends ESTestCase {
             Level.WARN,
             "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
             "This is a deprecation message");
+        assertWarnings("This is a deprecation message");
     }
 
     public void testUnsupportedLoggingConfigurationFiles() throws IOException, UserException {

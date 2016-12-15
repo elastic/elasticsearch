@@ -59,12 +59,12 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
     }
 
     public void testIllegalArguments() {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SpanNearQueryBuilder(null, 1));
-            assertEquals("[span_near] must include at least one clause", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SpanNearQueryBuilder(null, 1));
+        assertEquals("[span_near] must include at least one clause", e.getMessage());
 
-            SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
-            e = expectThrows(IllegalArgumentException.class, () -> spanNearQueryBuilder.addClause(null));
-            assertEquals("[span_near]  clauses cannot be null", e.getMessage());
+        SpanNearQueryBuilder spanNearQueryBuilder = new SpanNearQueryBuilder(new SpanTermQueryBuilder("field", "value"), 1);
+        e = expectThrows(IllegalArgumentException.class, () -> spanNearQueryBuilder.addClause(null));
+        assertEquals("[span_near]  clauses cannot be null", e.getMessage());
     }
 
     public void testClausesUnmodifiable() {
@@ -149,6 +149,6 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
 
         parseQuery(json, ParseFieldMatcher.EMPTY);
         // we should get warning headers
-        assertWarningHeaders("Deprecated field [collect_payloads] used, replaced by [no longer supported]");
+        assertWarnings("Deprecated field [collect_payloads] used, replaced by [no longer supported]");
     }
 }

@@ -20,12 +20,10 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
@@ -64,6 +62,12 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 GEO_POINT_FIELD_NAME, geoFieldMapping,
                 "nested1", "type=nested"
         ).string()), MapperService.MergeReason.MAPPING_UPDATE, false);
+        if (mapperService.getIndexSettings().getIndexVersionCreated()
+                .before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release",
+                    "geo_point geohash parameter is deprecated and will be removed in the next major release",
+                    "geo_point geohash_prefix parameter is deprecated and will be removed in the next major release");
+        }
     }
 
     /**

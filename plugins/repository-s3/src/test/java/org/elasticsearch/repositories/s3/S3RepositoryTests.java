@@ -19,8 +19,6 @@
 
 package org.elasticsearch.repositories.s3;
 
-import java.io.IOException;
-
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import com.amazonaws.services.s3.AmazonS3;
@@ -33,6 +31,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+
+import java.io.IOException;
 
 import static org.elasticsearch.repositories.s3.S3Repository.Repositories;
 import static org.elasticsearch.repositories.s3.S3Repository.Repository;
@@ -111,11 +111,14 @@ public class S3RepositoryTests extends ESTestCase {
             .put(Repository.BASE_PATH_SETTING.getKey(), "/foo/bar").build());
         S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, new DummyS3Service());
         assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
-
+        assertWarnings("S3 repository base_path" +
+                " trimming the leading `/`, and leading `/` will not be supported for the S3 repository in future releases");
         metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.EMPTY);
         Settings settings = Settings.builder().put(Repositories.BASE_PATH_SETTING.getKey(), "/foo/bar").build();
         s3repo = new S3Repository(metadata, settings, new DummyS3Service());
         assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
+        assertWarnings("S3 repository base_path" +
+                " trimming the leading `/`, and leading `/` will not be supported for the S3 repository in future releases");
     }
 
     public void testDefaultBufferSize() {

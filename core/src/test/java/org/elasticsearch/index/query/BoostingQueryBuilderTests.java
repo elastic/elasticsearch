@@ -111,7 +111,7 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
 
-        assertWarningHeaders("query malformed, empty clause found at [1:36]");
+        assertWarnings("query malformed, empty clause found at [1:36]");
 
         query =
                 "{ \"boosting\" : {\n" +
@@ -124,7 +124,7 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         context = createParseContext(parser, ParseFieldMatcher.EMPTY);
         innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
-        assertWarningHeaders("query malformed, empty clause found at [3:20]");
+        assertWarnings("query malformed, empty clause found at [3:20]");
     }
 
     public void testRewrite() throws IOException {

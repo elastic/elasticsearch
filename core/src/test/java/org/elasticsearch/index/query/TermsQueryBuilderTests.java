@@ -268,7 +268,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                         "}";
         QueryBuilder inShortcutParsed = parseQuery(deprecatedJson, ParseFieldMatcher.EMPTY);
         assertThat(inShortcutParsed, equalTo(parsed));
-        assertWarningHeaders("Deprecated field [in] used, expected [terms] instead");
+        assertWarnings("Deprecated field [in] used, expected [terms] instead");
     }
 
     @Override

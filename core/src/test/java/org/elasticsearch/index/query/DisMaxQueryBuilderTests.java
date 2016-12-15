@@ -99,7 +99,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         Query luceneQuery = queryBuilder.toQuery(context);
         assertThat(luceneQuery, instanceOf(MatchNoDocsQuery.class));
         assertThat(luceneQuery.toString(), equalTo("MatchNoDocsQuery[\"no clauses for dismax query.\"]"));
-        assertWarningHeaders("query malformed, empty clause found at [1:78]");
+        assertWarnings("query malformed, empty clause found at [1:78]");
     }
 
     public void testIllegalArguments() {

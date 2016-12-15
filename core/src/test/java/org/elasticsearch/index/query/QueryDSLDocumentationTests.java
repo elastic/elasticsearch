@@ -221,7 +221,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
         idsQuery().addIds("1", "4", "100");
     }
 
-    public void testIndices() {
+    public void testIndices() throws IOException {
         indicesQuery(
                 termQuery("tag", "wow"),
                 "index1", "index2"
@@ -231,6 +231,7 @@ public class QueryDSLDocumentationTests extends ESTestCase {
                 termQuery("tag", "wow"),
                 "index1", "index2"
             ).noMatchQuery("all");
+        assertWarnings("indices query is deprecated. Instead search on the '_index' field");
     }
 
     public void testMatchAll() {

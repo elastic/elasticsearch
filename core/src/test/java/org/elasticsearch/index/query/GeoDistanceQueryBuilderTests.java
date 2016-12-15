@@ -392,7 +392,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  }\n" +
                 "}";
         parseQuery(json);
-        assertWarningHeaders("Deprecated field [optimize_bbox] used, replaced by [no replacement: " +
+        assertWarnings("Deprecated field [optimize_bbox] used, replaced by [no replacement: " +
                 "`optimize_bbox` is no longer supported due to recent improvements]");
     }
 
@@ -409,7 +409,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  }\n" +
                 "}";
         parseQuery(json);
-        assertWarningHeaders("Deprecated field [coerce] used, replaced by [validation_method]");
+        assertWarnings("Deprecated field [coerce] used, replaced by [validation_method]");
     }
 
     public void testFromJsonIgnoreMalformedIsDeprecated() throws IOException {
@@ -425,7 +425,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  }\n" +
                 "}";
         parseQuery(json);
-        assertWarningHeaders("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
+        assertWarnings("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     @Override

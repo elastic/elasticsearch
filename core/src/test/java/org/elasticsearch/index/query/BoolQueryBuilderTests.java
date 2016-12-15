@@ -344,7 +344,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         assertEquals(query, 0, queryBuilder.mustNot().size());
         assertEquals(query, 0, queryBuilder.should().size());
         // we should have deprecation warning headers regardless of throwing an exception
-        assertWarningHeaders("query malformed, empty clause found at [1:27]",
+        assertWarnings("query malformed, empty clause found at [1:27]",
                 "query malformed, empty clause found at [1:46]",
                 "query malformed, empty clause found at [1:100]");
     }

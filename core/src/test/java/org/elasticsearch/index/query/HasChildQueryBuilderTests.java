@@ -237,7 +237,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertFalse(innerQueryBuilder.isPresent());
-        assertWarningHeaders("query malformed, empty clause found at [3:17]");
+        assertWarnings("query malformed, empty clause found at [3:17]");
     }
 
     public void testToQueryInnerQueryType() throws IOException {

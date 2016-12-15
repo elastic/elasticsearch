@@ -25,8 +25,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -119,8 +119,9 @@ public final class RandomObjectPicks {
      * @param random Random generator
      */
     public static BytesReference randomSource(Random random) {
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
+            builder.prettyPrint();
             addFields(random, builder, 0);
             builder.endObject();
             return builder.bytes();
@@ -136,33 +137,42 @@ public final class RandomObjectPicks {
         int numFields = RandomNumbers.randomIntBetween(random, 1, 5);
         for (int i = 0; i < numFields; i++) {
             if (random.nextBoolean()) {
-                builder.field(RandomStrings.randomAsciiOfLengthBetween(random, 3, 10), randomFieldValue(random));
-            }
-            if (random.nextBoolean() && currentDepth < 5) {
-                builder.startObject(RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
-                addFields(random, builder, currentDepth + 1);
-                builder.endObject();
-            }
-            if (random.nextBoolean() && currentDepth < 5) {
-                builder.startArray(RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
-                int numElements = RandomNumbers.randomIntBetween(random, 1, 5);
-                boolean object = random.nextBoolean();
-                for (int j = 0; j < numElements; j++) {
-                    if (object) {
-                        builder.startObject();
-                        addFields(random, builder, currentDepth + 1);
-                        builder.endObject();
-                    } else {
-                        builder.value(randomFieldValue(random));
+                builder.field("field-" + RandomStrings.randomAsciiOfLengthBetween(random, 3, 10),
+                        randomFieldValue(random, randomDataType(random)));
+            } else if (currentDepth < 5) {
+                if (random.nextBoolean()) {
+                    builder.startObject("object-" + RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
+                    addFields(random, builder, currentDepth + 1);
+                    builder.endObject();
+                } else {
+                    builder.startArray("array-" + RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
+                    int numElements = RandomNumbers.randomIntBetween(random, 1, 5);
+                    boolean object = random.nextBoolean();
+                    int dataType = -1;
+                    if (object == false) {
+                        dataType = randomDataType(random);
                     }
+                    for (int j = 0; j < numElements; j++) {
+                        if (object) {
+                            builder.startObject();
+                            addFields(random, builder, 5);
+                            builder.endObject();
+                        } else {
+                            builder.value(randomFieldValue(random, dataType));
+                        }
+                    }
+                    builder.endArray();
                 }
-                builder.endArray();
             }
         }
     }
 
-    private static Object randomFieldValue(Random random) {
-        switch(RandomNumbers.randomIntBetween(random, 0, 3)) {
+    private static int randomDataType(Random random) {
+        return RandomNumbers.randomIntBetween(random, 0, 3);
+    }
+
+    private static Object randomFieldValue(Random random, int dataType) {
+        switch(dataType) {
             case 0:
                 return RandomStrings.randomAsciiOfLengthBetween(random, 3, 10);
             case 1:

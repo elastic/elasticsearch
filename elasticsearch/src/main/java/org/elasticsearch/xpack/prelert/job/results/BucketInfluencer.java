@@ -27,7 +27,7 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
     /**
      * Result type
      */
-    public static final String RESULT_TYPE_VALUE = "bucketInfluencer";
+    public static final String RESULT_TYPE_VALUE = "bucket_influencer";
     public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
     /**

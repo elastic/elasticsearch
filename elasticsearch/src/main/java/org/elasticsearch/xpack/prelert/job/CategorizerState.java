@@ -16,7 +16,7 @@ public class CategorizerState {
     /**
      * The type of this class used when persisting the data
      */
-    public static final String TYPE = "categorizerState";
+    public static final String TYPE = "categorizer_state";
 
     private CategorizerState() {
     }

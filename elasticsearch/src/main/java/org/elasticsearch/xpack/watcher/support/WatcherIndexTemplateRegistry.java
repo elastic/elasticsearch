@@ -68,7 +68,7 @@ public class WatcherIndexTemplateRegistry extends AbstractComponent implements C
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indexTemplates = TEMPLATE_CONFIGS;
-        clusterService.add(this);
+        clusterService.addListener(this);
 
         Map<String, Settings> customIndexSettings = new HashMap<>();
         for (TemplateConfig indexTemplate : indexTemplates) {

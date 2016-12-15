@@ -83,7 +83,7 @@ public class SecurityTemplateServiceTests extends ESTestCase {
             }
         }
         client = new IClient(transportClient);
-        securityTemplateService = new SecurityTemplateService(Settings.EMPTY, clusterService, client);
+        securityTemplateService = new SecurityTemplateService(Settings.EMPTY, client);
         listeners = new CopyOnWriteArrayList<>();
     }
 

@@ -68,13 +68,13 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 .nodes(nodes).build();
         when(watcherService.state()).thenReturn(WatcherState.STOPPED);
         when(watcherService.validate(clusterState)).thenReturn(true);
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
+        lifeCycleService.applyClusterState(new ClusterChangedEvent("any", clusterState, clusterState));
         verify(watcherService, times(1)).start(clusterState);
         verify(watcherService, never()).stop();
 
         // Trying to start a second time, but that should have no affect.
         when(watcherService.state()).thenReturn(WatcherState.STARTED);
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
+        lifeCycleService.applyClusterState(new ClusterChangedEvent("any", clusterState, clusterState));
         verify(watcherService, times(1)).start(clusterState);
         verify(watcherService, never()).stop();
 
@@ -82,7 +82,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         nodes = new DiscoveryNodes.Builder().masterNodeId("id1").localNodeId("id2");
         ClusterState noMasterClusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes).build();
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", noMasterClusterState, noMasterClusterState));
+        lifeCycleService.applyClusterState(new ClusterChangedEvent("any", noMasterClusterState, noMasterClusterState));
         verify(watcherService, times(1)).stop();
         verify(watcherService, times(1)).start(clusterState);
     }
@@ -93,7 +93,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
                 .nodes(nodes).build();
         when(watcherService.state()).thenReturn(WatcherState.STOPPED);
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
+        lifeCycleService.applyClusterState(new ClusterChangedEvent("any", clusterState, clusterState));
         verify(watcherService, never()).start(any(ClusterState.class));
     }
 
@@ -116,7 +116,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
 
         // Starting via cluster state update, we shouldn't start because we have been stopped manually.
         when(watcherService.state()).thenReturn(WatcherState.STOPPED);
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
+        lifeCycleService.applyClusterState(new ClusterChangedEvent("any", clusterState, clusterState));
         verify(watcherService, times(1)).start(any(ClusterState.class));
         verify(watcherService, times(1)).stop();
 
@@ -130,7 +130,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         clusterState = ClusterState.builder(new ClusterName("my-cluster"))
                 .nodes(nodes).build();
         when(watcherService.state()).thenReturn(WatcherState.STARTED);
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
+        lifeCycleService.applyClusterState(new ClusterChangedEvent("any", clusterState, clusterState));
         verify(watcherService, times(2)).start(any(ClusterState.class));
         verify(watcherService, times(2)).stop();
 
@@ -140,7 +140,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 .nodes(nodes).build();
         when(watcherService.validate(clusterState)).thenReturn(true);
         when(watcherService.state()).thenReturn(WatcherState.STOPPED);
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", clusterState, clusterState));
+        lifeCycleService.applyClusterState(new ClusterChangedEvent("any", clusterState, clusterState));
         verify(watcherService, times(3)).start(any(ClusterState.class));
         verify(watcherService, times(2)).stop();
     }
@@ -185,7 +185,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ClusterState newClusterState = ClusterState.builder(new ClusterName("my-cluster")).nodes(discoveryNodes).build();
         when(watcherService.state()).thenReturn(WatcherState.STARTED);
 
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", newClusterState, oldClusterState));
+        lifeCycleService.applyClusterState(new ClusterChangedEvent("any", newClusterState, oldClusterState));
         verify(watcherService, never()).start(any(ClusterState.class));
         verify(watcherService, never()).stop();
         verify(watcherService, times(1)).watchIndexDeletedOrClosed();
@@ -207,7 +207,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
                 .nodes(discoveryNodes).build();
         when(watcherService.state()).thenReturn(WatcherState.STARTED);
 
-        lifeCycleService.clusterChanged(new ClusterChangedEvent("any", newClusterState, oldClusterState));
+        lifeCycleService.applyClusterState(new ClusterChangedEvent("any", newClusterState, oldClusterState));
         verify(watcherService, never()).start(any(ClusterState.class));
         verify(watcherService, never()).stop();
         verify(watcherService, times(1)).watchIndexDeletedOrClosed();

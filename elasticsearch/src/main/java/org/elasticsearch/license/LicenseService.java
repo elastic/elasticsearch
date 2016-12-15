@@ -310,7 +310,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        clusterService.add(this);
+        clusterService.addListener(this);
         scheduler.start(Collections.emptyList());
         logger.debug("initializing license state");
         final ClusterState clusterState = clusterService.state();
@@ -329,7 +329,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        clusterService.remove(this);
+        clusterService.removeListener(this);
         scheduler.stop();
         // clear current license
         currentLicense.set(null);

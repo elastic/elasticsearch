@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -55,11 +54,9 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
     final AtomicBoolean templateCreationPending = new AtomicBoolean(false);
     final AtomicBoolean updateMappingPending = new AtomicBoolean(false);
 
-    public SecurityTemplateService(Settings settings, ClusterService clusterService,
-                                   InternalClient client) {
+    public SecurityTemplateService(Settings settings, InternalClient client) {
         super(settings);
         this.client = client;
-        clusterService.add(this);
     }
 
     @Override

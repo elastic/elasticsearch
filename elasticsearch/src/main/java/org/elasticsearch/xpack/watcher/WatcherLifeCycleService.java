@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.watcher.watch.Watch;
 
 import java.util.concurrent.CountDownLatch;
 
-public class WatcherLifeCycleService extends AbstractComponent implements ClusterStateListener {
+public class WatcherLifeCycleService extends AbstractComponent implements ClusterStateApplier {
 
     private final ThreadPool threadPool;
     private final WatcherService watcherService;
@@ -40,7 +40,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
         this.threadPool = threadPool;
         this.watcherService = watcherService;
         this.clusterService = clusterService;
-        clusterService.add(this);
+        clusterService.addStateApplier(this);
         // Close if the indices service is being stopped, so we don't run into search failures (locally) that will
         // happen because we're shutting down and an watch is scheduled.
         clusterService.addLifecycleListener(new LifecycleListener() {
@@ -104,7 +104,7 @@ public class WatcherLifeCycleService extends AbstractComponent implements Cluste
     }
 
     @Override
-    public void clusterChanged(final ClusterChangedEvent event) {
+    public void applyClusterState(final ClusterChangedEvent event) {
         if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we think may not have .watches and
             // a .triggered_watches index, but they may not have been restored from the cluster state on disk

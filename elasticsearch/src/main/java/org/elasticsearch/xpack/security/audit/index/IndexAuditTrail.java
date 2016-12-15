@@ -82,21 +82,21 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.security.Security.setting;
-import static org.elasticsearch.xpack.security.audit.AuditLevel.REALM_AUTHENTICATION_FAILED;
-import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
-import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.ANONYMOUS_ACCESS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.AUTHENTICATION_FAILED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.AUTHENTICATION_SUCCESS;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.CONNECTION_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.CONNECTION_GRANTED;
+import static org.elasticsearch.xpack.security.audit.AuditLevel.REALM_AUTHENTICATION_FAILED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_DENIED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.RUN_AS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.SYSTEM_ACCESS_GRANTED;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.TAMPERED_REQUEST;
-import static org.elasticsearch.xpack.security.audit.AuditLevel.AUTHENTICATION_SUCCESS;
 import static org.elasticsearch.xpack.security.audit.AuditLevel.parse;
+import static org.elasticsearch.xpack.security.audit.AuditUtil.indices;
+import static org.elasticsearch.xpack.security.audit.AuditUtil.restRequestContent;
 import static org.elasticsearch.xpack.security.audit.index.IndexNameResolver.resolve;
 
 /**
@@ -317,7 +317,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
 
     private void innerStart() {
         if (indexToRemoteCluster == false) {
-            this.clusterService.add(this);
+            this.clusterService.addListener(this);
         }
         initializeBulkProcessor();
         queueConsumer.start();

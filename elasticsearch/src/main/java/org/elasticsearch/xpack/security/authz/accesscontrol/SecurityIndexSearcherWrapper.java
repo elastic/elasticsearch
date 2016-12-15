@@ -400,7 +400,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             }
         };
         QueryRewriteContext copy = new QueryRewriteContext(original.getIndexSettings(), original.getMapperService(), scriptService, null,
-                client, original.getIndexReader(), original.getClusterState(), original::nowInMillis);
+                client, original.getIndexReader(), original::nowInMillis);
         queryBuilder.rewrite(copy);
     }
 }

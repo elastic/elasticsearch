@@ -31,6 +31,8 @@ setup:
 "Simple suggestion should work":
   - skip:
       features: 'warnings'
+      version: ' - 5.2.0'
+      reason: 'no deprecation logging prior to 5.2'
 
   - do:
       index:
@@ -68,6 +70,8 @@ setup:
 "Simple suggestion array should work":
   - skip:
       features: 'warnings'
+      version: ' - 5.2.0'
+      reason: 'no deprecation logging prior to 5.2'
 
   - do:
       index:
@@ -112,6 +116,8 @@ setup:
 "Suggestion entry should work":
   - skip:
       features: 'warnings'
+      version: ' - 5.2.0'
+      reason: 'no deprecation logging prior to 5.2'
 
   - do:
       index:
@@ -155,6 +161,8 @@ setup:
 "Suggestion entry array should work":
   - skip:
       features: 'warnings'
+      version: ' - 5.2.0'
+      reason: 'no deprecation logging prior to 5.2'
 
   - do:
       index:
@@ -217,6 +225,8 @@ setup:
 "Multiple Completion fields should work":
   - skip:
       features: 'warnings'
+      version: ' - 5.2.0'
+      reason: 'no deprecation logging prior to 5.2'
 
   - do:
       index:
@@ -262,7 +272,8 @@ setup:
 "Suggestions with source should work":
   - skip:
       features: 'warnings'
-
+      version: ' - 5.2.0'
+      reason: 'no deprecation logging prior to 5.2'
   - do:
       index:
         index: test

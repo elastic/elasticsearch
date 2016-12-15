@@ -27,7 +27,6 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.filter.RegexFilter;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
@@ -74,6 +73,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -130,7 +130,6 @@ import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOError;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.Charset;
@@ -319,11 +318,26 @@ public class InternalEngineTests extends ESTestCase {
 
     }
     protected InternalEngine createEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy, Supplier<IndexWriter> indexWriterSupplier) throws IOException {
+        return createEngine(indexSettings, store, translogPath, mergePolicy, indexWriterSupplier, null);
+    }
+
+    protected InternalEngine createEngine(
+        IndexSettings indexSettings,
+        Store store,
+        Path translogPath,
+        MergePolicy mergePolicy,
+        Supplier<IndexWriter> indexWriterSupplier,
+        Supplier<SequenceNumbersService> sequenceNumbersServiceSupplier) throws IOException {
         EngineConfig config = config(indexSettings, store, translogPath, mergePolicy, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, null);
         InternalEngine internalEngine = new InternalEngine(config) {
             @Override
             IndexWriter createWriter(boolean create) throws IOException {
                 return (indexWriterSupplier != null) ? indexWriterSupplier.get() : super.createWriter(create);
+            }
+
+            @Override
+            public SequenceNumbersService seqNoService() {
+                return (sequenceNumbersServiceSupplier != null) ? sequenceNumbersServiceSupplier.get() : super.seqNoService();
             }
         };
         if (config.getOpenMode() == EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG) {
@@ -2912,6 +2926,108 @@ public class InternalEngineTests extends ESTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(LongPoint.newExactQuery("_seq_no", 2), 1));
         searchResult.close();
+    }
+
+    public void testSequenceNumberAdvancesToMaxSeqNoOnEngineOpen() throws IOException {
+        engine.close();
+        final long maxSeqNo = randomIntBetween(16, 32);
+        final long localCheckpoint =
+            rarely() ? SequenceNumbersService.NO_OPS_PERFORMED : randomIntBetween(0, Math.toIntExact(maxSeqNo));
+        final long globalCheckpoint =
+            localCheckpoint == SequenceNumbersService.NO_OPS_PERFORMED || rarely()
+                ? SequenceNumbersService.UNASSIGNED_SEQ_NO
+                : Math.toIntExact(localCheckpoint);
+        Engine initialEngine = null;
+        try {
+            initialEngine = createEngine(
+                defaultSettings,
+                store,
+                primaryTranslogDir,
+                newMergePolicy(),
+                null,
+                () -> new SequenceNumbersService(shardId, defaultSettings, maxSeqNo, localCheckpoint, globalCheckpoint) {
+                    @Override
+                    public long generateSeqNo() {
+                        if (rarely()) {
+                            // force skipping a sequence number
+                            super.generateSeqNo();
+                        }
+                        return super.generateSeqNo();
+                    }
+                });
+            initialEngine.flush(true, true);
+            final int docs = randomIntBetween(1, 32);
+            for (int i = 0; i < docs; i++) {
+                final String id = Integer.toString(i);
+                final ParsedDocument doc = testParsedDocument(id, id, "test", null, testDocumentWithTextField(), SOURCE, null);
+                initialEngine.index(new Engine.Index(newUid(id), doc));
+            }
+        } finally {
+            IOUtils.close(initialEngine);
+        }
+
+        try (final Engine recoveringEngine =
+                 new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+            // there might be gaps in the translog; the best that we can say is that the local checkpoint is at least as far the max
+            // sequence number
+            // TODO: tighten this assertion after gaps in the translog are addressed
+            assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo(maxSeqNo));
+        }
+    }
+
+    public void testOutOfOrderSequenceNumbersWithVersionConflict() {
+        final List<Engine.Operation> operations = new ArrayList<>();
+        final int numberOfOperations = randomIntBetween(16, 32);
+        final Term uid = newUid("1");
+        final Document document = testDocumentWithTextField();
+        document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
+        final ParsedDocument doc = testParsedDocument("1", "1", "test", null, document, B_1, null);
+        for (int i = 0; i < numberOfOperations; i++) {
+            if (randomBoolean()) {
+                operations.add(indexOperation(uid, doc, i, i));
+            } else {
+                operations.add(deleteOperation("test", "1", uid, i, i));
+            }
+        }
+
+        Randomness.shuffle(operations);
+
+        for (final Engine.Operation operation : operations) {
+            if (operation instanceof Engine.Index) {
+                engine.index((Engine.Index) operation);
+            } else {
+                engine.delete((Engine.Delete) operation);
+            }
+        }
+
+        assertThat(engine.seqNoService().getLocalCheckpoint(), equalTo((long) (numberOfOperations - 1)));
+    }
+
+    private Engine.Index indexOperation(final Term uid, final ParsedDocument doc, final int seqNo, final int version) {
+        return new Engine.Index(
+            uid,
+            doc,
+            seqNo,
+            1,
+            version,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PEER_RECOVERY,
+            System.nanoTime(),
+            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+            false);
+    }
+
+    private Engine.Delete deleteOperation(final String type, final String id, final Term uid, final int seqNo, final int version) {
+        return new Engine.Delete(
+            type,
+            id,
+            uid,
+            seqNo,
+            1,
+            version,
+            VersionType.INTERNAL,
+            Engine.Operation.Origin.PEER_RECOVERY,
+            System.nanoTime());
     }
 
     /**

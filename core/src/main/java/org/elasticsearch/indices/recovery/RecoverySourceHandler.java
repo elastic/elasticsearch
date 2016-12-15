@@ -391,7 +391,7 @@ public class RecoverySourceHandler {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("[{}][{}] finalizing recovery to {}", indexName, shardId, request.targetNode());
         cancellableThreads.execute(() -> {
-            recoveryTarget.finalizeRecovery();
+            recoveryTarget.finalizeRecovery(shard.getGlobalCheckpoint());
             shard.markAllocationIdAsInSync(recoveryTarget.getTargetAllocationId());
         });
 

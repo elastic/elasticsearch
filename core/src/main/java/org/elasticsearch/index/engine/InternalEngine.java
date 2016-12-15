@@ -175,8 +175,18 @@ public class InternalEngine extends Engine {
                         throw new IllegalArgumentException(openMode.toString());
                 }
                 logger.trace("recovered [{}]", seqNoStats);
-                indexWriter = writer;
                 seqNoService = sequenceNumberService(shardId, engineConfig.getIndexSettings(), seqNoStats);
+                // norelease
+                /*
+                 * We have no guarantees that all operations above the local checkpoint are in the Lucene commit. These means that we there
+                 * might be operations greater than the local checkpoint that will not be replayed. Here we force the local checkpoint to
+                 * the maximum sequence number in the commit (at the potential expense of correctness).
+                 */
+                while (seqNoService.getLocalCheckpoint() < seqNoService.getMaxSeqNo()) {
+                    final long next = seqNoService.getLocalCheckpoint() + 1;
+                    seqNoService.markSeqNoAsCompleted(next);
+                }
+                indexWriter = writer;
                 translog = openTranslog(engineConfig, writer, seqNoService::getGlobalCheckpoint);
                 assert translog.getGeneration() != null;
             } catch (IOException | TranslogCorruptedException e) {
@@ -638,16 +648,23 @@ public class InternalEngine extends Engine {
                 }
             }
             final long expectedVersion = index.version();
-            if (checkVersionConflict(index, currentVersion, expectedVersion, deleted)) {
-                // skip index operation because of version conflict on recovery
-                indexResult = new IndexResult(expectedVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO, false);
-            } else {
-                final long seqNo;
-                if (index.origin() == Operation.Origin.PRIMARY) {
+            final boolean conflict = checkVersionConflict(index, currentVersion, expectedVersion, deleted);
+
+            final long seqNo;
+            if (index.origin() == Operation.Origin.PRIMARY) {
+                if (!conflict) {
                     seqNo = seqNoService.generateSeqNo();
                 } else {
-                    seqNo = index.seqNo();
+                    seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
                 }
+            } else {
+                seqNo = index.seqNo();
+            }
+
+            if (conflict) {
+                // skip index operation because of version conflict on recovery
+                indexResult = new IndexResult(expectedVersion, seqNo, false);
+            } else {
                 updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
                 index.parsedDoc().version().setLongValue(updatedVersion);
 
@@ -764,16 +781,24 @@ public class InternalEngine extends Engine {
             }
 
             final long expectedVersion = delete.version();
-            if (checkVersionConflict(delete, currentVersion, expectedVersion, deleted)) {
-                // skip executing delete because of version conflict on recovery
-                deleteResult = new DeleteResult(expectedVersion, SequenceNumbersService.UNASSIGNED_SEQ_NO, true);
-            } else {
-                final long seqNo;
-                if (delete.origin() == Operation.Origin.PRIMARY) {
+
+            final boolean conflict = checkVersionConflict(delete, currentVersion, expectedVersion, deleted);
+
+            final long seqNo;
+            if (delete.origin() == Operation.Origin.PRIMARY) {
+                if (!conflict) {
                     seqNo = seqNoService.generateSeqNo();
                 } else {
-                    seqNo = delete.seqNo();
+                    seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
                 }
+            } else {
+                seqNo = delete.seqNo();
+            }
+
+            if (checkVersionConflict(delete, currentVersion, expectedVersion, deleted)) {
+                // skip executing delete because of version conflict on recovery
+                deleteResult = new DeleteResult(expectedVersion, seqNo, true);
+            } else {
                 updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
                 found = deleteIfFound(delete.uid(), currentVersion, deleted, versionValue);
                 deleteResult = new DeleteResult(updatedVersion, seqNo, found);

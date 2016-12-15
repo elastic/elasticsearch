@@ -152,9 +152,6 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
         if (this.globalCheckpoint <= globalCheckpoint) {
             this.globalCheckpoint = globalCheckpoint;
             logger.trace("global checkpoint updated from primary to [{}]", globalCheckpoint);
-        } else {
-            throw new IllegalArgumentException("global checkpoint from primary should never decrease. current [" +
-                this.globalCheckpoint + "], got [" + globalCheckpoint + "]");
         }
     }
 

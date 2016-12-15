@@ -150,6 +150,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         final long version = indexResult.getVersion();
                         indexRequest.version(version);
                         indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
+                        indexRequest.seqNo(indexResult.getSeqNo());
                         assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
                         response = new IndexResponse(primary.shardId(), indexRequest.type(), indexRequest.id(), indexResult.getSeqNo(),
                             indexResult.getVersion(), indexResult.isCreated());
@@ -173,6 +174,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // update the request with the version so it will go to the replicas
                         deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
                         deleteRequest.version(deleteResult.getVersion());
+                        deleteRequest.seqNo(deleteResult.getSeqNo());
                         assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
                         response = new DeleteResponse(request.shardId(), deleteRequest.type(), deleteRequest.id(), deleteResult.getSeqNo(),
                             deleteResult.getVersion(), deleteResult.isFound());
@@ -282,6 +284,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         final long version = updateOperationResult.getVersion();
                         indexRequest.version(version);
                         indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
+                        indexRequest.seqNo(updateOperationResult.getSeqNo());
                         assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
                     }
                     break;
@@ -292,6 +295,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // update the request with the version so it will go to the replicas
                         deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
                         deleteRequest.version(updateOperationResult.getVersion());
+                        deleteRequest.seqNo(updateOperationResult.getSeqNo());
                         assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
                     }
                     break;

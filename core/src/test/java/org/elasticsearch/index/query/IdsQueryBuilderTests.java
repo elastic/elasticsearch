@@ -165,7 +165,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         assertEquals(testQuery, parsed);
 
         parseQuery(contentString);
-        assertWarningHeaders("Deprecated field [_type] used, expected [type] instead");
+        assertWarnings("Deprecated field [_type] used, expected [type] instead");
 
         //array of types can also be called types rather than type
         final String contentString2 = "{\n" +
@@ -178,6 +178,6 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
         assertEquals(testQuery, parsed);
 
         parseQuery(contentString2);
-        assertWarningHeaders("Deprecated field [types] used, expected [type] instead");
+        assertWarnings("Deprecated field [types] used, expected [type] instead");
     }
 }

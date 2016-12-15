@@ -318,7 +318,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         assertSerialization(qb);
 
-        assertWarningHeaders("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
+        assertWarnings("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
                 "Deprecated field [slop] used, replaced by [match_phrase query]");
     }
 
@@ -347,7 +347,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         assertEquals(json, expectedQB, qb);
         assertSerialization(qb);
-        assertWarningHeaders("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
+        assertWarnings("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]",
                 "Deprecated field [slop] used, replaced by [match_phrase query]");
     }
 

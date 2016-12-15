@@ -20,13 +20,15 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
 
 public class ParseFieldTests extends ESTestCase {
-    public void testParse() {
+    public void testParse() throws IOException {
         String name = "foo_bar";
         ParseField field = new ParseField(name);
         String[] deprecated = new String[]{"barFoo", "bar_foo", "Foobar"};
@@ -42,33 +44,21 @@ public class ParseFieldTests extends ESTestCase {
         assertThat(withDeprecations.match("foo bar"), is(false));
         for (String deprecatedName : deprecated) {
             assertThat(withDeprecations.match(deprecatedName), is(true));
+            assertWarnings("Deprecated field [" + deprecatedName + "] used, expected [foo_bar] instead");
         }
     }
 
-    public void testAllDeprecated() {
+    public void testAllDeprecated() throws IOException {
         String name = "like_text";
-
-        boolean withDeprecatedNames = randomBoolean();
         String[] deprecated = new String[]{"text", "same_as_text"};
-        String[] allValues;
-        if (withDeprecatedNames) {
-            String[] newArray = new String[1 + deprecated.length];
-            newArray[0] = name;
-            System.arraycopy(deprecated, 0, newArray, 1, deprecated.length);
-            allValues = newArray;
-        } else {
-            allValues = new String[] {name};
-        }
-
-        ParseField field;
-        if (withDeprecatedNames) {
-            field = new ParseField(name).withDeprecation(deprecated).withAllDeprecated("like");
-        } else {
-            field = new ParseField(name).withAllDeprecated("like");
-        }
-
-        assertThat(field.match(randomFrom(allValues)), is(true));
-        assertThat(field.match("not a field name"), is(false));
+        ParseField field = new ParseField(name).withDeprecation(deprecated).withAllDeprecated("like");
+        assertFalse(field.match("not a field name"));
+        assertTrue(field.match("text"));
+        assertWarnings("Deprecated field [text] used, replaced by [like]");
+        assertTrue(field.match("same_as_text"));
+        assertWarnings("Deprecated field [same_as_text] used, replaced by [like]");
+        assertTrue(field.match("like_text"));
+        assertWarnings("Deprecated field [like_text] used, replaced by [like]");
     }
 
     public void testGetAllNamesIncludedDeprecated() {

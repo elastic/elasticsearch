@@ -422,7 +422,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "}";
 
         parseQuery(json);
-        assertWarningHeaders("Deprecated field [coerce] used, replaced by [validation_method]");
+        assertWarnings("Deprecated field [coerce] used, replaced by [validation_method]");
     }
 
     public void testFromJsonIgnoreMalformedIsDeprecated() throws IOException {
@@ -440,7 +440,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "  }\n" +
                 "}";
         parseQuery(json);
-        assertWarningHeaders("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
+        assertWarnings("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     @Override

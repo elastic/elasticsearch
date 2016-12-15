@@ -55,6 +55,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -75,6 +77,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
@@ -765,5 +768,21 @@ public class ElasticsearchAssertions {
     public static void assertDirectoryExists(Path dir) {
         assertFileExists(dir);
         assertThat("file [" + dir + "] should be a directory.", Files.isDirectory(dir), is(true));
+    }
+
+    /**
+     * Asserts that the provided {@link BytesReference}s hold the same content. The comparison is done between the map
+     * representation of the provided objects.
+     */
+    public static void assertEquivalent(BytesReference expected, BytesReference actual, XContentType xContentType) throws IOException {
+        //we tried comparing byte per byte, but that didn't fly for a couple of reasons:
+        //1) whenever anything goes through a map, ordering is not preserved, which is perfectly ok
+        //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
+        try (XContentParser actualParser = xContentType.xContent().createParser(actual);
+             XContentParser expectedParser = xContentType.xContent().createParser(expected)) {
+            Map<String, Object> actualMap = actualParser.map();
+            Map<String, Object> expectedMap = expectedParser.map();
+            assertEquals(expectedMap, actualMap);
+        }
     }
 }

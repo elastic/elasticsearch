@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.get;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -32,11 +33,11 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.index.get.GetFieldTests.assertSameOutput;
 import static org.elasticsearch.index.get.GetResultTests.copyGetResult;
 import static org.elasticsearch.index.get.GetResultTests.mutateGetResult;
 import static org.elasticsearch.index.get.GetResultTests.randomGetResult;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertEquivalent;
 
 public class GetResponseTests extends ESTestCase {
 
@@ -55,7 +56,7 @@ public class GetResponseTests extends ESTestCase {
         assertEquals(expectedGetResponse, parsedGetResponse);
         //print the parsed object out and test that the output is the same as the original output
         BytesReference finalBytes = toXContent(parsedGetResponse, xContentType, false);
-        assertSameOutput(originalBytes, finalBytes, xContentType);
+        assertEquivalent(originalBytes, finalBytes, xContentType);
     }
 
     public void testToXContent() throws IOException {
@@ -63,13 +64,13 @@ public class GetResponseTests extends ESTestCase {
             GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " +
                     "\"value1\", \"field2\":\"value2\"}"), Collections.singletonMap("field1", new GetField("field1",
                     Collections.singletonList("value1")))));
-            String output = toXContent(getResponse, XContentType.JSON, false).utf8ToString();
+            String output = Strings.toString(getResponse, false);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"found\":true,\"_source\":{ \"field1\" " +
                     ": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", output);
         }
         {
             GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 1, false, null, null));
-            String output = toXContent(getResponse, XContentType.JSON, false).utf8ToString();
+            String output = Strings.toString(getResponse, false);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
     }

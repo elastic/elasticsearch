@@ -22,25 +22,24 @@ package org.elasticsearch.index.get;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjectPicks;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertEquivalent;
 
 public class GetFieldTests extends ESTestCase {
 
@@ -73,7 +72,7 @@ public class GetFieldTests extends ESTestCase {
         }
         assertEquals(expectedGetField, parsedGetField);
         BytesReference finalBytes = toXContent(parsedGetField, xContentType, true);
-        assertSameOutput(originalBytes, finalBytes, xContentType);
+        assertEquivalent(originalBytes, finalBytes, xContentType);
     }
 
     private static GetField copyGetField(GetField getField) {
@@ -94,99 +93,9 @@ public class GetFieldTests extends ESTestCase {
             return Tuple.tuple(getField, getField);
         }
         String fieldName = randomAsciiOfLengthBetween(3, 10);
-        Tuple<List<Object>, List<Object>> tuple = randomStoredFieldValues(xContentType);
+        Tuple<List<Object>, List<Object>> tuple = RandomObjectPicks.randomStoredFieldValues(random(), xContentType);
         GetField input = new GetField(fieldName, tuple.v1());
         GetField expected = new GetField(fieldName, tuple.v2());
         return Tuple.tuple(input, expected);
-    }
-
-    //TODO move this to some utility class
-    /**
-     * Asserts that the provided {@link BytesReference}s hold the same content. The comparison is done between the map
-     * representation of the provided objects.
-     */
-    public static void assertSameOutput(BytesReference expected, BytesReference actual, XContentType xContentType) throws IOException {
-        //we tried comparing byte per byte, but that didn't fly for a couple of reasons:
-        //1) whenever anything goes through a map, ordering is not preserved, which is perfectly ok
-        //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
-        try (XContentParser parser = xContentType.xContent().createParser(actual)) {
-            Map<String, Object> finalMap = parser.map();
-            try (XContentParser parser2 = xContentType.xContent().createParser(expected)) {
-                Map<String, Object> originalMap = parser2.map();
-                assertEquals(originalMap, finalMap);
-            }
-        }
-    }
-
-    //TODO move this to some utility class? It should be useful in other tests too, whenever we parse stored fields
-    /**
-     * Returns a tuple containing random stored field values and their corresponding expected values once printed out
-     * via {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via {@link XContentParser#objectText()}.
-     * Generates values based on what can get printed out. Stored fields values are retrieved from lucene and converted via
-     * {@link org.elasticsearch.index.mapper.MappedFieldType#valueForDisplay(Object)} to either strings, numbers or booleans.
-     *
-     * @param xContentType the content type, used to determine what the expected values are for float numbers.
-     */
-    public static Tuple<List<Object>, List<Object>> randomStoredFieldValues(XContentType xContentType) {
-        int numValues = randomIntBetween(1, 5);
-        List<Object> originalValues = new ArrayList<>();
-        List<Object> expectedParsedValues = new ArrayList<>();
-        int dataType = randomIntBetween(0, 7);
-        for (int i = 0; i < numValues; i++) {
-            switch(dataType) {
-                case 0:
-                    long randomLong = randomLong();
-                    originalValues.add(randomLong);
-                    expectedParsedValues.add(randomLong);
-                    break;
-                case 1:
-                    int randomInt = randomInt();
-                    originalValues.add(randomInt);
-                    expectedParsedValues.add(randomInt);
-                    break;
-                case 2:
-                    Short randomShort = randomShort();
-                    originalValues.add(randomShort);
-                    expectedParsedValues.add(randomShort.intValue());
-                    break;
-                case 3:
-                    Byte randomByte = randomByte();
-                    originalValues.add(randomByte);
-                    expectedParsedValues.add(randomByte.intValue());
-                    break;
-                case 4:
-                    double randomDouble = randomDouble();
-                    originalValues.add(randomDouble);
-                    expectedParsedValues.add(randomDouble);
-                    break;
-                case 5:
-                    Float randomFloat = randomFloat();
-                    originalValues.add(randomFloat);
-                    if (xContentType == XContentType.CBOR) {
-                        //with CBOR we get back a float
-                        expectedParsedValues.add(randomFloat);
-                    } else if (xContentType == XContentType.SMILE) {
-                        //with SMILE we get back a double
-                        expectedParsedValues.add(randomFloat.doubleValue());
-                    } else {
-                        //with JSON AND YAML we get back a double, but with float precision.
-                        expectedParsedValues.add(Double.parseDouble(randomFloat.toString()));
-                    }
-                    break;
-                case 6:
-                    boolean randomBoolean = randomBoolean();
-                    originalValues.add(randomBoolean);
-                    expectedParsedValues.add(randomBoolean);
-                    break;
-                case 7:
-                    String randomString = randomBoolean() ? randomAsciiOfLengthBetween(3, 10 ) : randomUnicodeOfLengthBetween(3, 10);
-                    originalValues.add(randomString);
-                    expectedParsedValues.add(randomString);
-                    break;
-                default:
-                    throw new UnsupportedOperationException();
-            }
-        }
-        return Tuple.tuple(originalValues, expectedParsedValues);
     }
 }

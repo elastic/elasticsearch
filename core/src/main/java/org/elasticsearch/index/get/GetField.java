@@ -110,9 +110,8 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
     public static GetField fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String fieldName = parser.currentName();
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
         List<Object> values = new ArrayList<>();
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
         while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
             values.add(parser.objectText());
         }

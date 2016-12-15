@@ -21,13 +21,11 @@ package org.elasticsearch.index.get;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RandomObjectPicks;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -35,9 +33,9 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
-import static org.elasticsearch.index.get.GetFieldTests.assertSameOutput;
 import static org.elasticsearch.index.get.GetFieldTests.randomGetField;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertEquivalent;
 
 public class GetResultTests extends ESTestCase {
 
@@ -56,7 +54,7 @@ public class GetResultTests extends ESTestCase {
         assertEquals(expectedGetResult, parsedGetResult);
         //print the parsed object out and test that the output is the same as the original output
         BytesReference finalBytes = toXContent(parsedGetResult, xContentType, false);
-        assertSameOutput(originalBytes, finalBytes, xContentType);
+        assertEquivalent(originalBytes, finalBytes, xContentType);
     }
 
     public void testEqualsAndHashcode() {
@@ -81,7 +79,7 @@ public class GetResultTests extends ESTestCase {
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
                 getResult.isExists() == false, getResult.internalSourceRef(), getResult.getFields()));
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
-                getResult.isExists(), randomSource(), getResult.getFields()));
+                getResult.isExists(), RandomObjectPicks.randomSource(random()), getResult.getFields()));
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
                 getResult.isExists(), getResult.internalSourceRef(), randomGetFields(XContentType.JSON).v1()));
         return randomFrom(mutations).get();
@@ -100,7 +98,7 @@ public class GetResultTests extends ESTestCase {
             version = randomPositiveLong();
             exists = true;
             if (frequently()) {
-                source = randomSource();
+                source = RandomObjectPicks.randomSource(random());
             }
             if (randomBoolean()) {
                 Tuple<Map<String, GetField>, Map<String, GetField>> tuple = randomGetFields(xContentType);
@@ -128,61 +126,5 @@ public class GetResultTests extends ESTestCase {
             expectedFields.put(expectedGetField.getName(), expectedGetField);
         }
         return Tuple.tuple(fields, expectedFields);
-    }
-
-    //TODO move this to some utility class, this should be useful whenever we have to test parsing _source
-    public static BytesReference randomSource() {
-        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            builder.startObject();
-            addFields(builder, 0);
-            builder.endObject();
-            return builder.bytes();
-        } catch(IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static void addFields(XContentBuilder builder, int currentDepth) throws IOException {
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            if (frequently()) {
-                builder.field(randomAsciiOfLengthBetween(3, 10), randomFieldValue());
-            }
-            if (randomBoolean() && currentDepth < 5) {
-                builder.startObject(randomAsciiOfLengthBetween(3, 10));
-                addFields(builder, currentDepth + 1);
-                builder.endObject();
-            }
-            if (randomBoolean() && currentDepth < 5) {
-                builder.startArray(randomAsciiOfLengthBetween(3, 10));
-                int numElements = randomIntBetween(1, 5);
-                boolean object = randomBoolean();
-                for (int j = 0; j < numElements; j++) {
-                    if (object) {
-                        builder.startObject();
-                        addFields(builder, currentDepth + 1);
-                        builder.endObject();
-                    } else {
-                        builder.value(randomFieldValue());
-                    }
-                }
-                builder.endArray();
-            }
-        }
-    }
-
-    private static Object randomFieldValue() {
-        switch(randomIntBetween(0, 3)) {
-            case 0:
-                return randomAsciiOfLengthBetween(3, 10);
-            case 1:
-                return randomUnicodeOfLengthBetween(3, 10);
-            case 2:
-                return randomLong();
-            case 3:
-                return randomDouble();
-            default:
-                throw new UnsupportedOperationException();
-        }
     }
 }

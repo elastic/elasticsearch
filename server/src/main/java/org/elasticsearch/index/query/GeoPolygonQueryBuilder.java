@@ -50,62 +50,84 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
     private static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
     private static final ParseField POINTS_FIELD = new ParseField("points");
+    private static final ParseField MULTIPOLYGON_FIELD = new ParseField("multipolygon");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
 
     private final String fieldName;
 
-    private final List<GeoPoint> shell;
+    private final List<List<List<GeoPoint>>> polygons;
 
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
 
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
-    public GeoPolygonQueryBuilder(String fieldName, List<GeoPoint> points) {
+    public GeoPolygonQueryBuilder(String fieldName, List multiPoly) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("fieldName must not be null");
         }
-        if (points == null || points.isEmpty()) {
+        if (multiPoly == null || multiPoly.size() == 0) {
             throw new IllegalArgumentException("polygon must not be null or empty");
-        } else {
-            GeoPoint start = points.get(0);
-            if (start.equals(points.get(points.size() - 1))) {
-                if (points.size() < 4) {
-                    throw new IllegalArgumentException("too few points defined for geo_polygon query");
-                }
-            } else {
-                if (points.size() < 3) {
-                    throw new IllegalArgumentException("too few points defined for geo_polygon query");
-                }
-            }
         }
         this.fieldName = fieldName;
-        this.shell = new ArrayList<>(points);
-        if (!shell.get(shell.size() - 1).equals(shell.get(0))) {
-            shell.add(shell.get(0));
+        if (multiPoly.get(0) instanceof List) {
+            // handle multipolygon queries
+            this.polygons = new ArrayList<>(multiPoly);
+            // seal the boundaries
+            for (int p=0; p<polygons.size(); ++p) {
+                List polygon = polygons.get(p);
+                for (int b=0; b<polygon.size(); ++b) {
+                    closeBoundary((List<GeoPoint>)polygon.get(b));
+                }
+            }
+        } else if (multiPoly.get(0) instanceof GeoPoint) {
+            // handles { points : [ ... for backward compatibility
+            List<GeoPoint> shell = new ArrayList<>(multiPoly);
+            closeBoundary(shell);
+            List<List<GeoPoint>> poly = new ArrayList<>();
+            poly.add(shell);
+            this.polygons = new ArrayList<>();
+            this.polygons.add(poly);
+        } else {
+            throw new IllegalArgumentException("invalid multipolygon found");
         }
     }
 
-    /**
-     * Read from a stream.
-     */
+    /** Read from a stream. */
     public GeoPolygonQueryBuilder(StreamInput in) throws IOException {
         super(in);
         fieldName = in.readString();
-        int size = in.readVInt();
-        shell = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            shell.add(in.readGeoPoint());
+        int numPolys = in.readVInt();
+        this.polygons = new ArrayList<>(numPolys);
+        for (int p=0; p<numPolys; ++p) {
+            int numBoundaries = in.readVInt();
+            List<List<GeoPoint>> boundaries = new ArrayList<>(numBoundaries);
+            for (int b=0; b<numBoundaries; ++b) {
+                int numPoints = in.readVInt();
+                List<GeoPoint> points = new ArrayList<>(numPoints);
+                for (int i=0; i<numPoints; ++i) {
+                    points.add(in.readGeoPoint());
+                }
+                boundaries.add(points);
+            }
+            this.polygons.add(boundaries);
         }
         validationMethod = GeoValidationMethod.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
     }
 
+    /** Write to a stream. */
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeVInt(shell.size());
-        for (GeoPoint point : shell) {
-            out.writeGeoPoint(point);
+        out.writeVInt(polygons.size());
+        for (List<List<GeoPoint>> polygon : polygons) {
+            out.writeVInt(polygon.size());
+            for (List<GeoPoint> boundary : polygon) {
+                out.writeVInt(boundary.size());
+                for (GeoPoint point : boundary) {
+                    out.writeGeoPoint(point);
+                }
+            }
         }
         validationMethod.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
@@ -115,8 +137,8 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         return fieldName;
     }
 
-    public List<GeoPoint> points() {
-        return shell;
+    public List<List<List<GeoPoint>>> points() {
+        return polygons;
     }
 
     /** Sets the validation method to use for geo coordinates. */
@@ -163,43 +185,39 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
-        List<GeoPoint> shell = new ArrayList<>(this.shell.size());
-        for (GeoPoint geoPoint : this.shell) {
-            shell.add(new GeoPoint(geoPoint));
-        }
-        final int shellSize = shell.size();
-
-        // validation was not available prior to 2.x, so to support bwc
-        // percolation queries we only ignore_malformed on 2.x created indexes
-        if (!GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
-            for (GeoPoint point : shell) {
-                if (!GeoUtils.isValidLatitude(point.lat())) {
-                    throw new QueryShardException(context, "illegal latitude value [{}] for [{}]", point.lat(),
-                            GeoPolygonQueryBuilder.NAME);
+        List<List<List<GeoPoint>>> polys = new ArrayList<>(this.polygons);
+        Polygon[] multiPoly = new Polygon[polys.size()];
+        int p = 0;
+        for (List<List<GeoPoint>> poly : polys) {
+            assert poly.size() > 0;
+            Polygon[] holes = new Polygon[poly.size() - 1];
+            double[] shellLat = null;
+            double[] shellLon = null;
+            for (int b=0; b<poly.size(); ++b) {
+                List<GeoPoint> boundary = poly.get(b);
+                int l = 0;
+                double[] lat = new double[boundary.size()];
+                double[] lon = new double[boundary.size()];
+                for (GeoPoint point : boundary) {
+                    // if validation method is set to coerce or ignoreMalformed; normalize the point
+                    if (GeoValidationMethod.isCoerce(validationMethod)
+                        || GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
+                        GeoUtils.normalizePoint(point, true, true);
+                    }
+                    lat[l] = point.lat();
+                    lon[l++] = point.lon();
                 }
-                if (!GeoUtils.isValidLongitude(point.lon())) {
-                    throw new QueryShardException(context, "illegal longitude value [{}] for [{}]", point.lon(),
-                            GeoPolygonQueryBuilder.NAME);
+                if (b == 0) {
+                    shellLat = lat;
+                    shellLon = lon;
+                } else {
+                    holes[b-1] = new Polygon(lat, lon);
                 }
             }
+            multiPoly[p++] = new Polygon(shellLat, shellLon, holes);
         }
 
-        if (GeoValidationMethod.isCoerce(validationMethod)) {
-            for (GeoPoint point : shell) {
-                GeoUtils.normalizePoint(point, true, true);
-            }
-        }
-
-        double[] lats = new double[shellSize];
-        double[] lons = new double[shellSize];
-        GeoPoint p;
-        for (int i=0; i<shellSize; ++i) {
-            p = shell.get(i);
-            lats[i] = p.lat();
-            lons[i] = p.lon();
-        }
-
-        return LatLonPoint.newPolygonQuery(fieldType.name(), new Polygon(lats, lons));
+        return LatLonPoint.newPolygonQuery(fieldType.name(), multiPoly);
     }
 
     @Override
@@ -207,9 +225,19 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         builder.startObject(NAME);
 
         builder.startObject(fieldName);
-        builder.startArray(POINTS_FIELD.getPreferredName());
-        for (GeoPoint point : shell) {
-            builder.startArray().value(point.lon()).value(point.lat()).endArray();
+        builder.startArray(MULTIPOLYGON_FIELD.getPreferredName());
+        for (int p=0; p<polygons.size(); ++p) {
+            List<List<GeoPoint>> polygon = polygons.get(p);
+            builder.startArray();
+            for (int b=0; b<polygon.size(); ++b) {
+                List<GeoPoint> points = polygon.get(b);
+                builder.startArray();
+                for (GeoPoint point : points) {
+                    builder.startArray().value(point.lon()).value(point.lat()).endArray();
+                }
+                builder.endArray();
+            }
+            builder.endArray();
         }
         builder.endArray();
         builder.endObject();
@@ -221,10 +249,56 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         builder.endObject();
     }
 
-    public static GeoPolygonQueryBuilder fromXContent(XContentParser parser) throws IOException {
+    protected static List<GeoPoint> parseBoundary(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        List<GeoPoint> boundary = new ArrayList<>();
+        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+            if (token == Token.START_ARRAY) {
+                boundary.add(GeoUtils.parseGeoPoint(parser, new GeoPoint()));
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "[geo_polygon] query does not support token type [" + token.name() + "]");
+            }
+        }
+
+        return boundary;
+    }
+
+    protected static List<List<GeoPoint>> parsePolygon(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        List<List<GeoPoint>> boundaries = new ArrayList<>();
+        // loop through boundaries
+        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+            if (token == Token.START_ARRAY) {
+                boundaries.add(parseBoundary(parser));
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "[geo_polygon] query does not support token type [" + token.name() + "]");
+            }
+        }
+        return boundaries;
+    }
+
+    protected static List<List<List<GeoPoint>>> parseMultiPolygon(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        List<List<List<GeoPoint>>> polygons = new ArrayList<>();
+        // loop through all polygons
+        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+            if (token == Token.START_ARRAY) {
+               polygons.add(parsePolygon(parser));
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                    "[geo_polygon] query does not support token type [" + token.name() + "]");
+            }
+        }
+        return polygons;
+    }
+
+    public static GeoPolygonQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
         String fieldName = null;
 
-        List<GeoPoint> shell = null;
+        List shell = null;
 
         Float boost = null;
         GeoValidationMethod validationMethod = null;
@@ -248,6 +322,10 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
                             while ((token = parser.nextToken()) != Token.END_ARRAY) {
                                 shell.add(GeoUtils.parseGeoPoint(parser));
                             }
+                        } else if (parseContext.getParseFieldMatcher().match(currentFieldName, MULTIPOLYGON_FIELD)) {
+                            // parse a multipolygon as defined in the GeoJSON spec
+                            //   Note: shape validation is not performed, possible todo but perhaps overkill
+                            shell = parseMultiPolygon(parser);
                         } else {
                             throw new ParsingException(parser.getTokenLocation(),
                                     "[geo_polygon] query does not support [" + currentFieldName + "]");
@@ -294,17 +372,26 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
     protected boolean doEquals(GeoPolygonQueryBuilder other) {
         return Objects.equals(validationMethod, other.validationMethod)
                 && Objects.equals(fieldName, other.fieldName)
-                && Objects.equals(shell, other.shell)
+                && Objects.equals(polygons, other.polygons)
                 && Objects.equals(ignoreUnmapped, other.ignoreUnmapped);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(validationMethod, fieldName, shell, ignoreUnmapped);
+        return Objects.hash(validationMethod, fieldName, polygons, ignoreUnmapped);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    private void closeBoundary(List<GeoPoint> boundary) {
+        if (!boundary.get(boundary.size() - 1).equals(boundary.get(0))) {
+            boundary.add(boundary.get(0));
+        }
+        if (boundary.size() < 4) {
+            throw new IllegalArgumentException("too few points defined for geo_polygon query");
+        }
     }
 }

@@ -195,6 +195,22 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         assertGeoPolygonQuery(query);
     }
 
+    public void testParsingAndToQuery5() throws IOException {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        String query = "{\n" +
+            "    \"geo_polygon\":{\n" +
+            "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
+            "            \"multipolygon\":[ [ [\n" +
+            "                [-70, 40],\n" +
+            "                [-80, 30],\n" +
+            "                [-90, 20]\n" +
+            "            ] ] ]\n" +
+            "        }\n" +
+            "    }\n" +
+            "}\n";
+        assertGeoPolygonQuery(query);
+    }
+
     private void assertGeoPolygonQuery(String query) throws IOException {
         QueryShardContext context = createShardContext();
         parseQuery(query).toQuery(context);
@@ -214,9 +230,20 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
+        String expected =
+            "{\n" +
+                "  \"geo_polygon\" : {\n" +
+                "    \"person.location\" : {\n" +
+                "      \"multipolygon\" : [ [ [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ] ] ]\n" +
+                "    },\n" +
+                "    \"validation_method\" : \"STRICT\",\n" +
+                "    \"ignore_unmapped\" : false,\n" +
+                "    \"boost\" : 1.0\n" +
+                "  }\n" +
+                "}";
         GeoPolygonQueryBuilder parsed = (GeoPolygonQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, parsed);
-        assertEquals(json, 4, parsed.points().size());
+        checkGeneratedJson(expected, parsed);
+        assertEquals(json, 4, parsed.points().get(0).get(0).size());
     }
 
     public void testIgnoreUnmapped() throws IOException {

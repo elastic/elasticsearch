@@ -498,22 +498,7 @@ public class GeoUtils {
             }
 
         } else if(parser.currentToken() == Token.START_ARRAY) {
-            int element = 0;
-            while(parser.nextToken() != Token.END_ARRAY) {
-                if(parser.currentToken() == Token.VALUE_NUMBER) {
-                    element++;
-                    if(element == 1) {
-                        lon = parser.doubleValue();
-                    } else if(element == 2) {
-                        lat = parser.doubleValue();
-                    } else {
-                        GeoPoint.assertZValue(ignoreZValue, parser.doubleValue());
-                    }
-                } else {
-                    throw new ElasticsearchParseException("numeric value expected");
-                }
-            }
-            return point.reset(lat, lon);
+            return parseNumericArray(parser, point);
         } else if(parser.currentToken() == Token.VALUE_STRING) {
             String val = parser.text();
             if (val.contains(",")) {
@@ -543,6 +528,38 @@ public class GeoUtils {
                     throw new IllegalArgumentException("Unsupported effective point " + effectivePoint);
             }
         }
+    }
+
+    public static GeoPoint parseNumericArray(XContentParser parser, GeoPoint point) throws IOException {
+        double lat = Double.NaN;
+        double lon = Double.NaN;
+        int element = 0;
+        while(parser.nextToken() != Token.END_ARRAY) {
+            if(parser.currentToken() == Token.VALUE_NUMBER) {
+                element++;
+                if(element == 1) {
+                    lon = parser.doubleValue();
+                } else if(element == 2) {
+                    lat = parser.doubleValue();
+                } else {
+                    throw new ElasticsearchParseException("only two values allowed");
+                }
+            } else {
+                throw new ElasticsearchParseException("numeric value expected");
+            }
+        }
+        return point.reset(lat, lon);
+    }
+
+    /** parse a {@link GeoPoint} from a String */
+    public static GeoPoint parseGeoPoint(String data, GeoPoint point) {
+        int comma = data.indexOf(',');
+        if (comma > 0) {
+            double lat = Double.parseDouble(data.substring(0, comma).trim());
+            double lon = Double.parseDouble(data.substring(comma + 1).trim());
+            return point.reset(lat, lon);
+        }
+        return point.resetFromGeoHash(data);
     }
 
     /**

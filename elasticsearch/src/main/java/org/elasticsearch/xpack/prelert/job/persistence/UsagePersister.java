@@ -48,7 +48,7 @@ public class UsagePersister extends AbstractComponent {
 
         // update global count
         updateDocument(jobId, PRELERT_USAGE_INDEX, docId, bytesRead, fieldsRead, recordsRead);
-        updateDocument(jobId, JobResultsPersister.getJobIndexName(jobId), docId, bytesRead,
+        updateDocument(jobId, AnomalyDetectorsIndex.getJobIndexName(jobId), docId, bytesRead,
                 fieldsRead, recordsRead);
     }
 

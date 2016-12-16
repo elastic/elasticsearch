@@ -159,7 +159,7 @@ public class JobProviderTests extends ESTestCase {
     public void testCreateJobRelatedIndicies() {
         MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
         ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
-        clientBuilder.createIndexRequest(JobResultsPersister.getJobIndexName("foo"), captor);
+        clientBuilder.createIndexRequest(AnomalyDetectorsIndex.getJobIndexName("foo"), captor);
 
         Job.Builder job = buildJobBuilder("foo");
         JobProvider provider = createProvider(clientBuilder.build());

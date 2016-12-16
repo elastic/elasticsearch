@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.prelert.job.DataCounts;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister.getJobIndexName;
 
 /**
  * Update a job's dataCounts
@@ -49,7 +48,8 @@ public class JobDataCountsPersister extends AbstractComponent {
     public void persistDataCounts(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
         try {
             XContentBuilder content = serialiseCounts(counts);
-            client.prepareIndex(getJobIndexName(jobId), DataCounts.TYPE.getPreferredName(), jobId + DataCounts.DOCUMENT_SUFFIX)
+            client.prepareIndex(AnomalyDetectorsIndex.getJobIndexName(jobId), DataCounts.TYPE.getPreferredName(),
+                    jobId + DataCounts.DOCUMENT_SUFFIX)
             .setSource(content).execute(new ActionListener<IndexResponse>() {
                 @Override
                 public void onResponse(IndexResponse indexResponse) {

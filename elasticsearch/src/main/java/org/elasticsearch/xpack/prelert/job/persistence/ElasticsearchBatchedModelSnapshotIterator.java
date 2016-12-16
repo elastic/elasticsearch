@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 
 class ElasticsearchBatchedModelSnapshotIterator extends ElasticsearchBatchedDocumentsIterator<ModelSnapshot> {
     public ElasticsearchBatchedModelSnapshotIterator(Client client, String jobId, ParseFieldMatcher parserFieldMatcher) {
-        super(client, JobResultsPersister.getJobIndexName(jobId), parserFieldMatcher);
+        super(client, AnomalyDetectorsIndex.getJobIndexName(jobId), parserFieldMatcher);
     }
 
     @Override

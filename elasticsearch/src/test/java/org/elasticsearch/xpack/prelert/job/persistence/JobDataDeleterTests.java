@@ -35,7 +35,7 @@ public class JobDataDeleterTests extends ESTestCase {
         BulkResponse bulkResponse = Mockito.mock(BulkResponse.class);
 
         Client client = new MockClientBuilder("myCluster")
-                                .prepareSearchExecuteListener(JobResultsPersister.getJobIndexName("foo"), response)
+                                .prepareSearchExecuteListener(AnomalyDetectorsIndex.getJobIndexName("foo"), response)
                                 .prepareSearchScrollExecuteListener(response)
                                 .prepareBulk(bulkResponse).build();
 

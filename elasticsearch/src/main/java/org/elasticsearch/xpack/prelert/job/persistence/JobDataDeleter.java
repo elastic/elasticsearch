@@ -67,7 +67,7 @@ public class JobDataDeleter {
      * @param listener Response listener
      */
     public void deleteResultsFromTime(long cutoffEpochMs, ActionListener<Boolean> listener) {
-        String index = JobResultsPersister.getJobIndexName(jobId);
+        String index = AnomalyDetectorsIndex.getJobIndexName(jobId);
 
         RangeQueryBuilder timeRange = QueryBuilders.rangeQuery(Bucket.TIMESTAMP.getPreferredName());
         timeRange.gte(cutoffEpochMs);
@@ -108,7 +108,7 @@ public class JobDataDeleter {
     public void deleteModelSnapshot(ModelSnapshot modelSnapshot) {
         String snapshotId = modelSnapshot.getSnapshotId();
         int docCount = modelSnapshot.getSnapshotDocCount();
-        String indexName = JobResultsPersister.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
         // Deduce the document IDs of the state documents from the information
         // in the snapshot document - we cannot query the state itself as it's
         // too big and has no mappings
@@ -126,7 +126,7 @@ public class JobDataDeleter {
      * Delete all results marked as interim
      */
     public void deleteInterimResults() {
-        String index = JobResultsPersister.getJobIndexName(jobId);
+        String index = AnomalyDetectorsIndex.getJobIndexName(jobId);
 
         QueryBuilder qb = QueryBuilders.termQuery(Bucket.IS_INTERIM.getPreferredName(), true);
 

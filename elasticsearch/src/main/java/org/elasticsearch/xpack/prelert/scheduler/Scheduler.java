@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.metadata;
+package org.elasticsearch.xpack.prelert.scheduler;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
@@ -14,8 +14,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
-import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -25,9 +23,9 @@ public class Scheduler extends AbstractDiffable<Scheduler> implements ToXContent
     private static final ParseField CONFIG_FIELD = new ParseField("config");
     private static final ParseField STATUS_FIELD = new ParseField("status");
 
-    static final Scheduler PROTO = new Scheduler(null, null);
+    public static final Scheduler PROTO = new Scheduler(null, null);
 
-    static final ConstructingObjectParser<Scheduler, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>("scheduler",
+    public static final ConstructingObjectParser<Scheduler, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>("scheduler",
             a -> new Scheduler((SchedulerConfig) a[0], (SchedulerStatus) a[1]));
 
     static {

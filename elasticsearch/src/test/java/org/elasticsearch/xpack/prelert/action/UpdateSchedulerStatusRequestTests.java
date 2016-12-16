@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.prelert.action;
 
 import org.elasticsearch.xpack.prelert.action.UpdateSchedulerStatusAction.Request;
-import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
 public class UpdateSchedulerStatusRequestTests extends AbstractStreamableTestCase<Request> {

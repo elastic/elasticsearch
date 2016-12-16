@@ -6,8 +6,8 @@
 package org.elasticsearch.xpack.prelert.action;
 
 import org.elasticsearch.xpack.prelert.action.PutSchedulerAction.Response;
-import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
-import org.elasticsearch.xpack.prelert.job.SchedulerConfigTests;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfigTests;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
 import java.util.Arrays;

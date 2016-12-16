@@ -10,13 +10,13 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.prelert.action.StopSchedulerAction.Request;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
-import org.elasticsearch.xpack.prelert.job.SchedulerStatus;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
-import static org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunnerTests.createScheduledJob;
-import static org.elasticsearch.xpack.prelert.job.scheduler.ScheduledJobRunnerTests.createSchedulerConfig;
+import static org.elasticsearch.xpack.prelert.scheduler.ScheduledJobRunnerTests.createScheduledJob;
+import static org.elasticsearch.xpack.prelert.scheduler.ScheduledJobRunnerTests.createSchedulerConfig;
 import static org.hamcrest.Matchers.equalTo;
 
 public class StopSchedulerActionRequestTests extends AbstractStreamableTestCase<StopSchedulerAction.Request> {

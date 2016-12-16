@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.prelert.job.extraction;
 
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
 
 public interface DataExtractorFactory {
     DataExtractor newExtractor(SchedulerConfig schedulerConfig, Job job);

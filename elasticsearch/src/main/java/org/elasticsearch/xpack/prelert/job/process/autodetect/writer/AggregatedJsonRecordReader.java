@@ -15,7 +15,7 @@ import org.apache.logging.log4j.Logger;
 
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
 
 /**
  * Reads highly hierarchical JSON structures.  Currently very much geared to the

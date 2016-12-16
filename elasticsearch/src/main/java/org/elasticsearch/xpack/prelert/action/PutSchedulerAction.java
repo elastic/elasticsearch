@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.prelert.job.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 
 import java.io.IOException;

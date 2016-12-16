@@ -3,13 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.scheduler.http;
+package org.elasticsearch.xpack.prelert.scheduler.http;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import org.elasticsearch.common.settings.Settings;
 
 public class ElasticsearchUrlBuilder {
 

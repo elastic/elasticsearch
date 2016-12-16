@@ -9,13 +9,21 @@ import java.util.Locale;
 
 public enum ExecutionPhase {
 
+    // awaiting execution of the watch
     AWAITS_EXECUTION(false),
+    // initial phase, watch execution has started, but the input is not yet processed
     STARTED(false),
+    // input is being executed
     INPUT(false),
+    // condition phase is being executed
     CONDITION(false),
+    // transform phase (optional, depends if a global transform was configured in the watch)
     WATCH_TRANSFORM(false),
+    // actions phase, all actions, including specific action transforms
     ACTIONS(false),
+    // missing watch, failed execution of input/condition/transform,
     ABORTED(true),
+    // successful run
     FINISHED(true);
 
     private final boolean sealed;

@@ -1171,13 +1171,15 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.field(SLICE.getPreferredName(), sliceBuilder);
         }
 
-        builder.startArray(INDICES_BOOST_FIELD.getPreferredName());
-        for (IndexBoost ib : indexBoosts) {
-            builder.startObject();
-            builder.field(ib.index, ib.boost);
-            builder.endObject();
+        if (!indexBoosts.isEmpty()) {
+            builder.startArray(INDICES_BOOST_FIELD.getPreferredName());
+            for (IndexBoost ib : indexBoosts) {
+                builder.startObject();
+                builder.field(ib.index, ib.boost);
+                builder.endObject();
+            }
+            builder.endArray();
         }
-        builder.endArray();
 
         if (aggregations != null) {
             builder.field(AGGREGATIONS_FIELD.getPreferredName(), aggregations);

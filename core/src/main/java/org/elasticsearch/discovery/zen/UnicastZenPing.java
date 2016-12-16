@@ -490,7 +490,8 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                             }
                             if (receivedResponses.containsKey(sendPingsHandler.id())) {
                                 // we are connected and still in progress, send the ping request
-                                sendPingRequestToNode(() -> connection, sendPingsHandler.id(), timeout, pingRequest, latch, node, finalNodeToSend);
+                                sendPingRequestToNode(() -> connection, sendPingsHandler.id(), timeout, pingRequest, latch, node,
+                                    finalNodeToSend);
                             } else {
                                 // connect took too long, just log it and bail
                                 latch.countDown();

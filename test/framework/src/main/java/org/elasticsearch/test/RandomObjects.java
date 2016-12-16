@@ -20,22 +20,23 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
-public final class RandomObjectPicks {
+public final class RandomObjects {
 
-    private RandomObjectPicks() {
+    private RandomObjects() {
 
     }
 
@@ -119,7 +120,9 @@ public final class RandomObjectPicks {
      * @param random Random generator
      */
     public static BytesReference randomSource(Random random) {
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+        //the source can be stored in any format and eventually converted when retrieved depending on the format of the response
+        XContentType xContentType = RandomPicks.randomFrom(random, XContentType.values());
+        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
             builder.startObject();
             builder.prettyPrint();
             addFields(random, builder, 0);
@@ -136,16 +139,13 @@ public final class RandomObjectPicks {
     private static void addFields(Random random, XContentBuilder builder, int currentDepth) throws IOException {
         int numFields = RandomNumbers.randomIntBetween(random, 1, 5);
         for (int i = 0; i < numFields; i++) {
-            if (random.nextBoolean()) {
-                builder.field("field-" + RandomStrings.randomAsciiOfLengthBetween(random, 3, 10),
-                        randomFieldValue(random, randomDataType(random)));
-            } else if (currentDepth < 5) {
+            if (currentDepth < 5 && random.nextBoolean()) {
                 if (random.nextBoolean()) {
-                    builder.startObject("object-" + RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
+                    builder.startObject(RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
                     addFields(random, builder, currentDepth + 1);
                     builder.endObject();
                 } else {
-                    builder.startArray("array-" + RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
+                    builder.startArray(RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
                     int numElements = RandomNumbers.randomIntBetween(random, 1, 5);
                     boolean object = random.nextBoolean();
                     int dataType = -1;
@@ -163,6 +163,9 @@ public final class RandomObjectPicks {
                     }
                     builder.endArray();
                 }
+            } else {
+                builder.field(RandomStrings.randomAsciiOfLengthBetween(random, 3, 10),
+                        randomFieldValue(random, randomDataType(random)));
             }
         }
     }

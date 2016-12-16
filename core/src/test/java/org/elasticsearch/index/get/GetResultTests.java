@@ -24,7 +24,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.RandomObjectPicks;
+import org.elasticsearch.test.RandomObjects;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -79,7 +79,7 @@ public class GetResultTests extends ESTestCase {
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
                 getResult.isExists() == false, getResult.internalSourceRef(), getResult.getFields()));
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
-                getResult.isExists(), RandomObjectPicks.randomSource(random()), getResult.getFields()));
+                getResult.isExists(), RandomObjects.randomSource(random()), getResult.getFields()));
         mutations.add(() -> new GetResult(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(),
                 getResult.isExists(), getResult.internalSourceRef(), randomGetFields(XContentType.JSON).v1()));
         return randomFrom(mutations).get();
@@ -98,7 +98,7 @@ public class GetResultTests extends ESTestCase {
             version = randomPositiveLong();
             exists = true;
             if (frequently()) {
-                source = RandomObjectPicks.randomSource(random());
+                source = RandomObjects.randomSource(random());
             }
             if (randomBoolean()) {
                 Tuple<Map<String, GetField>, Map<String, GetField>> tuple = randomGetFields(xContentType);

@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.RandomObjectPicks;
+import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,7 +93,7 @@ public class GetFieldTests extends ESTestCase {
             return Tuple.tuple(getField, getField);
         }
         String fieldName = randomAsciiOfLengthBetween(3, 10);
-        Tuple<List<Object>, List<Object>> tuple = RandomObjectPicks.randomStoredFieldValues(random(), xContentType);
+        Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
         GetField input = new GetField(fieldName, tuple.v1());
         GetField expected = new GetField(fieldName, tuple.v2());
         return Tuple.tuple(input, expected);

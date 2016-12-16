@@ -13,6 +13,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
@@ -26,7 +27,7 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
     // Never reduce this below 4, otherwise some of the logic in the test will break
     private static final int TEST_SIZE = 1000;
 
-    public void testNormalize() {
+    public void testNormalize() throws InterruptedException {
         ExecutorService threadpool = Executors.newScheduledThreadPool(10);
         try {
             ScoresUpdater scoresUpdater = mock(ScoresUpdater.class);
@@ -73,5 +74,6 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
         } finally {
             threadpool.shutdown();
         }
+        assertTrue(threadpool.awaitTermination(1, TimeUnit.SECONDS));
     }
 }

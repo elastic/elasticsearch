@@ -17,6 +17,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.mockito.Matchers.any;
@@ -45,7 +46,7 @@ public class NormalizerTests extends ESTestCase {
         return influencer;
     }
 
-    public void testNormalize() throws IOException {
+    public void testNormalize() throws IOException, InterruptedException {
         ExecutorService threadpool = Executors.newScheduledThreadPool(1);
         try {
             NormalizerProcessFactory processFactory = mock(NormalizerProcessFactory.class);
@@ -69,5 +70,6 @@ public class NormalizerTests extends ESTestCase {
         } finally {
             threadpool.shutdown();
         }
+        assertTrue(threadpool.awaitTermination(1, TimeUnit.SECONDS));
     }
 }

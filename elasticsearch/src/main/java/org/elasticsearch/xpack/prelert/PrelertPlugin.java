@@ -122,7 +122,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
     public static final String AUTODETECT_PROCESS_THREAD_POOL_NAME = NAME + "_autodetect_process";
 
     // NORELEASE - temporary solution
-    static final Setting<Boolean> USE_NATIVE_PROCESS_OPTION = Setting.boolSetting("useNativeProcess", false, Property.NodeScope,
+    static final Setting<Boolean> USE_NATIVE_PROCESS_OPTION = Setting.boolSetting("useNativeProcess", true, Property.NodeScope,
             Property.Deprecated);
 
     private final Settings settings;

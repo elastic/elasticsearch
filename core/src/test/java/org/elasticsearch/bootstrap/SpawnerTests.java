@@ -25,7 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Locale;
 
 /**
- * Doesn't actually test spawning a process, as seccomp is installed before tests run and forbids it.
+ * Doesn't actually test spawning a process, as a system call filter is installed before tests run and forbids it.
  */
 public class SpawnerTests extends ESTestCase {
 
@@ -48,4 +48,5 @@ public class SpawnerTests extends ESTestCase {
         assertEquals("windows-x86_64", Spawner.makePlatformName("Windows 8.1", "amd64"));
         assertEquals("sunos-x86_64", Spawner.makePlatformName("SunOS", "amd64"));
     }
+
 }

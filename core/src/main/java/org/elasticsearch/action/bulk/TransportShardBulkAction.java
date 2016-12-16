@@ -50,6 +50,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -184,6 +185,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     break;
                 default: throw new IllegalStateException("unexpected opType [" + itemRequest.opType() + "] found");
             }
+
             // update the bulk item request because update request execution can mutate the bulk item request
             request.items()[requestIndex] = replicaRequest;
             if (operationResult == null) { // in case of noop update operation
@@ -346,6 +348,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         replicaRequest = new BulkItemRequest(request.items()[requestIndex].id(), updateDeleteRequest);
                         break;
                 }
+                assert (replicaRequest.request() instanceof IndexRequest
+                    && ((IndexRequest) replicaRequest.request()).seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) ||
+                    (replicaRequest.request() instanceof DeleteRequest
+                        && ((DeleteRequest) replicaRequest.request()).seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO);
                 // successful operation
                 break; // out of retry loop
             } else if (updateOperationResult.getFailure() instanceof VersionConflictEngineException == false) {
@@ -368,10 +374,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:
-                            operationResult = executeIndexRequestOnReplica(((IndexRequest) docWriteRequest), replica);
+                            operationResult = executeIndexRequestOnReplica((IndexRequest) docWriteRequest, replica);
                             break;
                         case DELETE:
-                            operationResult = executeDeleteRequestOnReplica(((DeleteRequest) docWriteRequest), replica);
+                            operationResult = executeDeleteRequestOnReplica((DeleteRequest) docWriteRequest, replica);
                             break;
                         default:
                             throw new IllegalStateException("Unexpected request operation type on replica: "

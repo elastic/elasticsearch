@@ -178,9 +178,9 @@ public class InternalEngine extends Engine {
                 seqNoService = sequenceNumberService(shardId, engineConfig.getIndexSettings(), seqNoStats);
                 // norelease
                 /*
-                 * We have no guarantees that all operations above the local checkpoint are in the Lucene commit. These means that we there
-                 * might be operations greater than the local checkpoint that will not be replayed. Here we force the local checkpoint to
-                 * the maximum sequence number in the commit (at the potential expense of correctness).
+                 * We have no guarantees that all operations above the local checkpoint are in the Lucene commit or the translog. This means
+                 * that we there might be operations greater than the local checkpoint that will not be replayed. Here we force the local
+                 * checkpoint to the maximum sequence number in the commit (at the potential expense of correctness).
                  */
                 while (seqNoService.getLocalCheckpoint() < seqNoService.getMaxSeqNo()) {
                     final long next = seqNoService.getLocalCheckpoint() + 1;
@@ -795,7 +795,7 @@ public class InternalEngine extends Engine {
                 seqNo = delete.seqNo();
             }
 
-            if (checkVersionConflict(delete, currentVersion, expectedVersion, deleted)) {
+            if (conflict) {
                 // skip executing delete because of version conflict on recovery
                 deleteResult = new DeleteResult(expectedVersion, seqNo, true);
             } else {

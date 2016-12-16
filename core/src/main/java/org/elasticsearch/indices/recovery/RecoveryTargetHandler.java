@@ -39,8 +39,8 @@ public interface RecoveryTargetHandler {
     void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException;
 
     /**
-     * The finalize request clears unreferenced translog files, refreshes the engine now that new segments are available, enables garbage
-     * collection of tombstone files, and updates the global checkpoint.
+     * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
+     * updates the global checkpoint.
      *
      * @param globalCheckpoint the global checkpoint on the recovery source
      */

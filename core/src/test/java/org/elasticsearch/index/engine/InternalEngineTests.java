@@ -2990,6 +2990,7 @@ public class InternalEngineTests extends ESTestCase {
             }
         }
 
+        final boolean exists = operations.get(operations.size() - 1) instanceof Engine.Index;
         Randomness.shuffle(operations);
 
         for (final Engine.Operation operation : operations) {
@@ -3001,6 +3002,8 @@ public class InternalEngineTests extends ESTestCase {
         }
 
         assertThat(engine.seqNoService().getLocalCheckpoint(), equalTo((long) (numberOfOperations - 1)));
+        final Engine.GetResult result = engine.get(new Engine.Get(true, uid));
+        assertThat(result.exists(), equalTo(exists));
     }
 
     private Engine.Index indexOperation(final Term uid, final ParsedDocument doc, final int seqNo, final int version) {
@@ -3010,7 +3013,7 @@ public class InternalEngineTests extends ESTestCase {
             seqNo,
             1,
             version,
-            VersionType.INTERNAL,
+            VersionType.EXTERNAL,
             Engine.Operation.Origin.PEER_RECOVERY,
             System.nanoTime(),
             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
@@ -3025,7 +3028,7 @@ public class InternalEngineTests extends ESTestCase {
             seqNo,
             1,
             version,
-            VersionType.INTERNAL,
+            VersionType.EXTERNAL,
             Engine.Operation.Origin.PEER_RECOVERY,
             System.nanoTime());
     }

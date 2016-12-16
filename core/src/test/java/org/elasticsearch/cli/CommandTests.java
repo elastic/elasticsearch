@@ -26,49 +26,30 @@ import org.elasticsearch.test.ESTestCase;
 public class CommandTests extends ESTestCase {
 
     static class UserErrorCommand extends Command {
-
         UserErrorCommand() {
             super("Throws a user error");
         }
-
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
             throw new UserException(ExitCodes.DATA_ERROR, "Bad input");
         }
-
-        @Override
-        protected boolean addShutdownHook() {
-            return false;
-        }
-
     }
 
     static class UsageErrorCommand extends Command {
-
         UsageErrorCommand() {
             super("Throws a usage error");
         }
-
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
             throw new UserException(ExitCodes.USAGE, "something was no good");
         }
-
-        @Override
-        protected boolean addShutdownHook() {
-            return false;
-        }
-
     }
 
     static class NoopCommand extends Command {
-
         boolean executed = false;
-
         NoopCommand() {
             super("Does nothing");
         }
-
         @Override
         protected void execute(Terminal terminal, OptionSet options) throws Exception {
             terminal.println("Normal output");
@@ -76,17 +57,10 @@ public class CommandTests extends ESTestCase {
             terminal.println(Terminal.Verbosity.VERBOSE, "Verbose output");
             executed = true;
         }
-
         @Override
         protected void printAdditionalHelp(Terminal terminal) {
             terminal.println("Some extra help");
         }
-
-        @Override
-        protected boolean addShutdownHook() {
-            return false;
-        }
-
     }
 
     public void testHelp() throws Exception {
@@ -118,7 +92,7 @@ public class CommandTests extends ESTestCase {
             command.mainWithoutErrorHandling(args, terminal);
         });
         assertTrue(e.getMessage(),
-            e.getMessage().contains("Option(s) [v/verbose] are unavailable given other options on the command line"));
+                e.getMessage().contains("Option(s) [v/verbose] are unavailable given other options on the command line"));
     }
 
     public void testSilentVerbosity() throws Exception {
@@ -169,5 +143,4 @@ public class CommandTests extends ESTestCase {
         assertTrue(output, output.contains("Throws a usage error"));
         assertTrue(output, output.contains("ERROR: something was no good"));
     }
-
 }

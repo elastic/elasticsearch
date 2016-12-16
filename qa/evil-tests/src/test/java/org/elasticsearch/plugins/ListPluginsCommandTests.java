@@ -65,12 +65,7 @@ public class ListPluginsCommandTests extends ESTestCase {
         System.arraycopy(args, 0, argsAndHome, 0, args.length);
         argsAndHome[args.length] = "-Epath.home=" + home;
         MockTerminal terminal = new MockTerminal();
-        int status = new ListPluginsCommand() {
-            @Override
-            protected boolean addShutdownHook() {
-                return false;
-            }
-        }.main(argsAndHome, terminal);
+        int status = new ListPluginsCommand().main(argsAndHome, terminal);
         assertEquals(ExitCodes.OK, status);
         return terminal;
     }

@@ -65,16 +65,6 @@ export ES_INCLUDE
 export ES_JVM_OPTIONS
 export ES_STARTUP_SLEEP_TIME
 
-# export unsupported variables so bin/elasticsearch can reject them and inform the user these are unsupported
-if test -n "$ES_MIN_MEM"; then export ES_MIN_MEM; fi
-if test -n "$ES_MAX_MEM"; then export ES_MAX_MEM; fi
-if test -n "$ES_HEAP_SIZE"; then export ES_HEAP_SIZE; fi
-if test -n "$ES_HEAP_NEWSIZE"; then export ES_HEAP_NEWSIZE; fi
-if test -n "$ES_DIRECT_SIZE"; then export ES_DIRECT_SIZE; fi
-if test -n "$ES_USE_IPV4"; then export ES_USE_IPV4; fi
-if test -n "$ES_GC_OPTS"; then export ES_GC_OPTS; fi
-if test -n "$ES_GC_LOG_FILE"; then export ES_GC_LOG_FILE; fi
-
 lockfile=/var/lock/subsys/$prog
 
 # backwards compatibility for old config sysconfig files, pre 0.90.1

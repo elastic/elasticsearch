@@ -15,6 +15,19 @@ executing potentially leaving the end-user unaware of this situation. Starting i
 starting Elasticsearch due to this bootstrap check, you need to either fix your configuration so that the system call
 filter can be installed, or *at your own risk* disable the <<system-call-filter-check,system call filter check>>.
 
+[[breaking_52_settings_changes]]
+[float]
+=== Settings changes
+
+[float]
+==== System call filter setting
+
+Elasticsearch has attempted to install a system call filter since version 2.1.0. These are enabled by default and
+could be disabled via `bootstrap.seccomp`. The naming of this setting is poor since seccomp is specific to Linux but
+Elasticsearch attempts to install a system call filter on various operating systems. Starting in Elasticsearch 5.2.0,
+this setting has been renamed to `bootstrap.system_call_filter`. The previous setting is still support but will be
+removed in Elasticsearch 6.0.0.
+
 [[breaking_52_java_api_changes]]
 [float]
 === Java API changes

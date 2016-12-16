@@ -397,6 +397,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     PluginsService.MANDATORY_SETTING,
                     BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
                     BootstrapSettings.MEMORY_LOCK_SETTING,
+                    BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
+                    // TODO: remove in 6.0.0
                     BootstrapSettings.SECCOMP_SETTING,
                     BootstrapSettings.CTRLHANDLER_SETTING,
                     IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,

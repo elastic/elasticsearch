@@ -30,11 +30,13 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -56,7 +58,9 @@ import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -174,10 +178,32 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
+        // TODO: remove in 6.0.0
+        if (BootstrapSettings.SECCOMP_SETTING.exists(settings)) {
+            final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Bootstrap.class));
+            deprecationLogger.deprecated(
+                "[{}] is deprecated, use [{}]",
+                BootstrapSettings.SECCOMP_SETTING.getKey(),
+                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey());
+
+            if (!BootstrapSettings.SECCOMP_SETTING.get(settings).equals(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings))) {
+                final String message = String.format(
+                    Locale.ROOT,
+                    "[%s=%s] and [%s=%s] are set to inconsistent values; as [%s] is deprecated, prefer [%s]",
+                    BootstrapSettings.SECCOMP_SETTING.getKey(),
+                    Boolean.toString(BootstrapSettings.SECCOMP_SETTING.get(settings)),
+                    BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey(),
+                    Boolean.toString(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings)),
+                    BootstrapSettings.SECCOMP_SETTING.getKey(),
+                    BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey());
+                throw new BootstrapException(new UserException(ExitCodes.CONFIG, message));
+            }
+        }
+
         initializeNatives(
                 environment.tmpFile(),
                 BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
-                BootstrapSettings.SECCOMP_SETTING.get(settings),
+                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 
         // initialize probes before the security manager is installed

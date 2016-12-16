@@ -153,7 +153,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns true if the "_all" field is enabled for the type
+     * Returns true if the "_all" field is enabled on any type.
      */
     public boolean allEnabled() {
         return this.allEnabled;
@@ -377,7 +377,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;
         this.parentTypes = parentTypes;
-        this.allEnabled = mapper.allFieldMapper().enabled();
+        this.allEnabled |= mapper.allFieldMapper().enabled();
 
         assert assertSerialization(newMapper);
         assert assertMappersShareSameFieldType();

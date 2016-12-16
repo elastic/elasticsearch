@@ -28,9 +28,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -43,8 +41,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.ClusterServiceState;
-import org.elasticsearch.cluster.service.ClusterStateStatus;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -689,29 +685,23 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             String>>>());
         for (final String node : majoritySide) {
             masters.put(node, new ArrayList<Tuple<String, String>>());
-            internalCluster().getInstance(ClusterService.class, node).add(new ClusterStateListener() {
-                @Override
-                public void clusterChanged(ClusterChangedEvent event) {
-                    DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
-                    DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
-                    if (!Objects.equals(previousMaster, currentMaster)) {
-                        logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(),
-                            event.previousState());
-                        String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
-                        String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
-                        masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
-                    }
+            internalCluster().getInstance(ClusterService.class, node).addListener(event -> {
+                DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
+                DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
+                if (!Objects.equals(previousMaster, currentMaster)) {
+                    logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(),
+                        event.previousState());
+                    String previousMasterNodeName = previousMaster != null ? previousMaster.getName() : null;
+                    String currentMasterNodeName = currentMaster != null ? currentMaster.getName() : null;
+                    masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
                 }
             });
         }
 
         final CountDownLatch oldMasterNodeSteppedDown = new CountDownLatch(1);
-        internalCluster().getInstance(ClusterService.class, oldMasterNode).add(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                if (event.state().nodes().getMasterNodeId() == null) {
-                    oldMasterNodeSteppedDown.countDown();
-                }
+        internalCluster().getInstance(ClusterService.class, oldMasterNode).addListener(event -> {
+            if (event.state().nodes().getMasterNodeId() == null) {
+                oldMasterNodeSteppedDown.countDown();
             }
         });
 
@@ -1199,9 +1189,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // Don't restart the master node until we know the index deletion has taken effect on master and the master eligible node.
         assertBusy(() -> {
             for (String masterNode : allMasterEligibleNodes) {
-                final ClusterServiceState masterState = internalCluster().clusterService(masterNode).clusterServiceState();
-                assertTrue("index not deleted on " + masterNode, masterState.getClusterState().metaData().hasIndex(idxName) == false &&
-                    masterState.getClusterStateStatus() == ClusterStateStatus.APPLIED);
+                final ClusterState masterState = internalCluster().clusterService(masterNode).state();
+                assertTrue("index not deleted on " + masterNode, masterState.metaData().hasIndex(idxName) == false);
             }
         });
         internalCluster().restartNode(masterNode1, InternalTestCluster.EMPTY_CALLBACK);

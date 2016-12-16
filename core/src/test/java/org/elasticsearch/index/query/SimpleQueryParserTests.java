@@ -22,27 +22,23 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.SynonymQuery;
-import org.apache.lucene.search.PrefixQuery;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.SynonymQuery;
+import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.Settings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -152,7 +148,7 @@ public class SimpleQueryParserTests extends ESTestCase {
         IndexMetaData indexState = IndexMetaData.builder("index").settings(indexSettings).build();
         IndexSettings settings = new IndexSettings(indexState, Settings.EMPTY);
         QueryShardContext mockShardContext = new QueryShardContext(0, settings, null, null, null, null, null, indicesQueriesRegistry,
-                null, null, null, System::currentTimeMillis) {
+                null, null, System::currentTimeMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return new MockFieldMapper.FakeFieldType();
@@ -166,7 +162,7 @@ public class SimpleQueryParserTests extends ESTestCase {
 
         // Now check what happens if foo.quote does not exist
         mockShardContext = new QueryShardContext(0, settings, null, null, null, null, null, indicesQueriesRegistry,
-                null, null, null, System::currentTimeMillis) {
+                null, null, System::currentTimeMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 if (name.equals("foo.quote")) {

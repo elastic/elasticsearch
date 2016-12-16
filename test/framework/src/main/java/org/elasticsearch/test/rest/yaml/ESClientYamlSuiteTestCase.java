@@ -180,7 +180,9 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     @Override
     protected void afterIfFailed(List<Throwable> errors) {
-        logger.info("Stash dump on failure [{}]", XContentHelper.toString(restTestExecutionContext.stash()));
+        // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
+        logger.info("Stash dump on failure [{}]",
+                XContentHelper.toString(restTestExecutionContext.stash()).replace("\\n", "\n").replace("\\t", "\t"));
         super.afterIfFailed(errors);
     }
 

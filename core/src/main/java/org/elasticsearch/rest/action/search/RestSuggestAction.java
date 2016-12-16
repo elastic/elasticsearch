@@ -56,10 +56,14 @@ public class RestSuggestAction extends BaseRestHandler {
                              SearchRequestParsers searchRequestParsers) {
         super(settings);
         this.searchRequestParsers = searchRequestParsers;
-        controller.registerHandler(POST, "/_suggest", this);
-        controller.registerHandler(GET, "/_suggest", this);
-        controller.registerHandler(POST, "/{index}/_suggest", this);
-        controller.registerHandler(GET, "/{index}/_suggest", this);
+        controller.registerAsDeprecatedHandler(POST, "/_suggest", this,
+                "[POST /_suggest] is deprecated! Use [POST /_search] instead.", deprecationLogger);
+        controller.registerAsDeprecatedHandler(GET, "/_suggest", this,
+                "[GET /_suggest] is deprecated! Use [GET /_search] instead.", deprecationLogger);
+        controller.registerAsDeprecatedHandler(POST, "/{index}/_suggest", this,
+                "[POST /{index}/_suggest] is deprecated! Use [POST /{index}/_search] instead.", deprecationLogger);
+        controller.registerAsDeprecatedHandler(GET, "/{index}/_suggest", this,
+                "[GET /{index}/_suggest] is deprecated! Use [GET /{index}/_search] instead.", deprecationLogger);
     }
 
     @Override

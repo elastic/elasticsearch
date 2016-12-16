@@ -20,7 +20,6 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -36,8 +35,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -1135,9 +1132,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
 
         QueryShardContext createShardContext() {
-            ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
             return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                    scriptService, indicesQueriesRegistry, this.client, null, state, () -> nowInMillis);
+                    scriptService, indicesQueriesRegistry, this.client, null, () -> nowInMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

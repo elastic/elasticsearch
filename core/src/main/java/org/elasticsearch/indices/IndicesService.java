@@ -232,9 +232,7 @@ public class IndicesService extends AbstractLifecycleComponent
         for (final Index index : indices) {
             indicesStopExecutor.execute(() -> {
                 try {
-                    removeIndex(index, "shutdown", false);
-                } catch (Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to remove index on stop [{}]", index), e);
+                    removeIndex(index, IndexRemovalReason.NO_LONGER_ASSIGNED, "shutdown");
                 } finally {
                     latch.countDown();
                 }
@@ -525,22 +523,8 @@ public class IndicesService extends AbstractLifecycleComponent
         return indexShard;
     }
 
-    /**
-     * Removes the given index from this service and releases all associated resources. Persistent parts of the index
-     * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-     * @param index the index to remove
-     * @param reason  the high level reason causing this removal
-     */
     @Override
-    public void removeIndex(Index index, String reason) {
-        try {
-            removeIndex(index, reason, false);
-        } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to remove index ({})", reason), e);
-        }
-    }
-
-    private void removeIndex(Index index, String reason, boolean delete) {
+    public void removeIndex(final Index index, final IndexRemovalReason reason, final String extraInfo) {
         final String indexName = index.getName();
         try {
             final IndexService indexService;
@@ -558,22 +542,18 @@ public class IndicesService extends AbstractLifecycleComponent
                 listener = indexService.getIndexEventListener();
             }
 
-            listener.beforeIndexClosed(indexService);
-            if (delete) {
-                listener.beforeIndexDeleted(indexService);
-            }
-            logger.debug("{} closing index service (reason [{}])", index, reason);
-            indexService.close(reason, delete);
-            logger.debug("{} closed... (reason [{}])", index, reason);
-            listener.afterIndexClosed(indexService.index(), indexService.getIndexSettings().getSettings());
-            if (delete) {
-                final IndexSettings indexSettings = indexService.getIndexSettings();
-                listener.afterIndexDeleted(indexService.index(), indexSettings.getSettings());
+            listener.beforeIndexRemoved(indexService, reason);
+            logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
+            indexService.close(extraInfo, reason == IndexRemovalReason.DELETED);
+            logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
+            final IndexSettings indexSettings = indexService.getIndexSettings();
+            listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
+            if (reason == IndexRemovalReason.DELETED) {
                 // now we are done - try to wipe data on disk if possible
-                deleteIndexStore(reason, indexService.index(), indexSettings);
+                deleteIndexStore(extraInfo, indexService.index(), indexSettings);
             }
-        } catch (IOException ex) {
-            throw new ElasticsearchException("failed to remove index " + index, ex);
+        } catch (Exception e) {
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to remove index {} ([{}][{}])", index, reason, extraInfo), e);
         }
     }
 
@@ -614,26 +594,8 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Deletes the given index. Persistent parts of the index
-     * like the shards files, state and transaction logs are removed once all resources are released.
-     *
-     * Equivalent to {@link #removeIndex(Index, String)} but fires
-     * different lifecycle events to ensure pending resources of this index are immediately removed.
-     * @param index the index to delete
-     * @param reason the high level reason causing this delete
-     */
-    @Override
-    public void deleteIndex(Index index, String reason) {
-        try {
-            removeIndex(index, reason, true);
-        } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to delete index ({})", reason), e);
-        }
-    }
-
-    /**
      * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
-     * but does not deal with in-memory structures. For those call {@link #deleteIndex(Index, String)}
+     * but does not deal with in-memory structures. For those call {@link #removeIndex(Index, IndexRemovalReason, String)}
      */
     @Override
     public void deleteUnassignedIndex(String reason, IndexMetaData metaData, ClusterState clusterState) {

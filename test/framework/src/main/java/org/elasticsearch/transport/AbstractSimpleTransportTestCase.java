@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -51,6 +53,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -67,11 +70,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
@@ -828,15 +833,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
     }
 
-    @TestLogging(value = "org.elasticsearch.test.transport.tracer:TRACE")
+    @TestLogging("org.elasticsearch.transport:DEBUG")
     public void testTracerLog() throws InterruptedException {
-        TransportRequestHandler handler = new TransportRequestHandler<StringMessageRequest>() {
-            @Override
-            public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
-                channel.sendResponse(new StringMessageResponse(""));
-            }
-        };
-
+        TransportRequestHandler handler = (request, channel) -> channel.sendResponse(new StringMessageResponse(""));
         TransportRequestHandler handlerWithError = new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
@@ -948,7 +947,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         public volatile boolean sawResponseReceived;
 
         public AtomicReference<CountDownLatch> expectedEvents = new AtomicReference<>();
-
+        private final Logger logger = Loggers.getLogger(getClass());
 
         @Override
         public void receivedRequest(long requestId, String action) {
@@ -967,6 +966,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         @Override
         public void responseSent(long requestId, String action) {
             super.responseSent(requestId, action);
+            logger.debug("#### responseSent for action: {}", action);
             sawResponseSent = true;
             expectedEvents.get().countDown();
         }
@@ -1810,12 +1810,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // this acts like a node that doesn't have support for handshakes
             DiscoveryNode node =
                 new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
-            serviceA.connectToNode(node);
-            TcpTransport.NodeChannels connection = originalTransport.getConnection(node);
-            Version version = originalTransport.executeHandshake(node, connection.channel(TransportRequestOptions.Type.PING),
-                TimeValue.timeValueSeconds(10));
-            assertNull(version);
-            serviceA.disconnectFromNode(node);
+            ConnectTransportException exception = expectThrows(ConnectTransportException.class, () -> serviceA.connectToNode(node));
+            assertTrue(exception.getCause() instanceof IllegalStateException);
+            assertEquals("handshake failed", exception.getCause().getMessage());
         }
 
         try (TransportService service = buildService("TS_TPC", Version.CURRENT, null)) {
@@ -1860,9 +1857,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             Thread t = new Thread() {
                 @Override
                 public void run() {
-                    try {
-                        Socket accept = socket.accept();
-                        accept.close();
+                    try (Socket accept = socket.accept()) {
+                        if (randomBoolean()) { // sometimes wait until the other side sends the message
+                            accept.getInputStream().read();
+                        }
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
@@ -1879,8 +1877,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
             ConnectTransportException ex = expectThrows(ConnectTransportException.class,
                 () -> serviceA.connectToNode(dummy, builder.build()));
-            assertEquals("[][" + dummy.getAddress() +"] general node connection failure", ex.getMessage());
-            assertEquals("handshake failed", ex.getCause().getMessage());
+            assertEquals(ex.getMessage(), "[][" + dummy.getAddress() +"] general node connection failure");
+            assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
             t.join();
         }
     }

@@ -19,11 +19,9 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
@@ -33,9 +31,7 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 
-import java.util.Collections;
 import java.util.function.LongSupplier;
 
 /**
@@ -48,19 +44,17 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
     protected final Client client;
     protected final IndexReader reader;
-    protected final ClusterState clusterState;
     protected final LongSupplier nowInMillis;
 
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
                                IndicesQueriesRegistry indicesQueriesRegistry, Client client, IndexReader reader,
-                               ClusterState clusterState, LongSupplier nowInMillis) {
+                               LongSupplier nowInMillis) {
         this.mapperService = mapperService;
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.client = client;
         this.reader = reader;
-        this.clusterState = clusterState;
         this.nowInMillis = nowInMillis;
     }
 
@@ -96,13 +90,6 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     @Override
     public ParseFieldMatcher getParseFieldMatcher() {
         return this.indexSettings.getParseFieldMatcher();
-    }
-
-    /**
-     * Returns the cluster state as is when the operation started.
-     */
-    public ClusterState getClusterState() {
-        return clusterState;
     }
 
     /**

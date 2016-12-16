@@ -29,7 +29,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -101,8 +100,8 @@ public class QueryShardContext extends QueryRewriteContext {
     public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
                              IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService,
                              ScriptService scriptService, final IndicesQueriesRegistry indicesQueriesRegistry, Client client,
-                             IndexReader reader, ClusterState clusterState, LongSupplier nowInMillis) {
-        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, clusterState, nowInMillis);
+                             IndexReader reader, LongSupplier nowInMillis) {
+        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, nowInMillis);
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
@@ -118,7 +117,7 @@ public class QueryShardContext extends QueryRewriteContext {
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
                 source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.client,
-                source.reader, source.clusterState, source.nowInMillis);
+                source.reader, source.nowInMillis);
         this.types = source.getTypes();
     }
 

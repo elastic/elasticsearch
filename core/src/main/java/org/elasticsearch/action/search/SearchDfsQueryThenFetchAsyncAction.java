@@ -55,11 +55,11 @@ class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<DfsSe
 
     SearchDfsQueryThenFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                        Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
-                                       Map<String, AliasFilter> aliasFilter, SearchPhaseController searchPhaseController,
-                                       Executor executor, SearchRequest request, ActionListener<SearchResponse> listener,
-                                       GroupShardsIterator shardsIts, long startTime, long clusterStateVersion,
-                                       SearchTask task) {
-        super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, executor,
+                                       Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
+                                       SearchPhaseController searchPhaseController, Executor executor, SearchRequest request,
+                                       ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
+                                       long clusterStateVersion, SearchTask task) {
+        super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, concreteIndexBoosts, executor,
                 request, listener, shardsIts, startTime, clusterStateVersion, task);
         this.searchPhaseController = searchPhaseController;
         queryResults = new AtomicArray<>(firstResults.length());

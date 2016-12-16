@@ -35,7 +35,7 @@ public class MockSearchServiceTests extends ESTestCase {
     public void testAssertNoInFlightContext() {
         final long nowInMillis = randomPositiveLong();
         SearchContext s = new TestSearchContext(new QueryShardContext(0, new IndexSettings(IndexMetaData.PROTO, Settings.EMPTY), null, null,
-                null, null, null, null, null, null, null, () -> nowInMillis)) {
+                null, null, null, null, null, null, () -> nowInMillis)) {
             @Override
             public SearchShardTarget shardTarget() {
                 return new SearchShardTarget("node", new Index("idx", "ignored"), 0);

@@ -49,7 +49,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class CommonStats implements Writeable, ToXContent {
 

@@ -539,7 +539,7 @@ public class IndexLookupIT extends ESIntegTestCase {
                         .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
                         .put("index.analysis.filter.delimited_int.delimiter", "|")
                         .put("index.analysis.filter.delimited_int.encoding", "int")
-                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter")));
+                        .put("index.analysis.filter.delimited_int.type", "delimited_payload")));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("int_payload_field", "a|1 b|2 b|3 c|4 d "), client()
                         .prepareIndex("test", "type1", "2").setSource("int_payload_field", "b|1 b|2 c|3 d|4 a "),
                 client().prepareIndex("test", "type1", "3").setSource("int_payload_field", "b|1 c|2 d|3 a|4 b "));
@@ -807,17 +807,17 @@ public class IndexLookupIT extends ESIntegTestCase {
                         .putArray("index.analysis.analyzer.payload_float.filter", "delimited_float")
                         .put("index.analysis.filter.delimited_float.delimiter", "|")
                         .put("index.analysis.filter.delimited_float.encoding", "float")
-                        .put("index.analysis.filter.delimited_float.type", "delimited_payload_filter")
+                        .put("index.analysis.filter.delimited_float.type", "delimited_payload")
                         .put("index.analysis.analyzer.payload_string.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_string.filter", "delimited_string")
                         .put("index.analysis.filter.delimited_string.delimiter", "|")
                         .put("index.analysis.filter.delimited_string.encoding", "identity")
-                        .put("index.analysis.filter.delimited_string.type", "delimited_payload_filter")
+                        .put("index.analysis.filter.delimited_string.type", "delimited_payload")
                         .put("index.analysis.analyzer.payload_int.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.payload_int.filter", "delimited_int")
                         .put("index.analysis.filter.delimited_int.delimiter", "|")
                         .put("index.analysis.filter.delimited_int.encoding", "int")
-                        .put("index.analysis.filter.delimited_int.type", "delimited_payload_filter")
+                        .put("index.analysis.filter.delimited_int.type", "delimited_payload")
                         .put("index.number_of_shards", 1)));
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("float_payload_field", "a|1 b|2 a|3 b "), client()
                         .prepareIndex("test", "type1", "2").setSource("string_payload_field", "a|a b|b a|a b "),

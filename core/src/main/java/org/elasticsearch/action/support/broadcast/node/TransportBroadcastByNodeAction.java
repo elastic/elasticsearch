@@ -558,12 +558,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             super.readFrom(in);
             nodeId = in.readString();
             totalShards = in.readVInt();
-            int resultsSize = in.readVInt();
-            results = new ArrayList<>(resultsSize);
-            for (int i = 0; i < resultsSize; resultsSize++) {
-                final ShardOperationResult result = in.readBoolean() ? readShardResult(in) : null;
-                results.add(result);
-            }
+            results = in.readList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);
             if (in.readBoolean()) {
                 exceptions = in.readList(BroadcastShardOperationFailedException::new);
             } else {

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -35,11 +33,11 @@ import java.util.Objects;
 
 public class FieldDataStats implements Streamable, ToXContent {
 
-    static final String FIELDDATA = "fielddata";
-    static final String MEMORY_SIZE = "memory_size";
-    static final String MEMORY_SIZE_IN_BYTES = "memory_size_in_bytes";
-    static final String EVICTIONS = "evictions";
-    static final String FIELDS = "fields";
+    private static final String FIELDDATA = "fielddata";
+    private static final String MEMORY_SIZE = "memory_size";
+    private static final String MEMORY_SIZE_IN_BYTES = "memory_size_in_bytes";
+    private static final String EVICTIONS = "evictions";
+    private static final String FIELDS = "fields";
     long memorySize;
     long evictions;
     @Nullable

@@ -166,7 +166,7 @@ final class BootstrapChecks {
         }
         checks.add(new ClientJvmCheck());
         checks.add(new UseSerialGCCheck());
-        checks.add(new SystemCallFilterCheck(BootstrapSettings.SECCOMP_SETTING.get(settings)));
+        checks.add(new SystemCallFilterCheck(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings)));
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new G1GCCheck());
@@ -521,7 +521,7 @@ final class BootstrapChecks {
                 "OnError [%s] requires forking but is prevented by system call filters ([%s=true]);" +
                     " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
                 onError(),
-                BootstrapSettings.SECCOMP_SETTING.getKey());
+                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey());
         }
 
     }
@@ -546,7 +546,7 @@ final class BootstrapChecks {
                 "OnOutOfMemoryError [%s] requires forking but is prevented by system call filters ([%s=true]);" +
                     " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError",
                 onOutOfMemoryError(),
-                BootstrapSettings.SECCOMP_SETTING.getKey());
+                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey());
         }
 
     }

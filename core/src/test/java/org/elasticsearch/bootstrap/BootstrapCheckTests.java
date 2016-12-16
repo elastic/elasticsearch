@@ -492,8 +492,8 @@ public class BootstrapCheckTests extends ESTestCase {
             e -> assertThat(
                 e.getMessage(),
                 containsString(
-                    "OnError [" + command + "] requires forking but is prevented by system call filters ([bootstrap.seccomp=true]);"
-                        + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
+                    "OnError [" + command + "] requires forking but is prevented by system call filters " +
+                        "([bootstrap.system_call_filter=true]); upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
     }
 
     public void testOnOutOfMemoryErrorCheck() throws NodeValidationException {
@@ -521,7 +521,7 @@ public class BootstrapCheckTests extends ESTestCase {
                 e.getMessage(),
                 containsString(
                     "OnOutOfMemoryError [" + command + "]"
-                        + " requires forking but is prevented by system call filters ([bootstrap.seccomp=true]);"
+                        + " requires forking but is prevented by system call filters ([bootstrap.system_call_filter=true]);"
                         + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
     }
 

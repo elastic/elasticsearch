@@ -31,7 +31,7 @@ import java.util.Iterator;
 import java.util.Objects;
 
 /**
- * A reusable class to encode <tt>field -> memory size</tt> mappings
+ * A reusable class to encode <tt>field -&gt; memory size</tt> mappings
  */
 public final class FieldMemoryStats implements Writeable, Iterable<ObjectLongCursor<String>>{
 
@@ -80,7 +80,6 @@ public final class FieldMemoryStats implements Writeable, Iterable<ObjectLongCur
      * @param key the top level key for this stats object
      * @param rawKey the raw byte key for each of the fields byte sizes
      * @param readableKey the readable key for each of the fields byte sizes
-     * @throws IOException
      */
     public void toXContent(XContentBuilder builder, String key, String rawKey, String readableKey) throws IOException {
         builder.startObject(key);

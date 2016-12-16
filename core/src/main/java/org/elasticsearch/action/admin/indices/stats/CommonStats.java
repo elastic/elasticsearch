@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 public class CommonStats implements Writeable, ToXContent {
 
@@ -506,9 +507,9 @@ public class CommonStats implements Writeable, ToXContent {
             docs, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
             fieldData, completion, segments, translog, requestCache, recoveryStats})
             .filter(Objects::nonNull);
-        for (ToXContent toXContent : stream::iterator) {
+        for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {
             toXContent.toXContent(builder, params);
         }
-       return builder;
+        return builder;
     }
 }

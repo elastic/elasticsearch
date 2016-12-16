@@ -97,7 +97,7 @@ final class Bootstrap {
     }
 
     /** initialize native resources */
-    public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean seccomp, boolean ctrlHandler) {
+    public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
         final Logger logger = Loggers.getLogger(Bootstrap.class);
 
         // check if the user is running as root, and bail
@@ -105,9 +105,9 @@ final class Bootstrap {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 
-        // enable secure computing mode
-        if (seccomp) {
-            Natives.trySeccomp(tmpFile);
+        // enable system call filter
+        if (systemCallFilter) {
+            Natives.tryInstallSystemCallFilter(tmpFile);
         }
 
         // mlockall if requested

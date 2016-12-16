@@ -459,12 +459,12 @@ final class BootstrapChecks {
 
         @Override
         public boolean check() {
-            return areSystemCallFiltersEnabled && !isSeccompInstalled();
+            return areSystemCallFiltersEnabled && !isSystemCallFilterInstalled();
         }
 
         // visible for testing
-        boolean isSeccompInstalled() {
-            return Natives.isSeccompInstalled();
+        boolean isSystemCallFilterInstalled() {
+            return Natives.isSystemCallFilterInstalled();
         }
 
         @Override
@@ -479,12 +479,12 @@ final class BootstrapChecks {
 
         @Override
         public boolean check() {
-            return isSeccompInstalled() && mightFork();
+            return isSystemCallFilterInstalled() && mightFork();
         }
 
         // visible for testing
-        boolean isSeccompInstalled() {
-            return Natives.isSeccompInstalled();
+        boolean isSystemCallFilterInstalled() {
+            return Natives.isSystemCallFilterInstalled();
         }
 
         // visible for testing

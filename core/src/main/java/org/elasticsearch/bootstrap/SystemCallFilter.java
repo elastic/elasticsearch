@@ -43,8 +43,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Installs a limited form of secure computing mode,
- * to filters system calls to block process execution.
+ * Installs a system call filter to block process execution.
  * <p>
  * This is supported on Linux, Solaris, FreeBSD, OpenBSD, Mac OS X, and Windows.
  * <p>
@@ -91,8 +90,8 @@ import java.util.Map;
  *      https://docs.oracle.com/cd/E23824_01/html/821-1456/prbac-2.html</a>
  */
 // not an example of how to write code!!!
-final class Seccomp {
-    private static final Logger logger = Loggers.getLogger(Seccomp.class);
+final class SystemCallFilter {
+    private static final Logger logger = Loggers.getLogger(SystemCallFilter.class);
 
     // Linux implementation, based on seccomp(2) or prctl(2) with bpf filtering
 

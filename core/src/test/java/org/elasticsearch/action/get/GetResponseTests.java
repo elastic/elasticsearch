@@ -57,6 +57,9 @@ public class GetResponseTests extends ESTestCase {
         //print the parsed object out and test that the output is the same as the original output
         BytesReference finalBytes = toXContent(parsedGetResponse, xContentType, false);
         assertEquivalent(originalBytes, finalBytes, xContentType);
+        //check that the source stays unchanged, no shuffling of keys nor anything like that
+        assertEquals(expectedGetResponse.getSourceAsString(), parsedGetResponse.getSourceAsString());
+
     }
 
     public void testToXContent() throws IOException {

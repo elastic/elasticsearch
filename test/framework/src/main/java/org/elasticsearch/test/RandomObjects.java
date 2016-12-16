@@ -124,7 +124,6 @@ public final class RandomObjects {
         XContentType xContentType = RandomPicks.randomFrom(random, XContentType.values());
         try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
             builder.startObject();
-            builder.prettyPrint();
             addFields(random, builder, 0);
             builder.endObject();
             return builder.bytes();

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.get;
 
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,7 +28,9 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +59,24 @@ public class GetResultTests extends ESTestCase {
         //print the parsed object out and test that the output is the same as the original output
         BytesReference finalBytes = toXContent(parsedGetResult, xContentType, false);
         assertEquivalent(originalBytes, finalBytes, xContentType);
+        //check that the source stays unchanged, no shuffling of keys nor anything like that
+        assertEquals(expectedGetResult.sourceAsString(), parsedGetResult.sourceAsString());
+    }
+
+    public void testToXContent() throws IOException {
+        {
+            GetResult getResult = new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " +
+                    "\"value1\", \"field2\":\"value2\"}"), Collections.singletonMap("field1", new GetField("field1",
+                    Collections.singletonList("value1"))));
+            String output = Strings.toString(getResult, false);
+            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"found\":true,\"_source\":{ \"field1\" " +
+                    ": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", output);
+        }
+        {
+            GetResult getResult = new GetResult("index", "type", "id", 1, false, null, null);
+            String output = Strings.toString(getResult, false);
+            assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
+        }
     }
 
     public void testEqualsAndHashcode() {

@@ -776,13 +776,14 @@ public class ElasticsearchAssertions {
      */
     public static void assertEquivalent(BytesReference expected, BytesReference actual, XContentType xContentType) throws IOException {
         //we tried comparing byte per byte, but that didn't fly for a couple of reasons:
-        //1) whenever anything goes through a map, ordering is not preserved, which is perfectly ok
+        //1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok
         //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
-        try (XContentParser actualParser = xContentType.xContent().createParser(actual);
-             XContentParser expectedParser = xContentType.xContent().createParser(expected)) {
+        try (XContentParser actualParser = xContentType.xContent().createParser(actual)) {
             Map<String, Object> actualMap = actualParser.map();
-            Map<String, Object> expectedMap = expectedParser.map();
-            assertEquals(expectedMap, actualMap);
+            try (XContentParser expectedParser = xContentType.xContent().createParser(expected)) {
+                Map<String, Object> expectedMap = expectedParser.map();
+                assertEquals(expectedMap, actualMap);
+            }
         }
     }
 }

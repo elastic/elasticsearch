@@ -23,6 +23,10 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.maxmind.geoip2.DatabaseReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.junit.AfterClass;
@@ -57,7 +61,16 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
                 geoIpConfigDir.resolve("GeoLite2-City.mmdb.gz"));
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
                 geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
-        databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir);
+
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
+            .put(IngestGeoIpPlugin.CACHE_ENABLED.getKey(), randomBoolean())
+            .put(IngestGeoIpPlugin.CACHE_SIZE.getKey(), randomPositiveLong())
+            .build();
+
+        databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(
+            new Processor.Parameters(new Environment(settings), null, null, null,
+                new ThreadContext(settings)), geoIpConfigDir);
     }
 
     @AfterClass

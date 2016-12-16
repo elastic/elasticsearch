@@ -203,3 +203,21 @@ Which returns:
 }
 --------------------------------------------------
 // TESTRESPONSE
+
+[[ingest-geoip-settings]]
+===== Settings
+
+The geoip processor can cache results. Caching is disabled by default but can be enabled with the
+setting `ingest.geoip.cache_enabled`. The cache size is controlled by .
+
+The geoip processor supports the following settings:
+
+`ingest.geoip.cache_enabled`::
+
+    Whether to enable caching of results. Defaults to `false`.
+
+`ingest.geoip.cache_size`::
+
+    The maximum number of results that should be cached. Defaults to `1000`.
+
+Note that these settings apply to all geoip processors, i.e. there is one cache for all defined processors.

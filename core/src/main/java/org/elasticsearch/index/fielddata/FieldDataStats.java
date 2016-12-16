@@ -103,7 +103,6 @@ public class FieldDataStats implements Streamable, ToXContent {
         builder.field(EVICTIONS, getEvictions());
         if (fields != null) {
             fields.toXContent(builder, FIELDS, MEMORY_SIZE_IN_BYTES, MEMORY_SIZE);
-            builder.endObject();
         }
         builder.endObject();
         return builder;

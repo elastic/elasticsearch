@@ -135,7 +135,8 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
-            try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode, ConnectionProfile.LIGHT_PROFILE)) {
+            try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
+                ConnectionProfile.LIGHT_PROFILE)) {
                 handleA.transportService.handshake(connection, timeout);
             }
         });
@@ -155,7 +156,8 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
-            try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode, ConnectionProfile.LIGHT_PROFILE)) {
+            try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
+                ConnectionProfile.LIGHT_PROFILE)) {
                 handleA.transportService.handshake(connection, timeout);
             }
         });

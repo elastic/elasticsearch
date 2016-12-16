@@ -989,8 +989,7 @@ public abstract class TransportReplicationAction<
                 localCheckpoint = in.readZLong();
                 allocationId = in.readString();
             } else {
-                // we use to read empty responses
-                Empty.INSTANCE.readFrom(in);
+                // 5.x used to read empty responses, which don't really read anything off the stream, so just do nothing.
             }
         }
 
@@ -1070,7 +1069,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    /** sends the give replica request to the supplied nodes */
+    /** sends the given replica request to the supplied nodes */
     protected void sendReplicaRequest(ConcreteShardRequest<ReplicaRequest> concreteShardRequest, DiscoveryNode node,
                                       ActionListener<ReplicationOperation.ReplicaResponse> listener) {
         transportService.sendRequest(node, transportReplicaAction, concreteShardRequest, transportOptions,

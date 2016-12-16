@@ -38,7 +38,7 @@ import java.io.IOException;
 public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>> extends ReplicationRequest<R> implements WriteRequest<R> {
     private RefreshPolicy refreshPolicy = RefreshPolicy.NONE;
 
-    private long seqNo;
+    private long seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
 
     /**
      * Constructor for deserialization.
@@ -67,7 +67,7 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
         super.readFrom(in);
         refreshPolicy = RefreshPolicy.readFrom(in);
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED))  {
-            seqNo = in.readVLong();
+            seqNo = in.readZLong();
         } else {
             seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
         }
@@ -78,7 +78,7 @@ public abstract class ReplicatedWriteRequest<R extends ReplicatedWriteRequest<R>
         super.writeTo(out);
         refreshPolicy.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            out.writeVLong(seqNo);
+            out.writeZLong(seqNo);
         }
     }
 

@@ -157,6 +157,11 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public SearchContext queryBoost(float queryBoost) {
+        return null;
+    }
+
+    @Override
     public long getOriginNanoTime() {
         return originNanoTime;
     }

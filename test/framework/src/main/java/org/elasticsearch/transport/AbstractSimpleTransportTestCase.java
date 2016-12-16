@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
@@ -30,6 +31,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -38,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -830,6 +833,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
     }
 
+    @TestLogging("org.elasticsearch.transport:DEBUG")
     public void testTracerLog() throws InterruptedException {
         TransportRequestHandler handler = (request, channel) -> channel.sendResponse(new StringMessageResponse(""));
         TransportRequestHandler handlerWithError = new TransportRequestHandler<StringMessageRequest>() {
@@ -943,7 +947,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         public volatile boolean sawResponseReceived;
 
         public AtomicReference<CountDownLatch> expectedEvents = new AtomicReference<>();
-
+        private final Logger logger = Loggers.getLogger(getClass());
 
         @Override
         public void receivedRequest(long requestId, String action) {
@@ -962,6 +966,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         @Override
         public void responseSent(long requestId, String action) {
             super.responseSent(requestId, action);
+            logger.debug("#### responseSent for action: {}", action);
             sawResponseSent = true;
             expectedEvents.get().countDown();
         }

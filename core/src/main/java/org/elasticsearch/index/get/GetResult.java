@@ -291,7 +291,8 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (SourceFieldMapper.NAME.equals(currentFieldName)) {
                     try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
-                        //the original document gets slightly modified this way (whitespaces are not preserved)
+                        //the original document gets slightly modified: whitespaces or pretty printing are not preserved,
+                        //it all depends on the current builder settings
                         builder.copyCurrentStructure(parser);
                         source = builder.bytes();
                     }

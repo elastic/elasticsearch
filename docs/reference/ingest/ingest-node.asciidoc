@@ -767,7 +767,7 @@ such a case, `target_field` will still be updated with the unconverted field val
 --------------------------------------------------
 {
   "convert": {
-    "field" : "foo"
+    "field" : "foo",
     "type": "integer"
   }
 }

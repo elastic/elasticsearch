@@ -22,15 +22,12 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -67,91 +64,92 @@ public class RestAnalyzeAction extends BaseRestHandler {
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));
 
-        buildFromContent(RestActions.getRestContent(request), analyzeRequest, parseFieldMatcher);
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
+            buildFromContent(parser, analyzeRequest, parseFieldMatcher);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to parse request body", e);
+        }
 
         return channel -> client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
     }
 
-    static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher) {
-        try (XContentParser parser = XContentHelper.createParser(content)) {
-            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                throw new IllegalArgumentException("Malformed content, must start with an object");
-            } else {
-                XContentParser.Token token;
-                String currentFieldName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.TEXT) && token == XContentParser.Token.VALUE_STRING) {
-                        analyzeRequest.text(parser.text());
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.TEXT) && token == XContentParser.Token.START_ARRAY) {
-                        List<String> texts = new ArrayList<>();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token.isValue() == false) {
-                                throw new IllegalArgumentException(currentFieldName + " array element should only contain text");
-                            }
-                            texts.add(parser.text());
+    static void buildFromContent(XContentParser parser, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher)
+            throws IOException {
+        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+            throw new IllegalArgumentException("Malformed content, must start with an object");
+        } else {
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (parseFieldMatcher.match(currentFieldName, Fields.TEXT) && token == XContentParser.Token.VALUE_STRING) {
+                    analyzeRequest.text(parser.text());
+                } else if (parseFieldMatcher.match(currentFieldName, Fields.TEXT) && token == XContentParser.Token.START_ARRAY) {
+                    List<String> texts = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token.isValue() == false) {
+                            throw new IllegalArgumentException(currentFieldName + " array element should only contain text");
                         }
-                        analyzeRequest.text(texts.toArray(new String[texts.size()]));
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.ANALYZER) && token == XContentParser.Token.VALUE_STRING) {
-                        analyzeRequest.analyzer(parser.text());
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.FIELD) && token == XContentParser.Token.VALUE_STRING) {
-                        analyzeRequest.field(parser.text());
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.TOKENIZER)) {
-                        if (token == XContentParser.Token.VALUE_STRING) {
-                            analyzeRequest.tokenizer(parser.text());
-                        } else if (token == XContentParser.Token.START_OBJECT) {
-                            analyzeRequest.tokenizer(parser.map());
-                        } else {
-                            throw new IllegalArgumentException(currentFieldName + " should be tokenizer's name or setting");
-                        }
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.TOKEN_FILTERS)
-                            && token == XContentParser.Token.START_ARRAY) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_STRING) {
-                                analyzeRequest.addTokenFilter(parser.text());
-                            } else if (token == XContentParser.Token.START_OBJECT) {
-                                analyzeRequest.addTokenFilter(parser.map());
-                            } else {
-                                throw new IllegalArgumentException(currentFieldName
-                                        + " array element should contain filter's name or setting");
-                            }
-                        }
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.CHAR_FILTERS)
-                            && token == XContentParser.Token.START_ARRAY) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token == XContentParser.Token.VALUE_STRING) {
-                                analyzeRequest.addCharFilter(parser.text());
-                            } else if (token == XContentParser.Token.START_OBJECT) {
-                                analyzeRequest.addCharFilter(parser.map());
-                            } else {
-                                throw new IllegalArgumentException(currentFieldName
-                                        + " array element should contain char filter's name or setting");
-                            }
-                        }
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.EXPLAIN)) {
-                        if (parser.isBooleanValue()) {
-                            analyzeRequest.explain(parser.booleanValue());
-                        } else {
-                            throw new IllegalArgumentException(currentFieldName + " must be either 'true' or 'false'");
-                        }
-                    } else if (parseFieldMatcher.match(currentFieldName, Fields.ATTRIBUTES) && token == XContentParser.Token.START_ARRAY) {
-                        List<String> attributes = new ArrayList<>();
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (token.isValue() == false) {
-                                throw new IllegalArgumentException(currentFieldName + " array element should only contain attribute name");
-                            }
-                            attributes.add(parser.text());
-                        }
-                        analyzeRequest.attributes(attributes.toArray(new String[attributes.size()]));
-                    } else {
-                        throw new IllegalArgumentException("Unknown parameter ["
-                                + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
+                        texts.add(parser.text());
                     }
+                    analyzeRequest.text(texts.toArray(new String[texts.size()]));
+                } else if (parseFieldMatcher.match(currentFieldName, Fields.ANALYZER) && token == XContentParser.Token.VALUE_STRING) {
+                    analyzeRequest.analyzer(parser.text());
+                } else if (parseFieldMatcher.match(currentFieldName, Fields.FIELD) && token == XContentParser.Token.VALUE_STRING) {
+                    analyzeRequest.field(parser.text());
+                } else if (parseFieldMatcher.match(currentFieldName, Fields.TOKENIZER)) {
+                    if (token == XContentParser.Token.VALUE_STRING) {
+                        analyzeRequest.tokenizer(parser.text());
+                    } else if (token == XContentParser.Token.START_OBJECT) {
+                        analyzeRequest.tokenizer(parser.map());
+                    } else {
+                        throw new IllegalArgumentException(currentFieldName + " should be tokenizer's name or setting");
+                    }
+                } else if (parseFieldMatcher.match(currentFieldName, Fields.TOKEN_FILTERS)
+                        && token == XContentParser.Token.START_ARRAY) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.VALUE_STRING) {
+                            analyzeRequest.addTokenFilter(parser.text());
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            analyzeRequest.addTokenFilter(parser.map());
+                        } else {
+                            throw new IllegalArgumentException(currentFieldName
+                                    + " array element should contain filter's name or setting");
+                        }
+                    }
+                } else if (parseFieldMatcher.match(currentFieldName, Fields.CHAR_FILTERS)
+                        && token == XContentParser.Token.START_ARRAY) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.VALUE_STRING) {
+                            analyzeRequest.addCharFilter(parser.text());
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            analyzeRequest.addCharFilter(parser.map());
+                        } else {
+                            throw new IllegalArgumentException(currentFieldName
+                                    + " array element should contain char filter's name or setting");
+                        }
+                    }
+                } else if (parseFieldMatcher.match(currentFieldName, Fields.EXPLAIN)) {
+                    if (parser.isBooleanValue()) {
+                        analyzeRequest.explain(parser.booleanValue());
+                    } else {
+                        throw new IllegalArgumentException(currentFieldName + " must be either 'true' or 'false'");
+                    }
+                } else if (parseFieldMatcher.match(currentFieldName, Fields.ATTRIBUTES) && token == XContentParser.Token.START_ARRAY) {
+                    List<String> attributes = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token.isValue() == false) {
+                            throw new IllegalArgumentException(currentFieldName + " array element should only contain attribute name");
+                        }
+                        attributes.add(parser.text());
+                    }
+                    analyzeRequest.attributes(attributes.toArray(new String[attributes.size()]));
+                } else {
+                    throw new IllegalArgumentException("Unknown parameter ["
+                            + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] ");
                 }
             }
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to parse request body", e);
         }
     }
 }

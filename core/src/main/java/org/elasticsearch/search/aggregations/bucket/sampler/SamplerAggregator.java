@@ -31,8 +31,8 @@ import org.elasticsearch.search.aggregations.bucket.BestDocsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -61,7 +61,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
-                    AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                    SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) throws IOException {
 
                 return new DiversifiedMapSamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData,
@@ -79,7 +79,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
-                    AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                    SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) throws IOException {
 
                 return new DiversifiedBytesHashSamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators,
@@ -98,7 +98,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
-                    AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                    SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                     Map<String, Object> metaData) throws IOException {
                 return new DiversifiedOrdinalsSamplerAggregator(name, shardSize, factories, context, parent, pipelineAggregators, metaData,
                         (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, maxDocsPerValue);
@@ -127,7 +127,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         }
 
         abstract Aggregator create(String name, AggregatorFactories factories, int shardSize, int maxDocsPerValue, ValuesSource valuesSource,
- AggregationContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
+                SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException;
 
         abstract boolean needsGlobalOrdinals();
@@ -142,9 +142,9 @@ public class SamplerAggregator extends SingleBucketAggregator {
     protected final int shardSize;
     protected BestDocsDeferringCollector bdd;
 
-    public SamplerAggregator(String name, int shardSize, AggregatorFactories factories, AggregationContext aggregationContext,
+    public SamplerAggregator(String name, int shardSize, AggregatorFactories factories, SearchContext context,
             Aggregator parent, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, pipelineAggregators, metaData);
+        super(name, factories, context, parent, pipelineAggregators, metaData);
         this.shardSize = shardSize;
     }
 

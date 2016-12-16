@@ -62,7 +62,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A geo distance based sorting on a geo point like field.
@@ -408,7 +407,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         SortOrder order = SortOrder.ASC;
         SortMode sortMode = null;
-        Optional<QueryBuilder> nestedFilter = Optional.empty();
+        QueryBuilder nestedFilter = null;
         String nestedPath = null;
 
         boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
@@ -493,7 +492,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         if (sortMode != null) {
             result.sortMode(sortMode);
         }
-        nestedFilter.ifPresent(result::setNestedFilter);
+        if (nestedFilter != null) {
+            result.setNestedFilter(nestedFilter);
+        }
         result.setNestedPath(nestedPath);
         if (validation == null) {
             // looks like either validation was left unset or we are parsing old validation json

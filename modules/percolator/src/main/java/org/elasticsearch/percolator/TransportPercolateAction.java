@@ -184,6 +184,9 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
                         }
                     } else if (token.isValue()) {
                         if ("size".equals(currentFieldName)) {
+                            if (percolateRequest.onlyCount()) {
+                                throw new IllegalArgumentException("Cannot set size if onlyCount == true");
+                            }
                             searchSource.field("size", parser.intValue());
                         } else if ("sort".equals(currentFieldName)) {
                             searchSource.field("sort", parser.text());
@@ -209,7 +212,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
             try (XContentParser parser = XContentHelper.createParser(querySource)) {
                 QueryParseContext queryParseContext = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
                 BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
-                queryParseContext.parseInnerQueryBuilder().ifPresent(boolQueryBuilder::must);
+                boolQueryBuilder.must(queryParseContext.parseInnerQueryBuilder());
                 boolQueryBuilder.filter(percolateQueryBuilder);
                 searchSource.field("query", boolQueryBuilder);
             }

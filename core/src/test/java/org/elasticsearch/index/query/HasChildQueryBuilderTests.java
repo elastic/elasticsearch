@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -33,11 +32,8 @@ import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -53,7 +49,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -221,28 +216,6 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 .setSize(100)
                 .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC));
         assertEquals(query, queryBuilder.innerHit(), expected);
-    }
-
-    /**
-     * we resolve empty inner clauses by representing this whole query as empty optional upstream
-     */
-    public void testFromJsonEmptyQueryBody() throws IOException {
-        String query =  "{\n" +
-                "  \"has_child\" : {\n" +
-                "    \"query\" : { },\n" +
-                "    \"type\" : \"child\"" +
-                "   }" +
-                "}";
-        XContentParser parser = XContentFactory.xContent(query).createParser(query);
-        QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
-        Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
-        assertTrue(innerQueryBuilder.isPresent() == false);
-
-        parser = XContentFactory.xContent(query).createParser(query);
-        QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
-        assertThat(ex.getMessage(), equalTo("query malformed, empty clause found at [3:17]"));
-        checkWarningHeaders("query malformed, empty clause found at [3:17]");
     }
 
     public void testToQueryInnerQueryType() throws IOException {

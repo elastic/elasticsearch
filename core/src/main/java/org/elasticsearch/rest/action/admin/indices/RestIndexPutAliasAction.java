@@ -67,7 +67,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         String searchRouting = null;
 
         if (request.hasContent()) {
-            try (XContentParser parser = XContentFactory.xContent(request.content()).createParser(request.content())) {
+            try (XContentParser parser = request.contentParser()) {
                 XContentParser.Token token = parser.nextToken();
                 if (token == null) {
                     throw new IllegalArgumentException("No index alias is specified");

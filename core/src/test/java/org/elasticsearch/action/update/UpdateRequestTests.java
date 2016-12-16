@@ -19,13 +19,11 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
@@ -36,8 +34,8 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.ScriptSettings;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
@@ -52,17 +50,16 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateRequestTests extends ESTestCase {
     public void testUpdateRequest() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
         // simple script
-        request.fromXContent(XContentFactory.jsonBuilder().startObject()
-                .field("script", "script1")
-                .endObject());
+        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("script", "script1")
+                .endObject().bytes()));
         Script script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -72,9 +69,9 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(params, equalTo(Collections.emptyMap()));
 
         // simple verbose script
-        request.fromXContent(XContentFactory.jsonBuilder().startObject()
-                .startObject("script").field("inline", "script1").endObject()
-                .endObject());
+        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder().startObject()
+                    .startObject("script").field("inline", "script1").endObject()
+                .endObject().bytes()));
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -85,13 +82,13 @@ public class UpdateRequestTests extends ESTestCase {
 
         // script with params
         request = new UpdateRequest("test", "type", "1");
-        request.fromXContent(XContentFactory.jsonBuilder().startObject()
+        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder().startObject()
             .startObject("script")
                 .field("inline", "script1")
                 .startObject("params")
                     .field("param1", "value1")
                 .endObject()
-            .endObject().endObject());
+            .endObject().endObject().bytes()));
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -103,9 +100,15 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(params.get("param1").toString(), equalTo("value1"));
 
         request = new UpdateRequest("test", "type", "1");
-        request.fromXContent(XContentFactory.jsonBuilder().startObject().startObject("script")
-            .startObject("params").field("param1", "value1").endObject()
-            .field("inline", "script1").endObject().endObject());
+        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("script")
+                        .startObject("params")
+                            .field("param1", "value1")
+                        .endObject()
+                        .field("inline", "script1")
+                    .endObject()
+                .endObject().bytes()));
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -118,7 +121,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         // script with params and upsert
         request = new UpdateRequest("test", "type", "1");
-        request.fromXContent(XContentFactory.jsonBuilder().startObject()
+        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder().startObject()
             .startObject("script")
                 .startObject("params")
                     .field("param1", "value1")
@@ -130,7 +133,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .startObject("compound")
                     .field("field2", "value2")
                 .endObject()
-            .endObject().endObject());
+            .endObject().endObject().bytes()));
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -145,7 +148,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
         request = new UpdateRequest("test", "type", "1");
-        request.fromXContent(XContentFactory.jsonBuilder().startObject()
+        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder().startObject()
             .startObject("upsert")
                 .field("field1", "value1")
                 .startObject("compound")
@@ -157,7 +160,7 @@ public class UpdateRequestTests extends ESTestCase {
                     .field("param1", "value1")
                 .endObject()
                 .field("inline", "script1")
-            .endObject().endObject());
+            .endObject().endObject().bytes()));
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -173,69 +176,70 @@ public class UpdateRequestTests extends ESTestCase {
 
         // script with doc
         request = new UpdateRequest("test", "type", "1");
-        request.fromXContent(XContentFactory.jsonBuilder().startObject()
-            .startObject("doc").field("field1", "value1").startObject("compound")
-            .field("field2", "value2").endObject().endObject().endObject());
+        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("doc")
+                        .field("field1", "value1")
+                        .startObject("compound")
+                            .field("field2", "value2")
+                        .endObject()
+                    .endObject()
+                .endObject().bytes()));
         Map<String, Object> doc = request.doc().sourceAsMap();
         assertThat(doc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
     }
 
-    // Related to issue #15822
-    public void testInvalidBodyThrowsParseException() throws Exception {
-        UpdateRequest request = new UpdateRequest("test", "type", "1");
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> request.fromXContent(new byte[] { (byte) '"' }));
-        assertThat(e.getMessage(), equalTo("Failed to derive xcontent"));
-    }
-
     // Related to issue 15338
     public void testFieldsParsing() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type1", "1")
-                .fromXContent(new BytesArray("{\"doc\": {\"field1\": \"value1\"}, \"fields\": \"_source\"}"));
+                .fromXContent(XContentHelper.createParser(new BytesArray("{\"doc\": {\"field1\": \"value1\"}, \"fields\": \"_source\"}")));
         assertThat(request.doc().sourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(request.fields(), arrayContaining("_source"));
 
-        request = new UpdateRequest("test", "type2", "2")
-                .fromXContent(new BytesArray("{\"doc\": {\"field2\": \"value2\"}, \"fields\": [\"field1\", \"field2\"]}"));
+        request = new UpdateRequest("test", "type2", "2").fromXContent(
+                XContentHelper.createParser(new BytesArray("{\"doc\": {\"field2\": \"value2\"}, \"fields\": [\"field1\", \"field2\"]}")));
         assertThat(request.doc().sourceAsMap().get("field2").toString(), equalTo("value2"));
         assertThat(request.fields(), arrayContaining("field1", "field2"));
     }
 
     public void testFetchSourceParsing() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type1", "1");
-        request.fromXContent(
-            XContentFactory.jsonBuilder().startObject().field("_source", true).endObject()
-        );
+        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("_source", true)
+                .endObject().bytes()));
         assertThat(request.fetchSource(), notNullValue());
         assertThat(request.fetchSource().includes().length, equalTo(0));
         assertThat(request.fetchSource().excludes().length, equalTo(0));
         assertThat(request.fetchSource().fetchSource(), equalTo(true));
 
-        request.fromXContent(
-            XContentFactory.jsonBuilder().startObject().field("_source", false).endObject()
-        );
+        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("_source", false)
+                .endObject().bytes()));
         assertThat(request.fetchSource(), notNullValue());
         assertThat(request.fetchSource().includes().length, equalTo(0));
         assertThat(request.fetchSource().excludes().length, equalTo(0));
         assertThat(request.fetchSource().fetchSource(), equalTo(false));
 
-        request.fromXContent(
-            XContentFactory.jsonBuilder().startObject().field("_source", "path.inner.*").endObject()
-        );
+        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .field("_source", "path.inner.*")
+                .endObject().bytes()));
         assertThat(request.fetchSource(), notNullValue());
         assertThat(request.fetchSource().fetchSource(), equalTo(true));
         assertThat(request.fetchSource().includes().length, equalTo(1));
         assertThat(request.fetchSource().excludes().length, equalTo(0));
         assertThat(request.fetchSource().includes()[0], equalTo("path.inner.*"));
 
-        request.fromXContent(
-            XContentFactory.jsonBuilder().startObject()
-                .startObject("_source")
-                    .field("includes", "path.inner.*")
-                    .field("excludes", "another.inner.*")
-                .endObject()
-            .endObject()
-        );
+        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+                .startObject()
+                    .startObject("_source")
+                        .field("includes", "path.inner.*")
+                        .field("excludes", "another.inner.*")
+                    .endObject()
+                .endObject().bytes()));
         assertThat(request.fetchSource(), notNullValue());
         assertThat(request.fetchSource().fetchSource(), equalTo(true));
         assertThat(request.fetchSource().includes().length, equalTo(1));
@@ -254,13 +258,17 @@ public class UpdateRequestTests extends ESTestCase {
         Map<String, Function<Map<String, Object>, Object>> scripts =  new HashMap<>();
         scripts.put("ctx._source.update_timestamp = ctx._now",
             (vars) -> {
-                Map<String, Object> ctx = (Map) vars.get("ctx");
-                Map<String, Object> source = (Map) ctx.get("_source");
+                Map<String, Object> vars2 = vars;
+                @SuppressWarnings("unchecked")
+                Map<String, Object> ctx = (Map<String, Object>) vars2.get("ctx");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
                 source.put("update_timestamp", ctx.get("_now"));
                 return null;});
         scripts.put("ctx._timestamp = ctx._now",
             (vars) -> {
-                Map<String, Object> ctx = (Map) vars.get("ctx");
+                @SuppressWarnings("unchecked")
+                Map<String, Object> ctx = (Map<String, Object>) vars.get("ctx");
                 ctx.put("_timestamp", ctx.get("_now"));
                 return null;});
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Collections.emptyList());

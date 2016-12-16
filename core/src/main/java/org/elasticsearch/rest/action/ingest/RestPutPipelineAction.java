@@ -42,7 +42,7 @@ public class RestPutPipelineAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), RestActions.getRestContent(restRequest));
+        PutPipelineRequest request = new PutPipelineRequest(restRequest.param("id"), restRequest.contentOrSourceParam());
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         return channel -> client.admin().cluster().putPipeline(request, new AcknowledgedRestListener<>(channel));

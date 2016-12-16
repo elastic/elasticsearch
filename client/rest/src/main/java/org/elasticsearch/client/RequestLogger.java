@@ -59,6 +59,12 @@ final class RequestLogger {
             logger.debug("request [" + request.getMethod() + " " + host + getUri(request.getRequestLine()) +
                     "] returned [" + httpResponse.getStatusLine() + "]");
         }
+        if (logger.isWarnEnabled()) {
+            Header[] warnings = httpResponse.getHeaders("Warning");
+            if (warnings != null && warnings.length > 0) {
+                logger.warn(buildWarningMessage(request, host, warnings));
+            }
+        }
         if (tracer.isTraceEnabled()) {
             String requestLine;
             try {
@@ -95,6 +101,18 @@ final class RequestLogger {
             }
             tracer.trace(traceRequest);
         }
+    }
+
+    static String buildWarningMessage(HttpUriRequest request, HttpHost host, Header[] warnings) {
+        StringBuilder message = new StringBuilder("request [").append(request.getMethod()).append(" ").append(host)
+                .append(getUri(request.getRequestLine())).append("] returned ").append(warnings.length).append(" warnings: ");
+        for (int i = 0; i < warnings.length; i++) {
+            if (i > 0) {
+                message.append(",");
+            }
+            message.append("[").append(warnings[i].getValue()).append("]");
+        }
+        return message.toString();
     }
 
     /**
@@ -134,7 +152,7 @@ final class RequestLogger {
             httpResponse.setEntity(entity);
             ContentType contentType = ContentType.get(entity);
             Charset charset = StandardCharsets.UTF_8;
-            if (contentType != null) {
+            if (contentType != null && contentType.getCharset() != null) {
                 charset = contentType.getCharset();
             }
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(entity.getContent(), charset))) {

@@ -77,7 +77,7 @@ public class SuggestBuilderTests extends ESTestCase {
                 xContentBuilder.prettyPrint();
             }
             suggestBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-            XContentParser parser = XContentHelper.createParser(xContentBuilder.bytes());
+            XContentParser parser = createParser(xContentBuilder);
             QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
             SuggestBuilder secondSuggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
             assertNotSame(suggestBuilder, secondSuggestBuilder);

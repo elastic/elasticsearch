@@ -52,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -170,7 +171,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
 
     final class MockTransport implements Transport {
-
+        private final AtomicLong requestId = new AtomicLong();
         Set<DiscoveryNode> connectedNodes = ConcurrentCollections.newConcurrentSet();
         volatile boolean randomConnectionExceptions = false;
 
@@ -214,9 +215,29 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException, TransportException {
+        public Connection getConnection(DiscoveryNode node) {
+            return new Connection() {
+                @Override
+                public DiscoveryNode getNode() {
+                    return node;
+                }
 
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    throws IOException, TransportException {
+
+                }
+
+                @Override
+                public void close() throws IOException {
+
+                }
+            };
+        }
+
+        @Override
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            return getConnection(node);
         }
 
         @Override
@@ -227,6 +248,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         @Override
         public List<String> getLocalAddresses() {
             return null;
+        }
+
+        @Override
+        public long newRequestId() {
+            return requestId.incrementAndGet();
         }
 
         @Override

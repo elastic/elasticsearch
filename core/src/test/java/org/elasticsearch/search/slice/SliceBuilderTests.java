@@ -34,7 +34,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -125,7 +124,7 @@ public class SliceBuilderTests extends ESTestCase {
         builder.startObject();
         sliceBuilder.innerToXContent(builder);
         builder.endObject();
-        XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
+        XContentParser parser = createParser(shuffleXContent(builder));
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser,
             ParseFieldMatcher.STRICT);
         SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(context);

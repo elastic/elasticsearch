@@ -38,7 +38,6 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
-import java.util.Optional;
 import java.util.function.Function;
 
 /**
@@ -61,6 +60,8 @@ public interface ShardSearchRequest {
     SearchType searchType();
 
     QueryBuilder filteringAliases();
+
+    float indexBoost();
 
     long nowInMillis();
 
@@ -110,11 +111,7 @@ public interface ShardSearchRequest {
             try {
                 byte[] filterSource = alias.filter().uncompressed();
                 try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
-                    Optional<QueryBuilder> innerQueryBuilder = contextFactory.apply(parser).parseInnerQueryBuilder();
-                    if (innerQueryBuilder.isPresent()) {
-                        return innerQueryBuilder.get();
-                    }
-                    return null;
+                    return contextFactory.apply(parser).parseInnerQueryBuilder();
                 }
             } catch (IOException ex) {
                 throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);

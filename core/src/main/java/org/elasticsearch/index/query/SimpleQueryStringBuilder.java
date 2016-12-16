@@ -40,7 +40,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.TreeMap;
 
 /**
@@ -471,7 +470,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         builder.endObject();
     }
 
-    public static Optional<SimpleQueryStringBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static SimpleQueryStringBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String currentFieldName = null;
@@ -580,7 +579,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         }
         qb.analyzeWildcard(analyzeWildcard).boost(boost).quoteFieldSuffix(quoteFieldSuffix);
         qb.useAllFields(useAllFields);
-        return Optional.of(qb);
+        return qb;
     }
 
     @Override

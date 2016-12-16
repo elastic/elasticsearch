@@ -36,7 +36,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
@@ -101,7 +100,7 @@ public class ExtendedBoundsTests extends ESTestCase {
         SearchContext context = mock(SearchContext.class);
         QueryShardContext qsc = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
-                null, null, null, null, null, () -> now);
+                null, null, null, null, () -> now);
         when(context.getQueryShardContext()).thenReturn(qsc);
         FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, DateTimeZone.UTC);
@@ -164,7 +163,7 @@ public class ExtendedBoundsTests extends ESTestCase {
             orig.toXContent(out, ToXContent.EMPTY_PARAMS);
             out.endObject();
 
-            try (XContentParser in = JsonXContent.jsonXContent.createParser(out.bytes())) {
+            try (XContentParser in = createParser(JsonXContent.jsonXContent, out.bytes())) {
                 XContentParser.Token token = in.currentToken();
                 assertNull(token);
 

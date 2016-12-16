@@ -17,10 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.service;
+package org.elasticsearch.common;
 
-public enum ClusterStateStatus {
-    UNKNOWN,
-    BEING_APPLIED,
-    APPLIED;
+import java.util.function.Consumer;
+
+/**
+ * A {@link Consumer}-like interface which allows throwing checked exceptions.
+ */
+@FunctionalInterface
+public interface CheckedConsumer<T, E extends Exception> {
+    void accept(T t) throws E;
 }

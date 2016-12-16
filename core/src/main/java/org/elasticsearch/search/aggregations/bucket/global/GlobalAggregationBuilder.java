@@ -27,7 +27,7 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 
@@ -52,7 +52,7 @@ public class GlobalAggregationBuilder extends AbstractAggregationBuilder<GlobalA
     }
 
     @Override
-    protected AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
         return new GlobalAggregatorFactory(name, type, context, parent, subFactoriesBuilder, metaData);
     }

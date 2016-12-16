@@ -40,7 +40,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Creates a Lucene query that will filter for all documents that lie within the specified
@@ -374,7 +373,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         builder.endObject();
     }
 
-    public static Optional<GeoBoundingBoxQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static GeoBoundingBoxQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         String fieldName = null;
@@ -485,7 +484,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         } else {
             builder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
         }
-        return Optional.of(builder);
+        return builder;
     }
 
     @Override

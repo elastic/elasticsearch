@@ -20,7 +20,6 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -36,15 +35,11 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -66,6 +61,7 @@ import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -184,7 +180,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public static void beforeClass() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
         Version indexVersionCreated = randomBoolean() ? Version.CURRENT
-                : VersionUtils.randomVersionBetween(random(), Version.V_2_0_0_beta1, Version.CURRENT);
+                : VersionUtils.randomVersionBetween(random(), null, Version.CURRENT);
         nodeSettings = Settings.builder()
                 .put("node.name", AbstractQueryTestCase.class.toString())
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
@@ -292,10 +288,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             QB testQuery = createTestQueryBuilder();
             XContentBuilder builder = toXContent(testQuery, randomFrom(XContentType.values()));
             XContentBuilder shuffled = shuffleXContent(builder, shuffleProtectedFields());
-            assertParsedQuery(shuffled.bytes(), testQuery);
+            assertParsedQuery(createParser(shuffled), testQuery);
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
                 String queryAsString = alternateVersion.getKey();
-                assertParsedQuery(new BytesArray(queryAsString), alternateVersion.getValue());
+                assertParsedQuery(createParser(JsonXContent.jsonXContent, queryAsString), alternateVersion.getValue());
             }
         }
     }
@@ -425,7 +421,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
                         XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
-                        XContentParser parser = XContentHelper.createParser(new BytesArray(query));
+                        XContentParser parser = JsonXContent.jsonXContent.createParser(query);
                 ) {
                     int objectIndex = -1;
                     Deque<String> levels = new LinkedList<>();
@@ -506,7 +502,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
     }
 
-    private static void queryWrappedInArrayTest(String queryName, String validQuery) throws IOException {
+    private void queryWrappedInArrayTest(String queryName, String validQuery) throws IOException {
         int i = validQuery.indexOf("\"" + queryName + "\"");
         assertThat(i, greaterThan(0));
 
@@ -544,11 +540,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Parses the query provided as string argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
-    protected static void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery) throws IOException {
+    protected void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery) throws IOException {
         assertParsedQuery(queryAsString, expectedQuery, ParseFieldMatcher.STRICT);
     }
 
-    protected static void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery, ParseFieldMatcher matcher)
+    protected void assertParsedQuery(String queryAsString, QueryBuilder expectedQuery, ParseFieldMatcher matcher)
             throws IOException {
         QueryBuilder newQuery = parseQuery(queryAsString, matcher);
         assertNotSame(newQuery, expectedQuery);
@@ -559,40 +555,38 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Parses the query provided as bytes argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
      */
-    private static void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery) throws IOException {
-        assertParsedQuery(queryAsBytes, expectedQuery, ParseFieldMatcher.STRICT);
+    private void assertParsedQuery(XContentParser parser, QueryBuilder expectedQuery) throws IOException {
+        assertParsedQuery(parser, expectedQuery, ParseFieldMatcher.STRICT);
     }
 
-    private static void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder expectedQuery, ParseFieldMatcher matcher)
+    private void assertParsedQuery(XContentParser parser, QueryBuilder expectedQuery, ParseFieldMatcher matcher)
             throws IOException {
-        QueryBuilder newQuery = parseQuery(queryAsBytes, matcher);
+        QueryBuilder newQuery = parseQuery(parser, matcher);
         assertNotSame(newQuery, expectedQuery);
         assertEquals(expectedQuery, newQuery);
         assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
     }
 
-    protected static QueryBuilder parseQuery(String queryAsString) throws IOException {
+    protected QueryBuilder parseQuery(String queryAsString) throws IOException {
         return parseQuery(queryAsString, ParseFieldMatcher.STRICT);
     }
 
-    protected static QueryBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
-        XContentParser parser = XContentFactory.xContent(queryAsString).createParser(queryAsString);
+    protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
+        return parseQuery(parser, ParseFieldMatcher.STRICT);
+    }
+
+    protected QueryBuilder parseQuery(AbstractQueryBuilder<?> builder) throws IOException {
+        return parseQuery(createParser(JsonXContent.jsonXContent, builder.buildAsBytes(XContentType.JSON)), ParseFieldMatcher.STRICT);
+    }
+
+    protected QueryBuilder parseQuery(String queryAsString, ParseFieldMatcher matcher) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, queryAsString);
         return parseQuery(parser, matcher);
     }
 
-    protected static QueryBuilder parseQuery(BytesReference queryAsBytes) throws IOException {
-        return parseQuery(queryAsBytes, ParseFieldMatcher.STRICT);
-    }
-
-    protected static QueryBuilder parseQuery(BytesReference queryAsBytes, ParseFieldMatcher matcher) throws IOException {
-        XContentParser parser = XContentFactory.xContent(queryAsBytes).createParser(queryAsBytes);
-        return parseQuery(parser, matcher);
-    }
-
-    private static QueryBuilder parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
+    private QueryBuilder parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
         QueryParseContext context = createParseContext(parser, matcher);
-        QueryBuilder parseInnerQueryBuilder = context.parseInnerQueryBuilder()
-                .orElseThrow(() -> new IllegalArgumentException("inner query body cannot be empty"));
+        QueryBuilder parseInnerQueryBuilder = context.parseInnerQueryBuilder();
         assertNull(parser.nextToken());
         return parseInnerQueryBuilder;
     }
@@ -1138,9 +1132,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
 
         QueryShardContext createShardContext() {
-            ClusterState state = ClusterState.builder(new ClusterName("_name")).build();
             return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                    scriptService, indicesQueriesRegistry, this.client, null, state, () -> nowInMillis);
+                    scriptService, indicesQueriesRegistry, this.client, null, () -> nowInMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

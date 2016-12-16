@@ -533,20 +533,20 @@ public class RelocationIT extends ESIntegTestCase {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+        protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files
-                    logger.debug("corrupting [{}] to {}. file name: [{}]", action, node, chunkRequest.name());
+                    logger.debug("corrupting [{}] to {}. file name: [{}]", action, connection.getNode(), chunkRequest.name());
                     assert chunkRequest.content().toBytesRef().bytes == chunkRequest.content().toBytesRef().bytes : "no internal reference!!";
                     byte[] array = chunkRequest.content().toBytesRef().bytes;
                     array[0] = (byte) ~array[0]; // flip one byte in the content
                     corruptionCount.countDown();
                 }
-                transport.sendRequest(node, requestId, action, request, options);
+                super.sendRequest(connection, requestId, action, request, options);
             } else {
-                transport.sendRequest(node, requestId, action, request, options);
+                super.sendRequest(connection, requestId, action, request, options);
             }
         }
     }

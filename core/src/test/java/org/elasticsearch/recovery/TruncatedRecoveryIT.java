@@ -36,6 +36,8 @@ import org.elasticsearch.node.RecoverySettingsChunkSizePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -121,7 +123,8 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
             mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                 @Override
-                public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                           TransportRequestOptions options) throws IOException {
                     if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                         logger.debug("file chunk [{}] lastChunk: {}", req, req.lastChunk());
@@ -130,7 +133,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
                             throw new RuntimeException("Caused some truncated files for fun and profit");
                         }
                     }
-                    super.sendRequest(node, requestId, action, request, options);
+                    super.sendRequest(connection, requestId, action, request, options);
                 }
             });
         }

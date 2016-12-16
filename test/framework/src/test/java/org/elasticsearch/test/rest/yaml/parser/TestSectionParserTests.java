@@ -20,8 +20,7 @@ package org.elasticsearch.test.rest.yaml.parser;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSectionParser;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParseContext;
+import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.GreaterThanAssertion;
 import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
@@ -31,7 +30,6 @@ import org.elasticsearch.test.rest.yaml.section.LessThanAssertion;
 import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 import org.elasticsearch.test.rest.yaml.section.SetSection;
 import org.elasticsearch.test.rest.yaml.section.SkipSection;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 
 import java.util.Map;
 
@@ -40,9 +38,9 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class TestSectionParserTests extends AbstractParserTestCase {
+public class TestSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseTestSectionWithDoSection() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "\"First test section\": \n" +
                 " - do :\n" +
                 "     catch: missing\n" +
@@ -81,7 +79,7 @@ public class TestSectionParserTests extends AbstractParserTestCase {
 
 
         ClientYamlTestSectionParser testSectionParser = new ClientYamlTestSectionParser();
-        parser = YamlXContent.yamlXContent.createParser(yaml);
+        parser = createParser(YamlXContent.yamlXContent,yaml);
         ClientYamlTestSection testSection = testSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
 
         assertThat(testSection, notNullValue());
@@ -103,7 +101,7 @@ public class TestSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseTestSectionWithMultipleDoSections() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "\"Basic\":\n" +
                         "\n" +
                         "  - do:\n" +
@@ -141,7 +139,7 @@ public class TestSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseTestSectionWithDoSectionsAndAssertions() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "\"Basic\":\n" +
                         "\n" +
                         "  - do:\n" +
@@ -235,7 +233,7 @@ public class TestSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testSmallSection() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "\"node_info test\":\n" +
                 "  - do:\n" +
                 "      cluster.node_info: {}\n" +

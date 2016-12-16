@@ -27,9 +27,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
@@ -40,6 +40,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SearchSlowLogTests extends ESSingleNodeTestCase {
@@ -48,120 +50,98 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
         return new TestSearchContext(threadPool, bigArrays, indexService) {
+            final ShardSearchRequest request = new ShardSearchRequest() {
+                private SearchSourceBuilder searchSourceBuilder;
+                @Override
+                public ShardId shardId() {
+                    return new ShardId(indexService.index(), 0);
+                }
+
+                @Override
+                public String[] types() {
+                    return new String[0];
+                }
+
+                @Override
+                public SearchSourceBuilder source() {
+                    return searchSourceBuilder;
+                }
+
+                @Override
+                public void source(SearchSourceBuilder source) {
+                    searchSourceBuilder = source;
+                }
+
+                @Override
+                public int numberOfShards() {
+                    return 0;
+                }
+
+                @Override
+                public SearchType searchType() {
+                    return null;
+                }
+
+                @Override
+                public QueryBuilder filteringAliases() {
+                    return null;
+                }
+
+                @Override
+                public float indexBoost() {
+                    return 1.0f;
+                }
+
+                @Override
+                public long nowInMillis() {
+                    return 0;
+                }
+
+                @Override
+                public Boolean requestCache() {
+                    return null;
+                }
+
+                @Override
+                public Scroll scroll() {
+                    return null;
+                }
+
+                @Override
+                public void setProfile(boolean profile) {
+
+                }
+
+                @Override
+                public boolean isProfile() {
+                    return false;
+                }
+
+                @Override
+                public BytesReference cacheKey() throws IOException {
+                    return null;
+                }
+
+                @Override
+                public void rewrite(QueryShardContext context) throws IOException {
+                }
+            };
             @Override
             public ShardSearchRequest request() {
-                return new ShardSearchRequest() {
-                    @Override
-                    public ShardId shardId() {
-                        return new ShardId(indexService.index(), 0);
-                    }
-
-                    @Override
-                    public String[] types() {
-                        return new String[0];
-                    }
-
-                    @Override
-                    public SearchSourceBuilder source() {
-                        return null;
-                    }
-
-                    @Override
-                    public void source(SearchSourceBuilder source) {
-
-                    }
-
-                    @Override
-                    public int numberOfShards() {
-                        return 0;
-                    }
-
-                    @Override
-                    public SearchType searchType() {
-                        return null;
-                    }
-
-                    @Override
-                    public QueryBuilder filteringAliases() {
-                        return null;
-                    }
-
-                    @Override
-                    public long nowInMillis() {
-                        return 0;
-                    }
-
-                    @Override
-                    public Boolean requestCache() {
-                        return null;
-                    }
-
-                    @Override
-                    public Scroll scroll() {
-                        return null;
-                    }
-
-                    @Override
-                    public void setProfile(boolean profile) {
-
-                    }
-
-                    @Override
-                    public boolean isProfile() {
-                        return false;
-                    }
-
-                    @Override
-                    public BytesReference cacheKey() throws IOException {
-                        return null;
-                    }
-
-                    @Override
-                    public void rewrite(QueryShardContext context) throws IOException {
-                    }
-                };
+                return request;
             }
         };
     }
 
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
-        // Turning off document logging doesn't log source[]
         SearchContext searchContext = createSearchContext(index);
-        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10, true);
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
+        searchContext.request().source(source);
+        SearchSlowLog.SlowLogSearchContextPrinter p = new SearchSlowLog.SlowLogSearchContextPrinter(searchContext, 10);
         assertThat(p.toString(), startsWith("[foo][0]"));
-    }
-
-    public void testReformatSetting() {
-        IndexMetaData metaData = newIndexMeta("index", Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_REFORMAT.getKey(), false)
-            .build());
-        IndexSettings settings = new IndexSettings(metaData, Settings.EMPTY);
-        SearchSlowLog log = new SearchSlowLog(settings);
-        assertFalse(log.isReformat());
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_REFORMAT.getKey(), "true").build()));
-        assertTrue(log.isReformat());
-
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_REFORMAT.getKey(), "false").build()));
-        assertFalse(log.isReformat());
-
-        settings.updateIndexMetaData(newIndexMeta("index", Settings.EMPTY));
-        assertTrue(log.isReformat());
-
-        metaData = newIndexMeta("index", Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build());
-        settings = new IndexSettings(metaData, Settings.EMPTY);
-        log = new SearchSlowLog(settings);
-        assertTrue(log.isReformat());
-        try {
-            settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_REFORMAT.getKey(), "NOT A BOOLEAN").build()));
-            fail();
-        } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse value [NOT A BOOLEAN] cannot be parsed to boolean [ true/1/on/yes OR false/0/off/no ]");
-        }
-        assertTrue(log.isReformat());
+        // Makes sure that output doesn't contain any new lines
+        assertThat(p.toString(), not(containsString("\n")));
     }
 
     public void testLevelSetting() {
@@ -192,7 +172,6 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             .build());
         settings = new IndexSettings(metaData, Settings.EMPTY);
         log = new SearchSlowLog(settings);
-        assertTrue(log.isReformat());
         try {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), "NOT A LEVEL").build()));
             fail();

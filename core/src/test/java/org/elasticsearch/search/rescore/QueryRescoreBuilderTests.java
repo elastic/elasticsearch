@@ -30,9 +30,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -118,7 +118,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
             XContentBuilder shuffled = shuffleXContent(builder);
 
 
-            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
+            XContentParser parser = createParser(shuffled);
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             RescoreBuilder<?> secondRescoreBuilder = RescoreBuilder.parseFromXContent(context);
@@ -139,7 +139,7 @@ public class QueryRescoreBuilderTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in query rescorer
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null, null, null, () -> nowInMillis) {
+                null, null, () -> nowInMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -250,8 +250,8 @@ public class QueryRescoreBuilderTests extends ESTestCase {
     /**
      * create a new parser from the rescorer string representation and reset context with it
      */
-    private static QueryParseContext createContext(String rescoreElement) throws IOException {
-        XContentParser parser = XContentFactory.xContent(rescoreElement).createParser(rescoreElement);
+    private QueryParseContext createContext(String rescoreElement) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, rescoreElement);
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         // move to first token, this is where the internal fromXContent
         assertTrue(parser.nextToken() == XContentParser.Token.START_OBJECT);

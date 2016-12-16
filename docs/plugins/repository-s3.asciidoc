@@ -262,7 +262,7 @@ The following settings are supported:
 
 `path_style_access`::
 
-    Activate path style access for [virtual hosting of buckets](http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html).
+    Activate path style access for http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html[virtual hosting of buckets].
     The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
     in path-style access) and the bucket being accessed (some buckets are not valid DNS names).
 

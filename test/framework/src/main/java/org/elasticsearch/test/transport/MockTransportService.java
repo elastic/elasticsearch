@@ -183,9 +183,9 @@ public final class MockTransportService extends TransportService {
             }
 
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                    TransportRequestOptions options) throws IOException, TransportException {
-                throw new ConnectTransportException(node, "DISCONNECT: simulated");
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                       TransportRequestOptions options) throws IOException {
+                throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulated");
             }
         });
     }
@@ -226,13 +226,13 @@ public final class MockTransportService extends TransportService {
             }
 
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                    TransportRequestOptions options) throws IOException, TransportException {
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                       TransportRequestOptions options) throws IOException {
                 if (blockedActions.contains(action)) {
                     logger.info("--> preventing {} request", action);
-                    throw new ConnectTransportException(node, "DISCONNECT: prevented " + action + " request");
+                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: prevented " + action + " request");
                 }
-                original.sendRequest(node, requestId, action, request, options);
+                connection.sendRequest(requestId, action, request, options);
             }
         });
     }
@@ -260,8 +260,8 @@ public final class MockTransportService extends TransportService {
             }
 
             @Override
-            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                    TransportRequestOptions options) throws IOException, TransportException {
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                       TransportRequestOptions options) throws IOException {
                 // don't send anything, the receiving node is unresponsive
             }
         });
@@ -320,13 +320,12 @@ public final class MockTransportService extends TransportService {
             }
 
             @Override
-            public void sendRequest(final DiscoveryNode node, final long requestId, final String action, TransportRequest request,
-                                    final TransportRequestOptions options) throws IOException, TransportException {
+            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                       TransportRequestOptions options) throws IOException {
                 // delayed sending - even if larger then the request timeout to simulated a potential late response from target node
-
                 TimeValue delay = getDelay();
                 if (delay.millis() <= 0) {
-                    original.sendRequest(node, requestId, action, request, options);
+                    connection.sendRequest(requestId, action, request, options);
                     return;
                 }
 
@@ -348,7 +347,7 @@ public final class MockTransportService extends TransportService {
                     @Override
                     protected void doRun() throws IOException {
                         if (requestSent.compareAndSet(false, true)) {
-                            original.sendRequest(node, requestId, action, clonedRequest, options);
+                            connection.sendRequest(requestId, action, clonedRequest, options);
                         }
                     }
                 };
@@ -363,7 +362,6 @@ public final class MockTransportService extends TransportService {
                     }
                 }
             }
-
 
             @Override
             public void clearRule() {
@@ -439,9 +437,13 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException, TransportException {
-            getTransport(node).sendRequest(node, requestId, action, request, options);
+        public Connection getConnection(DiscoveryNode node) {
+            return getTransport(node).getConnection(node);
+        }
+
+        @Override
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            return getTransport(node).openConnection(node, profile);
         }
     }
 
@@ -489,12 +491,6 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException, TransportException {
-            transport.sendRequest(node, requestId, action, request, options);
-        }
-
-        @Override
         public long serverOpen() {
             return transport.serverOpen();
         }
@@ -502,6 +498,33 @@ public final class MockTransportService extends TransportService {
         @Override
         public List<String> getLocalAddresses() {
             return transport.getLocalAddresses();
+        }
+
+        @Override
+        public long newRequestId() {
+            return transport.newRequestId();
+        }
+
+        @Override
+        public Connection getConnection(DiscoveryNode node) {
+            return new FilteredConnection(transport.getConnection(node)) {
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    throws IOException, TransportException {
+                    DelegateTransport.this.sendRequest(connection, requestId, action, request, options);
+                }
+            };
+        }
+
+        @Override
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            return new FilteredConnection(transport.openConnection(node, profile)) {
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    throws IOException, TransportException {
+                    DelegateTransport.this.sendRequest(connection, requestId, action, request, options);
+                }
+            };
         }
 
         @Override
@@ -537,6 +560,11 @@ public final class MockTransportService extends TransportService {
         @Override
         public Map<String, BoundTransportAddress> profileBoundAddresses() {
             return transport.profileBoundAddresses();
+        }
+
+        protected void sendRequest(Transport.Connection connection, long requestId, String action, TransportRequest request,
+                                   TransportRequestOptions options) throws IOException {
+            connection.sendRequest(requestId, action, request, options);
         }
     }
 
@@ -640,5 +668,37 @@ public final class MockTransportService extends TransportService {
                 tracer.requestSent(node, requestId, action, options);
             }
         }
+    }
+
+    private static class FilteredConnection implements Transport.Connection {
+        protected final Transport.Connection connection;
+
+        private FilteredConnection(Transport.Connection connection) {
+            this.connection = connection;
+        }
+
+        @Override
+        public DiscoveryNode getNode() {
+            return connection.getNode();
+        }
+
+        @Override
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException, TransportException {
+            connection.sendRequest(requestId, action, request, options);
+        }
+
+        @Override
+        public void close() throws IOException {
+            connection.close();
+        }
+    }
+
+    public Transport getOriginalTransport() {
+        Transport transport = transport();
+        while (transport instanceof DelegateTransport) {
+            transport = ((DelegateTransport) transport).transport;
+        }
+        return transport;
     }
 }

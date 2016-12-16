@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
@@ -186,7 +187,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             "    }\n" +
             "}";
         try {
-            XContentParser parser = XContentFactory.xContent(source).createParser(source);
+            XContentParser parser = createParser(JsonXContent.jsonXContent, source);
             QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);

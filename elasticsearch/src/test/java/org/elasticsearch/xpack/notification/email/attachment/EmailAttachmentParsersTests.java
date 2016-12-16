@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.notification.email.attachment;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -115,8 +116,8 @@ public class EmailAttachmentParsersTests extends ESTestCase {
     }
 
     public void testThatTwoAttachmentsWithTheSameIdThrowError() throws Exception {
-        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
-                JsonXContent.isStrictDuplicateDetectionEnabled());
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+                XContent.isStrictDuplicateDetectionEnabled());
         Map<String, EmailAttachmentParser> parsers = new HashMap<>();
         parsers.put("test", new TestEmailAttachmentParser());
         EmailAttachmentsParser parser = new EmailAttachmentsParser(parsers);

@@ -4,11 +4,11 @@
 The search shards api returns the indices and shards that a search request would
 be executed against. This can give useful feedback for working out issues or
 planning optimizations with routing and shard preferences. When filtered aliases
-are used, the filter is returned as part of the `indices` section added[5.1.0].
+are used, the filter is returned as part of the `indices` section added[5.1.1].
 
 The `index` and `type` parameters may be single values, or comma-separated.
 
-The `type` parameter is deprecated deprecated[5.1.0,was ignored in previous versions].
+The `type` parameter is deprecated deprecated[5.1.1,was ignored in previous versions].
 
 [float]
 === Usage

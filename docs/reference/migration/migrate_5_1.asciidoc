@@ -17,7 +17,7 @@ characters. That means that aliases may not:
 * Be longer than 100 UTF-8 encoded bytes
 * Be exactly `.` or `..`
 
-Aliases created in versions before 5.1.0 are still supported but no new aliases
+Aliases created in versions before 5.1.1 are still supported but no new aliases
 can be added that violate those rules. Since modifying an alias in elasticsearch
 is removing it and recreating it atomically using the `_aliases` API, modifying
 aliases with invalid names is also no longer supported.
@@ -67,7 +67,7 @@ converted to pull based plugins, and hooks for onModule have been removed.
 ==== Indices stats and node stats API unrecognized metrics
 
 The indices stats and node stats APIs allow querying Elasticsearch for a variety of metrics. Previous versions of
-Elasticsearch would silently accept unrecognized metrics (e.g., typos like "transprot"). In 5.1.0, this is no longer
+Elasticsearch would silently accept unrecognized metrics (e.g., typos like "transprot"). In 5.1.1, this is no longer
 the case; unrecognized metrics will cause the request to fail. There is one exception to this which is the percolate
 metric which was removed in 5.0.0 but requests for these will only produce a warning in the 5.x series starting with
-5.1.0 and will fail like any other unrecognized metric in 6.0.0.
+5.1.1 and will fail like any other unrecognized metric in 6.0.0.

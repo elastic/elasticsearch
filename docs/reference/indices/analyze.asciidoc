@@ -100,7 +100,7 @@ curl -XGET 'localhost:9200/test/_analyze' -d '
 Will cause the analysis to happen based on the analyzer configured in the
 mapping for `obj1.field1` (and if not, the default index analyzer).
 
-deprecated[5.1.0 request parameters are deprecated and will be removed in the next major release. please use JSON params instead of request params]
+deprecated[5.1.1 request parameters are deprecated and will be removed in the next major release. please use JSON params instead of request params]
 All parameters can also supplied as request parameters. For example:
 
 [source,js]
@@ -116,7 +116,7 @@ provided it doesn't start with `{` :
 curl -XGET 'localhost:9200/_analyze?tokenizer=keyword&filter=lowercase&char_filter=html_strip' -d 'this is a <b>test</b>'
 --------------------------------------------------
 
-deprecated[5.1.0 the text parameter as the body of the request are deprecated and this feature will be removed in the next major release. please use JSON text param]
+deprecated[5.1.1 the text parameter as the body of the request are deprecated and this feature will be removed in the next major release. please use JSON text param]
 
 === Explain Analyze
 

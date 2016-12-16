@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -191,11 +192,26 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 // norelease: we will no longer need to pass the client here after we switch to a client based data extractor
                 new HttpDataExtractorFactory(client),
                 System::currentTimeMillis);
+
+        JobLifeCycleService jobLifeCycleService =
+                new JobLifeCycleService(settings, client, clusterService, dataProcessor, threadPool.generic());
+        // we hop on the lifecycle service of ResourceWatcherService, because
+        // that one is stopped before discovery is.
+        // (when discovery is stopped it will send a leave request to elected master node, which will then be removed
+        // from the cluster state, which then triggers other events)
+        resourceWatcherService.addLifecycleListener(new LifecycleListener() {
+
+            @Override
+            public void beforeStop() {
+                jobLifeCycleService.stop();
+            }
+        });
+
         return Arrays.asList(
                 jobProvider,
                 jobManager,
                 new JobAllocator(settings, clusterService, threadPool),
-                new JobLifeCycleService(settings, client, clusterService, dataProcessor, threadPool.generic()),
+                jobLifeCycleService,
                 new JobDataDeleterFactory(client), //NORELEASE: this should use Delete-by-query
                 dataProcessor,
                 new PrelertInitializationService(settings, threadPool, clusterService, jobProvider),

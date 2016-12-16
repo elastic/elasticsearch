@@ -24,10 +24,12 @@ import java.util.concurrent.Executor;
 
 public class JobLifeCycleService extends AbstractComponent implements ClusterStateListener {
 
-    volatile Set<String> localAssignedJobs = new HashSet<>();
     private final Client client;
     private final DataProcessor dataProcessor;
     private final Executor executor;
+
+    volatile boolean stopped = false;
+    volatile Set<String> localAssignedJobs = new HashSet<>();
 
     public JobLifeCycleService(Settings settings, Client client, ClusterService clusterService, DataProcessor dataProcessor,
                                Executor executor) {
@@ -43,6 +45,11 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
         PrelertMetadata prelertMetadata = event.state().getMetaData().custom(PrelertMetadata.TYPE);
         if (prelertMetadata == null) {
             logger.debug("Prelert metadata not installed");
+            return;
+        }
+
+        if (stopped) {
+            logger.debug("no cluster state changes will be processed as the node has been stopped");
             return;
         }
 
@@ -104,6 +111,20 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
         Set<String> newSet = new HashSet<>(localAssignedJobs);
         newSet.remove(jobId);
         localAssignedJobs = newSet;
+    }
+
+    public void stop() {
+        stopped = true;
+        Set<String> jobsToStop = this.localAssignedJobs;
+        for (String jobId : jobsToStop) {
+            try {
+                dataProcessor.closeJob(jobId);
+            } catch (Exception e) {
+                // in case of failure log it and continue with closing next job.
+                logger.error("Failed to close job [" + jobId + "] while stopping node", e);
+            }
+
+        }
     }
 
     private void updateJobStatus(String jobId, JobStatus status, String reason) {

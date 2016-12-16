@@ -29,6 +29,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class JobLifeCycleServiceTests extends ESTestCase {
 
@@ -169,4 +170,30 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         expectedRequest.setReason("failed to close, error");
         verify(client).execute(eq(UpdateJobStatusAction.INSTANCE), eq(expectedRequest), any());
     }
+
+    public void testStop() {
+        jobLifeCycleService.localAssignedJobs.add("job1");
+        jobLifeCycleService.localAssignedJobs.add("job2");
+        assertFalse(jobLifeCycleService.stopped);
+
+        jobLifeCycleService.stop();
+        assertTrue(jobLifeCycleService.stopped);
+        verify(dataProcessor, times(1)).closeJob("job1");
+        verify(dataProcessor, times(1)).closeJob("job2");
+        verifyNoMoreInteractions(dataProcessor);
+    }
+
+    public void testStop_failure() {
+        jobLifeCycleService.localAssignedJobs.add("job1");
+        jobLifeCycleService.localAssignedJobs.add("job2");
+        assertFalse(jobLifeCycleService.stopped);
+
+        doThrow(new RuntimeException()).when(dataProcessor).closeJob("job1");
+        jobLifeCycleService.stop();
+        assertTrue(jobLifeCycleService.stopped);
+        verify(dataProcessor, times(1)).closeJob("job1");
+        verify(dataProcessor, times(1)).closeJob("job2");
+        verifyNoMoreInteractions(dataProcessor);
+    }
+
 }

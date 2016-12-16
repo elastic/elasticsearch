@@ -152,11 +152,14 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -2975,18 +2978,44 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
-    public void testOutOfOrderSequenceNumbersWithVersionConflict() {
+    public void testOutOfOrderSequenceNumbersWithVersionConflict() throws IOException {
         final List<Engine.Operation> operations = new ArrayList<>();
+
         final int numberOfOperations = randomIntBetween(16, 32);
         final Term uid = newUid("1");
         final Document document = testDocumentWithTextField();
+        final AtomicLong sequenceNumber = new AtomicLong();
+        final Engine.Operation.Origin origin = randomFrom(PEER_RECOVERY, PRIMARY, PEER_RECOVERY);
+        final LongSupplier sequenceNumberSupplier =
+            origin == PRIMARY ? () -> SequenceNumbersService.UNASSIGNED_SEQ_NO : sequenceNumber::getAndIncrement;
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));
         final ParsedDocument doc = testParsedDocument("1", "1", "test", null, document, B_1, null);
         for (int i = 0; i < numberOfOperations; i++) {
             if (randomBoolean()) {
-                operations.add(indexOperation(uid, doc, i, i));
+                final Engine.Index index = new Engine.Index(
+                    uid,
+                    doc,
+                    sequenceNumberSupplier.getAsLong(),
+                    1,
+                    i,
+                    VersionType.EXTERNAL,
+                    origin,
+                    System.nanoTime(),
+                    IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
+                    false);
+                operations.add(index);
             } else {
-                operations.add(deleteOperation("test", "1", uid, i, i));
+                final Engine.Delete delete = new Engine.Delete(
+                    "test",
+                    "1",
+                    uid,
+                    sequenceNumberSupplier.getAsLong(),
+                    1,
+                    i,
+                    VersionType.EXTERNAL,
+                    origin,
+                    System.nanoTime());
+                operations.add(delete);
             }
         }
 
@@ -3001,36 +3030,29 @@ public class InternalEngineTests extends ESTestCase {
             }
         }
 
-        assertThat(engine.seqNoService().getLocalCheckpoint(), equalTo((long) (numberOfOperations - 1)));
+        final long expectedLocalCheckpoint;
+        if (origin == PRIMARY) {
+            // we can only advance as far as the number of operations that did not conflict
+            int count = 0;
+
+            // each time the version increments as we walk the list, that counts as a successful operation
+            long version = -1;
+            for (int i = 0; i < numberOfOperations; i++) {
+                if (operations.get(i).version() >= version) {
+                    count++;
+                    version = operations.get(i).version();
+                }
+            }
+
+            // sequence numbers start at zero, so the expected local checkpoint is the number of successful operations minus one
+            expectedLocalCheckpoint = count - 1;
+        } else {
+            expectedLocalCheckpoint = numberOfOperations - 1;
+        }
+
+        assertThat(engine.seqNoService().getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
         final Engine.GetResult result = engine.get(new Engine.Get(true, uid));
         assertThat(result.exists(), equalTo(exists));
-    }
-
-    private Engine.Index indexOperation(final Term uid, final ParsedDocument doc, final int seqNo, final int version) {
-        return new Engine.Index(
-            uid,
-            doc,
-            seqNo,
-            1,
-            version,
-            VersionType.EXTERNAL,
-            Engine.Operation.Origin.PEER_RECOVERY,
-            System.nanoTime(),
-            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,
-            false);
-    }
-
-    private Engine.Delete deleteOperation(final String type, final String id, final Term uid, final int seqNo, final int version) {
-        return new Engine.Delete(
-            type,
-            id,
-            uid,
-            seqNo,
-            1,
-            version,
-            VersionType.EXTERNAL,
-            Engine.Operation.Origin.PEER_RECOVERY,
-            System.nanoTime());
     }
 
     /**

@@ -377,6 +377,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.hasNested = hasNested;
         this.fullPathObjectMappers = fullPathObjectMappers;
         this.parentTypes = parentTypes;
+        // this is only correct because types cannot be removed and we do not
+        // allow to disable an existing _all field
         this.allEnabled |= mapper.allFieldMapper().enabled();
 
         assert assertSerialization(newMapper);

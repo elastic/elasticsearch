@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -48,9 +47,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
@@ -61,7 +58,6 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -72,8 +68,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -84,7 +80,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -333,6 +328,10 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                             sendPings(duration, TimeValue.timeValueMillis(duration.millis() / 2), sendPingsHandler, resolvedDiscoveryNodes);
                             sendPingsHandler.close();
                             listener.onPing(sendPingsHandler.pingCollection().toList());
+                            for (DiscoveryNode node : sendPingsHandler.nodeToDisconnect) {
+                                logger.trace("[{}] disconnecting from {}", sendPingsHandler.id(), node);
+                                transportService.disconnectFromNode(node);
+                            }
                         }
 
                         @Override
@@ -360,7 +359,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     class SendPingsHandler implements Releasable {
         private final int id;
-        private final List<Transport.Connection> temporaryConnections = new CopyOnWriteArrayList<>();
+        private final Set<DiscoveryNode> nodeToDisconnect = ConcurrentCollections.newConcurrentSet();
         private final PingCollection pingCollection;
 
         private AtomicBoolean closed = new AtomicBoolean(false);
@@ -386,17 +385,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         public void close() {
             if (closed.compareAndSet(false, true)) {
                 receivedResponses.remove(id);
-                try {
-                    IOUtils.close(temporaryConnections);
-                    temporaryConnections.clear();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
             }
-        }
-
-        public void addTemporaryConnection(Transport.Connection connection) {
-            temporaryConnections.add(connection);
         }
     }
 
@@ -466,6 +455,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                         logger.trace("replacing {} with temp node {}", nodeToSend, tempNode);
                         nodeToSend = tempNode;
                     }
+                    sendPingsHandler.nodeToDisconnect.add(nodeToSend);
                 }
                 // fork the connection to another thread
                 final DiscoveryNode finalNodeToSend = nodeToSend;
@@ -477,21 +467,18 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                         }
                         boolean success = false;
                         try {
-                            Transport.Connection connection;
-                            if (nodeFoundByAddress && transportService.nodeConnected(finalNodeToSend)) {
-                                logger.trace("[{}] reusing existing ping connection to {}", sendPingsHandler.id(), finalNodeToSend);
-                                connection = transportService.getConnection(finalNodeToSend);
+                            // connect to the node, see if we manage to do it, if not, bail
+                            if (!nodeFoundByAddress) {
+                                logger.trace("[{}] connecting (light) to {}", sendPingsHandler.id(), finalNodeToSend);
+                                transportService.connectToNodeAndHandshake(finalNodeToSend, timeout.getMillis());
                             } else {
-                                // connect to the node, see if we manage to do it, if not, bail
-                                logger.trace("[{}] open ping connection to {}", sendPingsHandler.id(), finalNodeToSend);
-                                connection = transportService.openConnection(finalNodeToSend, ConnectionProfile.LIGHT_PROFILE);
-                                sendPingsHandler.addTemporaryConnection(connection);
-                                transportService.handshake(connection, timeout.millis());
+                                logger.trace("[{}] connecting to {}", sendPingsHandler.id(), finalNodeToSend);
+                                transportService.connectToNode(finalNodeToSend);
                             }
+                            logger.trace("[{}] connected to {}", sendPingsHandler.id(), node);
                             if (receivedResponses.containsKey(sendPingsHandler.id())) {
                                 // we are connected and still in progress, send the ping request
-                                sendPingRequestToNode(() -> connection, sendPingsHandler.id(), timeout, pingRequest, latch, node,
-                                    finalNodeToSend);
+                                sendPingRequestToNode(sendPingsHandler.id(), timeout, pingRequest, latch, node, finalNodeToSend);
                             } else {
                                 // connect took too long, just log it and bail
                                 latch.countDown();
@@ -521,9 +508,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                     }
                 });
             } else {
-                final DiscoveryNode finalNodeToSend = nodeToSend;
-                sendPingRequestToNode(() -> transportService.getConnection(finalNodeToSend),
-                    sendPingsHandler.id(), timeout, pingRequest, latch, node, finalNodeToSend);
+                sendPingRequestToNode(sendPingsHandler.id(), timeout, pingRequest, latch, node, nodeToSend);
             }
         }
         if (waitTime != null) {
@@ -535,22 +520,11 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         }
     }
 
-    private void sendPingRequestToNode(final Supplier<Transport.Connection> connection, final int id, final TimeValue timeout,
-                                       final UnicastPingRequest pingRequest, final CountDownLatch latch, final DiscoveryNode node,
-                                       final DiscoveryNode nodeToSend) {
+    private void sendPingRequestToNode(final int id, final TimeValue timeout, final UnicastPingRequest pingRequest,
+                                       final CountDownLatch latch, final DiscoveryNode node, final DiscoveryNode nodeToSend) {
         logger.trace("[{}] sending to {}", id, nodeToSend);
-        TransportRequestOptions options = TransportRequestOptions.builder()
-            .withTimeout((long) (timeout.millis() * 1.25)).build();
-        Consumer<Exception> handleException = (exp) -> {
-            latch.countDown();
-            if (exp instanceof ConnectTransportException) {
-                // ok, not connected...
-                logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to connect to {}", nodeToSend), exp);
-            } else {
-                logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send ping to [{}]", node), exp);
-            }
-        };
-        TransportResponseHandler<UnicastPingResponse> handler = new TransportResponseHandler<UnicastPingResponse>() {
+        transportService.sendRequest(nodeToSend, ACTION_NAME, pingRequest, TransportRequestOptions.builder()
+                .withTimeout((long) (timeout.millis() * 1.25)).build(), new TransportResponseHandler<UnicastPingResponse>() {
 
             @Override
             public UnicastPingResponse newInstance() {
@@ -589,15 +563,15 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
             @Override
             public void handleException(TransportException exp) {
-                handleException.accept(exp);
+                latch.countDown();
+                if (exp instanceof ConnectTransportException) {
+                    // ok, not connected...
+                    logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to connect to {}", nodeToSend), exp);
+                } else {
+                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send ping to [{}]", node), exp);
+                }
             }
-        };
-        try {
-            transportService.sendRequest(connection.get(), ACTION_NAME, pingRequest, options, handler);
-        } catch (Exception e) {
-            // connection.get() might barf - we have to handle this
-            handleException.accept(e);
-        }
+        });
     }
 
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {

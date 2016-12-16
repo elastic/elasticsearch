@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.prelert.job;
 
-import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -16,6 +15,8 @@ import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import org.elasticsearch.xpack.prelert.job.transform.TransformType;
 import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
+
+import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -505,14 +506,5 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setModelSnapshotId(randomAsciiOfLength(10));
         }
         return builder.build();
-    }
-
-    private static List<String> randomStringList(int min, int max) {
-        int size = scaledRandomIntBetween(min, max);
-        List<String> list = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            list.add(randomAsciiOfLength(10));
-        }
-        return list;
     }
 }

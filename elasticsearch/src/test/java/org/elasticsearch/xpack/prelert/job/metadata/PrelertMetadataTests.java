@@ -53,9 +53,9 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
                 }
             }
             // NORELEASE TODO: randomize scheduler status:
-//            if (randomBoolean()) {
-//                builder.updateSchedulerStatus(job.getId(), SchedulerStatus.STARTED);
-//            }
+            //            if (randomBoolean()) {
+            //                builder.updateSchedulerStatus(job.getId(), SchedulerStatus.STARTED);
+            //            }
         }
         return builder.build();
     }
@@ -71,7 +71,7 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
     }
 
     @Override
-    protected <T extends ToXContent & Writeable> XContentBuilder toXContent(T instance, XContentType contentType) throws IOException {
+    protected XContentBuilder toXContent(PrelertMetadata instance, XContentType contentType) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(contentType);
         if (randomBoolean()) {
             builder.prettyPrint();

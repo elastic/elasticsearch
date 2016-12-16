@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.prelert.job.process.normalizer.output;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;

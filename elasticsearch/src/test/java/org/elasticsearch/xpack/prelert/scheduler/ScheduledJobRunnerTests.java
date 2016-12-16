@@ -79,7 +79,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         flushJobFuture = mock(ActionFuture.class);
         clusterService = mock(ClusterService.class);
         doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
+            @SuppressWarnings("rawtypes")
             ActionListener<Object> actionListener = (ActionListener) invocation.getArguments()[2];
             actionListener.onResponse(new UpdateSchedulerStatusAction.Response());
             return null;

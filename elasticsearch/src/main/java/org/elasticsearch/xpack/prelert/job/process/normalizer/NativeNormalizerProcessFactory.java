@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.prelert.job.process.normalizer;
 
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.prelert.job.process.NativeController;
 import org.elasticsearch.xpack.prelert.job.process.ProcessCtrl;

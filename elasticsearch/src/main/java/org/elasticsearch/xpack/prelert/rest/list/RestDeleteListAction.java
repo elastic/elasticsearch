@@ -15,7 +15,6 @@ import org.elasticsearch.rest.action.AcknowledgedRestListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.DeleteListAction;
 import org.elasticsearch.xpack.prelert.action.DeleteListAction.Request;
-import org.elasticsearch.xpack.prelert.action.PutListAction;
 
 import java.io.IOException;
 

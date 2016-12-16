@@ -26,7 +26,6 @@ import static org.mockito.Mockito.mock;
 
 public class ElasticsearchDataExtractorTests extends ESTestCase {
 
-    private static final String BASE_URL = "http://localhost:9200";
     private static final List<String> INDEXES = Arrays.asList("index-*");
     private static final List<String> TYPES = Arrays.asList("dataType");
     private static final String SEARCH = "\"match_all\":{}";

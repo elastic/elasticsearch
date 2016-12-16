@@ -28,10 +28,8 @@ import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.job.results.Result;
 
 import java.io.IOException;
-import java.util.Date;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 

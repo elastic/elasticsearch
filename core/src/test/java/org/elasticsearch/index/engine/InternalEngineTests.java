@@ -2931,39 +2931,66 @@ public class InternalEngineTests extends ESTestCase {
         searchResult.close();
     }
 
-    public void testSequenceNumberAdvancesToMaxSeqNoOnEngineOpen() throws IOException {
+    public void testSequenceNumberAdvancesToMaxSeqOnEngineOpenOnPrimary() throws BrokenBarrierException, InterruptedException, IOException {
         engine.close();
-        final long maxSeqNo = randomIntBetween(16, 32);
-        final long localCheckpoint =
-            rarely() ? SequenceNumbersService.NO_OPS_PERFORMED : randomIntBetween(0, Math.toIntExact(maxSeqNo));
-        final long globalCheckpoint =
-            localCheckpoint == SequenceNumbersService.NO_OPS_PERFORMED || rarely()
-                ? SequenceNumbersService.UNASSIGNED_SEQ_NO
-                : Math.toIntExact(localCheckpoint);
-        Engine initialEngine = null;
+        final int docs = randomIntBetween(1, 32);
+        InternalEngine initialEngine = null;
         try {
-            initialEngine = createEngine(
-                defaultSettings,
-                store,
-                primaryTranslogDir,
-                newMergePolicy(),
-                null,
-                () -> new SequenceNumbersService(shardId, defaultSettings, maxSeqNo, localCheckpoint, globalCheckpoint) {
+            final CountDownLatch latch = new CountDownLatch(1);
+            final CyclicBarrier barrier = new CyclicBarrier(2);
+            final AtomicBoolean skip = new AtomicBoolean();
+            final AtomicLong expectedLocalCheckpoint = new AtomicLong(SequenceNumbersService.NO_OPS_PERFORMED);
+            final List<Thread> threads = new ArrayList<>();
+            final SequenceNumbersService seqNoService =
+                new SequenceNumbersService(
+                    shardId,
+                    defaultSettings,
+                    SequenceNumbersService.NO_OPS_PERFORMED,
+                    SequenceNumbersService.NO_OPS_PERFORMED,
+                    SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                     @Override
                     public long generateSeqNo() {
-                        if (rarely()) {
-                            // force skipping a sequence number
-                            super.generateSeqNo();
+                        final long seqNo = super.generateSeqNo();
+                        if (skip.get()) {
+                            try {
+                                barrier.await();
+                                latch.await();
+                            } catch (BrokenBarrierException | InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+                        } else {
+                            if (expectedLocalCheckpoint.get() + 1 == seqNo) {
+                                expectedLocalCheckpoint.set(seqNo);
+                            }
                         }
-                        return super.generateSeqNo();
+                        return seqNo;
                     }
-                });
-            initialEngine.flush(true, true);
-            final int docs = randomIntBetween(1, 32);
+                };
+            initialEngine = createEngine(defaultSettings, store, primaryTranslogDir, newMergePolicy(), null, () -> seqNoService);
+            final InternalEngine finalInitialEngine = initialEngine;
             for (int i = 0; i < docs; i++) {
                 final String id = Integer.toString(i);
+                final Term uid = newUid(id);
                 final ParsedDocument doc = testParsedDocument(id, id, "test", null, testDocumentWithTextField(), SOURCE, null);
-                initialEngine.index(new Engine.Index(newUid(id), doc));
+
+                skip.set(randomBoolean());
+                final Thread thread = new Thread(() -> finalInitialEngine.index(new Engine.Index(uid, doc)));
+                thread.start();
+                if (skip.get()) {
+                    threads.add(thread);
+                    barrier.await();
+                } else {
+                    thread.join();
+                }
+            }
+
+            assertThat(initialEngine.seqNoService().getLocalCheckpoint(), equalTo(expectedLocalCheckpoint.get()));
+            assertThat(initialEngine.seqNoService().getMaxSeqNo(), equalTo((long) (docs - 1)));
+            initialEngine.flush(true, true);
+
+            latch.countDown();
+            for (final Thread thread : threads) {
+                thread.join();
             }
         } finally {
             IOUtils.close(initialEngine);
@@ -2973,8 +3000,47 @@ public class InternalEngineTests extends ESTestCase {
                  new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
             // there might be gaps in the translog; the best that we can say is that the local checkpoint is at least as far the max
             // sequence number
-            // TODO: tighten this assertion after gaps in the translog are addressed
-            assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo(maxSeqNo));
+            assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo((long) (docs - 1)));
+        }
+    }
+
+    public void testSequenceNumberAdvancesToMaxSeqNoOnEngineOpenOnReplica() throws IOException {
+        final long v = Versions.MATCH_ANY;
+        final VersionType t = VersionType.INTERNAL;
+        final long ts = IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP;
+        final int docs = randomIntBetween(1, 32);
+        InternalEngine initialEngine = null;
+        try {
+            initialEngine = engine;
+            for (int i = 0; i < docs; i++) {
+                final String id = Integer.toString(i);
+                final Term uid = newUid(id);
+                final ParsedDocument doc = testParsedDocument(id, id, "test", null, testDocumentWithTextField(), SOURCE, null);
+                // create a gap at sequence number 3 * i + 1
+                initialEngine.index(new Engine.Index(uid, doc, 3 * i, 1, v, t, REPLICA, System.nanoTime(), ts, false));
+                initialEngine.delete(new Engine.Delete("type", id, uid, 3 * i + 2, 1, v, t, REPLICA, System.nanoTime()));
+            }
+
+            // bake the commit with the local checkpoint stuck at 0 and gaps all along the way up to the max sequence number
+            assertThat(initialEngine.seqNoService().getLocalCheckpoint(), equalTo((long) 0));
+            assertThat(initialEngine.seqNoService().getMaxSeqNo(), equalTo((long) (3 * (docs - 1) + 2)));
+            initialEngine.flush(true, true);
+
+            for (int i = 0; i < docs; i++) {
+                final String id = Integer.toString(i);
+                final Term uid = newUid(id);
+                final ParsedDocument doc = testParsedDocument(id, id, "test", null, testDocumentWithTextField(), SOURCE, null);
+                initialEngine.index(new Engine.Index(uid, doc, 3 * i + 1, 1, v, t, REPLICA, System.nanoTime(), ts, false));
+            }
+        } finally {
+            IOUtils.close(initialEngine);
+        }
+
+        try (final Engine recoveringEngine =
+                 new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
+            // there might be gaps in the translog; the best that we can say is that the local checkpoint is at least as far the max
+            // sequence number
+            assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo((long) (3 * docs + 2 - 1)));
         }
     }
 

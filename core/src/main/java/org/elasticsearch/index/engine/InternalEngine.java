@@ -184,12 +184,11 @@ public class InternalEngine extends Engine {
                  * that we there might be operations greater than the local checkpoint that will not be replayed. Here we force the local
                  * checkpoint to the maximum sequence number in the commit (at the potential expense of correctness).
                  */
-                while (seqNoService.getLocalCheckpoint() < seqNoService.getMaxSeqNo()) {
-                    final long next = seqNoService.getLocalCheckpoint() + 1;
-                    seqNoService.markSeqNoAsCompleted(next);
+                while (seqNoService().getLocalCheckpoint() < seqNoService().getMaxSeqNo()) {
+                    seqNoService().markSeqNoAsCompleted(seqNoService().getLocalCheckpoint() + 1);
                 }
                 indexWriter = writer;
-                translog = openTranslog(engineConfig, writer, seqNoService::getGlobalCheckpoint);
+                translog = openTranslog(engineConfig, writer, () -> seqNoService().getLocalCheckpoint());
                 assert translog.getGeneration() != null;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -690,7 +689,7 @@ public class InternalEngine extends Engine {
             } else {
                 // no version conflict
                 if (index.origin() == Operation.Origin.PRIMARY) {
-                    seqNo = seqNoService.generateSeqNo();
+                    seqNo = seqNoService().generateSeqNo();
                 }
 
                 /**
@@ -721,7 +720,7 @@ public class InternalEngine extends Engine {
             return indexResult;
         } finally {
             if (seqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                seqNoService.markSeqNoAsCompleted(seqNo);
+                seqNoService().markSeqNoAsCompleted(seqNo);
             }
         }
 
@@ -821,7 +820,7 @@ public class InternalEngine extends Engine {
                 deleteResult = result.get();
             } else {
                 if (delete.origin() == Operation.Origin.PRIMARY) {
-                    seqNo = seqNoService.generateSeqNo();
+                    seqNo = seqNoService().generateSeqNo();
                 }
 
                 updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
@@ -839,7 +838,7 @@ public class InternalEngine extends Engine {
             return deleteResult;
         } finally {
             if (seqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                seqNoService.markSeqNoAsCompleted(deleteResult.getSeqNo());
+                seqNoService().markSeqNoAsCompleted(deleteResult.getSeqNo());
             }
         }
     }

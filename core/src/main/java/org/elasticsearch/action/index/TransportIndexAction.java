@@ -165,6 +165,7 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
     protected WritePrimaryResult shardOperationOnPrimary(IndexRequest request, IndexShard primary) throws Exception {
         final Engine.IndexResult indexResult = executeIndexRequestOnPrimary(request, primary, mappingUpdatedAction);
         final IndexResponse response;
+        final IndexRequest replicaRequest;
         if (indexResult.hasFailure() == false) {
             // update the version on request so it will happen on the replicas
             final long version = indexResult.getVersion();
@@ -172,12 +173,14 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
             request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
             request.setSeqNo(indexResult.getSeqNo());
             assert request.versionType().validateVersionForWrites(request.version());
+            replicaRequest = request;
             response = new IndexResponse(primary.shardId(), request.type(), request.id(), indexResult.getSeqNo(),
                     indexResult.getVersion(), indexResult.isCreated());
         } else {
             response = null;
+            replicaRequest = null;
         }
-        return new WritePrimaryResult(request, response, indexResult.getTranslogLocation(), indexResult.getFailure(), primary);
+        return new WritePrimaryResult(replicaRequest, response, indexResult.getTranslogLocation(), indexResult.getFailure(), primary);
     }
 
     @Override

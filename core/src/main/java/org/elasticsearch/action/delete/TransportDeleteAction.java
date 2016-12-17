@@ -125,12 +125,14 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
     protected WritePrimaryResult shardOperationOnPrimary(DeleteRequest request, IndexShard primary) throws Exception {
         final Engine.DeleteResult result = executeDeleteRequestOnPrimary(request, primary);
         final DeleteResponse response;
+        final DeleteRequest replicaRequest;
         if (result.hasFailure() == false) {
             // update the request with the version so it will go to the replicas
             request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
             request.version(result.getVersion());
             request.setSeqNo(result.getSeqNo());
             assert request.versionType().validateVersionForWrites(request.version());
+            replicaRequest = request;
             response = new DeleteResponse(
                 primary.shardId(),
                 request.type(),
@@ -140,8 +142,9 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
                 result.isFound());
         } else {
             response = null;
+            replicaRequest = null;
         }
-        return new WritePrimaryResult(request, response, result.getTranslogLocation(), result.getFailure(), primary);
+        return new WritePrimaryResult(replicaRequest, response, result.getTranslogLocation(), result.getFailure(), primary);
     }
 
     @Override

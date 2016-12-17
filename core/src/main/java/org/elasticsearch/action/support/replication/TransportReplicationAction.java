@@ -665,7 +665,7 @@ public abstract class TransportReplicationAction<
         private void performLocalAction(ClusterState state, ShardRouting primary, DiscoveryNode node) {
             setPhase(task, "waiting_on_primary");
             if (logger.isTraceEnabled()) {
-                logger.trace("send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}] ",
+                logger.trace("send action [{}] to local primary [{}] for request [{}] with cluster state version [{}] to [{}] ",
                     transportPrimaryAction, request.shardId(), request, state.version(), primary.currentNodeId());
             }
             performAction(node, transportPrimaryAction, true, new ConcreteShardRequest<>(request, primary.allocationId().getId()));
@@ -951,6 +951,8 @@ public abstract class TransportReplicationAction<
         public PrimaryResult perform(Request request) throws Exception {
             PrimaryResult result = shardOperationOnPrimary(request, indexShard);
             if (result.replicaRequest() != null) {
+                assert result.finalFailure == null : "a replica request [" + result.replicaRequest()
+                    + "] with a primary failure [" + result.finalFailure + "]";
                 result.replicaRequest().primaryTerm(indexShard.getPrimaryTerm());
             }
             return result;

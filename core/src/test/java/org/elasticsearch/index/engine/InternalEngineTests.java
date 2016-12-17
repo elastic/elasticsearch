@@ -157,6 +157,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
@@ -3036,7 +3037,7 @@ public class InternalEngineTests extends ESTestCase {
 
         try (final Engine recoveringEngine =
                  new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
-            assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo((long) (3 * docs + 2 - 1)));
+            assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo((long) (3 * (docs - 1) + 2 - 1)));
         }
     }
 
@@ -3047,7 +3048,7 @@ public class InternalEngineTests extends ESTestCase {
         final Term uid = newUid("1");
         final Document document = testDocumentWithTextField();
         final AtomicLong sequenceNumber = new AtomicLong();
-        final Engine.Operation.Origin origin = randomFrom(PEER_RECOVERY, PRIMARY, PEER_RECOVERY);
+        final Engine.Operation.Origin origin = randomFrom(LOCAL_TRANSLOG_RECOVERY, PEER_RECOVERY, PRIMARY, REPLICA);
         final LongSupplier sequenceNumberSupplier =
             origin == PRIMARY ? () -> SequenceNumbersService.UNASSIGNED_SEQ_NO : sequenceNumber::getAndIncrement;
         document.add(new Field(SourceFieldMapper.NAME, BytesReference.toBytes(B_1), SourceFieldMapper.Defaults.FIELD_TYPE));

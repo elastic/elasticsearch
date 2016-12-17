@@ -609,7 +609,6 @@ public class InternalEngine extends Engine {
         assert assertSequenceNumber(index.origin(), index.seqNo());
         final Translog.Location location;
         final long updatedVersion;
-        IndexResult indexResult = null;
         long seqNo = index.seqNo();
         try (Releasable ignored = acquireLock(index.uid())) {
             lastWriteNanos = index.startTime();
@@ -684,6 +683,7 @@ public class InternalEngine extends Engine {
                     () -> new IndexResult(currentVersion, index.seqNo(), false),
                     e -> new IndexResult(e, currentVersion, index.seqNo()));
 
+            final IndexResult indexResult;
             if (checkVersionConflictResult.isPresent()) {
                 indexResult = checkVersionConflictResult.get();
             } else {
@@ -789,7 +789,6 @@ public class InternalEngine extends Engine {
         final Translog.Location location;
         final long updatedVersion;
         final boolean found;
-        DeleteResult deleteResult = null;
         long seqNo = delete.seqNo();
         try (Releasable ignored = acquireLock(delete.uid())) {
             lastWriteNanos = delete.startTime();
@@ -816,6 +815,7 @@ public class InternalEngine extends Engine {
                     () -> new DeleteResult(expectedVersion, delete.seqNo(), true),
                     e -> new DeleteResult(e, expectedVersion, delete.seqNo()));
 
+            final DeleteResult deleteResult;
             if (result.isPresent()) {
                 deleteResult = result.get();
             } else {
@@ -838,7 +838,7 @@ public class InternalEngine extends Engine {
             return deleteResult;
         } finally {
             if (seqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                seqNoService().markSeqNoAsCompleted(deleteResult.getSeqNo());
+                seqNoService().markSeqNoAsCompleted(seqNo);
             }
         }
     }

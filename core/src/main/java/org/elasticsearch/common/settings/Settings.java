@@ -42,6 +42,8 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -54,14 +56,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
@@ -75,11 +75,10 @@ public final class Settings implements ToXContent {
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
-    private SortedMap<String, String> settings;
+    private Map<String, String> settings;
 
     Settings(Map<String, String> settings) {
-        // we use a sorted map for consistent serialization when using getAsMap()
-        this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
+        this.settings = Collections.unmodifiableMap(settings);
     }
 
     /**
@@ -87,7 +86,8 @@ public final class Settings implements ToXContent {
      * @return an unmodifiable map of settings
      */
     public Map<String, String> getAsMap() {
-        return Collections.unmodifiableMap(this.settings);
+        // settings is always unmodifiable
+        return this.settings;
     }
 
     /**
@@ -186,6 +186,10 @@ public final class Settings implements ToXContent {
      * A settings that are filtered (and key is removed) with the specified prefix.
      */
     public Settings getByPrefix(String prefix) {
+        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix) && k.length() >= prefix.length(), prefix));
+    }
+
+    Settings getByPrefix1(String prefix) { // TODO remove
         Builder builder = new Builder();
         for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
             if (entry.getKey().startsWith(prefix)) {
@@ -203,13 +207,7 @@ public final class Settings implements ToXContent {
      * Returns a new settings object that contains all setting of the current one filtered by the given settings key predicate.
      */
     public Settings filter(Predicate<String> predicate) {
-        Builder builder = new Builder();
-        for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
-            if (predicate.test(entry.getKey())) {
-                builder.put(entry.getKey(), entry.getValue());
-            }
-        }
-        return builder.build();
+        return new Settings(new FilteredMap(this.settings, predicate, null));
     }
 
     /**
@@ -234,8 +232,7 @@ public final class Settings implements ToXContent {
      * returns the default value provided.
      */
     public String get(String setting, String defaultValue) {
-        String retVal = get(setting);
-        return retVal == null ? defaultValue : retVal;
+        return settings.getOrDefault(setting, defaultValue);
     }
 
     /**
@@ -443,6 +440,7 @@ public final class Settings implements ToXContent {
         }
         return getGroupsInternal(settingPrefix, ignoreNonGrouped);
     }
+
     private Map<String, Settings> getGroupsInternal(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
         // we don't really care that it might happen twice
         Map<String, Map<String, String>> map = new LinkedHashMap<>();
@@ -602,7 +600,8 @@ public final class Settings implements ToXContent {
 
         public static final Settings EMPTY_SETTINGS = new Builder().build();
 
-        private final Map<String, String> map = new LinkedHashMap<>();
+        // we use a sorted map for consistent serialization when using getAsMap()
+        private final Map<String, String> map = new TreeMap<>();
 
         private Builder() {
 
@@ -1032,7 +1031,110 @@ public final class Settings implements ToXContent {
          * set on this builder.
          */
         public Settings build() {
-            return new Settings(Collections.unmodifiableMap(map));
+            return new Settings(map);
+        }
+    }
+
+    // TODO We could use an FST internally to make things even faster and more compact
+    private static final class FilteredMap extends AbstractMap<String, String> { // pkg private for testing
+        private final Map<String, String> delegate;
+        private final Predicate<String> filter;
+        private final String prefix;
+        private int size = -1; // we cache that size since we have to iterate the entire set
+        @Override
+        public Set<Entry<String, String>> entrySet() {
+            Set<Entry<String, String>> delegateSet = delegate.entrySet();
+            AbstractSet<Entry<String, String>> filterSet = new AbstractSet<Entry<String, String>>() {
+
+                @Override
+                public Iterator<Entry<String, String>> iterator() {
+                    Iterator<Entry<String, String>> iter = delegateSet.iterator();
+
+                    return new Iterator<Entry<String, String>>() {
+                        private int numIterated;
+                        Entry<String, String> current;
+                        @Override
+                        public boolean hasNext() {
+                            if (numIterated == size) { // early terminate
+                                assert size != -1 : "size was never set: " + numIterated + " vs. " + size;
+                                return false;
+                            }
+                            while(iter.hasNext()) {
+                                if (filter.test((current = iter.next()).getKey())) {
+                                    numIterated++;
+                                    return true;
+                                }
+                            }
+                            current = null;
+                            return false;
+                        }
+
+                        @Override
+                        public Entry<String, String> next() {
+                            if (prefix == null) {
+                                return current;
+                            }
+                            return new Entry<String, String>() {
+                                @Override
+                                public String getKey() {
+                                    return current.getKey().substring(prefix.length());
+                                }
+
+                                @Override
+                                public String getValue() {
+                                    return current.getValue();
+                                }
+
+                                @Override
+                                public String setValue(String value) {
+                                    throw new UnsupportedOperationException();
+                                }
+                            };
+                        }
+                    };
+                }
+
+                @Override
+                public int size() {
+                    if (size == -1) {
+                        size = Math.toIntExact(delegateSet.stream().filter((e) -> filter.test(e.getKey())).count());
+                    }
+                    return size;
+                }
+            };
+            return filterSet;
+        }
+
+        private FilteredMap(Map<String, String> delegate, Predicate<String> filter, String prefix) {
+            this.delegate = delegate;
+            this.filter = filter;
+            this.prefix = prefix;
+        }
+
+        @Override
+        public String get(Object key) {
+            String theKey = prefix == null ? key.toString() : prefix + key;
+            if (filter.test(theKey)) {
+                return delegate.get(theKey);
+            }
+            return null;
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            String theKey = prefix == null ? key.toString() : prefix + key;
+            if (filter.test(theKey)) {
+                return delegate.containsKey(theKey);
+            }
+            return false;
+        }
+
+        @Override
+        public int size() {
+            if (this.size == -1) {
+                size = super.size();
+            }
+            return size;
         }
     }
 }

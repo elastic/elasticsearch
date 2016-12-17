@@ -2998,8 +2998,6 @@ public class InternalEngineTests extends ESTestCase {
 
         try (final Engine recoveringEngine =
                  new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
-            // there might be gaps in the translog; the best that we can say is that the local checkpoint is at least as far the max
-            // sequence number
             assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo((long) (docs - 1)));
         }
     }
@@ -3038,8 +3036,6 @@ public class InternalEngineTests extends ESTestCase {
 
         try (final Engine recoveringEngine =
                  new InternalEngine(copy(initialEngine.config(), EngineConfig.OpenMode.OPEN_INDEX_AND_TRANSLOG))) {
-            // there might be gaps in the translog; the best that we can say is that the local checkpoint is at least as far the max
-            // sequence number
             assertThat(recoveringEngine.seqNoService().getLocalCheckpoint(), greaterThanOrEqualTo((long) (3 * docs + 2 - 1)));
         }
     }

@@ -30,11 +30,13 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -56,7 +58,9 @@ import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 
 /**
@@ -93,7 +97,7 @@ final class Bootstrap {
     }
 
     /** initialize native resources */
-    public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean seccomp, boolean ctrlHandler) {
+    public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
         final Logger logger = Loggers.getLogger(Bootstrap.class);
 
         // check if the user is running as root, and bail
@@ -101,9 +105,9 @@ final class Bootstrap {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 
-        // enable secure computing mode
-        if (seccomp) {
-            Natives.trySeccomp(tmpFile);
+        // enable system call filter
+        if (systemCallFilter) {
+            Natives.tryInstallSystemCallFilter(tmpFile);
         }
 
         // mlockall if requested
@@ -177,7 +181,7 @@ final class Bootstrap {
         initializeNatives(
                 environment.tmpFile(),
                 BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
-                BootstrapSettings.SECCOMP_SETTING.get(settings),
+                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
 
         // initialize probes before the security manager is installed

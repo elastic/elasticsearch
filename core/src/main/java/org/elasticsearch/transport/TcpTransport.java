@@ -460,7 +460,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     }
                     Channel channel = nodeChannels.channel(TransportRequestOptions.Type.PING);
                     final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
-                        defaultConnectionProfile.getConnectTimeout():
+                        defaultConnectionProfile.getConnectTimeout() :
                         connectionProfile.getConnectTimeout();
                     final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
                         connectTimeout : connectionProfile.getHandshakeTimeout();

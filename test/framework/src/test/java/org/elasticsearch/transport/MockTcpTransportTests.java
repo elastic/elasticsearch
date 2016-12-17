@@ -39,7 +39,8 @@ public class MockTcpTransportTests extends AbstractSimpleTransportTestCase {
         Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version) {
             @Override
-            protected Version executeHandshake(DiscoveryNode node, MockChannel mockChannel, TimeValue timeout) throws IOException, InterruptedException {
+            protected Version executeHandshake(DiscoveryNode node, MockChannel mockChannel, TimeValue timeout) throws IOException,
+                InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, mockChannel, timeout);
                 } else {

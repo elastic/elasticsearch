@@ -294,6 +294,9 @@ public class TransportService extends AbstractLifecycleComponent {
         return transport.getLocalAddresses();
     }
 
+    /**
+     * Returns <code>true</code> iff the given node is already connected.
+     */
     public boolean nodeConnected(DiscoveryNode node) {
         return node.equals(localNode) || transport.nodeConnected(node);
     }
@@ -313,6 +316,20 @@ public class TransportService extends AbstractLifecycleComponent {
             return;
         }
         transport.connectToNode(node, connectionProfile);
+    }
+
+    /**
+     * Establishes and returns a new connection to the given node. The connection is NOT maintained by this service, it's the callers
+     * responsibility to close the connection once it goes out of scope.
+     * @param node the node to connect to
+     * @param profile the connection profile to use
+     */
+    public Transport.Connection openConnection(final DiscoveryNode node, ConnectionProfile profile) throws IOException {
+        if (node.equals(localNode)) {
+            return localNodeConnection;
+        } else {
+            return transport.openConnection(node, profile);
+        }
     }
 
     /**
@@ -341,7 +358,19 @@ public class TransportService extends AbstractLifecycleComponent {
         return handshakeNode;
     }
 
-    private DiscoveryNode handshake(
+    /**
+     * Executes a high-level handshake using the given connection
+     * and returns the discovery node of the node the connection
+     * was established with. The handshake will fail if the cluster
+     * name on the target node mismatches the local cluster name.
+     *
+     * @param connection       the connection to a specific node
+     * @param handshakeTimeout handshake timeout
+     * @return the connected node
+     * @throws ConnectTransportException if the connection failed
+     * @throws IllegalStateException if the handshake failed
+     */
+    public DiscoveryNode handshake(
             final Transport.Connection connection,
             final long handshakeTimeout) throws ConnectTransportException {
         final HandshakeResponse response;
@@ -474,7 +503,7 @@ public class TransportService extends AbstractLifecycleComponent {
         }
     }
 
-    final <T extends TransportResponse> void sendRequest(final Transport.Connection connection, final String action,
+    public final <T extends TransportResponse> void sendRequest(final Transport.Connection connection, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
@@ -486,7 +515,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * Returns either a real transport connection or a local node connection if we are using the local node optimization.
      * @throws NodeNotConnectedException if the given node is not connected
      */
-    private Transport.Connection getConnection(DiscoveryNode node) {
+    public Transport.Connection getConnection(DiscoveryNode node) {
         if (Objects.requireNonNull(node, "node must be non-null").equals(localNode)) {
             return localNodeConnection;
         } else {

@@ -50,7 +50,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
@@ -151,7 +150,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         final long version = indexResult.getVersion();
                         indexRequest.version(version);
                         indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
-                        indexRequest.seqNo(indexResult.getSeqNo());
+                        indexRequest.setSeqNo(indexResult.getSeqNo());
                         assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
                         response = new IndexResponse(primary.shardId(), indexRequest.type(), indexRequest.id(), indexResult.getSeqNo(),
                             indexResult.getVersion(), indexResult.isCreated());
@@ -175,7 +174,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // update the request with the version so it will go to the replicas
                         deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
                         deleteRequest.version(deleteResult.getVersion());
-                        deleteRequest.seqNo(deleteResult.getSeqNo());
+                        deleteRequest.setSeqNo(deleteResult.getSeqNo());
                         assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
                         response = new DeleteResponse(request.shardId(), deleteRequest.type(), deleteRequest.id(), deleteResult.getSeqNo(),
                             deleteResult.getVersion(), deleteResult.isFound());
@@ -286,7 +285,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         final long version = updateOperationResult.getVersion();
                         indexRequest.version(version);
                         indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
-                        indexRequest.seqNo(updateOperationResult.getSeqNo());
+                        indexRequest.setSeqNo(updateOperationResult.getSeqNo());
                         assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
                     }
                     break;
@@ -297,7 +296,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // update the request with the version so it will go to the replicas
                         deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
                         deleteRequest.version(updateOperationResult.getVersion());
-                        deleteRequest.seqNo(updateOperationResult.getSeqNo());
+                        deleteRequest.setSeqNo(updateOperationResult.getSeqNo());
                         assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
                     }
                     break;
@@ -349,9 +348,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         break;
                 }
                 assert (replicaRequest.request() instanceof IndexRequest
-                    && ((IndexRequest) replicaRequest.request()).seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) ||
+                    && ((IndexRequest) replicaRequest.request()).getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) ||
                     (replicaRequest.request() instanceof DeleteRequest
-                        && ((DeleteRequest) replicaRequest.request()).seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO);
+                        && ((DeleteRequest) replicaRequest.request()).getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO);
                 // successful operation
                 break; // out of retry loop
             } else if (updateOperationResult.getFailure() instanceof VersionConflictEngineException == false) {

@@ -143,11 +143,7 @@ public class IndexingStats implements Streamable, ToXContent {
             indexCount = in.readVLong();
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
-
-            if(in.getVersion().onOrAfter(Version.V_2_1_0)){
-                indexFailedCount = in.readVLong();
-            }
-
+            indexFailedCount = in.readVLong();
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
@@ -161,11 +157,7 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(indexCount);
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
-
-            if(out.getVersion().onOrAfter(Version.V_2_1_0)) {
-                out.writeVLong(indexFailedCount);
-            }
-
+            out.writeVLong(indexFailedCount);
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
@@ -283,21 +275,11 @@ public class IndexingStats implements Streamable, ToXContent {
         static final String THROTTLED_TIME = "throttle_time";
     }
 
-    public static IndexingStats readIndexingStats(StreamInput in) throws IOException {
-        IndexingStats indexingStats = new IndexingStats();
-        indexingStats.readFrom(in);
-        return indexingStats;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         totalStats = Stats.readStats(in);
         if (in.readBoolean()) {
-            int size = in.readVInt();
-            typeStats = new HashMap<>(size);
-            for (int i = 0; i < size; i++) {
-                typeStats.put(in.readString(), Stats.readStats(in));
-            }
+            typeStats = in.readMap(StreamInput::readString, Stats::readStats);
         }
     }
 
@@ -308,11 +290,7 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeVInt(typeStats.size());
-            for (Map.Entry<String, Stats> entry : typeStats.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
+            out.writeMap(typeStats, StreamOutput::writeString, (stream, stats) -> stats.writeTo(stream));
         }
     }
 }

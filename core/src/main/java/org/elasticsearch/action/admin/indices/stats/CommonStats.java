@@ -46,6 +46,9 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Objects;
+import java.util.stream.Stream;
 
 public class CommonStats implements Writeable, ToXContent {
 
@@ -225,45 +228,19 @@ public class CommonStats implements Writeable, ToXContent {
     }
 
     public CommonStats(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            docs = DocsStats.readDocStats(in);
-        }
-        if (in.readBoolean()) {
-            store = StoreStats.readStoreStats(in);
-        }
-        if (in.readBoolean()) {
-            indexing = IndexingStats.readIndexingStats(in);
-        }
-        if (in.readBoolean()) {
-            get = GetStats.readGetStats(in);
-        }
-        if (in.readBoolean()) {
-            search = SearchStats.readSearchStats(in);
-        }
-        if (in.readBoolean()) {
-            merge = MergeStats.readMergeStats(in);
-        }
-        if (in.readBoolean()) {
-            refresh = RefreshStats.readRefreshStats(in);
-        }
-        if (in.readBoolean()) {
-            flush = FlushStats.readFlushStats(in);
-        }
-        if (in.readBoolean()) {
-            warmer = WarmerStats.readWarmerStats(in);
-        }
-        if (in.readBoolean()) {
-            queryCache = QueryCacheStats.readQueryCacheStats(in);
-        }
-        if (in.readBoolean()) {
-            fieldData = FieldDataStats.readFieldDataStats(in);
-        }
-        if (in.readBoolean()) {
-            completion = CompletionStats.readCompletionStats(in);
-        }
-        if (in.readBoolean()) {
-            segments = SegmentsStats.readSegmentsStats(in);
-        }
+        docs = in.readOptionalStreamable(DocsStats::new);
+        store = in.readOptionalStreamable(StoreStats::new);
+        indexing = in.readOptionalStreamable(IndexingStats::new);
+        get = in.readOptionalStreamable(GetStats::new);
+        search = in.readOptionalStreamable(SearchStats::new);
+        merge = in.readOptionalStreamable(MergeStats::new);
+        refresh =  in.readOptionalStreamable(RefreshStats::new);
+        flush =  in.readOptionalStreamable(FlushStats::new);
+        warmer =  in.readOptionalStreamable(WarmerStats::new);
+        queryCache = in.readOptionalStreamable(QueryCacheStats::new);
+        fieldData =  in.readOptionalStreamable(FieldDataStats::new);
+        completion =  in.readOptionalStreamable(CompletionStats::new);
+        segments =  in.readOptionalStreamable(SegmentsStats::new);
         translog = in.readOptionalStreamable(TranslogStats::new);
         requestCache = in.readOptionalStreamable(RequestCacheStats::new);
         recoveryStats = in.readOptionalStreamable(RecoveryStats::new);
@@ -271,84 +248,19 @@ public class CommonStats implements Writeable, ToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (docs == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            docs.writeTo(out);
-        }
-        if (store == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            store.writeTo(out);
-        }
-        if (indexing == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            indexing.writeTo(out);
-        }
-        if (get == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            get.writeTo(out);
-        }
-        if (search == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            search.writeTo(out);
-        }
-        if (merge == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            merge.writeTo(out);
-        }
-        if (refresh == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            refresh.writeTo(out);
-        }
-        if (flush == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            flush.writeTo(out);
-        }
-        if (warmer == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            warmer.writeTo(out);
-        }
-        if (queryCache == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            queryCache.writeTo(out);
-        }
-        if (fieldData == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            fieldData.writeTo(out);
-        }
-        if (completion == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            completion.writeTo(out);
-        }
-        if (segments == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            segments.writeTo(out);
-        }
+        out.writeOptionalStreamable(docs);
+        out.writeOptionalStreamable(store);
+        out.writeOptionalStreamable(indexing);
+        out.writeOptionalStreamable(get);
+        out.writeOptionalStreamable(search);
+        out.writeOptionalStreamable(merge);
+        out.writeOptionalStreamable(refresh);
+        out.writeOptionalStreamable(flush);
+        out.writeOptionalStreamable(warmer);
+        out.writeOptionalStreamable(queryCache);
+        out.writeOptionalStreamable(fieldData);
+        out.writeOptionalStreamable(completion);
+        out.writeOptionalStreamable(segments);
         out.writeOptionalStreamable(translog);
         out.writeOptionalStreamable(requestCache);
         out.writeOptionalStreamable(recoveryStats);
@@ -590,53 +502,12 @@ public class CommonStats implements Writeable, ToXContent {
     // note, requires a wrapping object
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (docs != null) {
-            docs.toXContent(builder, params);
-        }
-        if (store != null) {
-            store.toXContent(builder, params);
-        }
-        if (indexing != null) {
-            indexing.toXContent(builder, params);
-        }
-        if (get != null) {
-            get.toXContent(builder, params);
-        }
-        if (search != null) {
-            search.toXContent(builder, params);
-        }
-        if (merge != null) {
-            merge.toXContent(builder, params);
-        }
-        if (refresh != null) {
-            refresh.toXContent(builder, params);
-        }
-        if (flush != null) {
-            flush.toXContent(builder, params);
-        }
-        if (warmer != null) {
-            warmer.toXContent(builder, params);
-        }
-        if (queryCache != null) {
-            queryCache.toXContent(builder, params);
-        }
-        if (fieldData != null) {
-            fieldData.toXContent(builder, params);
-        }
-        if (completion != null) {
-            completion.toXContent(builder, params);
-        }
-        if (segments != null) {
-            segments.toXContent(builder, params);
-        }
-        if (translog != null) {
-            translog.toXContent(builder, params);
-        }
-        if (requestCache != null) {
-            requestCache.toXContent(builder, params);
-        }
-        if (recoveryStats != null) {
-            recoveryStats.toXContent(builder, params);
+        final Stream<ToXContent> stream = Arrays.stream(new ToXContent[] {
+            docs, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
+            fieldData, completion, segments, translog, requestCache, recoveryStats})
+            .filter(Objects::nonNull);
+        for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {
+            toXContent.toXContent(builder, params);
         }
         return builder;
     }

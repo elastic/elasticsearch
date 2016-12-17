@@ -45,6 +45,7 @@ import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.PairOutputs;
 import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
+import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.CompletionFieldMapper2x;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -321,8 +322,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                         completionFields.addTo(entry.getKey(), fstSize);
                     }
                 }
-
-                return new CompletionStats(sizeInBytes, completionFields);
+                return new CompletionStats(sizeInBytes, completionFields == null ? null : new FieldMemoryStats(completionFields));
             }
 
             @Override

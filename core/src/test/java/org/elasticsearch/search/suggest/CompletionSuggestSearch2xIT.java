@@ -33,6 +33,7 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -758,7 +759,7 @@ public class CompletionSuggestSearch2xIT extends ESIntegTestCase {
         // regexes
         IndicesStatsResponse regexFieldStats = client().admin().indices().prepareStats(INDEX)
             .setIndices(INDEX).setCompletion(true).setCompletionFields("*").get();
-        ObjectLongHashMap<String> fields = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields();
+        FieldMemoryStats fields = regexFieldStats.getIndex(INDEX).getPrimaries().completion.getFields();
         long regexSizeInBytes = fields.get(FIELD) + fields.get(otherField);
         assertThat(regexSizeInBytes, is(totalSizeInBytes));
     }

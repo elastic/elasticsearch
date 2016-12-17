@@ -58,7 +58,8 @@ public class SimpleNetty4TransportTests extends AbstractSimpleTransportTestCase 
             BigArrays.NON_RECYCLING_INSTANCE, namedWriteableRegistry, new NoneCircuitBreakerService()) {
 
             @Override
-            protected Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException, InterruptedException {
+            protected Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException,
+                InterruptedException {
                 if (doHandshake) {
                     return super.executeHandshake(node, channel, timeout);
                 } else {

@@ -409,11 +409,11 @@ public class BootstrapCheckTests extends ESTestCase {
     }
 
     public void testSystemCallFilterCheck() throws NodeValidationException {
-        final AtomicBoolean isSecompInstalled = new AtomicBoolean();
+        final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
         final BootstrapChecks.SystemCallFilterCheck systemCallFilterEnabledCheck = new BootstrapChecks.SystemCallFilterCheck(true) {
             @Override
-            boolean isSeccompInstalled() {
-                return isSecompInstalled.get();
+            boolean isSystemCallFilterInstalled() {
+                return isSystemCallFilterInstalled.get();
             }
         };
 
@@ -425,28 +425,28 @@ public class BootstrapCheckTests extends ESTestCase {
             containsString("system call filters failed to install; " +
                 "check the logs and fix your configuration or disable system call filters at your own risk"));
 
-        isSecompInstalled.set(true);
+        isSystemCallFilterInstalled.set(true);
         BootstrapChecks.check(true, Collections.singletonList(systemCallFilterEnabledCheck), "testSystemCallFilterCheck");
 
         final BootstrapChecks.SystemCallFilterCheck systemCallFilterNotEnabledCheck = new BootstrapChecks.SystemCallFilterCheck(false) {
             @Override
-            boolean isSeccompInstalled() {
-                return isSecompInstalled.get();
+            boolean isSystemCallFilterInstalled() {
+                return isSystemCallFilterInstalled.get();
             }
         };
-        isSecompInstalled.set(false);
+        isSystemCallFilterInstalled.set(false);
         BootstrapChecks.check(true, Collections.singletonList(systemCallFilterNotEnabledCheck), "testSystemCallFilterCheck");
-        isSecompInstalled.set(true);
+        isSystemCallFilterInstalled.set(true);
         BootstrapChecks.check(true, Collections.singletonList(systemCallFilterNotEnabledCheck), "testSystemCallFilterCheck");
     }
 
     public void testMightForkCheck() throws NodeValidationException {
-        final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
+        final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
         final AtomicBoolean mightFork = new AtomicBoolean();
         final BootstrapChecks.MightForkCheck check = new BootstrapChecks.MightForkCheck() {
             @Override
-            boolean isSeccompInstalled() {
-                return isSeccompInstalled.get();
+            boolean isSystemCallFilterInstalled() {
+                return isSystemCallFilterInstalled.get();
             }
 
             @Override
@@ -462,19 +462,19 @@ public class BootstrapCheckTests extends ESTestCase {
 
         runMightForkTest(
             check,
-            isSeccompInstalled,
+            isSystemCallFilterInstalled,
             () -> mightFork.set(false),
             () -> mightFork.set(true),
             e -> assertThat(e.getMessage(), containsString("error")));
     }
 
     public void testOnErrorCheck() throws NodeValidationException {
-        final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
+        final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
         final AtomicReference<String> onError = new AtomicReference<>();
         final BootstrapChecks.MightForkCheck check = new BootstrapChecks.OnErrorCheck() {
             @Override
-            boolean isSeccompInstalled() {
-                return isSeccompInstalled.get();
+            boolean isSystemCallFilterInstalled() {
+                return isSystemCallFilterInstalled.get();
             }
 
             @Override
@@ -486,23 +486,23 @@ public class BootstrapCheckTests extends ESTestCase {
         final String command = randomAsciiOfLength(16);
         runMightForkTest(
             check,
-            isSeccompInstalled,
+            isSystemCallFilterInstalled,
             () -> onError.set(randomBoolean() ? "" : null),
             () -> onError.set(command),
             e -> assertThat(
                 e.getMessage(),
                 containsString(
-                    "OnError [" + command + "] requires forking but is prevented by system call filters ([bootstrap.seccomp=true]);"
-                        + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
+                    "OnError [" + command + "] requires forking but is prevented by system call filters " +
+                        "([bootstrap.system_call_filter=true]); upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
     }
 
     public void testOnOutOfMemoryErrorCheck() throws NodeValidationException {
-        final AtomicBoolean isSeccompInstalled = new AtomicBoolean();
+        final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
         final AtomicReference<String> onOutOfMemoryError = new AtomicReference<>();
         final BootstrapChecks.MightForkCheck check = new BootstrapChecks.OnOutOfMemoryErrorCheck() {
             @Override
-            boolean isSeccompInstalled() {
-                return isSeccompInstalled.get();
+            boolean isSystemCallFilterInstalled() {
+                return isSystemCallFilterInstalled.get();
             }
 
             @Override
@@ -514,28 +514,28 @@ public class BootstrapCheckTests extends ESTestCase {
         final String command = randomAsciiOfLength(16);
         runMightForkTest(
             check,
-            isSeccompInstalled,
+            isSystemCallFilterInstalled,
             () -> onOutOfMemoryError.set(randomBoolean() ? "" : null),
             () -> onOutOfMemoryError.set(command),
             e -> assertThat(
                 e.getMessage(),
                 containsString(
                     "OnOutOfMemoryError [" + command + "]"
-                        + " requires forking but is prevented by system call filters ([bootstrap.seccomp=true]);"
+                        + " requires forking but is prevented by system call filters ([bootstrap.system_call_filter=true]);"
                         + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
     }
 
     private void runMightForkTest(
         final BootstrapChecks.MightForkCheck check,
-        final AtomicBoolean isSeccompInstalled,
+        final AtomicBoolean isSystemCallFilterInstalled,
         final Runnable disableMightFork,
         final Runnable enableMightFork,
         final Consumer<NodeValidationException> consumer) throws NodeValidationException {
 
         final String methodName = Thread.currentThread().getStackTrace()[2].getMethodName();
 
-        // if seccomp is disabled, nothing should happen
-        isSeccompInstalled.set(false);
+        // if system call filter is disabled, nothing should happen
+        isSystemCallFilterInstalled.set(false);
         if (randomBoolean()) {
             disableMightFork.run();
         } else {
@@ -543,16 +543,15 @@ public class BootstrapCheckTests extends ESTestCase {
         }
         BootstrapChecks.check(true, Collections.singletonList(check), methodName);
 
-        // if seccomp is enabled, but we will not fork, nothing should
+        // if system call filter is enabled, but we will not fork, nothing should
         // happen
-        isSeccompInstalled.set(true);
+        isSystemCallFilterInstalled.set(true);
         disableMightFork.run();
         BootstrapChecks.check(true, Collections.singletonList(check), methodName);
 
-        // if seccomp is enabled, and we might fork, the check should
-        // be enforced, regardless of bootstrap checks being enabled or
-        // not
-        isSeccompInstalled.set(true);
+        // if system call filter is enabled, and we might fork, the check should be enforced, regardless of bootstrap checks being enabled
+        // or not
+        isSystemCallFilterInstalled.set(true);
         enableMightFork.run();
 
         final NodeValidationException e = expectThrows(

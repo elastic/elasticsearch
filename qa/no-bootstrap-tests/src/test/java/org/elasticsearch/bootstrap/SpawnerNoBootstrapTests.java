@@ -39,9 +39,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Create a simple "daemon controller", put it in the right place and check that it runs.
  *
- * Extends LuceneTestCase rather than ESTestCase as ESTestCase installs seccomp, and that
- * prevents the Spawner class doing its job.  Also needs to run in a separate JVM to other
- * tests that extend ESTestCase for the same reason.
+ * Extends LuceneTestCase rather than ESTestCase as ESTestCase installs a system call filter, and that prevents the Spawner class doing its
+ * job. Also needs to run in a separate JVM to other tests that extend ESTestCase for the same reason.
  */
 public class SpawnerNoBootstrapTests extends LuceneTestCase {
 

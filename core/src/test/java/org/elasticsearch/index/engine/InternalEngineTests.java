@@ -3114,8 +3114,9 @@ public class InternalEngineTests extends ESTestCase {
         }
 
         assertThat(engine.seqNoService().getLocalCheckpoint(), equalTo(expectedLocalCheckpoint));
-        final Engine.GetResult result = engine.get(new Engine.Get(true, uid));
-        assertThat(result.exists(), equalTo(exists));
+        try (final Engine.GetResult result = engine.get(new Engine.Get(true, uid))) {
+            assertThat(result.exists(), equalTo(exists));
+        }
     }
 
     /**

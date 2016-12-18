@@ -209,7 +209,8 @@ public class UnicastZenPingTests extends ESTestCase {
         });
         closeables.push(zenPingB);
 
-        TestUnicastZenPing zenPingC = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleC.transportService, EMPTY_HOSTS_PROVIDER) {
+        TestUnicastZenPing zenPingC = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleC.transportService,
+            EMPTY_HOSTS_PROVIDER) {
             @Override
             protected Version getVersion() {
                 return versionD;
@@ -228,7 +229,8 @@ public class UnicastZenPingTests extends ESTestCase {
         });
         closeables.push(zenPingC);
 
-        TestUnicastZenPing zenPingD = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleD.transportService, EMPTY_HOSTS_PROVIDER);
+        TestUnicastZenPing zenPingD = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleD.transportService,
+            EMPTY_HOSTS_PROVIDER);
         zenPingD.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -321,7 +323,8 @@ public class UnicastZenPingTests extends ESTestCase {
 
         final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
 
-        final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA.transportService, EMPTY_HOSTS_PROVIDER);
+        final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA.transportService,
+            EMPTY_HOSTS_PROVIDER);
         zenPingA.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -636,7 +639,8 @@ public class UnicastZenPingTests extends ESTestCase {
 
     private static class TestUnicastZenPing extends UnicastZenPing {
 
-        public TestUnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, UnicastHostsProvider unicastHostsProvider) {
+        public TestUnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService,
+                                  UnicastHostsProvider unicastHostsProvider) {
             super(settings, threadPool, transportService, unicastHostsProvider);
         }
 

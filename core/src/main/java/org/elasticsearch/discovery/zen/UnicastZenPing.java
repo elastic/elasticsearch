@@ -526,7 +526,8 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     }
 
     // for testing
-    protected TransportResponseHandler<UnicastPingResponse> getPingResponseHandler(final PingingRound pingingRound, final DiscoveryNode node) {
+    protected TransportResponseHandler<UnicastPingResponse> getPingResponseHandler(final PingingRound pingingRound,
+                                                                                   final DiscoveryNode node) {
         return new TransportResponseHandler<UnicastPingResponse>() {
 
             @Override

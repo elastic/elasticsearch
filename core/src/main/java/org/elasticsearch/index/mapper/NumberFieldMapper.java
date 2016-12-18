@@ -54,6 +54,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -565,20 +566,21 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Query termsQuery(String field, List<Object> values) {
-                final List<Object> nonDecimalValues = new ArrayList<>();
+                int[] v = new int[values.size()];
+                int upTo = 0;
 
-                values.forEach(value -> {
+                for (int i = 0; i < values.size(); i++) {
+                    Object value = values.get(i);
                     if (!hasDecimalPart(value)) {
-                        nonDecimalValues.add(value);
+                        v[upTo++] = parse(value, true);
                     }
-                });
-                if (nonDecimalValues.isEmpty()) {
-                    return Queries.newMatchNoDocsQuery("All values have a decimal part");
                 }
 
-                int[] v = new int[nonDecimalValues.size()];
-                for (int i = 0; i < nonDecimalValues.size(); ++i) {
-                    v[i] = parse(nonDecimalValues.get(i), true);
+                if (upTo == 0) {
+                    return Queries.newMatchNoDocsQuery("All values have a decimal part");
+                }
+                if (upTo != v.length) {
+                    v = Arrays.copyOf(v, upTo);
                 }
                 return IntPoint.newSetQuery(field, v);
             }
@@ -675,20 +677,21 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             Query termsQuery(String field, List<Object> values) {
-                final List<Object> nonDecimalValues = new ArrayList<>();
+                long[] v = new long[values.size()];
+                int upTo = 0;
 
-                values.forEach(value -> {
+                for (int i = 0; i < values.size(); i++) {
+                    Object value = values.get(i);
                     if (!hasDecimalPart(value)) {
-                        nonDecimalValues.add(value);
+                        v[upTo++] = parse(value, true);
                     }
-                });
-                if (nonDecimalValues.isEmpty()) {
-                    return Queries.newMatchNoDocsQuery("All values have a decimal part");
                 }
 
-                long[] v = new long[nonDecimalValues.size()];
-                for (int i = 0; i < nonDecimalValues.size(); ++i) {
-                    v[i] = parse(nonDecimalValues.get(i), true);
+                if (upTo == 0) {
+                    return Queries.newMatchNoDocsQuery("All values have a decimal part");
+                }
+                if (upTo != v.length) {
+                    v = Arrays.copyOf(v, upTo);
                 }
                 return LongPoint.newSetQuery(field, v);
             }

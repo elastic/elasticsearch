@@ -72,7 +72,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.Callable;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
@@ -265,17 +264,6 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         temporalResponses.clear();
     }
 
-    // test only
-    ZenPing.PingCollection pingAndWait(TimeValue timeout) throws ExecutionException, InterruptedException {
-        final CompletableFuture<PingCollection> response = new CompletableFuture<>();
-        try {
-            ping(response::complete, timeout);
-        } catch (Exception ex) {
-            response.completeExceptionally(ex);
-        }
-        return response.get();
-    }
-
     /**
      * Sends three rounds of pings notifying the specified {@link Consumer} when pinging is complete. Pings are sent after resolving
      * configured unicast hosts to their IP address (subject to DNS caching within the JVM). A batch of pings is sent, then another batch
@@ -288,6 +276,16 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
      */
     @Override
     public void ping(final Consumer<PingCollection> resultsConsumer, final TimeValue duration) {
+        ping(resultsConsumer, duration, duration);
+    }
+
+    /**
+     * a variant of {@link #ping(Consumer, TimeValue)}, but allows separating the scheduling duration
+     * from the duration used for request level time outs. This is useful for testing
+     */
+    protected void ping(final Consumer<PingCollection> resultsConsumer,
+                        final TimeValue scheduleDuration,
+                        final TimeValue requestDuration) {
         final List<DiscoveryNode> seedNodes;
         try {
             seedNodes = resolveHostsLists(
@@ -322,13 +320,13 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
             @Override
             protected void doRun() throws Exception {
-                sendPings(duration, pingingRound);
+                sendPings(requestDuration, pingingRound);
             }
         };
         threadPool.generic().execute(pingSender);
-        threadPool.schedule(TimeValue.timeValueMillis(duration.millis() / 3), ThreadPool.Names.GENERIC, pingSender);
-        threadPool.schedule(TimeValue.timeValueMillis(duration.millis() / 3 * 2), ThreadPool.Names.GENERIC, pingSender);
-        threadPool.schedule(duration, ThreadPool.Names.GENERIC, new AbstractRunnable() {
+        threadPool.schedule(TimeValue.timeValueMillis(scheduleDuration.millis() / 3), ThreadPool.Names.GENERIC, pingSender);
+        threadPool.schedule(TimeValue.timeValueMillis(scheduleDuration.millis() / 3 * 2), ThreadPool.Names.GENERIC, pingSender);
+        threadPool.schedule(scheduleDuration, ThreadPool.Names.GENERIC, new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
                 finishPingingRound(pingingRound);
@@ -403,11 +401,6 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             if (pingResponse.node().equals(localNode) == false) {
                 pingCollection.addPing(pingResponse);
             }
-        }
-
-
-        public PingCollection pingCollection() {
-            return pingCollection;
         }
 
         @Override
@@ -556,10 +549,10 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
             @Override
             public void handleException(TransportException exp) {
-                if (exp instanceof ConnectTransportException) {
+                if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                     // ok, not connected...
                     logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to connect to {}", node), exp);
-                } else {
+                } else if (closed == false){
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send ping to [{}]", node), exp);
                 }
             }

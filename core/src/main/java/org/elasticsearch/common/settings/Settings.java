@@ -232,7 +232,8 @@ public final class Settings implements ToXContent {
      * returns the default value provided.
      */
     public String get(String setting, String defaultValue) {
-        return settings.getOrDefault(setting, defaultValue);
+        String retVal = get(setting);
+        return retVal == null ? defaultValue : retVal;
     }
 
     /**

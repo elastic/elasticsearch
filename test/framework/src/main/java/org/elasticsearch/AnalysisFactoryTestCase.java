@@ -299,7 +299,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
             case STEMMER:
                 luceneFactoryClazz = PorterStemFilterFactory.class;
                 break;
-            case DELIMITED_PAYLOAD_FILTER:
+            case DELIMITED_PAYLOAD:
                 luceneFactoryClazz = org.apache.lucene.analysis.payloads.DelimitedPayloadTokenFilterFactory.class;
                  break;
             case LIMIT:

@@ -1,0 +1,6 @@
+[[breaking_60_analysis_changes]]
+=== Analysis changes
+
+==== `delimited_payload_filter` is now `delimited_payload`
+
+The `delimited_payload_filter` token filter has been renamed to `delimited_payload`.

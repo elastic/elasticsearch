@@ -28,15 +28,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -52,8 +56,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -69,7 +73,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -92,7 +95,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     protected volatile DiscoveryNode nodeB;
     protected volatile MockTransportService serviceB;
 
-    protected abstract MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings);
+    protected abstract MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake);
 
     @Override
     @Before
@@ -147,7 +150,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings,
-                                              Settings settings, boolean acceptRequests) {
+                                              Settings settings, boolean acceptRequests, boolean doHandshake) {
         MockTransportService service = build(
             Settings.builder()
                 .put(settings)
@@ -156,7 +159,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .build(),
             version,
-            clusterSettings);
+            clusterSettings, doHandshake);
         if (acceptRequests) {
             service.acceptIncomingRequests();
         }
@@ -164,7 +167,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     private MockTransportService buildService(final String name, final Version version, ClusterSettings clusterSettings) {
-        return buildService(name, version, clusterSettings, Settings.EMPTY, true);
+        return buildService(name, version, clusterSettings, Settings.EMPTY, true, true);
     }
 
     @Override
@@ -1459,7 +1462,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testBlockingIncomingRequests() throws Exception {
         try (TransportService service = buildService("TS_TEST", version0, null,
-            Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), false)) {
+            Settings.EMPTY, false, false)) {
             AtomicBoolean requestProcessed = new AtomicBoolean(false);
             service.registerRequestHandler("action", TestRequest::new, ThreadPool.Names.SAME,
                 (request, channel) -> {
@@ -1471,7 +1474,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 new DiscoveryNode("TS_TEST", "TS_TEST", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             serviceA.close();
             serviceA = buildService("TS_A", version0, null,
-                Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), true);
+                Settings.EMPTY, true, false);
             serviceA.connectToNode(node);
 
             CountDownLatch latch = new CountDownLatch(1);
@@ -1579,7 +1582,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .put(TransportService.TRACE_LOG_EXCLUDE_SETTING.getKey(), "NOTHING")
                 .build(),
             version0,
-            null);
+            null, true);
         DiscoveryNode nodeC =
             new DiscoveryNode("TS_C", "TS_C", serviceC.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
         serviceC.acceptIncomingRequests();
@@ -1784,7 +1787,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.STATE);
             // connection with one connection and a large timeout -- should consume the one spot in the backlog queue
             try (TransportService service = buildService("TS_TPC", Version.CURRENT, null,
-                Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), true)) {
+                Settings.EMPTY, true, false)) {
                 service.connectToNode(first, builder.build());
                 builder.setConnectTimeout(TimeValue.timeValueMillis(1));
                 final ConnectionProfile profile = builder.build();
@@ -1803,11 +1806,23 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testTcpHandshake() throws IOException, InterruptedException {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
-        try (TransportService service = buildService("TS_TPC", Version.CURRENT, null,
-            Settings.builder().put(TcpTransport.CONNECTION_HANDSHAKE.getKey(), false).build(), true)) {
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+
+        try (MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(), namedWriteableRegistry,  new NetworkService(Settings.EMPTY, Collections.emptyList())){
+            @Override
+            protected String handleRequest(MockChannel mockChannel, String profileName, StreamInput stream, long requestId,
+                                           int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)
+                throws IOException {
+                return super.handleRequest(mockChannel, profileName, stream, requestId, messageLengthBytes, version, remoteAddress,
+                    (byte)(status & ~(1<<3))); // we flip the isHanshake bit back and ackt like the handler is not found
+            }
+        }) {
+            transport.transportServiceAdapter(serviceA.new Adapter());
+            transport.start();
             // this acts like a node that doesn't have support for handshakes
             DiscoveryNode node =
-                new DiscoveryNode("TS_TPC", "TS_TPC", service.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+                new DiscoveryNode("TS_TPC", "TS_TPC", transport.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
             serviceA.connectToNode(node);
             TcpTransport.NodeChannels connection = originalTransport.getConnection(node);
             Version version = originalTransport.executeHandshake(node, connection.channel(TransportRequestOptions.Type.PING),

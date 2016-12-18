@@ -28,7 +28,8 @@ import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 public class SimpleLocalTransportTests extends AbstractSimpleTransportTestCase {
 
     @Override
-    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings) {
+    protected MockTransportService build(Settings settings, Version version, ClusterSettings clusterSettings, boolean doHandshake) {
+        // we ignore the doHandshake boolean here since this only applied to TcpTransport subclasses
         MockTransportService transportService = MockTransportService.local(settings, version, threadPool, clusterSettings);
         transportService.start();
         return transportService;

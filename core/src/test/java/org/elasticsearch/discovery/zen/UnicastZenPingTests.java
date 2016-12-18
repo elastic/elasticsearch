@@ -43,9 +43,12 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 import org.junit.After;
@@ -125,7 +128,7 @@ public class UnicastZenPingTests extends ESTestCase {
     private static final UnicastHostsProvider EMPTY_HOSTS_PROVIDER = Collections::emptyList;
 
     @TestLogging("org.elasticsearch.transport:TRACE,org.elasticsearch.discovery.zen.UnicastZenPing:TRACE")
-    public void testSimplePings() throws IOException, InterruptedException {
+    public void testSimplePings() throws IOException, InterruptedException, ExecutionException {
         // use ephemeral ports
         final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
         final Settings settingsMismatch =
@@ -140,7 +143,12 @@ public class UnicastZenPingTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             new NamedWriteableRegistry(Collections.emptyList()),
             networkService,
-            v);
+            v) {
+            @Override
+            public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) {
+                throw new AssertionError("zen pings should never connect to node (got [" + node + "])");
+            }
+        };
 
         NetworkHandle handleA = startServices(settings, threadPool, "UZP_A", Version.CURRENT, supplier);
         closeables.push(handleA.transportService);
@@ -166,7 +174,7 @@ public class UnicastZenPingTests extends ESTestCase {
                 .build();
 
         Settings hostsSettingsMismatch = Settings.builder().put(hostsSettings).put(settingsMismatch).build();
-        UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, EMPTY_HOSTS_PROVIDER);
+        UnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA.transportService, EMPTY_HOSTS_PROVIDER);
         zenPingA.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -180,7 +188,7 @@ public class UnicastZenPingTests extends ESTestCase {
         });
         closeables.push(zenPingA);
 
-        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, handleB.transportService, EMPTY_HOSTS_PROVIDER);
+        UnicastZenPing zenPingB = new TestUnicastZenPing(hostsSettings, threadPool, handleB.transportService, EMPTY_HOSTS_PROVIDER);
         zenPingB.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -194,7 +202,7 @@ public class UnicastZenPingTests extends ESTestCase {
         });
         closeables.push(zenPingB);
 
-        UnicastZenPing zenPingC = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleC.transportService, EMPTY_HOSTS_PROVIDER) {
+        UnicastZenPing zenPingC = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleC.transportService, EMPTY_HOSTS_PROVIDER) {
             @Override
             protected Version getVersion() {
                 return versionD;
@@ -213,7 +221,7 @@ public class UnicastZenPingTests extends ESTestCase {
         });
         closeables.push(zenPingC);
 
-        UnicastZenPing zenPingD = new UnicastZenPing(hostsSettingsMismatch, threadPool, handleD.transportService, EMPTY_HOSTS_PROVIDER);
+        UnicastZenPing zenPingD = new TestUnicastZenPing(hostsSettingsMismatch, threadPool, handleD.transportService, EMPTY_HOSTS_PROVIDER);
         zenPingD.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -228,7 +236,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(zenPingD);
 
         logger.info("ping from UZP_A");
-        Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(500));
+        Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(500)).toList();
         assertThat(pingResponses.size(), equalTo(1));
         ZenPing.PingResponse ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_B"));
@@ -237,7 +245,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         // ping again, this time from B,
         logger.info("ping from UZP_B");
-        pingResponses = zenPingB.pingAndWait(TimeValue.timeValueMillis(500));
+        pingResponses = zenPingB.pingAndWait(TimeValue.timeValueMillis(500)).toList();
         assertThat(pingResponses.size(), equalTo(1));
         ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_A"));
@@ -245,17 +253,17 @@ public class UnicastZenPingTests extends ESTestCase {
         assertCountersMoreThan(handleB, handleA, handleC, handleD);
 
         logger.info("ping from UZP_C");
-        pingResponses = zenPingC.pingAndWait(TimeValue.timeValueMillis(500));
+        pingResponses = zenPingC.pingAndWait(TimeValue.timeValueMillis(500)).toList();
         assertThat(pingResponses.size(), equalTo(0));
         assertCountersMoreThan(handleC, handleA, handleB, handleD);
 
         logger.info("ping from UZP_D");
-        pingResponses = zenPingD.pingAndWait(TimeValue.timeValueMillis(500));
+        pingResponses = zenPingD.pingAndWait(TimeValue.timeValueMillis(500)).toList();
         assertThat(pingResponses.size(), equalTo(0));
         assertCountersMoreThan(handleD, handleA, handleB, handleC);
     }
 
-    public void testUnknownHostNotCached() {
+    public void testUnknownHostNotCached() throws ExecutionException, InterruptedException {
         // use ephemeral ports
         final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
 
@@ -306,7 +314,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
 
-        final UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, handleA.transportService, EMPTY_HOSTS_PROVIDER);
+        final UnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA.transportService, EMPTY_HOSTS_PROVIDER);
         zenPingA.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -320,7 +328,7 @@ public class UnicastZenPingTests extends ESTestCase {
         });
         closeables.push(zenPingA);
 
-        UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, handleB.transportService, EMPTY_HOSTS_PROVIDER);
+        UnicastZenPing zenPingB = new TestUnicastZenPing(hostsSettings, threadPool, handleB.transportService, EMPTY_HOSTS_PROVIDER);
         zenPingB.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -334,7 +342,7 @@ public class UnicastZenPingTests extends ESTestCase {
         });
         closeables.push(zenPingB);
 
-        UnicastZenPing zenPingC = new UnicastZenPing(hostsSettings, threadPool, handleC.transportService, EMPTY_HOSTS_PROVIDER);
+        UnicastZenPing zenPingC = new TestUnicastZenPing(hostsSettings, threadPool, handleC.transportService, EMPTY_HOSTS_PROVIDER);
         zenPingC.start(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
@@ -350,7 +358,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         // the presence of an unresolvable host should not prevent resolvable hosts from being pinged
         {
-            final Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(500));
+            final Collection<ZenPing.PingResponse> pingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(500)).toList();
             assertThat(pingResponses.size(), equalTo(1));
             ZenPing.PingResponse ping = pingResponses.iterator().next();
             assertThat(ping.node().getId(), equalTo("UZP_C"));
@@ -373,7 +381,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         // now we should see pings to UZP_B; this establishes that host resolutions are not cached
         {
-            final Collection<ZenPing.PingResponse> secondPingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(500));
+            final Collection<ZenPing.PingResponse> secondPingResponses = zenPingA.pingAndWait(TimeValue.timeValueMillis(500)).toList();
             assertThat(secondPingResponses.size(), equalTo(2));
             final Set<String> ids = new HashSet<>(secondPingResponses.stream().map(p -> p.node().getId()).collect(Collectors.toList()));
             assertThat(ids, equalTo(new HashSet<>(Arrays.asList("UZP_B", "UZP_C"))));
@@ -397,13 +405,13 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(transportService);
         final AtomicInteger idGenerator = new AtomicInteger();
         final int limitPortCounts = randomIntBetween(1, 10);
-        final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
+        final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveHostsLists(
             executorService,
             logger,
             Collections.singletonList("127.0.0.1"),
             limitPortCounts,
             transportService,
-            () -> Integer.toString(idGenerator.incrementAndGet()),
+            "test_",
             TimeValue.timeValueSeconds(1));
         assertThat(discoveryNodes, hasSize(limitPortCounts));
         final Set<Integer> ports = new HashSet<>();
@@ -441,13 +449,13 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(transportService);
         final AtomicInteger idGenerator = new AtomicInteger();
 
-        final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
+        final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveHostsLists(
             executorService,
             logger,
             Arrays.asList(hostname),
             1,
             transportService,
-            () -> Integer.toString(idGenerator.incrementAndGet()),
+            "test_",
             TimeValue.timeValueSeconds(1)
         );
 
@@ -493,13 +501,13 @@ public class UnicastZenPingTests extends ESTestCase {
         final AtomicInteger idGenerator = new AtomicInteger();
         final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 3));
         try {
-            final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
+            final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveHostsLists(
                 executorService,
                 logger,
                 Arrays.asList("hostname1", "hostname2"),
                 1,
                 transportService,
-                () -> Integer.toString(idGenerator.incrementAndGet()),
+                "test+",
                 resolveTimeout);
 
             assertThat(discoveryNodes, hasSize(1));
@@ -530,13 +538,13 @@ public class UnicastZenPingTests extends ESTestCase {
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         closeables.push(transportService);
         final AtomicInteger idGenerator = new AtomicInteger();
-        final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveDiscoveryNodes(
+        final List<DiscoveryNode> discoveryNodes = UnicastZenPing.resolveHostsLists(
             executorService,
             logger,
             Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301"),
             1,
             transportService,
-            () -> Integer.toString(idGenerator.incrementAndGet()),
+            "test_",
             TimeValue.timeValueSeconds(1));
         assertThat(discoveryNodes, hasSize(1)); // only one of the two is valid and will be used
         assertThat(discoveryNodes.get(0).getAddress().getAddress(), equalTo("127.0.0.1"));
@@ -617,6 +625,81 @@ public class UnicastZenPingTests extends ESTestCase {
             this.counters = counters;
         }
 
+    }
+
+    private static class TestUnicastZenPing extends UnicastZenPing {
+
+        public TestUnicastZenPing(Settings settings, ThreadPool threadPool, TransportService transportService, UnicastHostsProvider unicastHostsProvider) {
+            super(settings, threadPool, transportService, unicastHostsProvider);
+        }
+
+        volatile CountDownLatch pendingSends;
+        volatile CountDownLatch allRequestsCompleted;
+        volatile AtomicInteger pendingRequests;
+
+        @Override
+        PingCollection pingAndWait(TimeValue timeout) throws ExecutionException, InterruptedException {
+            pendingSends = new CountDownLatch(3);
+            allRequestsCompleted = new CountDownLatch(1);
+            pendingRequests = new AtomicInteger();
+            return super.pingAndWait(timeout);
+        }
+
+        @Override
+        protected void finishPingingRound(PingingRound pingingRound) {
+            // wait for all activity to finish before closing
+            try {
+                pendingSends.await();
+                // ugly but effective - busy spin on the executor
+                awaitBusy(() ->
+                    unicastZenPingExecutorService.getQueue().size() == 0 && unicastZenPingExecutorService.getActiveCount() == 0);
+                allRequestsCompleted.await();
+            } catch (InterruptedException e) {
+                // ok, finish anyway
+            }
+            super.finishPingingRound(pingingRound);
+        }
+
+        @Override
+        void sendPings(TimeValue timeout, PingingRound pingingRound) {
+            super.sendPings(timeout, pingingRound);
+            pendingSends.countDown();
+        }
+
+        @Override
+        protected TransportResponseHandler<UnicastPingResponse> getPingResponseHandler(PingingRound pingingRound, DiscoveryNode node) {
+            pendingRequests.incrementAndGet();
+            TransportResponseHandler<UnicastPingResponse> original = super.getPingResponseHandler(pingingRound, node);
+            return new TransportResponseHandler<UnicastPingResponse>() {
+                @Override
+                public UnicastPingResponse newInstance() {
+                    return original.newInstance();
+                }
+
+                @Override
+                public void handleResponse(UnicastPingResponse response) {
+                    original.handleResponse(response);
+                    markAsCompleted();
+                }
+
+                private void markAsCompleted() {
+                    if (pendingRequests.decrementAndGet() == 0) {
+                        allRequestsCompleted.countDown();
+                    }
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    original.handleException(exp);
+                    markAsCompleted();
+                }
+
+                @Override
+                public String executor() {
+                    return original.executor();
+                }
+            };
+        }
     }
 
 }

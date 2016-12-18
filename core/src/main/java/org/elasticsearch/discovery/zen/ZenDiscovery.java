@@ -67,11 +67,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -1021,24 +1021,22 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     }
 
     private ZenPing.PingCollection pingAndWait(TimeValue timeout) {
-        final ZenPing.PingCollection response = new ZenPing.PingCollection();
-        final CountDownLatch latch = new CountDownLatch(1);
+        final CompletableFuture<ZenPing.PingCollection> response = new CompletableFuture<>();
         try {
-            zenPing.ping(pings -> {
-                response.addPings(pings);
-                latch.countDown();
-            }, timeout);
+            zenPing.ping(response::complete, timeout);
         } catch (Exception ex) {
-            logger.warn("Ping execution failed", ex);
-            latch.countDown();
+            // logged later
+            response.completeExceptionally(ex);
         }
 
         try {
-            latch.await();
-            return response;
+            return response.get();
         } catch (InterruptedException e) {
             logger.trace("pingAndWait interrupted");
-            return response;
+            return new ZenPing.PingCollection();
+        } catch (ExecutionException e) {
+            logger.warn("Ping execution failed", e);
+            return new ZenPing.PingCollection();
         }
     }
 

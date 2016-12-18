@@ -188,7 +188,7 @@ public class InternalEngine extends Engine {
                     seqNoService().markSeqNoAsCompleted(seqNoService().getLocalCheckpoint() + 1);
                 }
                 indexWriter = writer;
-                translog = openTranslog(engineConfig, writer, () -> seqNoService().getLocalCheckpoint());
+                translog = openTranslog(engineConfig, writer, () -> seqNoService().getGlobalCheckpoint());
                 assert translog.getGeneration() != null;
             } catch (IOException | TranslogCorruptedException e) {
                 throw new EngineCreationFailureException(shardId, "failed to create engine", e);

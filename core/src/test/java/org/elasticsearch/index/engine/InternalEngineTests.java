@@ -154,13 +154,12 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1694,8 +1693,10 @@ public class InternalEngineTests extends ESTestCase {
                     }
                 }
 
-                replicaLocalCheckpoint =
-                    rarely() ? replicaLocalCheckpoint : randomIntBetween(Math.toIntExact(replicaLocalCheckpoint), Math.toIntExact(primarySeqNo));
+                if (randomInt(10) < 3) {
+                    // only update rarely as we do it every doc
+                    replicaLocalCheckpoint = randomIntBetween(Math.toIntExact(replicaLocalCheckpoint), Math.toIntExact(primarySeqNo));
+                }
                 initialEngine.seqNoService().updateLocalCheckpointForShard("primary", initialEngine.seqNoService().getLocalCheckpoint());
                 initialEngine.seqNoService().updateLocalCheckpointForShard("replica", replicaLocalCheckpoint);
 
@@ -1707,6 +1708,7 @@ public class InternalEngineTests extends ESTestCase {
                 }
             }
 
+            logger.info("localcheckpoint {}, global {}", replicaLocalCheckpoint, primarySeqNo);
             initialEngine.seqNoService().updateGlobalCheckpointOnPrimary();
             globalCheckpoint = initialEngine.seqNoService().getGlobalCheckpoint();
 

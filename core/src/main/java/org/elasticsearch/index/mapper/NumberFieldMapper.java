@@ -182,7 +182,7 @@ public class NumberFieldMapper extends FieldMapper {
             Query termsQuery(String field, List<Object> values) {
                 float[] v = new float[values.size()];
                 for (int i = 0; i < values.size(); ++i) {
-                    v[i] = (float) parse(values.get(i), false);
+                    v[i] = parse(values.get(i), false);
                 }
                 return HalfFloatPoint.newSetQuery(field, v);
             }
@@ -592,7 +592,13 @@ public class NumberFieldMapper extends FieldMapper {
                 int u = Integer.MAX_VALUE;
                 if (lowerTerm != null) {
                     l = parse(lowerTerm, true);
-                    if (includeLower == false || hasDecimalPart(lowerTerm)) {
+                    // if the lower bound is decimal:
+                    // - if the bound is positive then we increment it:
+                    //      if lowerTerm=1.5 then the (inclusive) bound becomes 2
+                    // - if the bound is negative then we leave it as is:
+                    //      if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
+                    boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
+                    if ((includeLower == false && !lowerTermHasDecimalPart) || (lowerTermHasDecimalPart && l > 0)) {
                         if (l == Integer.MAX_VALUE) {
                             return new MatchNoDocsQuery();
                         }
@@ -703,7 +709,13 @@ public class NumberFieldMapper extends FieldMapper {
                 long u = Long.MAX_VALUE;
                 if (lowerTerm != null) {
                     l = parse(lowerTerm, true);
-                    if (includeLower == false || hasDecimalPart(lowerTerm)) {
+                    // if the lower bound is decimal:
+                    // - if the bound is positive then we increment it:
+                    //      if lowerTerm=1.5 then the (inclusive) bound becomes 2
+                    // - if the bound is negative then we leave it as is:
+                    //      if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
+                    boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
+                    if ((includeLower == false && !lowerTermHasDecimalPart) || (lowerTermHasDecimalPart && l > 0)) {
                         if (l == Long.MAX_VALUE) {
                             return new MatchNoDocsQuery();
                         }

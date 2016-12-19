@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.elasticsearch.common.UUIDs;
 import org.joda.time.DateTime;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
@@ -19,9 +20,9 @@ public class Wid {
 
     private final String value;
 
-    public Wid(String watchId, long nonce, DateTime executionTime) {
+    public Wid(String watchId, DateTime executionTime) {
         this.watchId = watchId;
-        this.value = watchId + "_" + String.valueOf(nonce) + "-" +  formatter.print(executionTime);
+        this.value = watchId + "_" + UUIDs.base64UUID().replaceAll("_", "-") + "-" +  formatter.print(executionTime);
     }
 
     public Wid(String value) {

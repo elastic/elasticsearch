@@ -23,7 +23,7 @@ public class TriggeredWatchTests extends AbstractWatcherIntegrationTestCase {
         Watch watch = WatcherTestUtils.createTestWatch("fired_test", watcherHttpClient(), noopEmailService(),
                 watcherSearchTemplateService(), logger);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), DateTime.now(DateTimeZone.UTC), DateTime.now(DateTimeZone.UTC));
-        Wid wid = new Wid("_record", randomLong(), DateTime.now(DateTimeZone.UTC));
+        Wid wid = new Wid("_record", DateTime.now(DateTimeZone.UTC));
         TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         triggeredWatch.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);

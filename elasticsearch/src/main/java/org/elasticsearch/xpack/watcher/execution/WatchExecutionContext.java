@@ -42,7 +42,7 @@ public abstract class WatchExecutionContext {
     private ConcurrentMap<String, ActionWrapper.Result> actionsResults = ConcurrentCollections.newConcurrentMap();
 
     public WatchExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
-        this.id = new Wid(watch.id(), watch.nonce(), executionTime);
+        this.id = new Wid(watch.id(), executionTime);
         this.watch = watch;
         this.executionTime = executionTime;
         this.triggerEvent = triggerEvent;

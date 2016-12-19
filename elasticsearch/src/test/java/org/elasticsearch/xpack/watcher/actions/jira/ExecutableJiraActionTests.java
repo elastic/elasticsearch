@@ -75,7 +75,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
-        Wid wid = new Wid(randomAsciiOfLength(5), randomLong(), now);
+        Wid wid = new Wid(randomAsciiOfLength(5), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
                 .wid(wid)
                 .payload(new Payload.Simple())
@@ -286,7 +286,7 @@ public class ExecutableJiraActionTests extends ESTestCase {
 
     private WatchExecutionContext createWatchExecutionContext() {
         DateTime now = DateTime.now(DateTimeZone.UTC);
-        Wid wid = new Wid(randomAsciiOfLength(5), randomLong(), now);
+        Wid wid = new Wid(randomAsciiOfLength(5), now);
         Map<String, Object> metadata = MapBuilder.<String, Object>newMapBuilder().put("_key", "_val").map();
         return mockExecutionContextBuilder("watch1")
                 .wid(wid)

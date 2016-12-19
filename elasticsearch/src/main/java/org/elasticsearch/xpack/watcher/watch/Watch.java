@@ -72,8 +72,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     @Nullable private final Map<String, Object> metadata;
     private final WatchStatus status;
 
-    private final transient AtomicLong nonceCounter = new AtomicLong();
-
     private transient long version = Versions.MATCH_ANY;
 
     public Watch(String id, Trigger trigger, ExecutableInput input, Condition condition, @Nullable ExecutableTransform transform,
@@ -155,10 +153,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     public boolean acked(String actionId) {
         ActionStatus actionStatus = status.actionStatus(actionId);
         return actionStatus.ackStatus().state() == ActionStatus.AckStatus.State.ACKED;
-    }
-
-    public long nonce() {
-        return nonceCounter.getAndIncrement();
     }
 
     @Override

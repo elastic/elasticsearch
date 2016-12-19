@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.execution;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Iterator;
@@ -16,22 +17,31 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
 
-public class CurrentExecutions implements Iterable<ExecutionService.WatchExecution> {
+public final class CurrentExecutions implements Iterable<ExecutionService.WatchExecution> {
 
     private final ConcurrentMap<String, ExecutionService.WatchExecution> currentExecutions = new ConcurrentHashMap<>();
+    // the condition of the lock is used to wait and signal the finishing of all executions on shutdown
     private final ReentrantLock lock = new ReentrantLock();
     private final Condition empty = lock.newCondition();
-    private boolean seal = false;
+    // a marker to not accept new executions, used when the watch service is powered down
+    private SetOnce<Boolean> seal = new SetOnce<>();
 
-    public void put(String id, ExecutionService.WatchExecution execution) {
+    /**
+     * Tries to put an watch execution class for a watch in the current executions
+     *
+     * @param id        The id of the watch
+     * @param execution The watch execution class
+     * @return          Returns true if watch with id already is in the current executions class, false otherwise
+     */
+    public boolean put(String id, ExecutionService.WatchExecution execution) {
         lock.lock();
         try {
-            if (seal) {
+            if (seal.get() != null) {
                 // We shouldn't get here, because, ExecutionService#started should have been set to false
                 throw illegalState("could not register execution [{}]. current executions are sealed and forbid registrations of " +
                         "additional executions.", id);
             }
-            currentExecutions.put(id, execution);
+            return currentExecutions.putIfAbsent(id, execution) != null;
         } finally {
             lock.unlock();
         }
@@ -49,16 +59,22 @@ public class CurrentExecutions implements Iterable<ExecutionService.WatchExecuti
         }
     }
 
-    public void sealAndAwaitEmpty(TimeValue maxStopTimeout) {
+    /**
+     * Calling this method makes the class stop accepting new executions and throws and exception instead.
+     * In addition it waits for a certain amount of time for current executions to finish before returning
+     *
+     * @param maxStopTimeout    The maximum wait time to wait to current executions to finish
+     */
+    void sealAndAwaitEmpty(TimeValue maxStopTimeout) {
+        lock.lock();
         // We may have current executions still going on.
         // We should try to wait for the current executions to have completed.
         // Otherwise we can run into a situation where we didn't delete the watch from the .triggered_watches index,
         // but did insert into the history index. Upon start this can lead to DocumentAlreadyExistsException,
         // because we already stored the history record during shutdown...
         // (we always first store the watch record and then remove the triggered watch)
-        lock.lock();
         try {
-            seal = true;
+            seal.set(true);
             while (currentExecutions.size() > 0) {
                 empty.await(maxStopTimeout.millis(), TimeUnit.MILLISECONDS);
             }

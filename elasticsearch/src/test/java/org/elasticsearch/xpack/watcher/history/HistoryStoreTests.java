@@ -61,7 +61,7 @@ public class HistoryStoreTests extends ESTestCase {
     }
 
     public void testPut() throws Exception {
-        Wid wid = new Wid("_name", 0, new DateTime(0, UTC));
+        Wid wid = new Wid("_name", new DateTime(0, UTC));
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), new DateTime(0, UTC), new DateTime(0, UTC));
         WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, null);
 
@@ -74,7 +74,7 @@ public class HistoryStoreTests extends ESTestCase {
     }
 
     public void testPutStopped() throws Exception {
-        Wid wid = new Wid("_name", 0, new DateTime(0, UTC));
+        Wid wid = new Wid("_name", new DateTime(0, UTC));
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(wid.watchId(), new DateTime(0, UTC), new DateTime(0, UTC));
         WatchRecord watchRecord = new WatchRecord.MessageWatchRecord(wid, event, ExecutionState.EXECUTED, null);
 
@@ -116,7 +116,7 @@ public class HistoryStoreTests extends ESTestCase {
         ActionWrapper.Result result = new ActionWrapper.Result(JiraAction.TYPE, new JiraAction.Executed(jiraIssue));
 
         DateTime now = new DateTime(0, UTC);
-        Wid wid = new Wid("_name", 0, now);
+        Wid wid = new Wid("_name", now);
 
         Watch watch = mock(Watch.class);
         when(watch.id()).thenReturn("_id");

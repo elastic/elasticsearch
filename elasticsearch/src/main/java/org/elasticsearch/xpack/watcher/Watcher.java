@@ -28,7 +28,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -141,7 +140,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.YearlySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchLockService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -281,12 +279,11 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
                 new WatcherSearchTemplateService(settings, scriptService, searchRequestParsers);
-        final WatchLockService watchLockService = new WatchLockService(settings);
         final WatchExecutor watchExecutor = getWatchExecutor(threadPool);
         final Watch.Parser watchParser = new Watch.Parser(settings, triggerService, registry, inputRegistry, cryptoService, clock);
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                watchLockService, clock, threadPool, watchParser, watcherClientProxy);
+                clock, threadPool, watchParser, watcherClientProxy);
 
         final TriggerEngine.Listener triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
@@ -294,7 +291,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = new WatcherIndexTemplateRegistry(settings,
                 clusterService.getClusterSettings(), clusterService, threadPool, internalClient);
 
-        final WatcherService watcherService = new WatcherService(settings, triggerService, executionService, watchLockService,
+        final WatcherService watcherService = new WatcherService(settings, triggerService, executionService,
                 watcherIndexTemplateRegistry, watchParser, watcherClientProxy);
 
         final WatcherLifeCycleService watcherLifeCycleService =

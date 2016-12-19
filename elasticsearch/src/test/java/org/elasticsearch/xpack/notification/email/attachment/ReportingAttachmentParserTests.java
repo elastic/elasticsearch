@@ -383,7 +383,7 @@ public class ReportingAttachmentParserTests extends ESTestCase {
     private WatchExecutionContext createWatchExecutionContext() {
         DateTime now = DateTime.now(DateTimeZone.UTC);
         return mockExecutionContextBuilder("watch1")
-                .wid(new Wid(randomAsciiOfLength(5), randomLong(), now))
+                .wid(new Wid(randomAsciiOfLength(5), now))
                 .payload(new Payload.Simple())
                 .time("watch1", now)
                 .metadata(Collections.emptyMap())

@@ -57,7 +57,8 @@ GET /twitter/tweet/_rank_eval
     }],
     "metric": {                                         <9>
       "reciprocal_rank": {}
-   }
+   },
+   "max_concurrent_searches": 10                         <10>
 }
 ------------------------------
 // CONSOLE
@@ -72,6 +73,8 @@ GET /twitter/tweet/_rank_eval
 <7> The index where the rated document lives.
 <8> For a verbose response, specify which properties of a search hit should be returned in addition to index/type/id.
 <9> A metric to use for evaluation. See below for a list.
+<10> Maximum number of search requests to execute in parallel. Set to 10 by
+default.
 
 
 == Template based ranking evaluation

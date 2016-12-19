@@ -50,7 +50,11 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     private Collection<RatedRequest> ratedRequests = new ArrayList<>();
     /** Definition of the quality metric, e.g. precision at N */
     private RankedListQualityMetric metric;
-    /** optional: Template to base test requests on */
+    /** Maximum number of requests to execute in parallel. */
+    private int maxConcurrentSearches = MAX_CONCURRENT_SEARCHES;
+    /** Default max number of requests. */
+    private static final int MAX_CONCURRENT_SEARCHES = 10;
+    /** optional: Templates to base test requests on */
     private Map<String, Script> templates = new HashMap<>();
 
     public RankEvalSpec(Collection<RatedRequest> ratedRequests, RankedListQualityMetric metric, Collection<ScriptWithId> templates) {
@@ -97,6 +101,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             Script value = new Script(in);
             this.templates.put(key, value);
         }
+        maxConcurrentSearches = in.readVInt();
     }
 
     @Override
@@ -111,6 +116,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);
         }
+        out.writeVInt(maxConcurrentSearches);
     }
 
     /** Returns the metric to use for quality evaluation.*/
@@ -127,10 +133,21 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     public Map<String, Script> getTemplates() {
         return this.templates;
     }
+    
+    /** Returns the max concurrent searches allowed. */
+    public int getMaxConcurrentSearches() {
+        return this.maxConcurrentSearches;
+    }
+
+    /** Set the max concurrent searches allowed. */
+    public void setMaxConcurrentSearches(int maxConcurrentSearches) {
+        this.maxConcurrentSearches = maxConcurrentSearches;
+    }
 
     private static final ParseField TEMPLATES_FIELD = new ParseField("templates");
     private static final ParseField METRIC_FIELD = new ParseField("metric");
     private static final ParseField REQUESTS_FIELD = new ParseField("requests");
+    private static final ParseField MAX_CONCURRENT_SEARCHES_FIELD = new ParseField("max_concurrent_searches");
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RankEvalSpec, RankEvalContext> PARSER =
             new ConstructingObjectParser<>("rank_eval",
@@ -158,6 +175,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
                 throw new ParsingException(p.getTokenLocation(), "error parsing rank request", ex);
             }
         }, TEMPLATES_FIELD);
+        PARSER.declareInt(RankEvalSpec::setMaxConcurrentSearches, MAX_CONCURRENT_SEARCHES_FIELD);
     }
 
     public static RankEvalSpec parse(XContentParser parser, RankEvalContext context) throws IOException {
@@ -213,6 +231,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         }
         builder.endArray();
         builder.field(METRIC_FIELD.getPreferredName(), this.metric);
+        builder.field(MAX_CONCURRENT_SEARCHES_FIELD.getPreferredName(), maxConcurrentSearches);
         builder.endObject();
         return builder;
     }
@@ -229,11 +248,12 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
 
         return Objects.equals(ratedRequests, other.ratedRequests) &&
                 Objects.equals(metric, other.metric) &&
+                Objects.equals(maxConcurrentSearches, other.maxConcurrentSearches) &&
                 Objects.equals(templates, other.templates);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(ratedRequests, metric, templates);
+        return Objects.hash(ratedRequests, metric, templates, maxConcurrentSearches);
     }
 }

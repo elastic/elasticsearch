@@ -126,7 +126,9 @@ public class RankEvalSpecTests extends ESTestCase {
                     "id", Arrays.asList(RatedDocumentTests.createRatedDocument()), new SearchSourceBuilder());
             ratedRequests = Arrays.asList(ratedRequest);
         }
-        return new RankEvalSpec(ratedRequests, metric, templates); 
+        RankEvalSpec spec = new RankEvalSpec(ratedRequests, metric, templates); 
+        maybeSet(spec::setMaxConcurrentSearches, randomInt(100));
+        return spec;
     }
 
     public void testRoundtripping() throws IOException {

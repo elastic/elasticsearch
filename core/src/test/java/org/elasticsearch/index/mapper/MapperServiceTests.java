@@ -131,6 +131,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 .mapperService().merge("type", new CompressedXContent(mapping.apply("type")), MergeReason.MAPPING_UPDATE, false);
         });
         assertTrue(e.getMessage(), e.getMessage().contains("Limit of total fields [1] in index [test2] has been exceeded"));
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field1]");
     }
 
     public void testMappingDepthExceedsLimit() throws Throwable {

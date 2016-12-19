@@ -28,6 +28,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.security.PrivilegedActionException;
 import java.util.AbstractMap;
@@ -121,6 +122,7 @@ public class GroovySecurityTests extends ESTestCase {
         if (!Constants.WINDOWS) {
             assertFailure("new File(\"" + dir + "\").exists()", MultipleCompilationErrorsException.class);
         }
+        assertWarnings("[groovy] scripts are deprecated, use [painless] scripts instead");
     }
 
     public void testGroovyScriptsThatThrowErrors() throws Exception {
@@ -128,14 +130,16 @@ public class GroovySecurityTests extends ESTestCase {
         assertFailure("def foo=false; assert foo;", AssertionError.class);
         // Groovy's asserts require org.codehaus.groovy.runtime.InvokerHelper, so they are denied
         assertFailure("def foo=false; assert foo, \"msg2\";", NoClassDefFoundError.class);
+        assertWarnings("[groovy] scripts are deprecated, use [painless] scripts instead");
     }
 
-    public void testGroovyBugError() {
+    public void testGroovyBugError() throws IOException {
         // this script throws a GroovyBugError because our security manager permissions prevent Groovy from accessing this private field
         // and Groovy does not handle it gracefully; this test will likely start failing if the bug is fixed upstream so that a
         // GroovyBugError no longer surfaces here in which case the script should be replaced with another script that intentionally
         // surfaces a GroovyBugError
         assertFailure("[1, 2].size", AssertionError.class);
+        assertWarnings("[groovy] scripts are deprecated, use [painless] scripts instead");
     }
 
     /** runs a script */

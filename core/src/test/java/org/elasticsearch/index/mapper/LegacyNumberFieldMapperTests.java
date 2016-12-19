@@ -30,17 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.LegacyFloatFieldMapper;
-import org.elasticsearch.index.mapper.LegacyLongFieldMapper;
-import org.elasticsearch.index.mapper.LegacyNumberFieldMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -49,7 +39,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -264,6 +253,7 @@ public class LegacyNumberFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "double1"));
         assertEquals(DocValuesType.NONE, LegacyStringMappingTests.docValuesType(doc, "int2"));
         assertEquals(DocValuesType.NONE, LegacyStringMappingTests.docValuesType(doc, "double2"));
+        assertWarnings("Expected a boolean for property [index] but got [no]");
     }
 
     public void testUnIndex() throws IOException {
@@ -318,6 +308,8 @@ public class LegacyNumberFieldMapperTests extends ESSingleNodeTestCase {
         DocumentMapper defaultMapper = createIndex("test", oldSettings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
         assertEquals("{\"type\":{\"properties\":{\"double\":{\"type\":\"double\"},\"int\":{\"type\":\"integer\",\"index\":false}}}}",
                 defaultMapper.mapping().toString());
+        assertWarnings("Expected a boolean for property [index] but got [no]",
+                "Expected a boolean for property [index] but got [not_analyzed]");
     }
 
     public void testDocValuesOnNested() throws Exception {

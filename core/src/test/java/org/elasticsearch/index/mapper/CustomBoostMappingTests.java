@@ -27,9 +27,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentFieldMappers;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -82,6 +79,7 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("d_field").boost(), equalTo(7.0f));
         assertThat(doc.rootDoc().getField("f_field").boost(), equalTo(8.0f));
         assertThat(doc.rootDoc().getField("date_field").boost(), equalTo(9.0f));
+        assertWarnings("The [norms{enabled:true/false}] way of specifying norms is deprecated, please use [norms:true/false] instead");
     }
 
     public void testBackCompatFieldMappingBoostValues() throws Exception {

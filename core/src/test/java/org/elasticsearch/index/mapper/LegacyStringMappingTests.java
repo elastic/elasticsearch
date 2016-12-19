@@ -188,6 +188,8 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
 
         defaultMapper = parser.parse("type", new CompressedXContent(mapping));
 
+        assertWarnings("The [norms{enabled:true/false}] way of specifying norms is deprecated, please use [norms:true/false] instead");
+
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "1234")
@@ -210,6 +212,8 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         defaultMapper = parser.parse("type", new CompressedXContent(mapping));
+
+        assertWarnings("[omit_norms] is deprecated, please use [norms] instead with the opposite boolean value");
 
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -593,6 +597,8 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().endObject().endObject().string();
         defaultMapper = mapperService.merge("type", new CompressedXContent(updatedMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
 
+        assertWarnings("The [norms{enabled:true/false}] way of specifying norms is deprecated, please use [norms:true/false] instead");
+
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
                 .field("field", "1234")
@@ -602,15 +608,14 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         fieldType = doc.rootDoc().getField("field").fieldType();
         assertEquals(true, fieldType.omitNorms());
 
-        updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+        String updatedMapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        try {
-            mapperService.merge("type", new CompressedXContent(updatedMapping), MapperService.MergeReason.MAPPING_UPDATE, false);
-            fail();
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("different [norms]"));
-        }
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> mapperService.merge("type", new CompressedXContent(updatedMapping2), MapperService.MergeReason.MAPPING_UPDATE, false));
+        assertThat(exception.getMessage(), containsString("different [norms]"));
+        assertWarnings("The [norms{enabled:true/false}] way of specifying norms is deprecated, please use [norms:true/false] instead");
     }
 
     /**
@@ -733,6 +738,7 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
 
             // allowed in index created before 5.0
             parser.parse("type", new CompressedXContent(mapping));
+            assertWarnings("setting position_increment_gap on field [field] without positions enabled is deprecated and will be ignored");
         }
     }
 
@@ -747,6 +753,7 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
 
             // allowed in index created before 5.0
             parser.parse("type", new CompressedXContent(mapping));
+            assertWarnings("setting position_increment_gap on field [field] without positions enabled is deprecated and will be ignored");
         }
     }
 

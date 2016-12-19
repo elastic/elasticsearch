@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,24 +28,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.StringFieldMapper;
-import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -69,6 +60,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         FieldMapper field = mapper.mappers().getMapper("field");
         assertThat(field, instanceOf(TextFieldMapper.class));
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
     }
 
     public void testUpgradeAnalyzedString() throws IOException {
@@ -80,6 +72,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         FieldMapper field = mapper.mappers().getMapper("field");
         assertThat(field, instanceOf(TextFieldMapper.class));
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
     }
 
     public void testUpgradeNotAnalyzedString() throws IOException {
@@ -92,6 +85,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         FieldMapper field = mapper.mappers().getMapper("field");
         assertThat(field, instanceOf(KeywordFieldMapper.class));
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
     }
 
     public void testUpgradeNotIndexedString() throws IOException {
@@ -104,6 +98,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         FieldMapper field = mapper.mappers().getMapper("field");
         assertThat(field, instanceOf(KeywordFieldMapper.class));
         assertEquals(IndexOptions.NONE, field.fieldType().indexOptions());
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
     }
 
     public void testUpgradeIndexOptions() throws IOException {
@@ -117,6 +112,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         FieldMapper field = mapper.mappers().getMapper("field");
         assertThat(field, instanceOf(TextFieldMapper.class));
         assertEquals(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS, field.fieldType().indexOptions());
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
     }
 
     public void testUpgradePositionGap() throws IOException {
@@ -130,6 +126,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         FieldMapper field = mapper.mappers().getMapper("field");
         assertThat(field, instanceOf(TextFieldMapper.class));
         assertEquals(42, field.fieldType().indexAnalyzer().getPositionIncrementGap("field"));
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
     }
 
     public void testIllegalIndexValue() throws IOException {
@@ -195,6 +192,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
             assertEquals(Integer.MAX_VALUE, fieldType.fielddataMaxFrequency(), 0d);
         }
         assertEquals("eager_global_ordinals".equals(loading), field.fieldType().eagerGlobalOrdinals());
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
     }
 
     public void testUpgradeIgnoreAbove() throws IOException {
@@ -208,6 +206,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         FieldMapper field = mapper.mappers().getMapper("field");
         assertThat(field, instanceOf(KeywordFieldMapper.class));
         assertEquals(200, ((KeywordFieldMapper) field).ignoreAbove());
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
     }
 
     public void testUpgradeAnalyzer() throws IOException {
@@ -225,6 +224,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         assertEquals("standard", field.fieldType().indexAnalyzer().name());
         assertEquals("whitespace", field.fieldType().searchAnalyzer().name());
         assertEquals("keyword", field.fieldType().searchQuoteAnalyzer().name());
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
     }
 
     public void testUpgradeTextIncludeInAll() throws IOException {
@@ -238,6 +238,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         FieldMapper field = mapper.mappers().getMapper("field");
         assertThat(field, instanceOf(TextFieldMapper.class));
         assertFalse(((TextFieldMapper) field).includeInAll());
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
     }
 
     public void testUpgradeKeywordIncludeInAll() throws IOException {
@@ -251,16 +252,21 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         FieldMapper field = mapper.mappers().getMapper("field");
         assertThat(field, instanceOf(KeywordFieldMapper.class));
         assertTrue(((KeywordFieldMapper) field).includeInAll());
+        assertWarnings("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
     }
 
     public void testUpgradeRandomMapping() throws IOException {
         final int iters = 20;
         for (int i = 0; i < iters; ++i) {
-            doTestUpgradeRandomMapping(i);
+            List<String> warnings = doTestUpgradeRandomMapping(i);
+            if (warnings.isEmpty() == false) {
+                assertWarnings(warnings.toArray(new String[warnings.size()]));
+            }
         }
     }
 
-    private void doTestUpgradeRandomMapping(int iter) throws IOException {
+    private List<String> doTestUpgradeRandomMapping(int iter) throws IOException {
+        List<String> warnings = new ArrayList<>();
         IndexService indexService;
         boolean oldIndex = randomBoolean();
         String indexName = "test" + iter;
@@ -283,8 +289,17 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         } else if (randomBoolean()) {
             mapping.field("index", "analyzed");
         }
+        //TODO why don't we ever have warnings about index not being a boolean?
+        //e.g. "Expected a boolean for property [index] but got [no]" or "Expected a boolean for property [index] but got [not_analyzed]"
         if (randomBoolean()) {
-            mapping.field("store", RandomPicks.randomFrom(random(), Arrays.asList("yes", "no", true, false)));
+            Object store;
+            if (randomBoolean()) {
+                store = randomFrom("yes", "no");
+                warnings.add("Expected a boolean for property [store] but got [" + store + "]");
+            } else {
+                store = randomFrom(true, false);
+            }
+            mapping.field("store", store);
         }
         if (keyword && randomBoolean()) {
             mapping.field("doc_values", randomBoolean());
@@ -293,14 +308,23 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
             mapping.field("analyzer", "keyword");
         }
         if (randomBoolean()) {
+            //TODO does it make sense that the norms warnings are emitted only for old indices?
             hasNorms = randomBoolean();
             if (randomBoolean()) {
                 mapping.field("omit_norms", hasNorms == false);
+                if (oldIndex) {
+                    warnings.add("[omit_norms] is deprecated, please use [norms] instead with the opposite boolean value");
+                }
             } else {
                 mapping.field("norms", Collections.singletonMap("enabled", hasNorms));
+                if (oldIndex) {
+                    warnings.add("The [norms{enabled:true/false}] way of specifying norms is deprecated, " +
+                            "please use [norms:true/false] instead");
+                }
             }
         }
         if (randomBoolean()) {
+            //TODO fielddata and frequency filter are randomized but never used throughout the test
             Map<String, Object> fielddata = new HashMap<>();
             if (randomBoolean()) {
                 fielddata.put("format", randomFrom("paged_bytes", "disabled"));
@@ -336,20 +360,25 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                     () -> parser.parse("type", new CompressedXContent(mapping.string())));
             assertThat(e.getMessage(), containsString("The [string] type is removed in 5.0"));
+            //no deprecation warnings, we fail fast in this case, before any warning could be emitted.
+            return Collections.emptyList();
+        }
+        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
+        FieldMapper field = mapper.mappers().getMapper("field");
+        if (oldIndex) {
+            assertThat(field, instanceOf(StringFieldMapper.class));
         } else {
-            DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
-            FieldMapper field = mapper.mappers().getMapper("field");
-            if (oldIndex) {
-                assertThat(field, instanceOf(StringFieldMapper.class));
-            } else if (keyword) {
+            warnings.add("The [string] field is deprecated, please use [text] or [keyword] instead on [field]");
+            if (keyword) {
                 assertThat(field, instanceOf(KeywordFieldMapper.class));
             } else {
                 assertThat(field, instanceOf(TextFieldMapper.class));
             }
-            if (field.fieldType().indexOptions() != IndexOptions.NONE) {
-                assertEquals(hasNorms, field.fieldType().omitNorms() == false);
-            }
         }
+        if (field.fieldType().indexOptions() != IndexOptions.NONE) {
+            assertEquals(hasNorms, field.fieldType().omitNorms() == false);
+        }
+        return warnings;
     }
 
     public void testUpgradeTemplateWithDynamicType() throws IOException {
@@ -419,6 +448,7 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         ParsedDocument doc = mapper.parse("test", "type", "id", source);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
         assertThat(fooMapper, instanceOf(KeywordFieldMapper.class));
+        assertWarnings("Expected a boolean for property [index] but got [not_analyzed]");
     }
 
     public void testUpgradeTemplateWithDynamicTypeKeyword2() throws IOException {
@@ -442,5 +472,6 @@ public class StringMappingUpgradeTests extends ESSingleNodeTestCase {
         ParsedDocument doc = mapper.parse("test", "type", "id", source);
         Mapper fooMapper = doc.dynamicMappingsUpdate().root().getMapper("foo");
         assertThat(fooMapper, instanceOf(KeywordFieldMapper.class));
+        assertWarnings("Expected a boolean for property [index] but got [not_analyzed]");
     }
 }

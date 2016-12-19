@@ -26,6 +26,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.WrappedException;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -81,10 +82,11 @@ public class JavaScriptSecurityTests extends ESTestCase {
     }
 
     /** Test some javascripts that are ok */
-    public void testOK() {
+    public void testOK() throws IOException {
         assertSuccess("1 + 2");
         assertSuccess("Math.cos(Math.PI)");
         assertSuccess("Array.apply(null, Array(100)).map(function (_, i) {return i;}).map(function (i) {return i+1;})");
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
     /** Test some javascripts that should hit security exception */
@@ -96,14 +98,16 @@ public class JavaScriptSecurityTests extends ESTestCase {
         assertFailure("new java.net.Socket(\"localhost\", 1024)", EcmaError.class);
         // no files
         assertFailure("java.io.File.createTempFile(\"test\", \"tmp\")", EcmaError.class);
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
-    public void testDefinitelyNotOK() {
+    public void testDefinitelyNotOK() throws IOException {
         // no mucking with security controller
         assertFailure("var ctx = org.mozilla.javascript.Context.getCurrentContext(); " +
                       "ctx.setSecurityController(new org.mozilla.javascript.PolicySecurityController());", EcmaError.class);
         // no compiling scripts from scripts
         assertFailure("var ctx = org.mozilla.javascript.Context.getCurrentContext(); " +
                       "ctx.compileString(\"1 + 1\", \"foobar\", 1, null); ", EcmaError.class);
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 }

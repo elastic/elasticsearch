@@ -69,6 +69,7 @@ public class LegacyGeohashMappingGeoPointTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("point.lon"), nullValue());
         assertThat(doc.rootDoc().getField("point.geohash").stringValue(), equalTo(stringEncode(1.3, 1.2)));
         assertThat(doc.rootDoc().get("point"), notNullValue());
+        assertWarnings("geo_point geohash parameter is deprecated and will be removed in the next major release");
     }
 
     public void testGeoHashPrecisionAsInteger() throws Exception {
@@ -84,6 +85,8 @@ public class LegacyGeohashMappingGeoPointTests extends ESSingleNodeTestCase {
         assertThat(mapper, instanceOf(BaseGeoPointFieldMapper.class));
         BaseGeoPointFieldMapper geoPointFieldMapper = (BaseGeoPointFieldMapper) mapper;
         assertThat(((LegacyGeoPointFieldType)geoPointFieldMapper.fieldType()).geoHashPrecision(), is(10));
+        assertWarnings("geo_point geohash parameter is deprecated and will be removed in the next major release",
+                "geo_point geohash_precision parameter is deprecated and will be removed in the next major release");
     }
 
     public void testGeoHashPrecisionAsLength() throws Exception {
@@ -100,5 +103,7 @@ public class LegacyGeohashMappingGeoPointTests extends ESSingleNodeTestCase {
         assertThat(mapper, instanceOf(BaseGeoPointFieldMapper.class));
         BaseGeoPointFieldMapper geoPointFieldMapper = (BaseGeoPointFieldMapper) mapper;
         assertThat(((LegacyGeoPointFieldType)geoPointFieldMapper.fieldType()).geoHashPrecision(), is(10));
+        assertWarnings("geo_point geohash parameter is deprecated and will be removed in the next major release",
+                "geo_point geohash_precision parameter is deprecated and will be removed in the next major release");
     }
 }

@@ -26,8 +26,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -100,6 +98,8 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
 
         f = doc.getField("short_field");
         assertThat((double) f.boost(), closeTo(9.0, 0.001));
+
+        assertWarnings("The [norms{enabled:true/false}] way of specifying norms is deprecated, please use [norms:true/false] instead");
     }
 
     public void testBackCompatFieldLevelMappingBoost() throws Exception {
@@ -281,7 +281,7 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
         } catch (Exception ex) {
             assertThat(ex, instanceOf(MapperParsingException.class));
         }
-
+        assertWarnings("The [norms{enabled:true/false}] way of specifying norms is deprecated, please use [norms:true/false] instead");
     }
 
 }

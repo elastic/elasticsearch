@@ -76,6 +76,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
         barrier.await();
         latch.await();
         assertThat(failed.get(), equalTo(false));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
     public void testExecutableWithRuntimeParams() throws Exception {
@@ -118,6 +119,7 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
         barrier.await();
         latch.await();
         assertThat(failed.get(), equalTo(false));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
     public void testExecute() throws Exception {
@@ -159,5 +161,6 @@ public class JavaScriptScriptMultiThreadedTests extends ESTestCase {
         barrier.await();
         latch.await();
         assertThat(failed.get(), equalTo(false));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 }

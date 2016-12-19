@@ -19,11 +19,6 @@
 
 package org.elasticsearch.script.python;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
@@ -32,6 +27,12 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -52,14 +53,15 @@ public class PythonScriptEngineTests extends ESTestCase {
         se.close();
     }
 
-    public void testSimpleEquation() {
+    public void testSimpleEquation() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
         Object o = se.executable(new CompiledScript(ScriptType.INLINE, "testSimpleEquation", "python", se.compile(null, "1 + 2", Collections.emptyMap())), vars).run();
         assertThat(((Number) o).intValue(), equalTo(3));
+        assertWarnings("[python] scripts are deprecated, use [painless] scripts instead");
     }
 
     @SuppressWarnings("unchecked")
-    public void testMapAccess() {
+    public void testMapAccess() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
 
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();
@@ -73,10 +75,11 @@ public class PythonScriptEngineTests extends ESTestCase {
 
         o = se.executable(new CompiledScript(ScriptType.INLINE, "testMapAccess", "python", se.compile(null, "obj1['l'][0]", Collections.emptyMap())), vars).run();
         assertThat(((String) o), equalTo("2"));
+        assertWarnings("[python] scripts are deprecated, use [painless] scripts instead");
     }
 
     @SuppressWarnings("unchecked")
-    public void testObjectMapInter() {
+    public void testObjectMapInter() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> ctx = new HashMap<String, Object>();
         Map<String, Object> obj1 = new HashMap<String, Object>();
@@ -92,10 +95,11 @@ public class PythonScriptEngineTests extends ESTestCase {
         assertThat((String) ((Map<String, Object>) ctx.get("obj1")).get("prop1"), equalTo("uvalue1"));
         assertThat(ctx.containsKey("obj2"), equalTo(true));
         assertThat((String) ((Map<String, Object>) ctx.get("obj2")).get("prop2"), equalTo("value2"));
+        assertWarnings("[python] scripts are deprecated, use [painless] scripts instead");
     }
 
     @SuppressWarnings("unchecked")
-    public void testAccessListInScript() {
+    public void testAccessListInScript() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();
         Map<String, Object> obj1 = MapBuilder.<String, Object>newMapBuilder().put("prop1", "value1").put("obj2", obj2).map();
@@ -114,9 +118,10 @@ public class PythonScriptEngineTests extends ESTestCase {
 
         o = se.executable(new CompiledScript(ScriptType.INLINE, "testAccessListInScript", "python", se.compile(null, "l[3]['prop1']", Collections.emptyMap())), vars).run();
         assertThat(((String) o), equalTo("value1"));
+        assertWarnings("[python] scripts are deprecated, use [painless] scripts instead");
     }
 
-    public void testChangingVarsCrossExecution1() {
+    public void testChangingVarsCrossExecution1() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> ctx = new HashMap<String, Object>();
         vars.put("ctx", ctx);
@@ -130,9 +135,10 @@ public class PythonScriptEngineTests extends ESTestCase {
         ctx.put("value", 2);
         o = script.run();
         assertThat(((Number) o).intValue(), equalTo(2));
+        assertWarnings("[python] scripts are deprecated, use [painless] scripts instead");
     }
 
-    public void testChangingVarsCrossExecution2() {
+    public void testChangingVarsCrossExecution2() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> ctx = new HashMap<String, Object>();
         Object compiledScript = se.compile(null, "value", Collections.emptyMap());
@@ -145,5 +151,6 @@ public class PythonScriptEngineTests extends ESTestCase {
         script.setNextVar("value", 2);
         o = script.run();
         assertThat(((Number) o).intValue(), equalTo(2));
+        assertWarnings("[python] scripts are deprecated, use [painless] scripts instead");
     }
 }

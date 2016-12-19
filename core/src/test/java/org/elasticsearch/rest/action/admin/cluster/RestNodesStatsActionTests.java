@@ -115,6 +115,7 @@ public class RestNodesStatsActionTests extends ESTestCase {
         params.put("index_metric", "percolate");
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_nodes/stats").withParams(params).build();
         action.prepareRequest(request, mock(NodeClient.class));
+        assertWarnings("percolate stats are no longer available and requests for percolate stats will fail starting in 6.0.0");
     }
 
     public void testIndexMetricsRequestWithoutIndicesMetric() throws IOException {

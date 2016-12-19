@@ -69,6 +69,12 @@ import static org.hamcrest.Matchers.not;
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public class InternalTestClusterTests extends ESTestCase {
 
+    @Override
+    protected boolean enableWarningsCheck() {
+        //some settings randomization in InternalTestCluster cause deprecation warnings, that's ok
+        return false;
+    }
+
     public void testInitializiationIsConsistent() {
         long clusterSeed = randomLong();
         boolean masterNodes = randomBoolean();

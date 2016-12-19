@@ -319,12 +319,14 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         String query = "{ \"post_filter\": {} }";
         assertParseSearchSource(builder, createParser(JsonXContent.jsonXContent, query), ParseFieldMatcher.EMPTY);
+        assertWarnings("query malformed, empty clause found at [1:19]");
     }
 
     public void testEmptyQuery() throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         String query = "{ \"query\": {} }";
         assertParseSearchSource(builder, createParser(JsonXContent.jsonXContent, query), ParseFieldMatcher.EMPTY);
+        assertWarnings("query malformed, empty clause found at [1:13]");
     }
 
     public void testParseIndicesBoost() throws IOException {

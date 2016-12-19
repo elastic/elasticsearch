@@ -212,6 +212,8 @@ public class BooleanFieldMapperTests extends ESSingleNodeTestCase {
         assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "bool1"));
         assertEquals(DocValuesType.NONE, LegacyStringMappingTests.docValuesType(doc, "bool2"));
         assertEquals(DocValuesType.SORTED_NUMERIC, LegacyStringMappingTests.docValuesType(doc, "bool3"));
+        assertWarnings("Expected a boolean for property [index] but got [no]",
+                "Expected a boolean for property [index] but got [not_analyzed]");
     }
 
     public void testEmptyName() throws IOException {

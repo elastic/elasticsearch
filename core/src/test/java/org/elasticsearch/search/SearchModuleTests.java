@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -78,8 +77,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchModuleTests extends ModuleTestCase {
 
@@ -212,19 +209,11 @@ public class SearchModuleTests extends ModuleTestCase {
         for (String queryName : supportedQueries) {
             indicesQueriesRegistry.lookup(queryName, ParseFieldMatcher.EMPTY, dummyParser.getTokenLocation());
         }
-
-        for (String queryName : NON_DEPRECATED_QUERIES) {
-            QueryParser<?> queryParser = indicesQueriesRegistry.lookup(queryName, ParseFieldMatcher.STRICT, dummyParser.getTokenLocation());
-            assertThat(queryParser, notNullValue());
-        }
-        for (String queryName : DEPRECATED_QUERIES) {
-            try {
-                indicesQueriesRegistry.lookup(queryName, ParseFieldMatcher.STRICT, dummyParser.getTokenLocation());
-                fail("query is deprecated, getQueryParser should have failed in strict mode");
-            } catch(IllegalArgumentException e) {
-                assertThat(e.getMessage(), containsString("Deprecated field [" + queryName + "] used"));
-            }
-        }
+        assertWarnings("Deprecated field [fuzzy_match] used, expected [match] instead",
+                "Deprecated field [geo_bbox] used, expected [geo_bounding_box] instead",
+                "Deprecated field [in] used, expected [terms] instead",
+                "Deprecated field [match_fuzzy] used, expected [match] instead",
+                "Deprecated field [mlt] used, expected [more_like_this] instead");
     }
 
     public void testRegisterAggregation() {

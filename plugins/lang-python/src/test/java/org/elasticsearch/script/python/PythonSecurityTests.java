@@ -25,6 +25,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
 import org.python.core.PyException;
 
+import java.io.IOException;
 import java.text.DecimalFormatSymbols;
 import java.util.Collections;
 import java.util.HashMap;
@@ -79,14 +80,15 @@ public class PythonSecurityTests extends ESTestCase {
     }
 
     /** Test some py scripts that are ok */
-    public void testOK() {
+    public void testOK() throws IOException {
         assertSuccess("1 + 2");
         assertSuccess("from java.lang import Math\nMath.cos(0)");
         assertSuccess("map(lambda x: x + 1, range(100))");
+        assertWarnings("[python] scripts are deprecated, use [painless] scripts instead");
     }
 
     /** Test some py scripts that should hit security exception */
-    public void testNotOK() {
+    public void testNotOK() throws IOException {
         // sanity check :)
         assertFailure("from java.lang import Runtime\nRuntime.getRuntime().halt(0)");
         // check a few things more restrictive than the ordinary policy
@@ -94,6 +96,7 @@ public class PythonSecurityTests extends ESTestCase {
         assertFailure("from java.net import Socket\nSocket(\"localhost\", 1024)");
         // no files
         assertFailure("from java.io import File\nFile.createTempFile(\"test\", \"tmp\")");
+        assertWarnings("[python] scripts are deprecated, use [painless] scripts instead");
     }
 
     /** Test again from a new thread, python has complex threadlocal configuration */

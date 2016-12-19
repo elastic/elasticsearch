@@ -81,6 +81,7 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
         barrier.await();
         latch.await();
         assertThat(failed.get(), equalTo(false));
+        assertWarnings("[python] scripts are deprecated, use [painless] scripts instead");
     }
 
 
@@ -166,5 +167,6 @@ public class PythonScriptMultiThreadedTests extends ESTestCase {
         barrier.await();
         latch.await();
         assertThat(failed.get(), equalTo(false));
+        assertWarnings("[python] scripts are deprecated, use [painless] scripts instead");
     }
 }

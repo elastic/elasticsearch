@@ -88,6 +88,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         } else {
             assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
         }
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release");
+        }
     }
 
     public void testLegacyLatLonValuesWithGeohash() throws Exception {
@@ -113,6 +116,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         } else {
             assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
         }
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release",
+                    "geo_point geohash parameter is deprecated and will be removed in the next major release");
+        }
     }
 
     public void testLegacyLatLonInOneValueWithGeohash() throws Exception {
@@ -136,6 +143,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(doc.rootDoc().getBinaryValue("point.geohash"), equalTo(new BytesRef(stringEncode(1.3, 1.2))));
         } else {
             assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
+        }
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release",
+                    "geo_point geohash parameter is deprecated and will be removed in the next major release");
         }
     }
 
@@ -161,6 +172,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         } else {
             assertThat(doc.rootDoc().get("point.geohash"), equalTo(stringEncode(1.3, 1.2)));
         }
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release",
+                    "geo_point geohash parameter is deprecated and will be removed in the next major release");
+        }
     }
 
     public void testGeoHashValue() throws Exception {
@@ -184,6 +199,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
             assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release");
         }
     }
 
@@ -309,6 +325,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                     .bytes()));
         assertThat(e.getRootCause(), instanceOf(NumberFormatException.class));
         assertThat(e.getRootCause().toString(), containsString("java.lang.NumberFormatException: For input string: \"-\""));
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release");
+        }
     }
 
     public void testNoValidateLegacyLatLonValues() throws Exception {
@@ -370,6 +389,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("point").field("lat", "-").field("lon", "-").endObject()
                 .endObject()
                 .bytes());
+
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release");
+        }
     }
 
     public void testLatLonValuesStored() throws Exception {
@@ -449,6 +472,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoPointField.encodeLatLon(1.4, 1.5)));
             }
         }
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release");
+        }
     }
 
     public void testLatLonInOneValue() throws Exception {
@@ -478,6 +504,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             } else {
                 assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
             }
+        }
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release");
         }
     }
 
@@ -510,6 +539,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()),
                     equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
             }
+        }
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release");
         }
     }
 
@@ -557,6 +589,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         } else if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoPointField.encodeLatLon(1.4, 1.5)));
         }
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release");
+        }
     }
 
     public void testLonLatArray() throws Exception {
@@ -585,6 +620,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             } else {
                 assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoPointField.encodeLatLon(1.2, 1.3)));
             }
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release");
         }
     }
 
@@ -628,6 +664,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = xContentBuilder.field("store", true).endObject().endObject().endObject().endObject().string();
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
+
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release");
+        }
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -693,6 +733,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
             }
         } else if (version.onOrAfter(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
             assertThat(doc.rootDoc().getFields("point").length, CoreMatchers.equalTo(4));
+        }
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release");
         }
     }
 
@@ -797,6 +840,11 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 parser.parse("type", new CompressedXContent(normalizeMapping)));
             assertEquals(e.getMessage(), "Mapping definition for [point] has unsupported parameters:  [normalize_lon : true]");
         }
+
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release",
+                    "geo_point geohash parameter is deprecated and will be removed in the next major release");
+        }
     }
 
     public void testLegacyGeoPointMapperMerge() throws Exception {
@@ -821,6 +869,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
                 .field("geohash", true).endObject().endObject().endObject().endObject().string();
         mapperService.merge("type", new CompressedXContent(stage2MappingCorrect), MapperService.MergeReason.MAPPING_UPDATE, false);
+        if (version.before(LatLonPointFieldMapper.LAT_LON_FIELD_VERSION)) {
+            assertWarnings("geo_point lat_lon parameter is deprecated and will be removed in the next major release",
+                    "geo_point geohash parameter is deprecated and will be removed in the next major release");
+        }
     }
 
     public void testLegacyGeoHashSearch() throws Exception {

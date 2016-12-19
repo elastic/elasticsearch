@@ -19,7 +19,6 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.FileSwitchDirectory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NoLockFactory;
@@ -54,6 +53,7 @@ public class IndexStoreTests extends ESTestCase {
         for (IndexModule.Type type : IndexModule.Type.values()) {
             doTestStoreDirectory(index, tempDir, type.name().toLowerCase(Locale.ROOT), type);
         }
+        assertWarnings("[default] store type is deprecated, use [fs] instead");
     }
 
     private void doTestStoreDirectory(Index index, Path tempDir, String typeSettingValue, IndexModule.Type type) throws IOException {
@@ -110,5 +110,6 @@ public class IndexStoreTests extends ESTestCase {
         assertEquals(StoreRateLimiting.Type.MERGE, store.rateLimiting().getType());
         assertNotSame(indexStoreConfig.getNodeRateLimiter(), store.rateLimiting());
         assertEquals(StoreRateLimiting.Type.ALL, indexStoreConfig.getNodeRateLimiter().getType());
+        assertWarnings("Store rate limiting is deprecated and will be removed in 6.0");
     }
 }

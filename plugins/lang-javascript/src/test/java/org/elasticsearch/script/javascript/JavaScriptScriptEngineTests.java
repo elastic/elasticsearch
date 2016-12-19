@@ -19,14 +19,6 @@
 
 package org.elasticsearch.script.javascript;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static java.util.Collections.emptyMap;
-
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
@@ -36,6 +28,14 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -55,21 +55,23 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         se.close();
     }
 
-    public void testSimpleEquation() {
+    public void testSimpleEquation() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
         Object o = se.executable(new CompiledScript(ScriptType.INLINE, "testSimpleEquation", "js", se.compile(null, "1 + 2", Collections.emptyMap())), vars).run();
         assertThat(((Number) o).intValue(), equalTo(3));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
-    public void testNullVars() {
+    public void testNullVars() throws IOException {
         CompiledScript script = new CompiledScript(ScriptType.INLINE, "testSimpleEquation", "js",
                 se.compile(null, "1 + 2", emptyMap()));
         Object o = se.executable(script, null).run();
         assertThat(((Number) o).intValue(), equalTo(3));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
     @SuppressWarnings("unchecked")
-    public void testMapAccess() {
+    public void testMapAccess() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
 
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();
@@ -83,20 +85,22 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
 
         o = se.executable(new CompiledScript(ScriptType.INLINE, "testMapAccess", "js", se.compile(null, "obj1.l[0]", Collections.emptyMap())), vars).run();
         assertThat(((String) o), equalTo("2"));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
     @SuppressWarnings("unchecked")
-    public void testJavaScriptObjectToMap() {
+    public void testJavaScriptObjectToMap() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
         Object o = se.executable(new CompiledScript(ScriptType.INLINE, "testJavaScriptObjectToMap", "js",
                 se.compile(null, "var obj1 = {}; obj1.prop1 = 'value1'; obj1.obj2 = {}; obj1.obj2.prop2 = 'value2'; obj1", Collections.emptyMap())), vars).run();
         Map<String, Object> obj1 = (Map<String, Object>) o;
         assertThat((String) obj1.get("prop1"), equalTo("value1"));
         assertThat((String) ((Map<String, Object>) obj1.get("obj2")).get("prop2"), equalTo("value2"));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
     @SuppressWarnings("unchecked")
-    public void testJavaScriptObjectMapInter() {
+    public void testJavaScriptObjectMapInter() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> ctx = new HashMap<String, Object>();
         Map<String, Object> obj1 = new HashMap<String, Object>();
@@ -112,10 +116,11 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         assertThat((String) ((Map<String, Object>) ctx.get("obj1")).get("prop1"), equalTo("uvalue1"));
         assertThat(ctx.containsKey("obj2"), equalTo(true));
         assertThat((String) ((Map<String, Object>) ctx.get("obj2")).get("prop2"), equalTo("value2"));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
     @SuppressWarnings("unchecked")
-    public void testJavaScriptInnerArrayCreation() {
+    public void testJavaScriptInnerArrayCreation() throws IOException {
         Map<String, Object> ctx = new HashMap<String, Object>();
         Map<String, Object> doc = new HashMap<String, Object>();
         ctx.put("doc", doc);
@@ -129,10 +134,11 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         Map<String, Object> unwrap = (Map<String, Object>) script.unwrap(ctx);
 
         assertThat(((Map<String, Object>) unwrap.get("doc")).get("field1"), instanceOf(List.class));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
     @SuppressWarnings("unchecked")
-    public void testAccessListInScript() {
+    public void testAccessListInScript() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> obj2 = MapBuilder.<String, Object>newMapBuilder().put("prop2", "value2").map();
         Map<String, Object> obj1 = MapBuilder.<String, Object>newMapBuilder().put("prop1", "value1").put("obj2", obj2).map();
@@ -155,9 +161,10 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         o = se.executable(new CompiledScript(ScriptType.INLINE, "testAccessInScript", "js",
                 se.compile(null, "l[3].prop1", Collections.emptyMap())), vars).run();
         assertThat(((String) o), equalTo("value1"));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
-    public void testChangingVarsCrossExecution1() {
+    public void testChangingVarsCrossExecution1() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
         Map<String, Object> ctx = new HashMap<String, Object>();
         vars.put("ctx", ctx);
@@ -172,9 +179,10 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         ctx.put("value", 2);
         o = script.run();
         assertThat(((Number) o).intValue(), equalTo(2));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 
-    public void testChangingVarsCrossExecution2() {
+    public void testChangingVarsCrossExecution2() throws IOException {
         Map<String, Object> vars = new HashMap<String, Object>();
         Object compiledScript = se.compile(null, "value", Collections.emptyMap());
 
@@ -187,5 +195,6 @@ public class JavaScriptScriptEngineTests extends ESTestCase {
         script.setNextVar("value", 2);
         o = script.run();
         assertThat(((Number) o).intValue(), equalTo(2));
+        assertWarnings("[javascript] scripts are deprecated, use [painless] scripts instead");
     }
 }

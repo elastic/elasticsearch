@@ -93,7 +93,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         if (in.readBoolean()) {
             template = new Script(in);
         }
-        maxConcurrentSearches = in.readInt();
+        maxConcurrentSearches = in.readVInt();
     }
 
     @Override
@@ -109,7 +109,7 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
         } else {
             out.writeBoolean(false);
         }
-        out.writeInt(maxConcurrentSearches);
+        out.writeVInt(maxConcurrentSearches);
     }
 
     /** Returns the metric to use for quality evaluation.*/

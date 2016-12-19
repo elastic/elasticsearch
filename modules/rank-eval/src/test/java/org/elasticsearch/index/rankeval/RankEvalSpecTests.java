@@ -83,7 +83,6 @@ public class RankEvalSpecTests extends ESTestCase {
         return result;
     }
 
-    // TODO missing mutation stuff
     private RankEvalSpec createTestItem() throws IOException {
         RankedListQualityMetric metric;
         if (randomBoolean()) {

@@ -127,7 +127,7 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         }
 
         // Execute top n tasks, further execution is triggered in RankEvalActionListener
-        for (int i = 0; (i < qualityTask.getMaxConcurrentSearches() && (! taskQueue.isEmpty())); i++) {
+        for (int i = 0; (i < Math.min(ratedRequests.size(), qualityTask.getMaxConcurrentSearches())); i++) {
             RequestTask task = taskQueue.poll();
             client.search(task.request, task.searchListener);
         }

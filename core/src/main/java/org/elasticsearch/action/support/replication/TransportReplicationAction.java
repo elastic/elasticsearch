@@ -1076,7 +1076,7 @@ public abstract class TransportReplicationAction<
                                       ActionListener<ReplicationOperation.ReplicaResponse> listener) {
         transportService.sendRequest(node, transportReplicaAction, concreteShardRequest, transportOptions,
             // Eclipse can't handle when this is <> so we specify the type here.
-            new ActionListenerResponseHandler<>(listener, ReplicaResponse::new));
+            new ActionListenerResponseHandler<ReplicaResponse>(listener, ReplicaResponse::new));
     }
 
     /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/

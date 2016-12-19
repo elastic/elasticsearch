@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.rankeval.RankEvalSpec.ScriptWithId;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -43,8 +44,10 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -91,8 +94,9 @@ public class RankEvalSpecTests extends ESTestCase {
             metric = DiscountedCumulativeGainTests.createTestItem();
         }
 
-        Script template = null;
         List<RatedRequest> ratedRequests = null;
+        Collection<ScriptWithId> templates = null;
+
         if (randomBoolean()) {
             final Map<String, Object> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("key", "value");
             ScriptType scriptType = randomFrom(ScriptType.values());
@@ -108,20 +112,21 @@ public class RankEvalSpecTests extends ESTestCase {
                 script = randomAsciiOfLengthBetween(1, 5);
             }
 
-            template = new Script(scriptType, randomFrom("_lang1", "_lang2"), script, params);
+            templates = new HashSet<>();
+            templates.add(
+                    new ScriptWithId("templateId", new Script(scriptType, randomFrom("_lang1", "_lang2"), script, params)));
 
             Map<String, Object> templateParams = new HashMap<>();
             templateParams.put("key", "value");
             RatedRequest ratedRequest = new RatedRequest(
-                    "id", Arrays.asList(RatedDocumentTests.createRatedDocument()), templateParams);
+                    "id", Arrays.asList(RatedDocumentTests.createRatedDocument()), templateParams, "templateId");
             ratedRequests = Arrays.asList(ratedRequest);
         } else {
             RatedRequest ratedRequest = new RatedRequest(
                     "id", Arrays.asList(RatedDocumentTests.createRatedDocument()), new SearchSourceBuilder());
             ratedRequests = Arrays.asList(ratedRequest);
         }
-
-        return new RankEvalSpec(ratedRequests, metric, template); 
+        return new RankEvalSpec(ratedRequests, metric, templates); 
     }
 
     public void testRoundtripping() throws IOException {
@@ -159,7 +164,7 @@ public class RankEvalSpecTests extends ESTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("key", "value");
 
-        RatedRequest request = new RatedRequest("id", ratedDocs, params);
+        RatedRequest request = new RatedRequest("id", ratedDocs, params, "templateId");
         List<RatedRequest> ratedRequests = Arrays.asList(request);
         
         expectThrows(IllegalStateException.class, () -> new RankEvalSpec(ratedRequests, new Precision()));

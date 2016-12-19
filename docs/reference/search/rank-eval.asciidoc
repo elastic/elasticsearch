@@ -80,12 +80,14 @@ GET /twitter/tweet/_rank_eval
 --------------------------------
 GET /twitter/tweet/_rank_eval
 {
-  "template": {
-        "inline": {
-            "query": {
-                "match": {
-                    "{{field}}": {
-                        "query": "{{query_string}}"}}}}},  <1>
+  "templates": [{
+        "id": "match_query",
+        "template": {
+            "inline": {
+                "query": {
+                    "match": {
+                        "{{field}}": {
+                            "query": "{{query_string}}"}}}}}}],  <1>
   "requests": [
   {
       "id": "JFK query",
@@ -105,7 +107,8 @@ GET /twitter/tweet/_rank_eval
       "params": {
         "query_string": "JFK",                          <2>
         "field": "opening_text"                         <2>
-      }
+      },
+      "template_id": "match_query"
     }],
     "metric": {
       "precision": {

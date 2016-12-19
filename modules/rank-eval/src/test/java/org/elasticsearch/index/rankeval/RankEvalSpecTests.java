@@ -53,6 +53,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -153,18 +154,6 @@ public class RankEvalSpecTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        List<String> indices = new ArrayList<>();
-        int size = randomIntBetween(0, 20);
-        for (int i = 0; i < size; i++) {
-            indices.add(randomAsciiOfLengthBetween(0, 50));
-        }
-
-        List<String> types = new ArrayList<>();
-        size = randomIntBetween(0, 20);
-        for (int i = 0; i < size; i++) {
-            types.add(randomAsciiOfLengthBetween(0, 50));
-        }
-
         RankEvalSpec original = createTestItem();
 
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
@@ -182,18 +171,6 @@ public class RankEvalSpecTests extends ESTestCase {
     }
 
     public void testEqualsAndHash() throws IOException {
-        List<String> indices = new ArrayList<>();
-        int size = randomIntBetween(0, 20);
-        for (int i = 0; i < size; i++) {
-            indices.add(randomAsciiOfLengthBetween(0, 50));
-        }
-
-        List<String> types = new ArrayList<>();
-        size = randomIntBetween(0, 20);
-        for (int i = 0; i < size; i++) {
-            types.add(randomAsciiOfLengthBetween(0, 50));
-        }
-
         RankEvalSpec testItem = createTestItem();
 
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
@@ -203,29 +180,21 @@ public class RankEvalSpecTests extends ESTestCase {
                 RankedListQualityMetric.class, DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, ReciprocalRank.NAME, ReciprocalRank::new));
 
-        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+        RankEvalSpec mutant = RankEvalTestHelper.copy(testItem, RankEvalSpec::new, new NamedWriteableRegistry(namedWriteables));
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(mutant),
                 RankEvalTestHelper.copy(testItem, RankEvalSpec::new, new NamedWriteableRegistry(namedWriteables)));
     }
 
-    private RankEvalSpec mutateTestItem(RankEvalSpec original) {
-        Collection<RatedRequest> ratedRequests = original.getRatedRequests();
-        RankedListQualityMetric metric = original.getMetric();
-        Script template = original.getTemplate();
+    private RankEvalSpec mutateTestItem(RankEvalSpec mutant) {
+        Collection<RatedRequest> ratedRequests = mutant.getRatedRequests();
+        RankedListQualityMetric metric = mutant.getMetric();
+        Map<String, Script> templates = mutant.getTemplates();
 
         int mutate = randomIntBetween(0, 2);
         switch (mutate) {
             case 0:
-                Collection<RatedRequest> mutantRatedRequests = new ArrayList<>();
-                mutantRatedRequests.addAll(ratedRequests);
-                
-                List<RatedDocument> docs = new ArrayList<>();
-                docs.add(new RatedDocument("index", "type", "docId", 23));
-                SearchSourceBuilder request = new SearchSourceBuilder();
-                request.size(randomInt());
-                request.query(new MatchAllQueryBuilder());
-                mutantRatedRequests.add(new RatedRequest("id", docs , request));
-                
-                ratedRequests = mutantRatedRequests;
+                RatedRequest request = RatedRequestsTests.createTestItem(new ArrayList<>(), new ArrayList<>());
+                ratedRequests.add(request);
                 break;
             case 1:
                 if (metric instanceof Precision) {
@@ -235,18 +204,29 @@ public class RankEvalSpecTests extends ESTestCase {
                 }
                 break;
             case 2:
-                if (template != null && randomBoolean()) {
-                    template = null;
+                if (templates.size() > 0) {
+                    if (randomBoolean()) {
+                        templates = null;
+                    } else {
+                        String mutatedTemplate = randomAsciiOfLength(10);
+                        templates.put("mutation", new Script(ScriptType.INLINE, "mustache", mutatedTemplate, new HashMap<>()));
+                        
+                    }
                 } else {
-                    String mutatedTemplate = randomValueOtherThan(template.getIdOrCode(), () -> randomAsciiOfLength(10));
-                    template = new Script(ScriptType.INLINE, "mustache", mutatedTemplate, new HashMap<>());
+                    String mutatedTemplate = randomValueOtherThanMany(templates::containsValue, () -> randomAsciiOfLength(10));
+                    templates.put("mutation", new Script(ScriptType.INLINE, "mustache", mutatedTemplate, new HashMap<>()));
                 }
                 break;
             default:
                 throw new IllegalStateException("Requested to modify more than available parameters.");
         }
 
-        RankEvalSpec result = new RankEvalSpec(ratedRequests, metric, template);
+        List<ScriptWithId> scripts = new ArrayList<>();
+        for (Entry<String, Script> entry : templates.entrySet()) {
+            scripts.add(new ScriptWithId(entry.getKey(), entry.getValue()));
+        }
+    
+        RankEvalSpec result = new RankEvalSpec(ratedRequests, metric, scripts);
         return result;
     }
 

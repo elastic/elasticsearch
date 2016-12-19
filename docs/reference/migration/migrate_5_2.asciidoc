@@ -57,3 +57,8 @@ In an effort to clean up internals we've removed the following methods:
 * `UpdateRequest#fromXContent(BytesReference)`
 
 Please use the non-`source` methods instead (like `settings` and `type`).
+
+[float]
+==== Timestamp meta-data field type for ingest processors has changed
+
+The type of the "timestamp" meta-data field for ingest processors has changed from `java.lang.String` to `java.util.Date`.

@@ -28,7 +28,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -437,11 +436,11 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         String errorMessage = LoggerMessageFormat.format("the [action.auto_create_index] setting value [{}] is too" +
                 " restrictive. disable [action.auto_create_index] or set it to " +
                 "[{}, {}, {}*]", (Object) value, Watch.INDEX, TriggeredWatchStore.INDEX_NAME, HistoryStore.INDEX_PREFIX);
-        if (Booleans.isExplicitFalse(value)) {
+        if (Booleans.isFalse(value)) {
             throw new IllegalArgumentException(errorMessage);
         }
 
-        if (Booleans.isExplicitTrue(value)) {
+        if (Booleans.isTrue(value)) {
             return;
         }
 

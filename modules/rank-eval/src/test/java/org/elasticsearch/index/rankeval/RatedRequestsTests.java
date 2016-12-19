@@ -215,9 +215,10 @@ public class RatedRequestsTests extends ESTestCase {
                     testRequest.query(new MatchAllQueryBuilder());
                 } else {
                     if (randomBoolean()) {
-                        params = new HashMap<>();
-                        params.putAll(params);
-                        params.put("one_more_key", "one_more_value");
+                        Map<String, Object> mutated = new HashMap<>();
+                        mutated.putAll(params);
+                        mutated.put("one_more_key", "one_more_value");
+                        params = mutated;
                     } else {
                         templateId = randomValueOtherThan(templateId, () -> randomAsciiOfLength(5));
                     }

@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -780,9 +781,50 @@ public class ElasticsearchAssertions {
         //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
         try (XContentParser actualParser = xContentType.xContent().createParser(actual)) {
             Map<String, Object> actualMap = actualParser.map();
+            replaceBytesArrays(actualMap);
             try (XContentParser expectedParser = xContentType.xContent().createParser(expected)) {
                 Map<String, Object> expectedMap = expectedParser.map();
+                replaceBytesArrays(expectedMap);
                 assertEquals(expectedMap, actualMap);
+            }
+        }
+    }
+
+    /**
+     * Recursively navigates through the provided map argument and replaces every byte[] with a corresponding BytesArray object holding
+     * the original byte[]. This helps maps to maps comparisons as arrays need to be compared using Arrays.equals otherwise their
+     * references are compared, which is what happens in {@link java.util.AbstractMap#equals(Object)}.
+     */
+    @SuppressWarnings("unchecked")
+    private static void replaceBytesArrays(Map<String, Object> map) {
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            Object value = entry.getValue();
+            if (value instanceof byte[]) {
+                map.put(entry.getKey(), new BytesArray((byte[]) value));
+            } else if (value instanceof Map) {
+                replaceBytesArrays((Map<String, Object>) value);
+            } else if (value instanceof List) {
+                List<Object> list = (List<Object>) value;
+                replaceBytesArrays(list);
+            }
+        }
+    }
+
+    /**
+     * Recursively navigates through the provided list argument and replaces every byte[] with a corresponding BytesArray object holding
+     * the original byte[]. This helps maps to maps comparisons as arrays need to be compared using Arrays.equals otherwise their
+     * references are compared, which is what happens in {@link java.util.AbstractMap#equals(Object)}.
+     */
+    @SuppressWarnings("unchecked")
+    private static void replaceBytesArrays(List<Object> list) {
+        for (int i = 0; i < list.size(); i++) {
+            Object object = list.get(i);
+            if (object instanceof byte[]) {
+                list.set(i, new BytesArray((byte[]) object));
+            } else if (object instanceof Map) {
+                replaceBytesArrays((Map<String, Object>) list);
+            } else if (object instanceof List) {
+                replaceBytesArrays((List<Object>) object);
             }
         }
     }

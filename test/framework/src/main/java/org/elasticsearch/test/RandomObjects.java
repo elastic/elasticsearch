@@ -22,11 +22,13 @@ package org.elasticsearch.test;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -54,7 +56,7 @@ public final class RandomObjects {
         int numValues = RandomNumbers.randomIntBetween(random, 1, 5);
         List<Object> originalValues = new ArrayList<>();
         List<Object> expectedParsedValues = new ArrayList<>();
-        int dataType = RandomNumbers.randomIntBetween(random, 0, 7);
+        int dataType = RandomNumbers.randomIntBetween(random, 0, 8);
         for (int i = 0; i < numValues; i++) {
             switch(dataType) {
                 case 0:
@@ -106,6 +108,41 @@ public final class RandomObjects {
                             RandomStrings.randomUnicodeOfLengthBetween(random, 3, 10);
                     originalValues.add(randomString);
                     expectedParsedValues.add(randomString);
+                    break;
+                case 8:
+                    BytesArray randomBytesArray = new BytesArray(RandomStrings.randomUnicodeOfLengthBetween(random, 10, 50));
+                    originalValues.add(randomBytesArray);
+                    if (xContentType == XContentType.JSON || xContentType == XContentType.YAML) {
+                        //JSON and YAML write the base64 format
+                        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
+                            BytesReference bytes = builder.startObject().field("binary").value(randomBytesArray).endObject().bytes();
+                            try (XContentParser parser = xContentType.xContent().createParser(bytes)) {
+                                parser.nextToken();
+                                assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+                                parser.nextToken();
+                                assert parser.currentToken() == XContentParser.Token.FIELD_NAME;
+                                assert "binary".equals(parser.currentName());
+                                parser.nextToken();
+                                assert parser.currentToken().isValue();
+                                //base64 format gets parsed back as strings. the base64 decode needs to be done externally.
+                                //for some reason the way jackson encodes base64 is not as straightforward as it should be.
+                                //for now we simply write and read it back so that we get exactly what we expect to be written.
+                                //This should be ideally replaced with a one-liner that does the encode.
+                                //TODO provide a utility method to do the base64 decode on demand?
+                                String text = parser.text();
+                                expectedParsedValues.add(text);
+                                parser.nextToken();
+                                assert parser.currentToken() == XContentParser.Token.END_OBJECT;
+                                parser.nextToken();
+                                assert parser.currentToken() == null;
+                            }
+                        } catch( IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    } else {
+                        //SMILE and CBOR write the original bytes as they support binary format
+                        expectedParsedValues.add(randomBytesArray);
+                    }
                     break;
                 default:
                     throw new UnsupportedOperationException();

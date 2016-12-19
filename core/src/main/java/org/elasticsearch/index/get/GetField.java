@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.get;
 
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -101,6 +103,9 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(name);
         for (Object value : values) {
+            //this call doesn't really need to support writing any kind of object.
+            //Stored fields values are converted using MappedFieldType#valueForDisplay.
+            //As a result they can either be Strings, Numbers, Booleans, or BytesReference, that's all.
             builder.value(value);
         }
         builder.endArray();
@@ -110,10 +115,23 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
     public static GetField fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String fieldName = parser.currentName();
-        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
         List<Object> values = new ArrayList<>();
-        while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            values.add(parser.objectText());
+        while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            Object value;
+            if (token == XContentParser.Token.VALUE_STRING) {
+                value = parser.text();
+            } else if (token == XContentParser.Token.VALUE_NUMBER) {
+                value = parser.numberValue();
+            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                value = parser.booleanValue();
+            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                value = new BytesArray(parser.binaryValue());
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: unsupported token found [" + token + "]");
+            }
+            values.add(value);
         }
         return new GetField(fieldName, values);
     }

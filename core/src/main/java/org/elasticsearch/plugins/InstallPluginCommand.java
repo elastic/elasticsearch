@@ -27,7 +27,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
@@ -103,7 +103,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
  * elasticsearch config directory, using the name of the plugin. If any files to be installed
  * already exist, they will be skipped.
  */
-class InstallPluginCommand extends SettingCommand {
+class InstallPluginCommand extends EnvironmentAwareCommand {
 
     private static final String PROPERTY_STAGING_ID = "es.plugins.staging";
 
@@ -189,18 +189,17 @@ class InstallPluginCommand extends SettingCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         String pluginId = arguments.value(options);
         boolean isBatch = options.has(batchOption) || System.console() == null;
-        execute(terminal, pluginId, isBatch, settings);
+        execute(terminal, pluginId, isBatch, env);
     }
 
     // pkg private for testing
-    void execute(Terminal terminal, String pluginId, boolean isBatch, Map<String, String> settings) throws Exception {
+    void execute(Terminal terminal, String pluginId, boolean isBatch, Environment env) throws Exception {
         if (pluginId == null) {
             throw new UserException(ExitCodes.USAGE, "plugin id is required");
         }
-        final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
         // TODO: remove this leniency!! is it needed anymore?
         if (Files.exists(env.pluginsFile()) == false) {
             terminal.println("Plugins directory [" + env.pluginsFile() + "] does not exist. Creating...");

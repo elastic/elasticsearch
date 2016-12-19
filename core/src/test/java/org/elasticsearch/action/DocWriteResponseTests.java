@@ -29,18 +29,52 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
 public class DocWriteResponseTests extends ESTestCase {
-    public void testGetLocation() {
-        DocWriteResponse response = new DocWriteResponse(new ShardId("index", "uuid", 0), "type", "id", 0, Result.CREATED) {
-            // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
-        };
+    public void testGetLocation() throws URISyntaxException {
+        DocWriteResponse response =
+            new DocWriteResponse(
+                new ShardId("index", "uuid", 0),
+                "type",
+                "id",
+                0,
+                Result.CREATED) {
+                // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
+            };
         assertEquals("/index/type/id", response.getLocation(null));
         assertEquals("/index/type/id?routing=test_routing", response.getLocation("test_routing"));
+    }
+
+    public void testGetLocationNonAscii() throws URISyntaxException {
+        DocWriteResponse response =
+            new DocWriteResponse(
+                new ShardId("index", "uuid", 0),
+                "type",
+                "❤",
+                0,
+                Result.CREATED) {
+            };
+        assertEquals("/index/type/%E2%9D%A4", response.getLocation(null));
+        assertEquals("/index/type/%E2%9D%A4?routing=%C3%A4", response.getLocation("%C3%A4"));
+    }
+
+    public void testInvalidGetLocation() {
+        String invalidPath = "!^*$(@!^!#@";
+        DocWriteResponse invalid =
+            new DocWriteResponse(
+                new ShardId("index", "uuid", 0),
+                "type",
+                invalidPath,
+                0,
+                Result.CREATED) {
+            };
+        Throwable exception = expectThrows(URISyntaxException.class, () -> invalid.getLocation(null));
+        assertTrue(exception.getMessage().contains(invalidPath));
     }
 
     /**

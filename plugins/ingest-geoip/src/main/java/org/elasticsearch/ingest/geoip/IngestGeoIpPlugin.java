@@ -45,8 +45,6 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 
 public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable {
-    public static final Setting<Boolean> CACHE_ENABLED =
-        Setting.boolSetting("ingest.geoip.cache_enabled", false, Setting.Property.NodeScope);
     public static final Setting<Long> CACHE_SIZE =
         Setting.longSetting("ingest.geoip.cache_size", 1000, 0, Setting.Property.NodeScope);
 

@@ -52,8 +52,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
     public static final GetJobsStatsAction INSTANCE = new GetJobsStatsAction();
     public static final String NAME = "cluster:admin/prelert/jobs/stats/get";
 
-    private static final String ALL = "_all";
-    private static final String CONFIG = "config";
     private static final String DATA_COUNTS = "data_counts";
     private static final String MODEL_SIZE_STATS = "model_size_stats";
     private static final String SCHEDULER_STATUS = "scheduler_status";

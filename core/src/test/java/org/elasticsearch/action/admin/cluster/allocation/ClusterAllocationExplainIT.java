@@ -53,6 +53,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.isOneOf;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -987,11 +988,10 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
                     assertNotEquals("delayed", parser.currentName()); // we should never display "delayed" from unassigned info
                     if (parser.currentName().equals("last_allocation_status")) {
                         parser.nextToken();
-                        String value = parser.text();
-                        assertTrue(AllocationStatus.NO_VALID_SHARD_COPY.value().equals(value)
-                                       || AllocationStatus.FETCHING_SHARD_DATA.value().equals(value)
-                                       || AllocationStatus.NO_ATTEMPT.value().equals(value)
-                                       || "not_permitted".equals(value));
+                        assertThat(parser.text(), isOneOf(AllocationDecision.NO.toString(),
+                            AllocationDecision.NO_VALID_SHARD_COPY.toString(),
+                            AllocationDecision.AWAITING_INFO.toString(),
+                            AllocationDecision.NO_ATTEMPT.toString()));
                     }
                 }
             }

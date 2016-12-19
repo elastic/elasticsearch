@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -158,9 +159,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         if (details != null) {
             builder.field("details", details);
         }
-        String lastAllocStatus = unassignedInfo.getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO ?
-                                     "not_permitted" : unassignedInfo.getLastAllocationStatus().value();
-        builder.field("last_allocation_status", lastAllocStatus);
+        builder.field("last_allocation_status", AllocationDecision.fromAllocationStatus(unassignedInfo.getLastAllocationStatus()));
         builder.endObject();
         return builder;
     }

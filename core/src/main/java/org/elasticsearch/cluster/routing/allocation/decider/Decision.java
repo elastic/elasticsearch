@@ -311,8 +311,7 @@ public abstract class Decision implements ToXContent, Writeable {
         @Override
         @Nullable
         public String getExplanation() {
-            // multi decisions have no explanation
-            return null;
+            throw new UnsupportedOperationException("multi-level decisions do not have an explanation");
         }
 
         @Override

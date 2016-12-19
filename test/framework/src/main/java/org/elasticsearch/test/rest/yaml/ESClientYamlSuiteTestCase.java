@@ -182,7 +182,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
     protected void afterIfFailed(List<Throwable> errors) {
         // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
         logger.info("Stash dump on failure [{}]",
-                XContentHelper.toString(restTestExecutionContext.stash()).replace("\\n", "\n").replace("\\t", "\t"));
+                XContentHelper.toString(restTestExecutionContext.stash()).replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
         super.afterIfFailed(errors);
     }
 

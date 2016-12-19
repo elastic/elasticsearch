@@ -227,7 +227,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                     for (int addressId = 0; addressId < addresses.length; addressId++) {
                         discoveryNodes.add(
                             new DiscoveryNode(
-                                nodeId_prefix + "_" + hostname + "_" + addressId + "#",
+                                nodeId_prefix + hostname + "_" + addressId + "#",
                                 addresses[addressId],
                                 emptyMap(),
                                 emptySet(),

@@ -283,7 +283,7 @@ public class ReplicationOperation<
     }
 
     private void decPendingAndFinishIfNeeded() {
-        assert pendingActions.get() > 0;
+        assert pendingActions.get() > 0 : "pending action count goes below 0 for request [" + request + "]";
         if (pendingActions.decrementAndGet() == 0) {
             finish();
         }

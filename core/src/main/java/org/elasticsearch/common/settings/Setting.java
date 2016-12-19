@@ -817,7 +817,9 @@ public class Setting<T> extends ToXContentToBytes {
 
                     @Override
                     public void apply(Settings value, Settings current, Settings previous) {
-                        logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
+                        if (logger.isInfoEnabled()) { // getRaw can create quite some objects
+                            logger.info("updating [{}] from [{}] to [{}]", key, getRaw(previous), getRaw(current));
+                        }
                         consumer.accept(value);
                     }
 

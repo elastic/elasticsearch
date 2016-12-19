@@ -155,7 +155,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         final long version = indexResult.getVersion();
                         indexRequest.version(version);
                         indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
-                        indexRequest.seqNo(indexResult.getSeqNo());
+                        indexRequest.setSeqNo(indexResult.getSeqNo());
                         assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
                         response = new IndexResponse(primary.shardId(), indexRequest.type(), indexRequest.id(), indexResult.getSeqNo(),
                             indexResult.getVersion(), indexResult.isCreated());
@@ -179,7 +179,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // update the request with the version so it will go to the replicas
                         deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
                         deleteRequest.version(deleteResult.getVersion());
-                        deleteRequest.seqNo(deleteResult.getSeqNo());
+                        deleteRequest.setSeqNo(deleteResult.getSeqNo());
                         assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
                         response = new DeleteResponse(request.shardId(), deleteRequest.type(), deleteRequest.id(), deleteResult.getSeqNo(),
                             deleteResult.getVersion(), deleteResult.isFound());
@@ -189,6 +189,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     break;
                 default: throw new IllegalStateException("unexpected opType [" + itemRequest.opType() + "] found");
             }
+
             // update the bulk item request because update request execution can mutate the bulk item request
             request.items()[requestIndex] = replicaRequest;
             if (operationResult == null) { // in case of noop update operation
@@ -289,6 +290,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         final long version = updateOperationResult.getVersion();
                         indexRequest.version(version);
                         indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
+                        indexRequest.setSeqNo(updateOperationResult.getSeqNo());
                         assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
                     }
                     break;
@@ -299,6 +301,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // update the request with the version so it will go to the replicas
                         deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
                         deleteRequest.version(updateOperationResult.getVersion());
+                        deleteRequest.setSeqNo(updateOperationResult.getSeqNo());
                         assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
                     }
                     break;
@@ -349,6 +352,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         replicaRequest = new BulkItemRequest(request.items()[requestIndex].id(), updateDeleteRequest);
                         break;
                 }
+                assert (replicaRequest.request() instanceof IndexRequest
+                    && ((IndexRequest) replicaRequest.request()).getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) ||
+                    (replicaRequest.request() instanceof DeleteRequest
+                        && ((DeleteRequest) replicaRequest.request()).getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO);
                 // successful operation
                 break; // out of retry loop
             } else if (updateOperationResult.getFailure() instanceof VersionConflictEngineException == false) {
@@ -371,10 +378,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:
-                            operationResult = executeIndexRequestOnReplica(((IndexRequest) docWriteRequest), replica);
+                            operationResult = executeIndexRequestOnReplica((IndexRequest) docWriteRequest, replica);
                             break;
                         case DELETE:
-                            operationResult = executeDeleteRequestOnReplica(((DeleteRequest) docWriteRequest), replica);
+                            operationResult = executeDeleteRequestOnReplica((DeleteRequest) docWriteRequest, replica);
                             break;
                         default:
                             throw new IllegalStateException("Unexpected request operation type on replica: "
@@ -465,9 +472,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         final Engine.Index operation;
         try {
-            operation = replica.prepareIndexOnReplica(sourceToParse, request.seqNo(), request.version(), request.versionType(), request.getAutoGeneratedTimestamp(), request.isRetry());
+            operation = replica.prepareIndexOnReplica(sourceToParse, request.getSeqNo(), request.version(), request.versionType(), request.getAutoGeneratedTimestamp(), request.isRetry());
         } catch (MapperParsingException e) {
-            return new Engine.IndexResult(e, request.version(), request.seqNo());
+            return new Engine.IndexResult(e, request.version(), request.getSeqNo());
         }
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         if (update != null) {
@@ -490,7 +497,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         try {
             operation = prepareIndexOperationOnPrimary(request, primary);
         } catch (MapperParsingException | IllegalArgumentException e) {
-            return new Engine.IndexResult(e, request.version(), request.seqNo());
+            return new Engine.IndexResult(e, request.version(), request.getSeqNo());
         }
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         final ShardId shardId = primary.shardId();
@@ -501,12 +508,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), request.type(), update);
             } catch (IllegalArgumentException e) {
                 // throws IAE on conflicts merging dynamic mappings
-                return new Engine.IndexResult(e, request.version(), request.seqNo());
+                return new Engine.IndexResult(e, request.version(), request.getSeqNo());
             }
             try {
                 operation = prepareIndexOperationOnPrimary(request, primary);
             } catch (MapperParsingException | IllegalArgumentException e) {
-                return new Engine.IndexResult(e, request.version(), request.seqNo());
+                return new Engine.IndexResult(e, request.version(), request.getSeqNo());
             }
             update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
@@ -524,7 +531,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     public static Engine.DeleteResult executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) {
         final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(),
-                request.seqNo(), request.primaryTerm(), request.version(), request.versionType());
+                request.getSeqNo(), request.primaryTerm(), request.version(), request.versionType());
         return replica.delete(delete);
     }
 }

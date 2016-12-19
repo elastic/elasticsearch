@@ -263,9 +263,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         try {
             IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
             MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), indexSettings.getSettings());
-            for (ObjectObjectCursor<String, MappingMetaData> typeMapping : indexMetaData.getMappings()) {
-                mapperService.merge(typeMapping.key, typeMapping.value.source(), MapperService.MergeReason.MAPPING_RECOVERY, true);
-            }
+            mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
             final IndexEventListener indexEventListener = new IndexEventListener() {
             };

@@ -433,7 +433,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 final long version = indexResult.getVersion();
                 request.version(version);
                 request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-                request.seqNo(indexResult.getSeqNo());
+                request.setSeqNo(indexResult.getSeqNo());
                 assert request.versionType().validateVersionForWrites(request.version());
             }
             request.primaryTerm(primary.getPrimaryTerm());

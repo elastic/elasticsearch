@@ -485,11 +485,7 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexService service =
                 createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache, emptyList(), s -> {});
             closeables.add(() -> service.close("metadata verification", false));
-            for (ObjectCursor<MappingMetaData> typeMapping : metaData.getMappings().values()) {
-                // don't apply the default mapping, it has been applied when the mapping was created
-                service.mapperService().merge(typeMapping.value.type(), typeMapping.value.source(),
-                    MapperService.MergeReason.MAPPING_RECOVERY, true);
-            }
+            service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
             if (metaData.equals(metaDataUpdate) == false) {
                 service.updateMetaData(metaDataUpdate);
             }

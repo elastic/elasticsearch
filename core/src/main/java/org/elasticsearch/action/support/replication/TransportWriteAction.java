@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -191,6 +192,16 @@ public abstract class TransportWriteAction<
             finishedAsyncActions = true;
             respondIfPossible(null);
         }
+    }
+
+    @Override
+    protected ClusterBlockLevel globalBlockLevel() {
+        return ClusterBlockLevel.WRITE;
+    }
+
+    @Override
+    protected ClusterBlockLevel indexBlockLevel() {
+        return ClusterBlockLevel.WRITE;
     }
 
     /**

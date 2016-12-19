@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -149,7 +150,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
                 "Required [field]");
 
         // test two fieldnames
-        if (JsonXContent.isStrictDuplicateDetectionEnabled()) {
+        if (XContent.isStrictDuplicateDetectionEnabled()) {
             logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
         } else {
             directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";

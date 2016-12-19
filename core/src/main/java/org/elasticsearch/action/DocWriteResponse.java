@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
@@ -214,7 +215,11 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         type = in.readString();
         id = in.readString();
         version = in.readZLong();
-        seqNo = in.readZLong();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            seqNo = in.readZLong();
+        } else {
+            seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
         forcedRefresh = in.readBoolean();
         result = Result.readFrom(in);
     }
@@ -226,7 +231,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         out.writeString(type);
         out.writeString(id);
         out.writeZLong(version);
-        out.writeZLong(seqNo);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeZLong(seqNo);
+        }
         out.writeBoolean(forcedRefresh);
         result.writeTo(out);
     }

@@ -39,11 +39,12 @@ public interface RecoveryTargetHandler {
     void prepareForTranslogOperations(int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException;
 
     /**
-     * The finalize request clears unreferenced translog files, refreshes the engine now that
-     * new segments are available, and enables garbage collection of
-     * tombstone files.
-     **/
-    void finalizeRecovery();
+     * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, and
+     * updates the global checkpoint.
+     *
+     * @param globalCheckpoint the global checkpoint on the recovery source
+     */
+    void finalizeRecovery(long globalCheckpoint);
 
     /**
      * Blockingly waits for cluster state with at least clusterStateVersion to be available
@@ -82,4 +83,5 @@ public interface RecoveryTargetHandler {
      * @return the allocation id of the target shard.
      */
     String getTargetAllocationId();
+
 }

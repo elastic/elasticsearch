@@ -96,6 +96,22 @@ public class JobManagerTests extends ESTestCase {
         expectThrows(ResourceNotFoundException.class, () -> jobManager.getJobAllocation("bar"));
     }
 
+    public void testGetJob_GivenJobIdIsAll() {
+        PrelertMetadata.Builder prelertMetadata = new PrelertMetadata.Builder();
+        for (int i = 0; i < 3; i++) {
+            prelertMetadata.putJob(buildJobBuilder(Integer.toString(i)).build(), false);
+        }
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, prelertMetadata.build())).build();
+
+        JobManager jobManager = createJobManager();
+        QueryPage<Job> result = jobManager.getJob("_all", clusterState);
+        assertThat(result.count(), equalTo(3L));
+        assertThat(result.results().get(0).getId(), equalTo("0"));
+        assertThat(result.results().get(1).getId(), equalTo("1"));
+        assertThat(result.results().get(2).getId(), equalTo("2"));
+    }
+
     public void testGetJobs() {
         PrelertMetadata.Builder prelertMetadata = new PrelertMetadata.Builder();
         for (int i = 0; i < 10; i++) {
@@ -105,7 +121,7 @@ public class JobManagerTests extends ESTestCase {
                 .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, prelertMetadata.build())).build();
 
         JobManager jobManager = createJobManager();
-        QueryPage<Job> result = jobManager.getJobs(0, 10, clusterState);
+        QueryPage<Job> result = jobManager.getJobs(clusterState);
         assertThat(result.count(), equalTo(10L));
         assertThat(result.results().get(0).getId(), equalTo("0"));
         assertThat(result.results().get(1).getId(), equalTo("1"));
@@ -117,30 +133,6 @@ public class JobManagerTests extends ESTestCase {
         assertThat(result.results().get(7).getId(), equalTo("7"));
         assertThat(result.results().get(8).getId(), equalTo("8"));
         assertThat(result.results().get(9).getId(), equalTo("9"));
-
-        result = jobManager.getJobs(0, 5, clusterState);
-        assertThat(result.count(), equalTo(10L));
-        assertThat(result.results().get(0).getId(), equalTo("0"));
-        assertThat(result.results().get(1).getId(), equalTo("1"));
-        assertThat(result.results().get(2).getId(), equalTo("2"));
-        assertThat(result.results().get(3).getId(), equalTo("3"));
-        assertThat(result.results().get(4).getId(), equalTo("4"));
-
-        result = jobManager.getJobs(5, 5, clusterState);
-        assertThat(result.count(), equalTo(10L));
-        assertThat(result.results().get(0).getId(), equalTo("5"));
-        assertThat(result.results().get(1).getId(), equalTo("6"));
-        assertThat(result.results().get(2).getId(), equalTo("7"));
-        assertThat(result.results().get(3).getId(), equalTo("8"));
-        assertThat(result.results().get(4).getId(), equalTo("9"));
-
-        result = jobManager.getJobs(9, 1, clusterState);
-        assertThat(result.count(), equalTo(10L));
-        assertThat(result.results().get(0).getId(), equalTo("9"));
-
-        result = jobManager.getJobs(9, 10, clusterState);
-        assertThat(result.count(), equalTo(10L));
-        assertThat(result.results().get(0).getId(), equalTo("9"));
     }
 
     private JobManager createJobManager() {

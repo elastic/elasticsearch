@@ -25,31 +25,14 @@
 
   - do:
       xpack.prelert.get_jobs:
-        from: 0
-        size: 100
-  - match: { count: 1 }
-  - match: { jobs.0.config.job_id: "farequote" }
-
-  - do:
-      xpack.prelert.get_jobs:
         job_id: "farequote"
   - match: { count: 1 }
-  - match: { jobs.0.config.job_id: "farequote" }
-
-  - do:
-      xpack.prelert.get_jobs: {}
-  - match: { count: 1 }
-  - match: { jobs.0.config.job_id: "farequote" }
+  - match: { jobs.0.job_id: "farequote" }
 
   - do:
       xpack.prelert.delete_job:
         job_id: "farequote"
   - match: { acknowledged: true }
-
-  - do:
-      catch: missing
-      xpack.prelert.get_jobs:
-        job_id: "farequote"
 
   - do:
       indices.exists:
@@ -136,48 +119,3 @@
       catch: /Cannot delete job \[scheduler-job\] while scheduler \[test-scheduler-1\] refers to it/
       xpack.prelert.delete_job:
         job_id: scheduler-job
-
----
-"Test jobid + from and/or size":
-  - do:
-      catch: request
-      xpack.prelert.get_jobs:
-        job_id: "job-stats-test"
-        from: 0
-
-  - do:
-      catch: request
-      xpack.prelert.get_jobs:
-        job_id: "job-stats-test"
-        size: 100
-
-  - do:
-      catch: request
-      xpack.prelert.get_jobs:
-        job_id: "job-stats-test"
-        from: 0
-        size: 100
-
----
-"Test jobid + from and/or size (via body)":
-  - do:
-      catch: request
-      xpack.prelert.get_jobs:
-        body:
-          job_id: "job-stats-test"
-          from: 0
-
-  - do:
-      catch: request
-      xpack.prelert.get_jobs:
-        body:
-          job_id: "job-stats-test"
-          size: 100
-
-  - do:
-      catch: request
-      xpack.prelert.get_jobs:
-        body:
-          job_id: "job-stats-test"
-          from: 0
-          size: 100

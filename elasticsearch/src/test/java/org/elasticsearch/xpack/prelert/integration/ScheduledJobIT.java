@@ -39,8 +39,8 @@ public class ScheduledJobIT extends ESRestTestCase {
         assertThat(responseEntityToString(startSchedulerRequest), containsString("{\"task\":\""));
         assertBusy(() -> {
             try {
-                Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats",
-                        Collections.singletonMap("metric", "data_counts"));
+                Response getJobResponse = client().performRequest("get",
+                        PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
                 assertThat(responseEntityToString(getJobResponse), containsString("\"input_record_count\":2"));
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -62,8 +62,8 @@ public class ScheduledJobIT extends ESRestTestCase {
         assertThat(responseEntityToString(response), containsString("{\"task\":\""));
         assertBusy(() -> {
             try {
-                Response getJobResponse = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats",
-                        Collections.singletonMap("metric", "data_counts"));
+                Response getJobResponse = client().performRequest("get",
+                        PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats");
                 String responseAsString = responseEntityToString(getJobResponse);
                 assertThat(responseAsString, containsString("\"input_record_count\":2"));
             } catch (Exception e1) {

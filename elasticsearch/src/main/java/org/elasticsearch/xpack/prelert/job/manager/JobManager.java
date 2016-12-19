@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.prelert.job.IgnoreDowntime;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
-import org.elasticsearch.xpack.prelert.scheduler.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
@@ -34,13 +33,14 @@ import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -79,41 +79,38 @@ public class JobManager extends AbstractComponent {
     }
 
     /**
-     * Get the details of the specific job wrapped in a <code>Optional</code>
+     * Get the jobs that match the given {@code jobId}.
+     * Note that when the {@code jocId} is {@link Job#ALL} all jobs are returned.
      *
      * @param jobId
      *            the jobId
-     * @return An {@code Optional} containing the {@code Job} if a job
-     *         with the given {@code jobId} exists, or an empty {@code Optional}
-     *         otherwise
+     * @return A {@link QueryPage} containing the matching {@code Job}s
      */
     public QueryPage<Job> getJob(String jobId, ClusterState clusterState) {
+        if (jobId.equals(Job.ALL)) {
+            return getJobs(clusterState);
+        }
         PrelertMetadata prelertMetadata = clusterState.getMetaData().custom(PrelertMetadata.TYPE);
         Job job = prelertMetadata.getJobs().get(jobId);
         if (job == null) {
+            logger.debug(String.format(Locale.ROOT, "Cannot find job '%s'", jobId));
             throw QueryPage.emptyQueryPage(Job.RESULTS_FIELD);
         }
 
+        logger.debug("Returning job [" + jobId + "]");
         return new QueryPage<>(Collections.singletonList(job), 1, Job.RESULTS_FIELD);
     }
 
     /**
      * Get details of all Jobs.
      *
-     * @param from
-     *            Skip the first N Jobs. This parameter is for paging results if
-     *            not required set to 0.
-     * @param size
-     *            Take only this number of Jobs
      * @return A query page object with hitCount set to the total number of jobs
      *         not the only the number returned here as determined by the
      *         <code>size</code> parameter.
      */
-    public QueryPage<Job> getJobs(int from, int size, ClusterState clusterState) {
+    public QueryPage<Job> getJobs(ClusterState clusterState) {
         PrelertMetadata prelertMetadata = clusterState.getMetaData().custom(PrelertMetadata.TYPE);
         List<Job> jobs = prelertMetadata.getJobs().entrySet().stream()
-                .skip(from)
-                .limit(size)
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
         return new QueryPage<>(jobs, prelertMetadata.getJobs().size(), Job.RESULTS_FIELD);
@@ -254,11 +251,6 @@ public class JobManager extends AbstractComponent {
         return buildNewClusterState(currentState, builder);
     }
 
-    public Optional<SchedulerStatus> getSchedulerStatus(String jobId) {
-        PrelertMetadata prelertMetadata = clusterService.state().metaData().custom(PrelertMetadata.TYPE);
-        return prelertMetadata.getSchedulerStatusByJobId(jobId);
-    }
-
     public void updateSchedulerStatus(UpdateSchedulerStatusAction.Request request,
                                       ActionListener<UpdateSchedulerStatusAction.Response> actionListener) {
         String schedulerId = request.getSchedulerId();
@@ -346,10 +338,6 @@ public class JobManager extends AbstractComponent {
                 return new OpenJobAction.Response(acknowledged);
             }
         });
-    }
-
-    public JobStatus getJobStatus(String jobId) {
-        return getJobAllocation(jobId).getStatus();
     }
 
     public void setJobStatus(UpdateJobStatusAction.Request request, ActionListener<UpdateJobStatusAction.Response> actionListener) {

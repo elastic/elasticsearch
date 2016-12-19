@@ -1,0 +1,69 @@
+setup:
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "job_id":"job-1",
+            "description":"Job 1",
+            "analysis_config" : {
+                "bucket_span":300,
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+                "format":"JSON",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+
+  - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "job_id":"job-2",
+            "description":"Job 2",
+            "analysis_config" : {
+                "bucket_span":600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format" : "JSON",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd'T'HH:mm:ssX"
+            }
+          }
+
+---
+"Test get job given missing job_id":
+
+  - do:
+      catch: missing
+      xpack.prelert.get_jobs:
+        job_id: missing-job
+
+---
+"Test get single job":
+
+  - do:
+      xpack.prelert.get_jobs:
+        job_id: job-1
+  - match: { jobs.0.job_id: "job-1"}
+  - match: { jobs.0.description: "Job 1"}
+
+  - do:
+      xpack.prelert.get_jobs:
+        job_id: job-2
+  - match: { jobs.0.job_id: "job-2"}
+  - match: { jobs.0.description: "Job 2"}
+
+---
+"Test get all jobs":
+
+  - do:
+      xpack.prelert.get_jobs:
+        job_id: _all
+  - match: { count: 2 }
+  - match: { jobs.0.job_id: "job-1"}
+  - match: { jobs.0.description: "Job 1"}
+  - match: { jobs.1.job_id: "job-2"}
+  - match: { jobs.1.description: "Job 2"}

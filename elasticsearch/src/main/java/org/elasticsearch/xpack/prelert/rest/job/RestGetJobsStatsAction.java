@@ -13,27 +13,28 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
-import org.elasticsearch.xpack.prelert.action.GetJobsAction;
+import org.elasticsearch.xpack.prelert.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.prelert.job.Job;
 
 import java.io.IOException;
 
-public class RestGetJobsAction extends BaseRestHandler {
+public class RestGetJobsStatsAction extends BaseRestHandler {
 
-    private final GetJobsAction.TransportAction transportGetJobAction;
+    private final GetJobsStatsAction.TransportAction transportGetJobsStatsAction;
 
     @Inject
-    public RestGetJobsAction(Settings settings, RestController controller, GetJobsAction.TransportAction transportGetJobAction) {
+    public RestGetJobsStatsAction(Settings settings, RestController controller,
+                                  GetJobsStatsAction.TransportAction transportGetJobsStatsAction) {
         super(settings);
-        this.transportGetJobAction = transportGetJobAction;
+        this.transportGetJobsStatsAction = transportGetJobsStatsAction;
 
         controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH
-                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
+                + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetJobsAction.Request request = new GetJobsAction.Request(restRequest.param(Job.ID.getPreferredName()));
-        return channel -> transportGetJobAction.execute(request, new RestStatusToXContentListener<>(channel));
+        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(restRequest.param(Job.ID.getPreferredName()));
+        return channel -> transportGetJobsStatsAction.execute(request, new RestStatusToXContentListener<>(channel));
     }
 }

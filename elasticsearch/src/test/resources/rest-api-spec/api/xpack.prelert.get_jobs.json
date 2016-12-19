@@ -1,37 +1,19 @@
 {
   "xpack.prelert.get_jobs": {
-    "methods": [ "GET", "POST" ],
+    "methods": [ "GET"],
     "url": {
       "path": "/_xpack/prelert/anomaly_detectors/{job_id}",
       "paths": [
-        "/_xpack/prelert/anomaly_detectors/_stats",
-        "/_xpack/prelert/anomaly_detectors/{job_id}/_stats",
-        "/_xpack/prelert/anomaly_detectors/{job_id}/_stats/{metric}"
+        "/_xpack/prelert/anomaly_detectors/{job_id}"
       ],
       "parts": {
         "job_id": {
           "type": "string",
-          "description": "The ID of the job to fetch"
-        },
-        "metric" : {
-          "type" : "list",
-          "options" : ["_all", "config", "data_counts", "model_size_stats", "scheduler_status", "status"],
-          "description" : "Limit the information returned to the specified statistics"
-        }
-      },
-      "params": {
-        "from": {
-          "type": "int",
-          "description": "skips a number of jobs"
-        },
-        "size": {
-          "type": "int",
-          "description": "specifies a max number of jobs to get"
+          "required": true,
+          "description": "The ID of the jobs to fetch"
         }
       }
     },
-    "body": {
-        "description": "Job selection criteria"
-    }
+    "body": null
   }
 }

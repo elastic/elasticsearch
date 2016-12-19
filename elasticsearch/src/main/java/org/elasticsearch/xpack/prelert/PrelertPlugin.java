@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.prelert.action.GetBucketsAction;
 import org.elasticsearch.xpack.prelert.action.GetCategoriesDefinitionAction;
 import org.elasticsearch.xpack.prelert.action.GetInfluencersAction;
 import org.elasticsearch.xpack.prelert.action.GetJobsAction;
+import org.elasticsearch.xpack.prelert.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.prelert.action.GetListAction;
 import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.prelert.action.GetRecordsAction;
@@ -72,18 +73,17 @@ import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcessF
 import org.elasticsearch.xpack.prelert.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.NativeAutodetectProcessFactory;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.output.AutodetectResultsParser;
-import org.elasticsearch.xpack.prelert.job.process.normalizer.NormalizerFactory;
-import org.elasticsearch.xpack.prelert.scheduler.ScheduledJobRunner;
-import org.elasticsearch.xpack.prelert.job.process.normalizer.NativeNormalizerProcessFactory;
 import org.elasticsearch.xpack.prelert.job.process.normalizer.MultiplyingNormalizerProcess;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.NativeNormalizerProcessFactory;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.prelert.job.process.normalizer.NormalizerProcessFactory;
-import org.elasticsearch.xpack.prelert.scheduler.http.HttpDataExtractorFactory;
 import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
 import org.elasticsearch.xpack.prelert.job.usage.UsageReporter;
 import org.elasticsearch.xpack.prelert.rest.job.RestCloseJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestFlushJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsAction;
+import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsStatsAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestJobDataAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestOpenJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestPutJobAction;
@@ -105,6 +105,8 @@ import org.elasticsearch.xpack.prelert.rest.schedulers.RestStopSchedulerAction;
 import org.elasticsearch.xpack.prelert.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.prelert.rest.validate.RestValidateTransformAction;
 import org.elasticsearch.xpack.prelert.rest.validate.RestValidateTransformsAction;
+import org.elasticsearch.xpack.prelert.scheduler.ScheduledJobRunner;
+import org.elasticsearch.xpack.prelert.scheduler.http.HttpDataExtractorFactory;
 import org.elasticsearch.xpack.prelert.utils.NamedPipeHelper;
 
 import java.io.IOException;
@@ -224,6 +226,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
     public List<Class<? extends RestHandler>> getRestHandlers() {
         return Arrays.asList(
                 RestGetJobsAction.class,
+                RestGetJobsStatsAction.class,
                 RestPutJobAction.class,
                 RestDeleteJobAction.class,
                 RestOpenJobAction.class,
@@ -255,6 +258,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
                 new ActionHandler<>(GetJobsAction.INSTANCE, GetJobsAction.TransportAction.class),
+                new ActionHandler<>(GetJobsStatsAction.INSTANCE, GetJobsStatsAction.TransportAction.class),
                 new ActionHandler<>(PutJobAction.INSTANCE, PutJobAction.TransportAction.class),
                 new ActionHandler<>(DeleteJobAction.INSTANCE, DeleteJobAction.TransportAction.class),
                 new ActionHandler<>(OpenJobAction.INSTANCE, OpenJobAction.TransportAction.class),

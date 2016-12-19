@@ -66,15 +66,6 @@ setup:
 
 ---
 "Test get job stats after uploading data prompting the creation of some stats":
-  - do:
-      xpack.prelert.get_jobs:
-        job_id: job-stats-test
-
-  - is_true: jobs.0.config
-  - is_false: jobs.0.data_counts
-  - is_false: jobs.0.model_size_stats
-  - is_false: jobs.0.scheduler_status
-
 
   - do:
       xpack.prelert.job_data:
@@ -90,75 +81,32 @@ setup:
 
 
   - do:
-      xpack.prelert.get_jobs:
+      xpack.prelert.get_jobs_stats:
         job_id: job-stats-test
-        metric: data_counts
-
   - match: { jobs.0.job_id : job-stats-test }
   - match: { jobs.0.data_counts.processed_record_count: 2 }
   - match: { jobs.0.data_counts.processed_field_count: 4}
   - match: { jobs.0.data_counts.input_field_count: 4 }
-
-# Test filters
-  - do:
-      xpack.prelert.get_jobs:
-        job_id: "job-stats-test"
-        metric: "data_counts"
-  - is_false: jobs.0.config
-  - is_true: jobs.0.data_counts
-  - is_false: jobs.0.model_size_stats
-  - is_false: jobs.0.scheduler_status
-
-  - do:
-      xpack.prelert.get_jobs:
-        job_id: "job-stats-test"
-        metric: "model_size_stats"
-  - is_false: jobs.0.config
-  - is_false: jobs.0.data_counts
-  - is_false: jobs.0.scheduler_status
   - match: { jobs.0.model_size_stats.model_bytes: 100 }
-
-  - do:
-      xpack.prelert.get_jobs:
-        job_id: "job-stats-test"
-        metric: "scheduler_status"
-  - is_false: jobs.0.config
-  - is_false: jobs.0.data_counts
-
-  - do:
-      xpack.prelert.get_jobs:
-        job_id: "job-stats-test"
-        metric: "status"
-  - is_false: jobs.0.config
-  - is_false: jobs.0.data_counts
-  - is_false: jobs.0.model_size_stats
-  - is_false: jobs.0.scheduler_status
   - match: { jobs.0.status: OPENED }
-
-  - do:
-      xpack.prelert.get_jobs:
-        job_id: "job-stats-test"
-        metric: "_all"
-  - is_true: jobs.0.config
-  - is_true: jobs.0.data_counts
   - is_false: jobs.0.scheduler_status
-  - match: { jobs.0.job_id: job-stats-test }
-  - match: { jobs.0.status: OPENED }
+
+---
+"Test get job stats of scheduled job that has not received and data":
 
   - do:
-      xpack.prelert.get_jobs:
-        job_id: "scheduled-job"
-        metric: "scheduler_status"
-  - is_false: jobs.0.config
-  - is_false: jobs.0.data_counts
+      xpack.prelert.get_jobs_stats:
+        job_id: scheduled-job
+  - match: { jobs.0.job_id : scheduled-job }
+  - match: { jobs.0.data_counts.processed_record_count: 0 }
   - is_false: jobs.0.model_size_stats
+  - match: { jobs.0.status: OPENED }
   - match: { jobs.0.scheduler_status: STOPPED }
 
 ---
-"Test bad metric":
-  - do:
-      catch: request
-      xpack.prelert.get_jobs:
-        job_id: "job-stats-test"
-        metric: "foobar"
+"Test get job stats given missing job":
 
+  - do:
+      catch: missing
+      xpack.prelert.get_jobs_stats:
+        job_id: unknown-job

@@ -68,34 +68,10 @@ public class PrelertJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"job_id\":\"farequote\""));
     }
 
-    public void testGetJobs_GivenNegativeFrom() throws Exception {
-        ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?from=-1"));
-
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e.getMessage(), containsString("\"reason\":\"Parameter [from] cannot be < 0\""));
-    }
-
-    public void testGetJobs_GivenNegativeSize() throws Exception {
-        ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?size=-1"));
-
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e.getMessage(), containsString("\"reason\":\"Parameter [size] cannot be < 0\""));
-    }
-
-    public void testGetJobs_GivenFromAndSizeSumTo10001() throws Exception {
-        ResponseException e = expectThrows(ResponseException.class,
-                () -> client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?from=1000&size=11001"));
-
-        assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(e.getMessage(), containsString("\"reason\":\"The sum of parameters [from] and [size] cannot be higher than 10000."));
-    }
-
     public void testGetJobs_GivenSingleJob() throws Exception {
         createFarequoteJob();
 
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats");
+        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_all");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -108,7 +84,7 @@ public class PrelertJobIT extends ESRestTestCase {
         createFarequoteJob("farequote_2");
         createFarequoteJob("farequote_3");
 
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats");
+        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_all");
 
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         String responseAsString = responseEntityToString(response);
@@ -116,51 +92,6 @@ public class PrelertJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"job_id\":\"farequote_1\""));
         assertThat(responseAsString, containsString("\"job_id\":\"farequote_2\""));
         assertThat(responseAsString, containsString("\"job_id\":\"farequote_3\""));
-    }
-
-    public void testGetJobs_GivenMultipleJobsAndFromIsOne() throws Exception {
-        createFarequoteJob("farequote_1");
-        createFarequoteJob("farequote_2");
-        createFarequoteJob("farequote_3");
-
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?from=1");
-
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        String responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString("\"count\":3"));
-        assertThat(responseAsString, not(containsString("\"job_id\":\"farequote_1\"")));
-        assertThat(responseAsString, containsString("\"job_id\":\"farequote_2\""));
-        assertThat(responseAsString, containsString("\"job_id\":\"farequote_3\""));
-    }
-
-    public void testGetJobs_GivenMultipleJobsAndSizeIsOne() throws Exception {
-        createFarequoteJob("farequote_1");
-        createFarequoteJob("farequote_2");
-        createFarequoteJob("farequote_3");
-
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?size=1");
-
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        String responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString("\"count\":3"));
-        assertThat(responseAsString, containsString("\"job_id\":\"farequote_1\""));
-        assertThat(responseAsString, not(containsString("\"job_id\":\"farequote_2\"")));
-        assertThat(responseAsString, not(containsString("\"job_id\":\"farequote_3\"")));
-    }
-
-    public void testGetJobs_GivenMultipleJobsAndFromIsOneAndSizeIsOne() throws Exception {
-        createFarequoteJob("farequote_1");
-        createFarequoteJob("farequote_2");
-        createFarequoteJob("farequote_3");
-
-        Response response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/_stats?from=1&size=1");
-
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
-        String responseAsString = responseEntityToString(response);
-        assertThat(responseAsString, containsString("\"count\":3"));
-        assertThat(responseAsString, not(containsString("\"job_id\":\"farequote_1\"")));
-        assertThat(responseAsString, containsString("\"job_id\":\"farequote_2\""));
-        assertThat(responseAsString, not(containsString("\"job_id\":\"farequote_3\"")));
     }
 
     private Response createFarequoteJob() throws Exception {

@@ -34,17 +34,15 @@ setup:
         "scheduler_id": "scheduler-1"
         "start": 0
   - do:
-      xpack.prelert.get_jobs:
+      xpack.prelert.get_jobs_stats:
         job_id: "scheduled-job"
-        metric: "scheduler_status"
   - match: { jobs.0.scheduler_status: STARTED }
   - do:
       xpack.prelert.stop_scheduler:
         "scheduler_id": "scheduler-1"
   - do:
-      xpack.prelert.get_jobs:
+      xpack.prelert.get_jobs_stats:
         job_id: "scheduled-job"
-        metric: "scheduler_status"
   - match: { jobs.0.scheduler_status: STOPPED }
 ---
 "Test start non existing scheduler":

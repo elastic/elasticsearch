@@ -8,25 +8,19 @@ package org.elasticsearch.xpack.prelert.action;
 import org.elasticsearch.xpack.prelert.action.GetJobsAction.Response;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.AnalysisLimits;
-import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.IgnoreDowntime;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelDebugConfig;
-import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
-import org.elasticsearch.xpack.prelert.scheduler.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import org.elasticsearch.xpack.prelert.job.transform.TransformType;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
-import org.joda.time.DateTime;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -37,7 +31,7 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
         final Response result;
 
         int listSize = randomInt(10);
-        List<Response.JobInfo> jobInfoList = new ArrayList<>(listSize);
+        List<Job> jobList = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
             String jobId = randomAsciiOfLength(10);
             String description = randomBoolean() ? randomAsciiOfLength(10) : null;
@@ -68,35 +62,10 @@ public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJob
                     modelDebugConfig, ignoreDowntime, normalizationWindowDays, backgroundPersistInterval,
                     modelSnapshotRetentionDays, resultsRetentionDays, customConfig, modelSnapshotId);
 
-
-            DataCounts dataCounts = null;
-            if (randomBoolean()) {
-                dataCounts = new DataCounts(randomAsciiOfLength(10), randomIntBetween(1, 1_000_000),
-                        randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
-                        randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
-                        new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate());
-            }
-
-            ModelSizeStats sizeStats = null;
-            if (randomBoolean()) {
-                sizeStats = new ModelSizeStats.Builder("foo").build();
-            }
-
-            SchedulerStatus schedulerStatus = null;
-            if (randomBoolean()) {
-                schedulerStatus = randomFrom(SchedulerStatus.values());
-            }
-
-            JobStatus jobStatus = null;
-            if (randomBoolean()) {
-                jobStatus = randomFrom(EnumSet.allOf(JobStatus.class));
-            }
-
-            Response.JobInfo jobInfo = new Response.JobInfo(jobId, job, dataCounts, sizeStats, schedulerStatus, jobStatus);
-            jobInfoList.add(jobInfo);
+            jobList.add(job);
         }
 
-        result = new Response(new QueryPage<>(jobInfoList, jobInfoList.size(), Job.RESULTS_FIELD));
+        result = new Response(new QueryPage<>(jobList, jobList.size(), Job.RESULTS_FIELD));
 
         return result;
     }

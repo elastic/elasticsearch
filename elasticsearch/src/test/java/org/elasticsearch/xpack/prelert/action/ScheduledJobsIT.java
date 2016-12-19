@@ -23,12 +23,11 @@ import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.AnomalyDetectorsIndex;
+import org.elasticsearch.xpack.prelert.scheduler.Scheduler;
 import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.scheduler.SchedulerStatus;
-import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
-import org.elasticsearch.xpack.prelert.scheduler.Scheduler;
-import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.junit.After;
 
 import java.io.IOException;
@@ -221,12 +220,10 @@ public class ScheduledJobsIT extends ESIntegTestCase {
                         client.execute(StopSchedulerAction.INSTANCE, new StopSchedulerAction.Request(schedulerId)).get();
                 assertTrue(response.isAcknowledged());
                 assertBusy(() -> {
-                    GetJobsAction.Response r = null;
+                    GetJobsStatsAction.Response r = null;
                     try {
-                        GetJobsAction.Request request = new GetJobsAction.Request();
-                        request.setJobId(jobId);
-                        request.schedulerStatus(true);
-                        r = client.execute(GetJobsAction.INSTANCE, request).get();
+                        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
+                        r = client.execute(GetJobsStatsAction.INSTANCE, request).get();
                     } catch (Exception e) {
                         fail();
                     }

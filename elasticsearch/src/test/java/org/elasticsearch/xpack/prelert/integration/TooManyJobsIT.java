@@ -42,19 +42,11 @@ public class TooManyJobsIT extends ESIntegTestCase {
     @After
     public void clearPrelertMetadata() throws Exception {
         ScheduledJobsIT.clearPrelertMetadata(client());
-        client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(
-                        Settings.builder().put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), (String) null)
-                ).get();
     }
 
     public void testCannotStartTooManyAnalyticalProcesses() throws Exception {
-        int maxRunningJobsPerNode = randomIntBetween(1, 16);
-        logger.info("Setting [{}] to [{}]", AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), maxRunningJobsPerNode);
-        client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder()
-                        .put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), maxRunningJobsPerNode)
-                ).get();
+        int maxRunningJobsPerNode = AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getDefault(Settings.EMPTY);
+        logger.info("[{}] is [{}]", AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), maxRunningJobsPerNode);
         for (int i = 1; i <= (maxRunningJobsPerNode + 1); i++) {
             Job.Builder job = createJob(Integer.toString(i));
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true));

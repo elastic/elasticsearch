@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.prelert.job.manager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.test.ESTestCase;
@@ -116,7 +114,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
-        ThreadPool.Cancellable  cancellable = mock(ThreadPool.Cancellable.class);
+        ThreadPool.Cancellable cancellable = mock(ThreadPool.Cancellable.class);
         when(threadPool.scheduleWithFixedDelay(any(), any(), any())).thenReturn(cancellable);
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
@@ -138,13 +136,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         AutodetectProcessFactory autodetectProcessFactory = (j, i, e) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
         settings.put(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), 3);
-        Set<Setting<?>> settingSet = new HashSet<>();
-        settingSet.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingSet.add(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingSet);
         AutodetectProcessManager manager = new AutodetectProcessManager(settings.build(), client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory,
-                normalizerFactory, clusterSettings);
+                normalizerFactory);
 
         manager.openJob("foo", false);
         manager.openJob("bar", false);
@@ -283,16 +277,12 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(jobManager.getJobOrThrowIfUnknown("my_id")).thenReturn(createJobDetails("my_id"));
         when(jobProvider.dataCounts("my_id")).thenReturn(new DataCounts("my_id"));
 
-        Set<Setting<?>> settingSet = new HashSet<>();
-        settingSet.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingSet.add(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingSet);
         AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
         AutodetectProcessFactory autodetectProcessFactory = (j, i, e) -> autodetectProcess;
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory,
-                normalizerFactory, clusterSettings);
+                normalizerFactory);
 
         expectThrows(EsRejectedExecutionException.class, () -> manager.create("my_id", false));
         verify(autodetectProcess, times(1)).close();
@@ -313,13 +303,9 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
         AutodetectProcessFactory autodetectProcessFactory = mock(AutodetectProcessFactory.class);
-        Set<Setting<?>> settingSet = new HashSet<>();
-        settingSet.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        settingSet.add(AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingSet);
         AutodetectProcessManager manager = new AutodetectProcessManager(Settings.EMPTY, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, parser, autodetectProcessFactory,
-                normalizerFactory, clusterSettings);
+                normalizerFactory);
         manager = spy(manager);
         doReturn(communicator).when(manager).create(any(), anyBoolean());
         return manager;

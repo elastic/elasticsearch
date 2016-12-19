@@ -59,8 +59,9 @@ import java.util.function.Supplier;
 public class AutodetectProcessManager extends AbstractComponent implements DataProcessor {
 
     // TODO (norelease) default needs to be reconsidered
+    // Cannot be dynamic because the thread pool that is sized to match cannot be resized
     public static final Setting<Integer> MAX_RUNNING_JOBS_PER_NODE =
-            Setting.intSetting("max_running_jobs", 10, 1, 128, Setting.Property.NodeScope, Setting.Property.Dynamic);
+            Setting.intSetting("max_running_jobs", 10, 1, 512, Setting.Property.NodeScope);
 
     private final Client client;
     private final ThreadPool threadPool;
@@ -78,14 +79,13 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
 
     private final ConcurrentMap<String, AutodetectCommunicator> autoDetectCommunicatorByJob;
 
-    private volatile int maxAllowedRunningJobs;
+    private final int maxAllowedRunningJobs;
 
     public AutodetectProcessManager(Settings settings, Client client, ThreadPool threadPool, JobManager jobManager,
                                     JobProvider jobProvider, JobResultsPersister jobResultsPersister,
                                     JobRenormalizedResultsPersister jobRenormalizedResultsPersister,
                                     JobDataCountsPersister jobDataCountsPersister, AutodetectResultsParser parser,
-                                    AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory,
-                                    ClusterSettings clusterSettings) {
+                                    AutodetectProcessFactory autodetectProcessFactory, NormalizerFactory normalizerFactory) {
         super(settings);
         this.client = client;
         this.threadPool = threadPool;
@@ -103,7 +103,6 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         this.jobDataCountsPersister = jobDataCountsPersister;
 
         this.autoDetectCommunicatorByJob = new ConcurrentHashMap<>();
-        clusterSettings.addSettingsUpdateConsumer(MAX_RUNNING_JOBS_PER_NODE, val -> maxAllowedRunningJobs = val);
     }
 
     @Override

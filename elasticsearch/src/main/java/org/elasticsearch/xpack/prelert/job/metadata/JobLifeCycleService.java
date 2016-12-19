@@ -85,7 +85,7 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
             try {
                 dataProcessor.openJob(allocation.getJobId(), allocation.isIgnoreDowntime());
             } catch (Exception e) {
-                logger.error("Failed to close job [" + allocation.getJobId() + "]", e);
+                logger.error("Failed to open job [" + allocation.getJobId() + "]", e);
                 updateJobStatus(allocation.getJobId(), JobStatus.FAILED, "failed to open, " + e.getMessage());
             }
         });

@@ -113,14 +113,26 @@ public class TransportClusterAllocationExplainAction
                 // If looking for a replica, go through all the replica shards
                 List<ShardRouting> replicaShardRoutings = allocation.routingTable().shardRoutingTable(index, shard).replicaShards();
                 if (replicaShardRoutings.size() > 0) {
-                    // Pick the first replica at the very least
-                    foundShard = replicaShardRoutings.get(0);
-                    // In case there are multiple replicas where some are assigned and some aren't,
-                    // try to find one that is unassigned at least
-                    for (ShardRouting replica : replicaShardRoutings) {
-                        if (replica.unassigned()) {
-                            foundShard = replica;
-                            break;
+                    final String replicaNodeId = request.getCurrentNodeId();
+                    if (replicaNodeId != null) {
+                        // the request is to explain a replica shard already assigned on a particular node,
+                        // so find that shard copy
+                        for (ShardRouting replica : replicaShardRoutings) {
+                            if (replicaNodeId.equals(replica.currentNodeId())) {
+                                foundShard = replica;
+                                break;
+                            }
+                        }
+                    } else {
+                        // Pick the first replica at the very least
+                        foundShard = replicaShardRoutings.get(0);
+                        for (ShardRouting replica : replicaShardRoutings) {
+                            // In case there are multiple replicas where some are assigned and some aren't,
+                            // try to find one that is unassigned at least
+                            if (replica.unassigned()) {
+                                foundShard = replica;
+                                break;
+                            }
                         }
                     }
                 }
@@ -143,7 +155,7 @@ public class TransportClusterAllocationExplainAction
                                                       ClusterInfo clusterInfo, boolean includeYesDecisions) {
         allocation.setDebugMode(includeYesDecisions ? DebugMode.ON : DebugMode.EXCLUDE_YES_DECISIONS);
 
-        ShardAllocationDecision shardDecision = null;
+        ShardAllocationDecision shardDecision;
         AllocateUnassignedDecision allocateDecision = shardRouting.unassigned() ?
             gatewayAllocator.decideUnassignedShardAllocation(shardRouting, allocation) : AllocateUnassignedDecision.NOT_TAKEN;
         if (allocateDecision.isDecisionTaken() == false) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
@@ -62,6 +61,16 @@ public class ClusterAllocationExplainRequestBuilder
     /** Whether to include information about the gathered disk information of nodes in the cluster */
     public ClusterAllocationExplainRequestBuilder setIncludeDiskInfo(boolean includeDiskInfo) {
         request.includeDiskInfo(includeDiskInfo);
+        return this;
+    }
+
+    /**
+     * Requests the explain API to explain an already assigned replica shard currently allocated to
+     * the given node id.  This setting only applies to requests where {@link #setPrimary(boolean)}
+     * is {@code false}.
+     */
+    public ClusterAllocationExplainRequestBuilder setCurrentNodeId(String currentNodeId) {
+        request.setCurrentNodeId(currentNodeId);
         return this;
     }
 

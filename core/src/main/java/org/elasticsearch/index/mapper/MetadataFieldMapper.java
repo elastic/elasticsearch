@@ -39,14 +39,13 @@ public abstract class MetadataFieldMapper extends FieldMapper {
          * Get the default {@link MetadataFieldMapper} to use, if nothing had to be parsed.
          * @param fieldType null if this is the first root mapper on this index, the existing
          *                  fieldType for this index otherwise
-         * @param indexSettings  the index-level settings
          * @param fieldType      the existing field type for this meta mapper on the current index
          *                       or null if this is the first type being introduced
-         * @param typeName       the name of the type that this mapper will be used on
+         * @param parserContext context that may be useful to build the field like analyzers
          */
         // TODO: remove the fieldType parameter which is only used for bw compat with pre-2.0
         // since settings could be modified
-        MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName);
+        MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext parserContext);
     }
 
     public abstract static class Builder<T extends Builder, Y extends MetadataFieldMapper> extends FieldMapper.Builder<T, Y> {

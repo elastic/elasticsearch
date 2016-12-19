@@ -404,7 +404,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         auditor.authenticationFailed("_realm", new MockToken(), "_action", message);
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
-        assertAuditMessage(hit, "transport", "authentication_failed");
+        assertAuditMessage(hit, "transport", "realm_authentication_failed");
         Map<String, Object> sourceMap = hit.sourceAsMap();
 
         if (message instanceof RemoteHostMockMessage) {
@@ -430,7 +430,7 @@ public class IndexAuditTrailTests extends SecurityIntegTestCase {
         auditor.authenticationFailed("_realm", new MockToken(), request);
         SearchHit hit = getIndexedAuditMessage(enqueuedMessage.get());
 
-        assertAuditMessage(hit, "rest", "authentication_failed");
+        assertAuditMessage(hit, "rest", "realm_authentication_failed");
         Map<String, Object> sourceMap = hit.sourceAsMap();
         assertThat("127.0.0.1", equalTo(sourceMap.get("origin_address")));
         assertThat("_uri", equalTo(sourceMap.get("uri")));

@@ -397,9 +397,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     }
 
     private void waitForClusterState(long clusterStateVersion) {
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, TimeValue.timeValueMinutes(5), logger,
+        final ClusterState clusterState = clusterService.state();
+        ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, TimeValue.timeValueMinutes(5), logger,
             threadPool.getThreadContext());
-        final ClusterState clusterState = observer.observedState();
         if (clusterState.getVersion() >= clusterStateVersion) {
             logger.trace("node has cluster state with version higher than {} (current: {})", clusterStateVersion,
                 clusterState.getVersion());
@@ -427,13 +427,13 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             try {
                 future.get();
                 logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion,
-                    observer.observedState().getVersion());
+                    clusterService.state().getVersion());
             } catch (Exception e) {
                 logger.debug(
                     (Supplier<?>) () -> new ParameterizedMessage(
                         "failed waiting for cluster state with version {} (current: {})",
                         clusterStateVersion,
-                        observer.observedState().getVersion()),
+                        clusterService.state().getVersion()),
                     e);
                 throw ExceptionsHelper.convertToRuntime(e);
             }

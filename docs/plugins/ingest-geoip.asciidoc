@@ -203,3 +203,14 @@ Which returns:
 }
 --------------------------------------------------
 // TESTRESPONSE
+
+[[ingest-geoip-settings]]
+===== Node Settings
+
+The geoip processor supports the following setting:
+
+`ingest.geoip.cache_size`::
+
+    The maximum number of results that should be cached. Defaults to `1000`.
+
+Note that these settings are node settings and apply to all geoip processors, i.e. there is one cache for all defined geoip processors.

@@ -45,8 +45,6 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         }
         if (randomBoolean()) {
             builder.setAggregations(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
-        } else if (randomBoolean()) {
-            builder.setAggs(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
         }
         if (randomBoolean()) {
             builder.setFrequency(randomPositiveLong());
@@ -104,32 +102,39 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         assertTrue(builder.build().buildAggregatedFieldList().isEmpty());
     }
 
-    /**
-     * Test parsing of the opaque {@link SchedulerConfig#getAggs()} object
-     */
-
     public void testAggsParse() throws IOException {
         Logger logger = Loggers.getLogger(SchedulerConfigTests.class);
 
-        String configStr = "{" + "\"scheduler_id\":\"scheduler1\"," + "\"job_id\":\"job1\"," + "\"indexes\":[\"farequote\"],"
+        String aggregationsConfig = "{" + "\"scheduler_id\":\"scheduler1\"," + "\"job_id\":\"job1\"," + "\"indexes\":[\"farequote\"],"
                 + "\"types\":[\"farequote\"]," + "\"query\":{\"match_all\":{} }," + "\"aggs\" : {" + "\"top_level_must_be_time\" : {"
                 + "\"histogram\" : {" + "\"field\" : \"@timestamp\"," + "\"interval\" : 3600000" + "}," + "\"aggs\" : {"
                 + "\"by_field_in_the_middle\" : { " + "\"terms\" : {" + "\"field\" : \"airline\"," + "\"size\" : 0" + "}," + "\"aggs\" : {"
                 + "\"stats_last\" : {" + "\"avg\" : {" + "\"field\" : \"responsetime\"" + "}" + "}" + "} " + "}" + "}" + "}" + "}" + "}"
                 + "}";
 
-        XContentParser parser = XContentFactory.xContent(configStr).createParser(configStr);
-        SchedulerConfig schedulerConfig = SchedulerConfig.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT).build();
-        assertNotNull(schedulerConfig);
+        String aggsConfig = "{" + "\"scheduler_id\":\"scheduler1\"," + "\"job_id\":\"job1\"," + "\"indexes\":[\"farequote\"],"
+                + "\"types\":[\"farequote\"]," + "\"query\":{\"match_all\":{} }," + "\"aggs\" : {" + "\"top_level_must_be_time\" : {"
+                + "\"histogram\" : {" + "\"field\" : \"@timestamp\"," + "\"interval\" : 3600000" + "}," + "\"aggs\" : {"
+                + "\"by_field_in_the_middle\" : { " + "\"terms\" : {" + "\"field\" : \"airline\"," + "\"size\" : 0" + "}," + "\"aggs\" : {"
+                + "\"stats_last\" : {" + "\"avg\" : {" + "\"field\" : \"responsetime\"" + "}" + "}" + "} " + "}" + "}" + "}" + "}" + "}"
+                + "}";
 
-        Map<String, Object> aggs = schedulerConfig.getAggregationsOrAggs();
+        XContentParser parser = XContentFactory.xContent(aggregationsConfig).createParser(aggregationsConfig);
+        SchedulerConfig aggregationsSchedulerConfig = SchedulerConfig.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT).build();
+        parser = XContentFactory.xContent(aggsConfig).createParser(aggsConfig);
+        SchedulerConfig aggsSchedulerConfig = SchedulerConfig.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT).build();
+        assertNotNull(aggregationsSchedulerConfig);
+        assertNotNull(aggsSchedulerConfig);
+        assertEquals(aggregationsSchedulerConfig, aggsSchedulerConfig);
+
+        Map<String, Object> aggs = aggsSchedulerConfig.getAggregations();
         assertNotNull(aggs);
 
         String aggsAsJson = XContentFactory.jsonBuilder().map(aggs).string();
         logger.info("Round trip of aggs is: " + aggsAsJson);
         assertTrue(aggs.containsKey("top_level_must_be_time"));
 
-        List<String> aggregatedFieldList = schedulerConfig.buildAggregatedFieldList();
+        List<String> aggregatedFieldList = aggsSchedulerConfig.buildAggregatedFieldList();
         assertEquals(3, aggregatedFieldList.size());
         assertEquals("@timestamp", aggregatedFieldList.get(0));
         assertEquals("airline", aggregatedFieldList.get(1));
@@ -339,18 +344,6 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
         IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, () -> conf.setScrollSize(-1000));
         assertEquals(Messages.getMessage(Messages.SCHEDULER_CONFIG_INVALID_OPTION_VALUE, "scroll_size", -1000L), e.getMessage());
-    }
-
-    public void testCheckValid_GivenBothAggregationsAndAggsAreSet() {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
-        conf.setIndexes(Arrays.asList("myindex"));
-        conf.setTypes(Arrays.asList("mytype"));
-        conf.setScrollSize(1000);
-        Map<String, Object> aggs = new HashMap<>();
-        conf.setAggregations(aggs);
-        conf.setAggs(aggs);
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, conf::build);
-        assertEquals(Messages.getMessage(Messages.SCHEDULER_CONFIG_MULTIPLE_AGGREGATIONS), e.getMessage());
     }
 
     public static String randomValidSchedulerId() {

@@ -14,12 +14,11 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractorFactory;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class HttpDataExtractorFactory implements DataExtractorFactory {
@@ -37,10 +36,9 @@ public class HttpDataExtractorFactory implements DataExtractorFactory {
         String timeField = job.getDataDescription().getTimeField();
         ElasticsearchQueryBuilder queryBuilder = new ElasticsearchQueryBuilder(
                 stringifyElasticsearchQuery(schedulerConfig.getQuery()),
-                stringifyElasticsearchAggregations(schedulerConfig.getAggregations(), schedulerConfig.getAggs()),
+                stringifyElasticsearchAggregations(schedulerConfig.getAggregations()),
                 stringifyElasticsearchScriptFields(schedulerConfig.getScriptFields()),
-                Boolean.TRUE.equals(schedulerConfig.getRetrieveWholeSource()) ? null : writeListAsJson(job.allFields()),
-                        timeField);
+                timeField);
         HttpRequester httpRequester = new HttpRequester();
         ElasticsearchUrlBuilder urlBuilder = ElasticsearchUrlBuilder
                 .create(schedulerConfig.getIndexes(), schedulerConfig.getTypes(), getBaseUrl());
@@ -63,12 +61,9 @@ public class HttpDataExtractorFactory implements DataExtractorFactory {
         return queryStr;
     }
 
-    String stringifyElasticsearchAggregations(Map<String, Object> aggregationsMap, Map<String, Object> aggsMap) {
+    String stringifyElasticsearchAggregations(Map<String, Object> aggregationsMap) {
         if (aggregationsMap != null) {
             return writeMapAsJson(aggregationsMap);
-        }
-        if (aggsMap != null) {
-            return writeMapAsJson(aggsMap);
         }
         return null;
     }
@@ -85,22 +80,6 @@ public class HttpDataExtractorFactory implements DataExtractorFactory {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.map(map);
             return builder.string();
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to convert map to JSON string", e);
-        }
-    }
-
-    private static String writeListAsJson(List<String> list) {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            builder.startObject();
-            builder.startArray("a");
-            for (String e : list) {
-                builder.value(e);
-            }
-            builder.endArray();
-            builder.endObject();
-            return builder.string().replace("{\"a\":", "").replace("}", "");
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to convert map to JSON string", e);
         }

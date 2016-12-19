@@ -166,7 +166,7 @@ public class ScheduledJobValidatorTests extends ESTestCase {
                         "}   " +
                         "}";
         XContentParser parser = XContentFactory.xContent(aggStr).createParser(aggStr);
-        schedulerConfig.setAggs(parser.map());
+        schedulerConfig.setAggregations(parser.map());
         return schedulerConfig;
     }
 

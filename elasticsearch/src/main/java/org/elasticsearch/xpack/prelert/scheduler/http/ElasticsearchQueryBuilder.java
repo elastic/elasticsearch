@@ -70,19 +70,16 @@ public class ElasticsearchQueryBuilder {
 
     private static final String AGGREGATION_TEMPLATE = ", \"aggs\": %s";
     private static final String SCRIPT_FIELDS_TEMPLATE = ", \"script_fields\": %s";
-    private static final String FIELDS_TEMPLATE = "%s,  \"_source\": %s";
 
     private final String search;
     private final String aggregations;
     private final String scriptFields;
-    private final String fields;
     private final String timeField;
 
-    public ElasticsearchQueryBuilder(String search, String aggs, String scriptFields, String fields, String timeField) {
+    public ElasticsearchQueryBuilder(String search, String aggs, String scriptFields, String timeField) {
         this.search = Objects.requireNonNull(search);
         aggregations = aggs;
         this.scriptFields = scriptFields;
-        this.fields = fields;
         this.timeField = Objects.requireNonNull(timeField);
     }
 
@@ -102,15 +99,11 @@ public class ElasticsearchQueryBuilder {
     }
 
     private String createResultsFormatSpec(String aggs) {
-        return (aggs != null) ? createAggregations(aggs) : ((fields != null) ? createFieldDataFields() : "");
+        return (aggs != null) ? createAggregations(aggs) : createScriptFields();
     }
 
     private String createAggregations(String aggs) {
         return String.format(Locale.ROOT, AGGREGATION_TEMPLATE, aggs);
-    }
-
-    private String createFieldDataFields() {
-        return String.format(Locale.ROOT, FIELDS_TEMPLATE, createScriptFields(), fields);
     }
 
     private String createScriptFields() {
@@ -126,11 +119,7 @@ public class ElasticsearchQueryBuilder {
         if (aggregations != null) {
             logger.debug("Will use the following Elasticsearch aggregations: " + aggregations);
         } else {
-            if (fields != null) {
-                logger.debug("Will request only the following field(s) from Elasticsearch: " + String.join(" ", fields));
-            } else {
-                logger.debug("Will retrieve whole _source document from Elasticsearch");
-            }
+            logger.debug("Will retrieve whole _source document from Elasticsearch");
         }
     }
 

@@ -36,7 +36,6 @@ public class ElasticsearchDataExtractorTests extends ESTestCase {
 
     private String aggregations;
     private String scriptFields;
-    private String fields;
 
     private ElasticsearchDataExtractor extractor;
 
@@ -237,66 +236,6 @@ public class ElasticsearchDataExtractorTests extends ESTestCase {
         assertFalse(extractor.next().isPresent());
         assertFalse(extractor.hasNext());
         expectThrows(NoSuchElementException.class, () -> extractor.next());
-    }
-
-    public void testDataExtractionWithFields() throws IOException {
-        fields = "[\"id\"]";
-
-        String initialResponse = "{" + "\"_scroll_id\":\"c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1\"," + "\"took\":17,"
-                + "\"timed_out\":false," + "\"_shards\":{" + "  \"total\":1," + "  \"successful\":1," + "  \"failed\":0" + "},"
-                + "\"hits\":{" + "  \"total\":1437," + "  \"max_score\":null," + "  \"hits\":[" + "    \"_index\":\"dataIndex\","
-                + "    \"_type\":\"dataType\"," + "    \"_id\":\"1403481600\"," + "    \"_score\":null," + "    \"fields\":{"
-                + "      \"id\":[\"1403481600\"]" + "    }" + "  ]" + "}" + "}";
-
-        String scrollResponse = "{" + "\"_scroll_id\":\"secondScrollId\"," + "\"took\":8," + "\"timed_out\":false," + "\"_shards\":{"
-                + "  \"total\":1," + "  \"successful\":1," + "  \"failed\":0" + "}," + "\"hits\":{" + "  \"total\":1437,"
-                + "  \"max_score\":null," + "  \"hits\":[" + "    \"_index\":\"dataIndex\"," + "    \"_type\":\"dataType\","
-                + "    \"_id\":\"1403782200\"," + "    \"_score\":null," + "    \"fields\":{" + "      \"id\":[\"1403782200\"]" + "    }"
-                + "  ]" + "}" + "}";
-
-        String scrollEndResponse = "{" + "\"_scroll_id\":\"thirdScrollId\"," + "\"took\":8," + "\"timed_out\":false," + "\"_shards\":{"
-                + "  \"total\":1," + "  \"successful\":1," + "  \"failed\":0" + "}," + "\"hits\":{" + "  \"total\":1437,"
-                + "  \"max_score\":null," + "  \"hits\":[]" + "}" + "}";
-
-        List<HttpResponse> responses = Arrays.asList(new HttpResponse(toStream(initialResponse), 200),
-                new HttpResponse(toStream(scrollResponse), 200), new HttpResponse(toStream(scrollEndResponse), 200));
-
-        MockHttpRequester requester = new MockHttpRequester(responses);
-        createExtractor(requester);
-
-        extractor.newSearch(1400000000L, 1403600000L, jobLogger);
-
-        assertTrue(extractor.hasNext());
-        assertEquals(initialResponse, streamToString(extractor.next().get()));
-        assertTrue(extractor.hasNext());
-        assertEquals(scrollResponse, streamToString(extractor.next().get()));
-        assertTrue(extractor.hasNext());
-        assertFalse(extractor.next().isPresent());
-        assertFalse(extractor.hasNext());
-
-        requester.assertEqualRequestsToResponses();
-        requester.assertResponsesHaveBeenConsumed();
-
-        RequestParams firstRequestParams = requester.getGetRequestParams(0);
-        assertEquals("http://localhost:9200/index-*/dataType/_search?scroll=60m&size=1000", firstRequestParams.url);
-        String expectedSearchBody = "{" + "  \"sort\": [" + "    {\"time\": {\"order\": \"asc\"}}" + "  ]," + "  \"query\": {"
-                + "    \"bool\": {" + "      \"filter\": [" + "        {\"match_all\":{}}," + "        {" + "          \"range\": {"
-                + "            \"time\": {" + "              \"gte\": \"1970-01-17T04:53:20.000Z\","
-                + "              \"lt\": \"1970-01-17T05:53:20.000Z\"," + "              \"format\": \"date_time\"" + "            }"
-                + "          }" + "        }" + "      ]" + "    }" + "  }," + "  \"_source\": [\"id\"]" + "}";
-        assertEquals(expectedSearchBody.replaceAll(" ", ""), firstRequestParams.requestBody.replaceAll(" ", ""));
-
-        RequestParams secondRequestParams = requester.getGetRequestParams(1);
-        assertEquals("http://localhost:9200/_search/scroll?scroll=60m", secondRequestParams.url);
-        assertEquals("c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1", secondRequestParams.requestBody);
-
-        RequestParams thirdRequestParams = requester.getGetRequestParams(2);
-        assertEquals("http://localhost:9200/_search/scroll?scroll=60m", thirdRequestParams.url);
-        assertEquals("secondScrollId", thirdRequestParams.requestBody);
-
-        assertEquals("http://localhost:9200/_search/scroll", requester.getDeleteRequestParams(0).url);
-        assertEquals("{\"scroll_id\":[\"thirdScrollId\"]}", requester.getDeleteRequestParams(0).requestBody);
-        assertEquals(1, requester.deleteRequestParams.size());
     }
 
     public void testDataExtractionWithAggregations() throws IOException {
@@ -687,7 +626,7 @@ public class ElasticsearchDataExtractorTests extends ESTestCase {
     }
 
     private void createExtractor(MockHttpRequester httpRequester) {
-        ElasticsearchQueryBuilder queryBuilder = new ElasticsearchQueryBuilder(SEARCH, aggregations, scriptFields, fields, TIME_FIELD);
+        ElasticsearchQueryBuilder queryBuilder = new ElasticsearchQueryBuilder(SEARCH, aggregations, scriptFields, TIME_FIELD);
         ElasticsearchUrlBuilder urlBuilder = ElasticsearchUrlBuilder.create(INDEXES, TYPES);
         extractor = new ElasticsearchDataExtractor(httpRequester, urlBuilder, queryBuilder, 1000);
     }

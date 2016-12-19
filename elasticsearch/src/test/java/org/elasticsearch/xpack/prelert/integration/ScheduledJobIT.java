@@ -120,7 +120,7 @@ public class ScheduledJobIT extends ESRestTestCase {
 
     private Response createScheduler(String schedulerId, String jobId) throws IOException {
         String schedulerConfig = "{" + "\"job_id\": \"" + jobId + "\",\n" + "\"indexes\":[\"airline-data\"],\n"
-                + "\"types\":[\"response\"],\n" + "\"retrieve_whole_source\":true\n" + "}";
+                + "\"types\":[\"response\"]\n" + "}";
         return client().performRequest("put", PrelertPlugin.BASE_PATH + "schedulers/" + schedulerId, Collections.emptyMap(),
                 new StringEntity(schedulerConfig));
     }

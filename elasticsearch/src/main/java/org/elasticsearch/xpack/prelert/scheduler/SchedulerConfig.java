@@ -56,7 +56,6 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
     public static final ParseField INDEXES = new ParseField("indexes");
     public static final ParseField TYPES = new ParseField("types");
     public static final ParseField QUERY = new ParseField("query");
-    public static final ParseField RETRIEVE_WHOLE_SOURCE = new ParseField("retrieve_whole_source");
     public static final ParseField SCROLL_SIZE = new ParseField("scroll_size");
     public static final ParseField AGGREGATIONS = new ParseField("aggregations");
     public static final ParseField AGGS = new ParseField("aggs");
@@ -85,7 +84,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
                 throw new RuntimeException(e);
             }
         }, AGGREGATIONS);
-        PARSER.declareObject(Builder::setAggs, (p, c) -> {
+        PARSER.declareObject(Builder::setAggregations, (p, c) -> {
             try {
                 return p.map();
             } catch (IOException e) {
@@ -99,7 +98,6 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
                 throw new RuntimeException(e);
             }
         }, SCRIPT_FIELDS);
-        PARSER.declareBoolean(Builder::setRetrieveWholeSource, RETRIEVE_WHOLE_SOURCE);
         PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
     }
 
@@ -122,14 +120,12 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
     // SearchSourceBuilder field holding the entire source:
     private final Map<String, Object> query;
     private final Map<String, Object> aggregations;
-    private final Map<String, Object> aggs;
     private final Map<String, Object> scriptFields;
-    private final Boolean retrieveWholeSource;
     private final Integer scrollSize;
 
     private SchedulerConfig(String id, String jobId, Long queryDelay, Long frequency, List<String> indexes, List<String> types,
-                            Map<String, Object> query, Map<String, Object> aggregations, Map<String, Object> aggs,
-                            Map<String, Object> scriptFields, Boolean retrieveWholeSource, Integer scrollSize) {
+                            Map<String, Object> query, Map<String, Object> aggregations, Map<String, Object> scriptFields,
+                            Integer scrollSize) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -138,9 +134,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         this.types = types;
         this.query = query;
         this.aggregations = aggregations;
-        this.aggs = aggs;
         this.scriptFields = scriptFields;
-        this.retrieveWholeSource = retrieveWholeSource;
         this.scrollSize = scrollSize;
     }
 
@@ -170,16 +164,10 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             this.aggregations = null;
         }
         if (in.readBoolean()) {
-            this.aggs = in.readMap();
-        } else {
-            this.aggs = null;
-        }
-        if (in.readBoolean()) {
             this.scriptFields = in.readMap();
         } else {
             this.scriptFields = null;
         }
-        this.retrieveWholeSource = in.readOptionalBoolean();
         this.scrollSize = in.readOptionalVInt();
     }
 
@@ -233,17 +221,6 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
     }
 
     /**
-     * For the ELASTICSEARCH data source only, should the whole _source document
-     * be retrieved for analysis, or just the analysis fields?
-     *
-     * @return Should the whole of _source be retrieved? (<code>null</code> if
-     *         not set.)
-     */
-    public Boolean getRetrieveWholeSource() {
-        return this.retrieveWholeSource;
-    }
-
-    /**
      * For the ELASTICSEARCH data source only, get the size of documents to be
      * retrieved from each shard via a scroll search
      *
@@ -271,35 +248,11 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
      * aggregations to apply to the search to be submitted to Elasticsearch to
      * get the input data. This class does not attempt to interpret the
      * aggregations. The map will be converted back to an arbitrary JSON object.
-     * Synonym for {@link #getAggs()} (like Elasticsearch).
      *
      * @return The aggregations, or <code>null</code> if not set.
      */
     public Map<String, Object> getAggregations() {
         return this.aggregations;
-    }
-
-    /**
-     * For the ELASTICSEARCH data source only, optional Elasticsearch
-     * aggregations to apply to the search to be submitted to Elasticsearch to
-     * get the input data. This class does not attempt to interpret the
-     * aggregations. The map will be converted back to an arbitrary JSON object.
-     * Synonym for {@link #getAggregations()} (like Elasticsearch).
-     *
-     * @return The aggregations, or <code>null</code> if not set.
-     */
-    public Map<String, Object> getAggs() {
-        return this.aggs;
-    }
-
-    /**
-     * Convenience method to get either aggregations or aggs.
-     *
-     * @return The aggregations (whether initially specified in aggregations or
-     *         aggs), or <code>null</code> if neither are set.
-     */
-    public Map<String, Object> getAggregationsOrAggs() {
-        return (this.aggregations != null) ? this.aggregations : this.aggs;
     }
 
     /**
@@ -309,7 +262,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
      * @return The list of fields, or empty list if there are no aggregations.
      */
     public List<String> buildAggregatedFieldList() {
-        Map<String, Object> aggs = getAggregationsOrAggs();
+        Map<String, Object> aggs = getAggregations();
         if (aggs == null) {
             return Collections.emptyList();
         }
@@ -363,19 +316,12 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (aggs != null) {
-            out.writeBoolean(true);
-            out.writeMap(aggs);
-        } else {
-            out.writeBoolean(false);
-        }
         if (scriptFields != null) {
             out.writeBoolean(true);
             out.writeMap(scriptFields);
         } else {
             out.writeBoolean(false);
         }
-        out.writeOptionalBoolean(retrieveWholeSource);
         out.writeOptionalVInt(scrollSize);
     }
 
@@ -408,14 +354,8 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         if (aggregations != null) {
             builder.field(AGGREGATIONS.getPreferredName(), aggregations);
         }
-        if (aggs != null) {
-            builder.field(AGGS.getPreferredName(), aggs);
-        }
         if (scriptFields != null) {
             builder.field(SCRIPT_FIELDS.getPreferredName(), scriptFields);
-        }
-        if (retrieveWholeSource != null) {
-            builder.field(RETRIEVE_WHOLE_SOURCE.getPreferredName(), retrieveWholeSource);
         }
         if (scrollSize != null) {
             builder.field(SCROLL_SIZE.getPreferredName(), scrollSize);
@@ -445,16 +385,16 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
                 && Objects.equals(this.frequency, that.frequency)
                 && Objects.equals(this.queryDelay, that.queryDelay)
                 && Objects.equals(this.indexes, that.indexes)
-                && Objects.equals(this.types, that.types) && Objects.equals(this.query, that.query)
-                && Objects.equals(this.retrieveWholeSource, that.retrieveWholeSource) && Objects.equals(this.scrollSize, that.scrollSize)
-                && Objects.equals(this.getAggregationsOrAggs(), that.getAggregationsOrAggs())
+                && Objects.equals(this.types, that.types)
+                && Objects.equals(this.query, that.query)
+                && Objects.equals(this.scrollSize, that.scrollSize)
+                && Objects.equals(this.getAggregations(), that.getAggregations())
                 && Objects.equals(this.scriptFields, that.scriptFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, jobId, frequency, queryDelay, indexes, types, query, retrieveWholeSource, scrollSize,
-                getAggregationsOrAggs(), scriptFields);
+        return Objects.hash(id, jobId, frequency, queryDelay, indexes, types, query, scrollSize, getAggregations(), scriptFields);
     }
 
     public static class Builder {
@@ -478,7 +418,6 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         // NORELEASE: Use SearchSourceBuilder
         private Map<String, Object> query = null;
         private Map<String, Object> aggregations = null;
-        private Map<String, Object> aggs = null;
         private Map<String, Object> scriptFields = null;
         private Boolean retrieveWholeSource;
         private Integer scrollSize;
@@ -507,9 +446,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             this.types = config.types;
             this.query = config.query;
             this.aggregations = config.aggregations;
-            this.aggs = config.aggs;
             this.scriptFields = config.scriptFields;
-            this.retrieveWholeSource = config.retrieveWholeSource;
             this.scrollSize = config.scrollSize;
         }
 
@@ -557,11 +494,6 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             this.aggregations = Objects.requireNonNull(aggregations);
         }
 
-        public void setAggs(Map<String, Object> aggs) {
-            // NORELEASE: make use of Collections.unmodifiableMap(...)
-            this.aggs = Objects.requireNonNull(aggs);
-        }
-
         public void setScriptFields(Map<String, Object> scriptFields) {
             // NORELEASE: make use of Collections.unmodifiableMap(...)
             this.scriptFields = Objects.requireNonNull(scriptFields);
@@ -592,17 +524,12 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             if (types == null || types.isEmpty() || types.contains(null) || types.contains("")) {
                 throw invalidOptionValue(TYPES.getPreferredName(), types);
             }
-            if (aggregations != null && aggs != null) {
-                String msg = Messages.getMessage(Messages.SCHEDULER_CONFIG_MULTIPLE_AGGREGATIONS);
-                throw new IllegalArgumentException(msg);
-            }
             if (Boolean.TRUE.equals(retrieveWholeSource)) {
                 if (scriptFields != null) {
                     throw notSupportedValue(SCRIPT_FIELDS, Messages.SCHEDULER_CONFIG_FIELD_NOT_SUPPORTED);
                 }
             }
-            return new SchedulerConfig(id, jobId, queryDelay, frequency, indexes, types, query, aggregations, aggs, scriptFields,
-                    retrieveWholeSource, scrollSize);
+            return new SchedulerConfig(id, jobId, queryDelay, frequency, indexes, types, query, aggregations, scriptFields, scrollSize);
         }
 
         private static ElasticsearchException invalidOptionValue(String fieldName, Object value) {

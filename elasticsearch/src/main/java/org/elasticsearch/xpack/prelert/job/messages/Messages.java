@@ -190,7 +190,6 @@ public final class Messages {
 
     public static final String SCHEDULER_CONFIG_FIELD_NOT_SUPPORTED = "scheduler.config.field.not.supported";
     public static final String SCHEDULER_CONFIG_INVALID_OPTION_VALUE = "scheduler.config.invalid.option.value";
-    public static final String SCHEDULER_CONFIG_MULTIPLE_AGGREGATIONS = "scheduler.config.multiple.aggregations";
 
     public static final String SCHEDULER_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "scheduler.does.not.support.job.with.latency";
     public static final String SCHEDULER_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD =

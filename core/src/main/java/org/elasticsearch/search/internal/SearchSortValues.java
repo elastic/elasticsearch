@@ -140,8 +140,8 @@ public class SearchSortValues implements ToXContent, Writeable {
 
     public static SearchSortValues fromXContent(XContentParser parser) throws IOException {
         XContentParserUtils.ensureFieldName(parser, parser.currentToken(), Fields.SORT);
-        parser.nextToken();
-        XContentParserUtils.ensureType(XContentParser.Token.START_ARRAY, parser.currentToken(), () -> parser.getTokenLocation());
+        XContentParser.Token token = parser.nextToken();
+        XContentParserUtils.ensureType(XContentParser.Token.START_ARRAY, token, () -> parser.getTokenLocation());
         return new SearchSortValues(parser.list().toArray());
     }
 

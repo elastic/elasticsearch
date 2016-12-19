@@ -145,7 +145,7 @@ public class ReplicationResponseTests extends ESTestCase {
         }
     }
 
-    public void testShardInfoFromXContent() throws IOException {
+    public void testShardInfoToAndFromXContent() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         final ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(randomIntBetween(1, 5), randomIntBetween(1, 5));
@@ -166,7 +166,7 @@ public class ReplicationResponseTests extends ESTestCase {
         assertEquals(shardInfoBytes, parsedShardInfoBytes);
     }
 
-    public void testRandomShardInfoToXContent() throws IOException {
+    public void testShardInfoWithFailureToXContent() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         final ReplicationResponse.ShardInfo shardInfo = randomShardInfo();
@@ -259,7 +259,7 @@ public class ReplicationResponseTests extends ESTestCase {
         }
     }
 
-    public void testRandomFailureFromXContent() throws IOException {
+    public void testRandomFailureToAndFromXContent() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         final ReplicationResponse.ShardInfo.Failure shardInfoFailure = randomFailure();

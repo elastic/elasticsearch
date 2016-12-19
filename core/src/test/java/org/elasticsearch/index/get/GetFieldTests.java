@@ -39,7 +39,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertEquivalent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class GetFieldTests extends ESTestCase {
 
@@ -72,7 +72,7 @@ public class GetFieldTests extends ESTestCase {
         }
         assertEquals(expectedGetField, parsedGetField);
         BytesReference finalBytes = toXContent(parsedGetField, xContentType, true);
-        assertEquivalent(originalBytes, finalBytes, xContentType);
+        assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 
     private static GetField copyGetField(GetField getField) {

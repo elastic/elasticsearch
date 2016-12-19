@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -56,6 +57,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
@@ -181,17 +183,19 @@ public abstract class TransportReplicationAction<
     protected abstract ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica);
 
     /**
-     * Cluster level block to check before request execution
+     * Cluster level block to check before request execution. Returning null means that no blocks need to be checked.
      */
+    @Nullable
     protected ClusterBlockLevel globalBlockLevel() {
-        return ClusterBlockLevel.WRITE;
+        return null;
     }
 
     /**
-     * Index level block to check before request execution
+     * Index level block to check before request execution. Returning null means that no blocks need to be checked.
      */
+    @Nullable
     protected ClusterBlockLevel indexBlockLevel() {
-        return ClusterBlockLevel.WRITE;
+        return null;
     }
 
     /**
@@ -612,6 +616,9 @@ public abstract class TransportReplicationAction<
                 retry(new IndexNotFoundException(concreteIndex));
                 return;
             }
+            if (indexMetaData.getState() == IndexMetaData.State.CLOSE) {
+                throw new IndexClosedException(indexMetaData.getIndex());
+            }
 
             // resolve all derived request fields, so we can route and apply it
             resolveRequest(state.metaData(), indexMetaData, request);
@@ -688,15 +695,21 @@ public abstract class TransportReplicationAction<
         }
 
         private boolean handleBlockExceptions(ClusterState state) {
-            ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel());
-            if (blockException != null) {
-                handleBlockException(blockException);
-                return true;
+            ClusterBlockLevel globalBlockLevel = globalBlockLevel();
+            if (globalBlockLevel != null) {
+                ClusterBlockException blockException = state.blocks().globalBlockedException(globalBlockLevel);
+                if (blockException != null) {
+                    handleBlockException(blockException);
+                    return true;
+                }
             }
-            blockException = state.blocks().indexBlockedException(indexBlockLevel(), concreteIndex(state));
-            if (blockException != null) {
-                handleBlockException(blockException);
-                return true;
+            ClusterBlockLevel indexBlockLevel = indexBlockLevel();
+            if (indexBlockLevel != null) {
+                ClusterBlockException blockException = state.blocks().indexBlockedException(indexBlockLevel, concreteIndex(state));
+                if (blockException != null) {
+                    handleBlockException(blockException);
+                    return true;
+                }
             }
             return false;
         }

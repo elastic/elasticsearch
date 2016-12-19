@@ -28,8 +28,14 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * This class is a container for the various decisions took, if any, for where to
- * allocate or move a single shard.
+ * Represents the decision taken for the allocation of a single shard.  If
+ * the shard is unassigned, {@link #getAllocateDecision()} will return an
+ * object containing the decision and its explanation, and {@link #getMoveDecision()}
+ * will return an object for which {@link MoveDecision#isDecisionTaken()} returns
+ * {@code false}.  If the shard is not in the unassigned state, then {@link #getMoveDecision()}
+ * will return an object containing the decision to move/rebalance the shard, and
+ * {@link #getAllocateDecision()} will return an object for which
+ * {@link AllocateUnassignedDecision#isDecisionTaken()} returns {@code false}.
  */
 public final class ShardAllocationDecision implements ToXContent, Writeable {
     private final AllocateUnassignedDecision allocateDecision;
@@ -42,14 +48,14 @@ public final class ShardAllocationDecision implements ToXContent, Writeable {
     }
 
     public ShardAllocationDecision(StreamInput in) throws IOException {
-        allocateDecision = in.readOptionalWriteable(AllocateUnassignedDecision::new);
-        moveDecision = in.readOptionalWriteable(MoveDecision::new);
+        allocateDecision = new AllocateUnassignedDecision(in);
+        moveDecision = new MoveDecision(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(allocateDecision);
-        out.writeOptionalWriteable(moveDecision);
+        allocateDecision.writeTo(out);
+        moveDecision.writeTo(out);
     }
 
     /**

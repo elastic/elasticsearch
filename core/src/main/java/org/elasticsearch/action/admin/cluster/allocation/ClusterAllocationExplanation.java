@@ -84,7 +84,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     }
 
     /**
-     * Returns the current {@link org.elasticsearch.cluster.routing.ShardRoutingState} of the shard.
+     * Returns the current {@link ShardRoutingState} of the shard.
      */
     public ShardRoutingState getShardState() {
         return shardRouting.state();
@@ -96,7 +96,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         return currentNode;
     }
 
-    /** Return the unassigned info for the shard or null if the shard is assigned */
+    /** Return the unassigned info for the shard or null if the shard is active */
     @Nullable
     public UnassignedInfo getUnassignedInfo() {
         return shardRouting.unassignedInfo();
@@ -118,7 +118,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             builder.field("index", shardRouting.getIndexName());
             builder.field("shard", shardRouting.getId());
             builder.field("primary", shardRouting.primary());
-            builder.field("current_shard_state", shardRouting.state().toString().toLowerCase(Locale.ROOT));
+            builder.field("current_state", shardRouting.state().toString().toLowerCase(Locale.ROOT));
             if (shardRouting.unassignedInfo() != null) {
                 unassignedInfoToXContent(shardRouting.unassignedInfo(), builder);
             }

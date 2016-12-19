@@ -144,20 +144,16 @@ public class TransportClusterAllocationExplainAction
         allocation.setDebugMode(includeYesDecisions ? DebugMode.ON : DebugMode.EXCLUDE_YES_DECISIONS);
 
         ShardAllocationDecision shardDecision = null;
-        AllocateUnassignedDecision allocateDecision =
-            gatewayAllocator.decideUnassignedShardAllocation(shardRouting, allocation);
+        AllocateUnassignedDecision allocateDecision = shardRouting.unassigned() ?
+            gatewayAllocator.decideUnassignedShardAllocation(shardRouting, allocation) : AllocateUnassignedDecision.NOT_TAKEN;
         if (allocateDecision.isDecisionTaken() == false) {
-            try {
-                shardDecision = shardAllocator.decideShardAllocation(shardRouting, allocation);
-            } catch (UnsupportedOperationException e) {
-                logger.debug("Failed to explain shard [{}]: {}", shardRouting, e.getMessage());
-            }
+            shardDecision = shardAllocator.decideShardAllocation(shardRouting, allocation);
         } else {
             shardDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         }
 
         return new ClusterAllocationExplanation(shardRouting,
-            shardRouting.currentNodeId() != null ? allocation.routingNodes().node(shardRouting.currentNodeId()).node() : null,
+            shardRouting.currentNodeId() != null ? allocation.nodes().get(shardRouting.currentNodeId()) : null,
             clusterInfo, shardDecision);
     }
 }

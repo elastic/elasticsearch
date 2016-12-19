@@ -174,7 +174,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
 
     @Override
     public boolean isDecisionTaken() {
-        return this.equals(NOT_TAKEN) == false;
+        return allocationStatus != AllocationStatus.NO_ATTEMPT;
     }
 
     /**

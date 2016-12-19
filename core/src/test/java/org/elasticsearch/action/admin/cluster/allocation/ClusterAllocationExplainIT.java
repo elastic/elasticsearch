@@ -64,7 +64,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     public void testUnassignedPrimaryWithExistingIndex() throws Exception {
         logger.info("--> starting 2 nodes");
         internalCluster().startNodes(2);
-        ensureStableCluster(2);
 
         logger.info("--> creating an index with 1 primary, 0 replicas");
         createIndexAndIndexData(1, 0);
@@ -135,7 +134,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     public void testUnassignedReplicaDelayedAllocation() throws Exception {
         logger.info("--> starting 3 nodes");
         internalCluster().startNodes(3);
-        ensureStableCluster(3);
 
         logger.info("--> creating an index with 1 primary, 1 replica");
         createIndexAndIndexData(1, 1);
@@ -248,7 +246,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     public void testUnassignedReplicaWithPriorCopy() throws Exception {
         logger.info("--> starting 3 nodes");
         List<String> nodes = internalCluster().startNodes(3);
-        ensureStableCluster(3);
 
         logger.info("--> creating an index with 1 primary and 1 replica");
         createIndexAndIndexData(1, 1);
@@ -267,7 +264,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> restarting the stopped nodes");
         internalCluster().startNode(Settings.builder().put("node.name", nodes.get(0)).build());
         internalCluster().startNode(Settings.builder().put("node.name", nodes.get(1)).build());
-        ensureStableCluster(3);
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
@@ -378,7 +374,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     public void testAllocationFilteringOnIndexCreation() throws Exception {
         logger.info("--> starting 2 nodes");
         internalCluster().startNodes(2);
-        ensureStableCluster(2);
 
         logger.info("--> creating an index with 1 primary, 0 replicas, with allocation filtering so the primary can't be assigned");
         createIndexAndIndexData(1, 0, Settings.builder().put("index.routing.allocation.include._name", "non_existent_node").build(), false);
@@ -470,7 +465,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
     public void testAllocationFilteringPreventsShardMove() throws Exception {
         logger.info("--> starting 2 nodes");
         internalCluster().startNodes(2);
-        ensureStableCluster(2);
 
         logger.info("--> creating an index with 1 primary and 0 replicas");
         createIndexAndIndexData(1, 0);
@@ -916,11 +910,11 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             .setIncludeYesDecisions(includeYesDecisions)
             .setIncludeDiskInfo(includeDiskInfo)
             .get().getExplanation();
-        if (logger.isInfoEnabled()) {
+        if (logger.isDebugEnabled()) {
             XContentBuilder builder = JsonXContent.contentBuilder();
             builder.prettyPrint();
             builder.humanReadable(true);
-            logger.info("--> explain json output: \n{}", explanation.toXContent(builder, ToXContent.EMPTY_PARAMS).string());
+            logger.debug("--> explain json output: \n{}", explanation.toXContent(builder, ToXContent.EMPTY_PARAMS).string());
         }
         return explanation;
     }
@@ -980,7 +974,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         parser.nextToken();
         assertEquals(primary, parser.booleanValue());
         parser.nextToken();
-        assertEquals("current_shard_state", parser.currentName());
+        assertEquals("current_state", parser.currentName());
         parser.nextToken();
         assertEquals(state.toString().toLowerCase(Locale.ROOT), parser.text());
         if (state == ShardRoutingState.UNASSIGNED) {

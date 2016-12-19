@@ -132,7 +132,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
 
     @Override
     public boolean isDecisionTaken() {
-        return this.equals(NOT_TAKEN) == false;
+        return canRemainDecision != null || clusterRebalanceDecision != null;
     }
 
     /**

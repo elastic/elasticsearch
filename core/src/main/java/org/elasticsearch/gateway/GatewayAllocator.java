@@ -156,15 +156,8 @@ public class GatewayAllocator extends AbstractComponent {
 
         @Override
         protected AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch = asyncFetchStarted.get(shard.shardId());
-            if (fetch == null) {
-                fetch = new InternalAsyncFetch<>(logger, "shard_started", shard.shardId(), startedAction);
-                AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> previousFetch =
-                    asyncFetchStarted.putIfAbsent(shard.shardId(), fetch);
-                if (previousFetch != null) {
-                    fetch = previousFetch;
-                }
-            }
+            AsyncShardFetch<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> fetch =
+                asyncFetchStarted.computeIfAbsent(shard.shardId(), shardId -> new InternalAsyncFetch<>(logger, "shard_started", shardId, startedAction));
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
 
@@ -186,15 +179,8 @@ public class GatewayAllocator extends AbstractComponent {
 
         @Override
         protected AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch = asyncFetchStore.get(shard.shardId());
-            if (fetch == null) {
-                fetch = new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(), storeAction);
-                AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> previousFetch =
-                    asyncFetchStore.putIfAbsent(shard.shardId(), fetch);
-                if (previousFetch != null) {
-                    fetch = previousFetch;
-                }
-            }
+            AsyncShardFetch<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> fetch =
+                asyncFetchStore.computeIfAbsent(shard.shardId(), shardId -> new InternalAsyncFetch<>(logger, "shard_store", shard.shardId(), storeAction));
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores =
                     fetch.fetchData(allocation.nodes(), allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData()) {

@@ -19,9 +19,9 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
@@ -51,7 +51,6 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -71,10 +70,9 @@ public class ClusterModuleTests extends ModuleTestCase {
         public void allocate(RoutingAllocation allocation) {
             // noop
         }
-
         @Override
-        public Map<DiscoveryNode, Float> weighShard(RoutingAllocation allocation, ShardRouting shard) {
-            return new HashMap<>();
+        public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            throw new UnsupportedOperationException("explain API not supported on FakeShardsAllocator");
         }
     }
 

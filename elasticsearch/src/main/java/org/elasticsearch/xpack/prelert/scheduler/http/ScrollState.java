@@ -3,19 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.scheduler.http;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PushbackInputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Objects;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-/**
- * Holds the state of an Elasticsearch scroll.
- */
 class ScrollState {
 
     private static final Pattern SCROLL_ID_PATTERN = Pattern.compile("\"_scroll_id\":\"(.*?)\"");

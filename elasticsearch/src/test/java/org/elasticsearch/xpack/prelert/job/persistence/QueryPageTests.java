@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.persistence;
-
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xpack.prelert.job.results.Influencer;
-import org.elasticsearch.xpack.prelert.support.AbstractWireSerializingTestCase;
-import java.util.ArrayList;
-import java.util.Date;
-
-public class QueryPageTests extends AbstractWireSerializingTestCase<QueryPage<Influencer>> {
-
-    @Override
     protected QueryPage<Influencer> createTestInstance() {
         int hitCount = randomIntBetween(0, 10);
         ArrayList<Influencer> hits = new ArrayList<>();

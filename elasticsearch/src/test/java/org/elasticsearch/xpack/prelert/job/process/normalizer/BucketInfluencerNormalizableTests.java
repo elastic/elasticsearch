@@ -3,19 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.normalizer;
-
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
-import org.junit.Before;
-
-import java.util.Date;
-
-
-public class BucketInfluencerNormalizableTests extends ESTestCase {
-    private static final double EPSILON = 0.0001;
-    private BucketInfluencer bucketInfluencer;
-
     @Before
     public void setUpBucketInfluencer() {
         bucketInfluencer = new BucketInfluencer("foo", new Date(), 600, 1);

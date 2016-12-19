@@ -3,19 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.transforms.date;
-
-import static org.elasticsearch.xpack.prelert.transforms.TransformTestUtils.createIndexArray;
-
-import static org.mockito.Mockito.mock;
-
-import java.time.ZoneOffset;
-import java.util.Collections;
-import java.util.List;
-
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.test.ESTestCase;
-
 import org.elasticsearch.xpack.prelert.transforms.Transform.TransformIndex;
 import org.elasticsearch.xpack.prelert.transforms.TransformException;
 

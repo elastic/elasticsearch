@@ -3,20 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.transforms;
-
-import java.util.List;
-
-import org.apache.logging.log4j.Logger;
-
-import org.elasticsearch.xpack.prelert.job.condition.Condition;
-import org.elasticsearch.xpack.prelert.job.condition.Operator;
-
-
-/**
- * Parses a numeric value from a field and compares it against a hard
- * value using a certain {@link Operator}
- */
 public class ExcludeFilterNumeric extends ExcludeFilter {
     private final double filterValue;
 

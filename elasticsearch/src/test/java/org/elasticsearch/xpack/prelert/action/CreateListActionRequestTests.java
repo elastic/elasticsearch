@@ -3,19 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.action;
-
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.prelert.action.PutListAction.Request;
-import org.elasticsearch.xpack.prelert.lists.ListDocument;
-import org.elasticsearch.xpack.prelert.support.AbstractStreamableXContentTestCase;
-
-import java.util.ArrayList;
-import java.util.List;
-
-public class CreateListActionRequestTests extends AbstractStreamableXContentTestCase<PutListAction.Request> {
-
     @Override
     protected Request createTestInstance() {
         int size = randomInt(10);

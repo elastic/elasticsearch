@@ -3,20 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.autodetect.params;
-
-import org.elasticsearch.test.ESTestCase;
-
-public class InterimResultsParamsTests extends ESTestCase {
-    public void testBuilder_GivenDefault() {
-        InterimResultsParams params = InterimResultsParams.builder().build();
-        assertFalse(params.shouldCalculateInterim());
-        assertFalse(params.shouldAdvanceTime());
-        assertEquals("", params.getStart());
-        assertEquals("", params.getEnd());
-    }
-
-
     public void testBuilder_GivenCalcInterim() {
         InterimResultsParams params = InterimResultsParams.builder().calcInterim(true).build();
         assertTrue(params.shouldCalculateInterim());

@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.transform;
-
-import org.elasticsearch.test.ESTestCase;
-
-import java.util.EnumSet;
-import java.util.Set;
-
-public class TransformTypeTests extends ESTestCase {
-
-    public void testFromString() {
-        Set<TransformType> all = EnumSet.allOf(TransformType.class);
-
         for (TransformType type : all) {
             assertEquals(type.prettyName(), type.toString());
 

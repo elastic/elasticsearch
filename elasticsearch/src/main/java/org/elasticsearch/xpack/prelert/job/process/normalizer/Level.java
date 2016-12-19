@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.normalizer;
-
-
-/**
- * An enumeration of the different normalization levels.
- * The string value of each level has to match the equivalent
- * level names in the normalizer C++ process.
- */
-enum Level {
-    ROOT("root"),
-    LEAF("leaf"),
-    BUCKET_INFLUENCER("inflb"),
     INFLUENCER("infl"),
     PARTITION("part");
 

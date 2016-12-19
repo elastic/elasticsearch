@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.autodetect.params;
-
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.xpack.prelert.job.messages.Messages;
-import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
-
-import java.util.Objects;
-
-public class InterimResultsParams {
-    private final boolean calcInterim;
-    private final TimeRange timeRange;
     private final Long advanceTimeSeconds;
 
     private InterimResultsParams(boolean calcInterim, TimeRange timeRange, Long advanceTimeSeconds) {

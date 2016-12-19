@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.action;
-
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.prelert.action.GetRecordsAction.Request;
-import org.elasticsearch.xpack.prelert.job.results.PageParams;
-import org.elasticsearch.xpack.prelert.support.AbstractStreamableXContentTestCase;
-
-public class GetRecordsActionRequestTests extends AbstractStreamableXContentTestCase<GetRecordsAction.Request> {
-
-    @Override
-    protected Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
         return GetRecordsAction.Request.parseRequest(null, parser, () -> matcher);
     }
 

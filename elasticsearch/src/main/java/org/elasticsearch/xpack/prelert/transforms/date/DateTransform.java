@@ -3,19 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.transforms.date;
-
-import java.util.List;
-
-import org.apache.logging.log4j.Logger;
-
-import org.elasticsearch.xpack.prelert.transforms.Transform;
-import org.elasticsearch.xpack.prelert.transforms.TransformException;
-
-/**
- * Abstract class introduces the {@link #epochMs()} method for
- * date transforms
- */
 public abstract class DateTransform extends Transform {
     protected static final int SECONDS_TO_MS = 1000;
 

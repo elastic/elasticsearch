@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
-
-import java.io.IOException;
-import java.io.OutputStreamWriter;
-import java.util.Objects;
-
-import org.elasticsearch.xpack.prelert.job.AnalysisLimits;
-
-import static org.elasticsearch.xpack.prelert.job.process.autodetect.writer.WriterConstants.EQUALS;
-import static org.elasticsearch.xpack.prelert.job.process.autodetect.writer.WriterConstants.NEW_LINE;
-
-public class AnalysisLimitsWriter {
     /*
      * The configuration fields used in limits.conf
      */

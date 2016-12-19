@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.transform.verification;
-
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.xpack.prelert.job.messages.Messages;
-import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
-
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
-
-public class RegexPatternVerifier implements ArgumentVerifier {
-    @Override
-    public void verify(String arg, TransformConfig tc) throws ElasticsearchParseException {
         try {
             Pattern.compile(arg);
         } catch (PatternSyntaxException e) {

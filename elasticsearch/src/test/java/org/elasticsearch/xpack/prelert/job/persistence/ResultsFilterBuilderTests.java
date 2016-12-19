@@ -3,19 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.persistence;
-
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.job.results.Bucket;
-
-public class ResultsFilterBuilderTests extends ESTestCase {
-    private static final String TIMESTAMP = "timestamp";
-
-    public void testBuild_GivenNoFilters() {
-        QueryBuilder fb = new ResultsFilterBuilder().build();
-
         assertEquals(QueryBuilders.matchAllQuery().toString(), fb.toString());
     }
 

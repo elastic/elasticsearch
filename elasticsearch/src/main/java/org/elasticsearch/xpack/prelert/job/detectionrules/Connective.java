@@ -3,19 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.detectionrules;
-
-import java.io.IOException;
-import java.util.Locale;
-
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-
-public enum Connective implements Writeable {
-    OR("or"),
-    AND("and");
-
     private String name;
 
     private Connective(String name) {

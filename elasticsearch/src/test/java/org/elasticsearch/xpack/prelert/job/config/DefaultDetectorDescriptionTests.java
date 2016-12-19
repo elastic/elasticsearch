@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.config;
-
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.job.Detector;
-
-public class DefaultDetectorDescriptionTests extends ESTestCase {
-
-
-    public void testOf_GivenOnlyFunctionAndFieldName() {
-        Detector detector = new Detector.Builder("min", "value").build();
-
-        assertEquals("min(value)", DefaultDetectorDescription.of(detector));
     }
 
 

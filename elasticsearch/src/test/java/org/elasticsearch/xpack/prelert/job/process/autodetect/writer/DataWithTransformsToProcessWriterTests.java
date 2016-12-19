@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
-
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
-import org.elasticsearch.xpack.prelert.job.DataDescription;
-import org.elasticsearch.xpack.prelert.job.DataDescription.DataFormat;
-import org.elasticsearch.xpack.prelert.job.Detector;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
-import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
-import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
-import org.elasticsearch.xpack.prelert.job.transform.TransformConfigs;
 import org.elasticsearch.xpack.prelert.job.transform.TransformType;
 import org.junit.Before;
 import org.mockito.Mockito;

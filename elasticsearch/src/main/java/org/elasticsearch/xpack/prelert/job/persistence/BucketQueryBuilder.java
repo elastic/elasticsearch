@@ -3,22 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.persistence;
-
-import org.elasticsearch.common.Strings;
-
-import java.util.Objects;
-
-/**
- * One time query builder for a single buckets.
- * <ul>
- * <li>Timestamp (Required) - Timestamp of the bucket</li>
- * <li>Expand- Include anomaly records. Default= false</li>
- * <li>IncludeInterim- Include interim results. Default = false</li>
- * <li>partitionValue Set the bucket's max normalized probabiltiy to this
- * partiton field value's max normalized probability. Default = null</li>
- * </ul>
- */
 public final class BucketQueryBuilder {
     public static int DEFAULT_SIZE = 100;
 

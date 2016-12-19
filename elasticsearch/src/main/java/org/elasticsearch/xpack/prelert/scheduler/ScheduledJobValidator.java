@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.scheduler;
-
-import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
-import org.elasticsearch.xpack.prelert.job.DataDescription;
-import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.messages.Messages;
-
-public final class ScheduledJobValidator {
-
-    private ScheduledJobValidator() {}
-
-    /**
      * Validates a schedulerConfig in relation to the job it refers to
      * @param schedulerConfig the scheduler config
      * @param job the job

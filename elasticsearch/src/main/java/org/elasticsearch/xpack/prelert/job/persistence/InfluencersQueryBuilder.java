@@ -3,32 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.persistence;
-
-import org.elasticsearch.xpack.prelert.job.results.Influencer;
-
-import java.util.Objects;
-
-/**
- * One time query builder for influencers.
- * <ul>
- * <li>From- Skip the first N Influencers. This parameter is for paging if not
- * required set to 0. Default = 0</li>
- * <li>Size- Take only this number of Influencers. Default =
- * {@value DEFAULT_SIZE}</li>
- * <li>IncludeInterim- Include interim results. Default = false</li>
- * <li>anomalyScoreThreshold- Return only influencers with an anomalyScore &gt;=
- * this value. Default = 0.0</li>
- * <li>start- The start influencer time. An influencer with this timestamp will be
- * included in the results. If 0 all influencers up to <code>end</code> are
- * returned. Default = -1</li>
- * <li>end- The end influencer timestamp. Influencers up to but NOT including this
- * timestamp are returned. If 0 all influencers from <code>start</code> are
- * returned. Default = -1</li>
- * <li>partitionValue Set the bucket's max normalized probability to this
- * partition field value's max normalized probability. Default = null</li>
- * </ul>
- */
 public final class InfluencersQueryBuilder {
     public static final int DEFAULT_SIZE = 100;
 

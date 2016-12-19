@@ -3,19 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.scheduler;
-
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.job.audit.Auditor;
-import org.junit.Before;
-import org.mockito.Mockito;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-
-public class ProblemTrackerTests extends ESTestCase {
-
     private Auditor auditor;
 
     private ProblemTracker problemTracker;

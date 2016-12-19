@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.autodetect;
-
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.output.FlushAcknowledgement;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
-import org.elasticsearch.xpack.prelert.job.results.AutodetectResult;
-
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;

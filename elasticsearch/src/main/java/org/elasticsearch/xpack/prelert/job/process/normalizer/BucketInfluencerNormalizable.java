@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.normalizer;
-
-import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
-
-import java.util.Objects;
-
-
-class BucketInfluencerNormalizable extends AbstractLeafNormalizable {
-    private final BucketInfluencer bucketInfluencer;
-
-    public BucketInfluencerNormalizable(BucketInfluencer influencer) {
-        bucketInfluencer = Objects.requireNonNull(influencer);
     }
 
     @Override

@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.action;
-
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.prelert.action.StopSchedulerAction.Request;
-import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
-import org.elasticsearch.xpack.prelert.scheduler.SchedulerStatus;
-import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
-import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
-
 import static org.elasticsearch.xpack.prelert.scheduler.ScheduledJobRunnerTests.createScheduledJob;
 import static org.elasticsearch.xpack.prelert.scheduler.ScheduledJobRunnerTests.createSchedulerConfig;
 import static org.hamcrest.Matchers.equalTo;

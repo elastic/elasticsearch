@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.normalizer;
-
-import org.elasticsearch.xpack.prelert.job.results.PartitionScore;
-
-import java.util.Objects;
-
-
-public class PartitionScoreNormalizable extends AbstractLeafNormalizable {
-    private final PartitionScore score;
-
-    public PartitionScoreNormalizable(PartitionScore score) {
-        this.score = Objects.requireNonNull(score);
     }
 
     @Override

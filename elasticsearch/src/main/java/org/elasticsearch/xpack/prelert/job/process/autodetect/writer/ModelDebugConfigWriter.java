@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
-
-import org.elasticsearch.xpack.prelert.job.ModelDebugConfig;
-
-import java.io.IOException;
-import java.io.Writer;
-import java.util.Objects;
-
-import static org.elasticsearch.xpack.prelert.job.process.autodetect.writer.WriterConstants.EQUALS;
-import static org.elasticsearch.xpack.prelert.job.process.autodetect.writer.WriterConstants.NEW_LINE;
-
-public class ModelDebugConfigWriter {
     private static final String WRITE_TO_STR = "writeto";
     private static final String BOUNDS_PERCENTILE_STR = "boundspercentile";
     private static final String TERMS_STR = "terms";

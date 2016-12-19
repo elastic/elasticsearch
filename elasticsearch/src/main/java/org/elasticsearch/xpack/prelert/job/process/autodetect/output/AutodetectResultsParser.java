@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.autodetect.output;
-
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.prelert.job.results.AutodetectResult;
-
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
 import java.util.Spliterator;

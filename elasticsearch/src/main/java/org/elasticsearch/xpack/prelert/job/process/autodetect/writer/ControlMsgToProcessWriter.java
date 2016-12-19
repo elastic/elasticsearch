@@ -3,21 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
-
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.Arrays;
-import java.util.Objects;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
-import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
-
-/**
- * A writer for sending control messages to the C++ autodetect process.
- * The data written to outputIndex is length encoded.
- */
 public class ControlMsgToProcessWriter {
     /**
      * This should be the same size as the buffer in the C++ autodetect process.

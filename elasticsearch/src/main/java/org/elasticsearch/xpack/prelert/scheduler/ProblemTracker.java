@@ -3,26 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.scheduler;
-
-import org.elasticsearch.xpack.prelert.job.audit.Auditor;
-import org.elasticsearch.xpack.prelert.job.messages.Messages;
-
-import java.util.Objects;
-import java.util.function.Supplier;
-
-/**
- * <p>
- * Keeps track of problems the scheduler encounters and audits
- * messages appropriately.
- * </p>
- * <p>
- * The {@code ProblemTracker} is expected to interact with multiple
- * threads (lookback executor, real-time executor). However, each
- * thread will be accessing in a sequential manner therefore we
- * only need to ensure correct visibility.
- * </p>
- */
 class ProblemTracker {
 
     private static final int EMPTY_DATA_WARN_COUNT = 10;

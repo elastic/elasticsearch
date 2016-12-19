@@ -3,19 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.transforms;
-
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.transforms.Transform.TransformIndex;
-import org.elasticsearch.xpack.prelert.transforms.Transform.TransformResult;
-
-import java.util.List;
-import java.util.Locale;
-
-import static org.elasticsearch.xpack.prelert.transforms.TransformTestUtils.createIndexArray;
-import static org.mockito.Mockito.mock;
-
 public class StringTransformTests extends ESTestCase {
     public void testUpperCaseTransform_GivenZeroInputs() throws TransformException {
         List<TransformIndex> readIndexes = createIndexArray();

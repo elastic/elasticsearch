@@ -3,24 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.transforms;
-
-import java.util.List;
-import java.util.Objects;
-
-import org.apache.logging.log4j.Logger;
-
-/**
- * Abstract transform class.
- * Instances are created with maps telling it which field(s)
- * to read from in the input array and where to write to.
- * The read/write area is passed in the {@linkplain #transform(String[][])}
- * function.
- * <p>
- * Some transforms may fail and we will continue processing for
- * others a failure is terminal meaning the record should not be
- * processed further
- */
 public abstract class Transform {
     /**
      * OK means the transform was successful,

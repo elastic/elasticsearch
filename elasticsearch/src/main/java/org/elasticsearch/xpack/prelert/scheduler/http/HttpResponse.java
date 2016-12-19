@@ -3,22 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.scheduler.http;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
-import java.util.stream.Collectors;
-
-/**
- * Encapsulates the HTTP response stream and the status code.
- *
- * <p><b>Important note</b>: The stream has to be consumed thoroughly.
- * Java is keeping connections alive thus reusing them and any
- * streams with dangling data can lead to problems.
- */
 class HttpResponse {
 
     public static final int OK_STATUS = 200;

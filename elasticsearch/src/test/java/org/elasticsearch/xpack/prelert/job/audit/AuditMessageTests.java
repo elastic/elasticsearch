@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.audit;
-
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
-import org.junit.Before;
-
-import java.util.Date;
-
-public class AuditMessageTests extends AbstractSerializingTestCase<AuditMessage> {
     private long startMillis;
 
     @Before

@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.results;
-
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
-
-public class PageParamsTests extends AbstractSerializingTestCase<PageParams> {
-
-    @Override
-    protected PageParams parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return PageParams.PARSER.apply(parser, () -> matcher);
     }
 
     @Override

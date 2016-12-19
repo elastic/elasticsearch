@@ -3,14 +3,3 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.transforms.date;
-
-import org.elasticsearch.xpack.prelert.transforms.TransformException;
-
-public class ParseTimestampException extends TransformException {
-
-    public ParseTimestampException(String message) {
-        super(message);
-    }
-
-}

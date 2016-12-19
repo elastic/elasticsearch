@@ -3,19 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.transform;
-
-import java.util.Objects;
-
-public class IntRange {
-    public enum BoundType {
-        OPEN, CLOSED
-    }
-
-    public static class Bound {
-        private final int value;
-        private final BoundType boundType;
-
         public Bound(int value, BoundType boundType) {
             this.value = value;
             this.boundType = Objects.requireNonNull(boundType);

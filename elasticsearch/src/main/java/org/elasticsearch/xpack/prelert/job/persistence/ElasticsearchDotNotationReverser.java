@@ -3,19 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.persistence;
-
-import java.util.Locale;
-import java.util.Map;
-import java.util.TreeMap;
-import java.util.regex.Pattern;
-
-import org.elasticsearch.xpack.prelert.job.results.ReservedFieldNames;
-
-/**
- * Interprets field names containing dots as nested JSON structures.
- * This matches what Elasticsearch does.
- */
 class ElasticsearchDotNotationReverser {
     private static final char DOT = '.';
     private static final Pattern DOT_PATTERN = Pattern.compile("\\.");

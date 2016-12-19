@@ -3,23 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.usage;
-
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.prelert.job.persistence.UsagePersister;
-import java.util.Locale;
-
-/**
- * Reports the number of bytes, fields and records read.
- * Persistence is done via {@linkplain UsagePersister}
- * The main difference betweeen this and the {@linkplain org.elasticsearch.xpack.prelert.job.status.StatusReporter}
- * is that this writes hourly reports i.e. how much data was read in an hour
- */
 public class UsageReporter extends AbstractComponent {
 
     public static final Setting<Long> UPDATE_INTERVAL_SETTING = Setting.longSetting("usage.update.interval", 300, 0, Property.NodeScope);

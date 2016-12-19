@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.persistence;
-
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.xpack.prelert.job.results.Bucket;
-
 import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Deque;

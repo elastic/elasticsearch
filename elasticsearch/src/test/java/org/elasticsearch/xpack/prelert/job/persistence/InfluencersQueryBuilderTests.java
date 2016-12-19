@@ -3,18 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.persistence;
-
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.job.results.Influencer;
-
-public class InfluencersQueryBuilderTests extends ESTestCase {
-
-    public void testDefaultBuild() throws Exception {
-        InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder().build();
-
-        assertEquals(0, query.getFrom());
-        assertEquals(InfluencersQueryBuilder.DEFAULT_SIZE, query.getSize());
         assertEquals(false, query.isIncludeInterim());
         assertEquals(0.0, query.getAnomalyScoreFilter(), 0.0001);
         assertNull(query.getStart());

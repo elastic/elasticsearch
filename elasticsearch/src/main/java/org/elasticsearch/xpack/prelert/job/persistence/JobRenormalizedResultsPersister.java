@@ -3,17 +3,6 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.persistence;
-
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
-import org.elasticsearch.xpack.prelert.job.results.Bucket;
-import org.elasticsearch.xpack.prelert.job.results.Influencer;
-import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
-
-import java.util.List;
-
 
 /**
  * Interface for classes that update {@linkplain Bucket Buckets}

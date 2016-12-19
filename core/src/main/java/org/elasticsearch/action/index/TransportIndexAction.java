@@ -22,6 +22,7 @@ package org.elasticsearch.action.index;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -48,7 +49,6 @@ import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
@@ -91,7 +91,7 @@ public class TransportIndexAction extends TransportWriteAction<IndexRequest, Ind
         this.clusterService = clusterService;
         this.ingestService = ingestService;
         this.ingestForwarder = new IngestActionForwarder(transportService);
-        clusterService.add(this.ingestForwarder);
+        clusterService.addStateApplier(this.ingestForwarder);
     }
 
     @Override

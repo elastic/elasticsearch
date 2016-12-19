@@ -60,15 +60,26 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     private SearchSourceBuilder testRequest;
     /** Map of parameters to use for filling a query template, can be used instead of providing testRequest. */
     private Map<String, Object> params = new HashMap<>();
+    @Nullable
+    private String templateId;
 
-    public RatedRequest(String id, List<RatedDocument> ratedDocs, SearchSourceBuilder testRequest, Map<String, Object> params) {
+    public RatedRequest(
+            String id, List<RatedDocument> ratedDocs, SearchSourceBuilder testRequest, Map<String, Object> params, String templateId) {
         if (params != null && (params.size() > 0 && testRequest != null)) {
+            throw new IllegalArgumentException(
+                    "Ambiguous rated request: Set both, verbatim test request and test request template parameters.");
+        }
+        if (templateId != null && testRequest != null) {
             throw new IllegalArgumentException(
                     "Ambiguous rated request: Set both, verbatim test request and test request template parameters.");
         }
         if ((params == null || params.size() < 1) && testRequest == null) {
             throw new IllegalArgumentException(
                     "Need to set at least test request or test request template parameters.");
+        }
+        if ((params != null && params.size() > 0) && templateId == null) {
+            throw new IllegalArgumentException(
+                    "If template parameters are supplied need to set id of template to apply them to too.");
         }
         // No documents with same _index/_type/id allowed.
         Set<DocumentKey> docKeys = new HashSet<>();
@@ -86,14 +97,15 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         if (params != null) {
             this.params = params;
         }
+        this.templateId = templateId;
     }
     
-    public RatedRequest(String id, List<RatedDocument> ratedDocs, Map<String, Object> params) {
-        this(id, ratedDocs, null, params);
+    public RatedRequest(String id, List<RatedDocument> ratedDocs, Map<String, Object> params, String templateId) {
+        this(id, ratedDocs, null, params, templateId);
     }
 
     public RatedRequest(String id, List<RatedDocument> ratedDocs, SearchSourceBuilder testRequest) {
-        this(id, ratedDocs, testRequest, new HashMap<>());
+        this(id, ratedDocs, testRequest, new HashMap<>(), null);
     }
 
     public RatedRequest(StreamInput in) throws IOException {
@@ -121,6 +133,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         for (int i = 0; i < summaryFieldsSize; i++) {
             this.summaryFields.add(in.readString());
         }
+        this.templateId = in.readOptionalString();
     }
 
     @Override
@@ -145,6 +158,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         for (String fieldName : summaryFields) {
             out.writeString(fieldName);
         }
+        out.writeOptionalString(this.templateId);
     }
 
     public SearchSourceBuilder getTestRequest() {
@@ -181,6 +195,10 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
         return this.params;
     }
 
+    public String getTemplateId() {
+        return this.templateId;
+    }
+
     /** Returns a list of fields that are included in the docs summary of matched documents. */
     public List<String> getSummaryFields() {
         return summaryFields;
@@ -198,10 +216,11 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     private static final ParseField RATINGS_FIELD = new ParseField("ratings");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField FIELDS_FIELD = new ParseField("summary_fields");
+    private static final ParseField TEMPLATE_ID_FIELD = new ParseField("template_id");
 
     private static final ConstructingObjectParser<RatedRequest, RankEvalContext> PARSER = 
             new ConstructingObjectParser<>("requests", a -> new RatedRequest(
-                    (String) a[0], (List<RatedDocument>) a[1], (SearchSourceBuilder) a[2], (Map<String, Object>) a[3]));
+                    (String) a[0], (List<RatedDocument>) a[1], (SearchSourceBuilder) a[2], (Map<String, Object>) a[3], (String) a[4]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
@@ -227,6 +246,7 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
             }
         }, PARAMS_FIELD);
         PARSER.declareStringArray(RatedRequest::setSummaryFields, FIELDS_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TEMPLATE_ID_FIELD);
     }
 
     /**
@@ -278,6 +298,9 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
             }
             builder.endArray();
         }
+        if (this.templateId != null) {
+            builder.field(TEMPLATE_ID_FIELD.getPreferredName(), this.templateId);
+        }
         builder.endObject();
         return builder;
     }
@@ -299,11 +322,12 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
                 Objects.equals(types, other.types) &&
                 Objects.equals(summaryFields, other.summaryFields) &&
                 Objects.equals(ratedDocs, other.ratedDocs) &&
-                Objects.equals(params, other.params);
+                Objects.equals(params, other.params) &&
+                Objects.equals(templateId, other.templateId);
     }
 
     @Override
     public final int hashCode() {
-        return Objects.hash(id, testRequest, indices, types, summaryFields, ratedDocs, params);
+        return Objects.hash(id, testRequest, indices, types, summaryFields, ratedDocs, params, templateId);
     }
 }

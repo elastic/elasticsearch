@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
@@ -47,6 +48,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -87,9 +89,11 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
         Map<String, EvalQueryQuality> partialResults = new ConcurrentHashMap<>(ratedRequests.size());
         Map<String, Exception> errors = new ConcurrentHashMap<>(ratedRequests.size());
 
-        CompiledScript scriptWithoutParams = null;
-        if (qualityTask.getTemplate() != null) {
-             scriptWithoutParams = scriptService.compile(qualityTask.getTemplate(), ScriptContext.Standard.SEARCH, new HashMap<>());
+        Map<String, CompiledScript> scriptsWithoutParams = new HashMap<>();
+        for (Entry<String, Script> entry : qualityTask.getTemplates().entrySet()) {
+             scriptsWithoutParams.put(
+                     entry.getKey(), 
+                     scriptService.compile(entry.getValue(), ScriptContext.Standard.SEARCH, new HashMap<>()));
         }
 
         for (RatedRequest ratedRequest : ratedRequests) {
@@ -98,7 +102,9 @@ public class TransportRankEvalAction extends HandledTransportAction<RankEvalRequ
             SearchSourceBuilder ratedSearchSource = ratedRequest.getTestRequest();
             if (ratedSearchSource == null) {
                 Map<String, Object> params = ratedRequest.getParams();
-                String resolvedRequest = ((BytesReference) (scriptService.executable(scriptWithoutParams, params).run())).utf8ToString();
+                String templateId = ratedRequest.getTemplateId();
+                CompiledScript compiled = scriptsWithoutParams.get(templateId);
+                String resolvedRequest = ((BytesReference) (scriptService.executable(compiled, params).run())).utf8ToString();
                 try (XContentParser subParser = XContentFactory.xContent(resolvedRequest).createParser(resolvedRequest)) {
                     QueryParseContext parseContext = new QueryParseContext(searchRequestParsers.queryParsers, subParser, parseFieldMatcher);
                     ratedSearchSource = SearchSourceBuilder.fromXContent(parseContext, searchRequestParsers.aggParsers,

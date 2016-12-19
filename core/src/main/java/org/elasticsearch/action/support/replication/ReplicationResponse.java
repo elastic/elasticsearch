@@ -67,6 +67,12 @@ public class ReplicationResponse extends ActionResponse {
 
     public static class ShardInfo implements Streamable, ToXContent {
 
+        private static final String _SHARDS = "_shards";
+        private static final String TOTAL = "total";
+        private static final String SUCCESSFUL = "successful";
+        private static final String FAILED = "failed";
+        private static final String FAILURES = "failures";
+
         private int total;
         private int successful;
         private Failure[] failures = EMPTY;
@@ -165,12 +171,12 @@ public class ReplicationResponse extends ActionResponse {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(Fields._SHARDS);
-            builder.field(Fields.TOTAL, total);
-            builder.field(Fields.SUCCESSFUL, successful);
-            builder.field(Fields.FAILED, getFailed());
+            builder.startObject(_SHARDS);
+            builder.field(TOTAL, total);
+            builder.field(SUCCESSFUL, successful);
+            builder.field(FAILED, getFailed());
             if (failures.length > 0) {
-                builder.startArray(Fields.FAILURES);
+                builder.startArray(FAILURES);
                 for (Failure failure : failures) {
                     failure.toXContent(builder, params);
                 }
@@ -196,6 +202,13 @@ public class ReplicationResponse extends ActionResponse {
         }
 
         public static class Failure implements ShardOperationFailedException, ToXContent {
+
+            private static final String _INDEX = "_index";
+            private static final String _SHARD = "_shard";
+            private static final String _NODE = "_node";
+            private static final String REASON = "reason";
+            private static final String STATUS = "status";
+            private static final String PRIMARY = "primary";
 
             private ShardId shardId;
             private String nodeId;
@@ -313,39 +326,18 @@ public class ReplicationResponse extends ActionResponse {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                builder.field(Fields._INDEX, shardId.getIndexName());
-                builder.field(Fields._SHARD, shardId.id());
-                builder.field(Fields._NODE, nodeId);
-                builder.field(Fields.REASON);
+                builder.field(_INDEX, shardId.getIndexName());
+                builder.field(_SHARD, shardId.id());
+                builder.field(_NODE, nodeId);
+                builder.field(REASON);
                 builder.startObject();
                 ElasticsearchException.toXContent(builder, params, cause);
                 builder.endObject();
-                builder.field(Fields.STATUS, status);
-                builder.field(Fields.PRIMARY, primary);
+                builder.field(STATUS, status);
+                builder.field(PRIMARY, primary);
                 builder.endObject();
                 return builder;
             }
-
-            private static class Fields {
-
-                private static final String _INDEX = "_index";
-                private static final String _SHARD = "_shard";
-                private static final String _NODE = "_node";
-                private static final String REASON = "reason";
-                private static final String STATUS = "status";
-                private static final String PRIMARY = "primary";
-
-            }
-        }
-
-        private static class Fields {
-
-            private static final String _SHARDS = "_shards";
-            private static final String TOTAL = "total";
-            private static final String SUCCESSFUL = "successful";
-            private static final String FAILED = "failed";
-            private static final String FAILURES = "failures";
-
         }
     }
 }

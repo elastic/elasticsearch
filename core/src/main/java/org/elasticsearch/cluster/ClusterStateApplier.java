@@ -17,10 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.cluster.service;
+package org.elasticsearch.cluster;
 
-public enum ClusterStateStatus {
-    UNKNOWN,
-    BEING_APPLIED,
-    APPLIED;
+import org.elasticsearch.cluster.service.ClusterService;
+
+/**
+ * A component that is in charge of applying an incoming cluster state to the node internal data structures.
+ * The single apply method is called before the cluster state becomes visible via {@link ClusterService#state()}.
+ */
+public interface ClusterStateApplier {
+
+    /**
+     * Called when a new cluster state ({@link ClusterChangedEvent#state()} needs to be applied
+     */
+    void applyClusterState(ClusterChangedEvent event);
 }

@@ -61,6 +61,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -189,7 +190,7 @@ public class IndexModuleTests extends ESTestCase {
         final AtomicBoolean atomicBoolean = new AtomicBoolean(false);
         final IndexEventListener eventListener = new IndexEventListener() {
             @Override
-            public void beforeIndexDeleted(IndexService indexService) {
+            public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
                 atomicBoolean.set(true);
             }
         };
@@ -201,7 +202,7 @@ public class IndexModuleTests extends ESTestCase {
         IndexSettings x = indexService.getIndexSettings();
         assertEquals(x.getSettings().getAsMap(), indexSettings.getSettings().getAsMap());
         assertEquals(x.getIndex(), index);
-        indexService.getIndexEventListener().beforeIndexDeleted(null);
+        indexService.getIndexEventListener().beforeIndexRemoved(null, null);
         assertTrue(atomicBoolean.get());
         indexService.close("simon says", false);
     }

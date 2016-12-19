@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.parser;
 
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
@@ -126,6 +127,9 @@ public class DoSectionParserTests extends AbstractClientYamlTestFragmentParserTe
     }
 
     public void testParseDoSectionWithJsonMultipleBodiesRepeatedProperty() throws Exception {
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
+
         String[] bodies = new String[] {
                 "{ \"index\": { \"_index\":\"test_index\", \"_type\":\"test_type\", \"_id\":\"test_id\" } }",
                 "{ \"f1\":\"v1\", \"f2\":42 }",
@@ -216,6 +220,9 @@ public class DoSectionParserTests extends AbstractClientYamlTestFragmentParserTe
     }
 
     public void testParseDoSectionWithYamlMultipleBodiesRepeatedProperty() throws Exception {
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
+
         parser = createParser(YamlXContent.yamlXContent,
                 "bulk:\n" +
                 "    refresh: true\n" +

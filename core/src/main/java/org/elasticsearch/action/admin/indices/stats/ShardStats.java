@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.engine.CommitStats;
@@ -32,7 +33,7 @@ import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
 
-public class ShardStats implements Streamable, ToXContent {
+public class ShardStats implements Streamable, Writeable, ToXContent {
     private ShardRouting shardRouting;
     private CommonStats commonStats;
     @Nullable

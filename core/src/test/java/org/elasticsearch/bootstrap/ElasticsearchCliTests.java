@@ -25,6 +25,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -152,9 +153,9 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 true,
                 output -> {},
                 (foreground, pidFile, quiet, esSettings) -> {
-                    assertThat(esSettings.size(), equalTo(2));
-                    assertThat(esSettings, hasEntry("foo", "bar"));
-                    assertThat(esSettings, hasEntry("baz", "qux"));
+                    Map<String, String> settings = esSettings.getAsMap();
+                    assertThat(settings, hasEntry("foo", "bar"));
+                    assertThat(settings, hasEntry("baz", "qux"));
                 },
                 "-Efoo=bar", "-E", "baz=qux"
         );

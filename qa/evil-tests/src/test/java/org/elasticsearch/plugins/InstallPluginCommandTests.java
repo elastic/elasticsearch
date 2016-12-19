@@ -207,8 +207,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     }
 
     static MockTerminal installPlugin(String pluginUrl, Path home, boolean jarHellCheck) throws Exception {
-        Map<String, String> settings = new HashMap<>();
-        settings.put("path.home", home.toString());
+        Environment env = new Environment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
         new InstallPluginCommand() {
             @Override
@@ -217,7 +216,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                     super.jarHellCheck(candidate, pluginsDir);
                 }
             }
-        }.execute(terminal, pluginUrl, true, settings);
+        }.execute(terminal, pluginUrl, true, env);
         return terminal;
     }
 
@@ -680,13 +679,11 @@ public class InstallPluginCommandTests extends ESTestCase {
         // if batch is enabled, we also want to add a security policy
         String pluginZip = createPlugin("fake", pluginDir, isBatch);
 
-        Map<String, String> settings = new HashMap<>();
-        settings.put("path.home", env.v1().toString());
         new InstallPluginCommand() {
             @Override
             void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
             }
-        }.execute(terminal, pluginZip, isBatch, settings);
+        }.execute(terminal, pluginZip, isBatch, env.v2());
     }
 
     // TODO: test checksum (need maven/official below)

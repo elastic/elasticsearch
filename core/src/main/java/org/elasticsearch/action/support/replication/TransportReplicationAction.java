@@ -21,6 +21,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
@@ -664,7 +665,7 @@ public abstract class TransportReplicationAction<
         private void performLocalAction(ClusterState state, ShardRouting primary, DiscoveryNode node) {
             setPhase(task, "waiting_on_primary");
             if (logger.isTraceEnabled()) {
-                logger.trace("send action [{}] on primary [{}] for request [{}] with cluster state version [{}] to [{}] ",
+                logger.trace("send action [{}] to local primary [{}] for request [{}] with cluster state version [{}] to [{}] ",
                     transportPrimaryAction, request.shardId(), request, state.version(), primary.currentNodeId());
             }
             performAction(node, transportPrimaryAction, true, new ConcreteShardRequest<>(request, primary.allocationId().getId()));
@@ -950,6 +951,8 @@ public abstract class TransportReplicationAction<
         public PrimaryResult perform(Request request) throws Exception {
             PrimaryResult result = shardOperationOnPrimary(request, indexShard);
             if (result.replicaRequest() != null) {
+                assert result.finalFailure == null : "a replica request [" + result.replicaRequest()
+                    + "] with a primary failure [" + result.finalFailure + "]";
                 result.replicaRequest().primaryTerm(indexShard.getPrimaryTerm());
             }
             return result;
@@ -983,16 +986,25 @@ public abstract class TransportReplicationAction<
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            localCheckpoint = in.readZLong();
-            allocationId = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                super.readFrom(in);
+                localCheckpoint = in.readZLong();
+                allocationId = in.readString();
+            } else {
+                // 5.x used to read empty responses, which don't really read anything off the stream, so just do nothing.
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeZLong(localCheckpoint);
-            out.writeString(allocationId);
+            if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                super.writeTo(out);
+                out.writeZLong(localCheckpoint);
+                out.writeString(allocationId);
+            } else {
+                // we use to write empty responses
+                Empty.INSTANCE.writeTo(out);
+            }
         }
 
         @Override
@@ -1016,10 +1028,9 @@ public abstract class TransportReplicationAction<
                 listener.onFailure(new NoNodeAvailableException("unknown node [" + nodeId + "]"));
                 return;
             }
-            transportService.sendRequest(node, transportReplicaAction,
-                new ConcreteShardRequest<>(request, replica.allocationId().getId()), transportOptions,
-                // Eclipse can't handle when this is <> so we specify the type here.
-                new ActionListenerResponseHandler<ReplicaResponse>(listener, ReplicaResponse::new));
+            final ConcreteShardRequest<ReplicaRequest> concreteShardRequest =
+                new ConcreteShardRequest<>(request, replica.allocationId().getId());
+            sendReplicaRequest(concreteShardRequest, node, listener);
         }
 
         @Override
@@ -1058,6 +1069,14 @@ public abstract class TransportReplicationAction<
                 }
             };
         }
+    }
+
+    /** sends the given replica request to the supplied nodes */
+    protected void sendReplicaRequest(ConcreteShardRequest<ReplicaRequest> concreteShardRequest, DiscoveryNode node,
+                                      ActionListener<ReplicationOperation.ReplicaResponse> listener) {
+        transportService.sendRequest(node, transportReplicaAction, concreteShardRequest, transportOptions,
+            // Eclipse can't handle when this is <> so we specify the type here.
+            new ActionListenerResponseHandler<ReplicaResponse>(listener, ReplicaResponse::new));
     }
 
     /** a wrapper class to encapsulate a request when being sent to a specific allocation id **/

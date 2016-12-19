@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -60,7 +61,9 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.ClusterStateChanges;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -184,6 +187,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         Request request = new Request();
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
         ReplicationTask task = maybeTask();
+        Action action = new Action(Settings.EMPTY, "testActionWithBlocks", transportService, clusterService, shardStateAction, threadPool) {
+            @Override
+            protected ClusterBlockLevel globalBlockLevel() {
+                return ClusterBlockLevel.WRITE;
+            }
+        };
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
             .addGlobalBlock(new ClusterBlock(1, "non retryable", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
@@ -216,6 +225,17 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertListenerThrows("primary phase should fail operation when moving from a retryable block to a non-retryable one", listener,
             ClusterBlockException.class);
         assertIndexShardUninitialized();
+
+        action = new Action(Settings.EMPTY, "testActionWithNoBlocks", transportService, clusterService, shardStateAction, threadPool) {
+            @Override
+            protected ClusterBlockLevel globalBlockLevel() {
+                return null;
+            }
+        };
+        listener = new PlainActionFuture<>();
+        reroutePhase = action.new ReroutePhase(task, new Request().timeout("5ms"), listener);
+        reroutePhase.run();
+        assertListenerThrows("should fail with an IndexNotFoundException when no blocks checked", listener, IndexNotFoundException.class);
     }
 
     public void assertIndexShardUninitialized() {
@@ -335,6 +355,34 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertListenerThrows("must throw shard not found exception", listener, ShardNotFoundException.class);
         assertFalse(request.isRetrySet.get()); //TODO I'd have expected this to be true but we fail too early?
 
+    }
+
+    public void testClosedIndexOnReroute() throws InterruptedException {
+        final String index = "test";
+        // no replicas in oder to skip the replication part
+        setState(clusterService,
+            new ClusterStateChanges().closeIndices(state(index, true, ShardRoutingState.UNASSIGNED), new CloseIndexRequest(index)));
+        logger.debug("--> using initial state:\n{}", clusterService.state());
+        Request request = new Request(new ShardId("test", "_na_", 0)).timeout("1ms");
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        ReplicationTask task = maybeTask();
+
+        ClusterBlockLevel indexBlockLevel = randomBoolean() ? ClusterBlockLevel.WRITE : null;
+        Action action = new Action(Settings.EMPTY, "testActionWithBlocks", transportService, clusterService, shardStateAction, threadPool) {
+            @Override
+            protected ClusterBlockLevel indexBlockLevel() {
+                return indexBlockLevel;
+            }
+        };
+        Action.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
+        reroutePhase.run();
+        if (indexBlockLevel == ClusterBlockLevel.WRITE) {
+            assertListenerThrows("must throw block exception", listener, ClusterBlockException.class);
+        } else {
+            assertListenerThrows("must throw index closed exception", listener, IndexClosedException.class);
+        }
+        assertPhase(task, "failed");
+        assertFalse(request.isRetrySet.get());
     }
 
     public void testStalePrimaryShardOnReroute() throws InterruptedException {

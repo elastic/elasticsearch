@@ -39,7 +39,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.index.get.GetFieldTests.randomGetField;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertEquivalent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class GetResultTests extends ESTestCase {
 
@@ -58,7 +58,7 @@ public class GetResultTests extends ESTestCase {
         assertEquals(expectedGetResult, parsedGetResult);
         //print the parsed object out and test that the output is the same as the original output
         BytesReference finalBytes = toXContent(parsedGetResult, xContentType, false);
-        assertEquivalent(originalBytes, finalBytes, xContentType);
+        assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
         //check that the source stays unchanged, no shuffling of keys nor anything like that
         assertEquals(expectedGetResult.sourceAsString(), parsedGetResult.sourceAsString());
     }

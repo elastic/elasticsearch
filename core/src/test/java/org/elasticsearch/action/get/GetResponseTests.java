@@ -37,7 +37,7 @@ import static org.elasticsearch.index.get.GetResultTests.copyGetResult;
 import static org.elasticsearch.index.get.GetResultTests.mutateGetResult;
 import static org.elasticsearch.index.get.GetResultTests.randomGetResult;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertEquivalent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class GetResponseTests extends ESTestCase {
 
@@ -56,7 +56,7 @@ public class GetResponseTests extends ESTestCase {
         assertEquals(expectedGetResponse, parsedGetResponse);
         //print the parsed object out and test that the output is the same as the original output
         BytesReference finalBytes = toXContent(parsedGetResponse, xContentType, false);
-        assertEquivalent(originalBytes, finalBytes, xContentType);
+        assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
         //check that the source stays unchanged, no shuffling of keys nor anything like that
         assertEquals(expectedGetResponse.getSourceAsString(), parsedGetResponse.getSourceAsString());
 

@@ -47,7 +47,6 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -56,6 +55,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
@@ -76,6 +77,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -772,60 +774,74 @@ public class ElasticsearchAssertions {
     }
 
     /**
-     * Asserts that the provided {@link BytesReference}s hold the same content. The comparison is done between the map
-     * representation of the provided objects.
+     * Asserts that the provided {@link BytesReference}s created through
+     * {@link org.elasticsearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} hold the same content.
+     * The comparison is done by parsing both into a map and comparing those two, so that keys ordering doesn't matter.
+     * Also binary values (byte[]) are properly compared through arrays comparisons.
      */
-    public static void assertEquivalent(BytesReference expected, BytesReference actual, XContentType xContentType) throws IOException {
+    public static void assertToXContentEquivalent(BytesReference expected, BytesReference actual, XContentType xContentType)
+            throws IOException {
         //we tried comparing byte per byte, but that didn't fly for a couple of reasons:
         //1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok
         //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
+        //Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
         try (XContentParser actualParser = xContentType.xContent().createParser(actual)) {
             Map<String, Object> actualMap = actualParser.map();
-            replaceBytesArrays(actualMap);
             try (XContentParser expectedParser = xContentType.xContent().createParser(expected)) {
                 Map<String, Object> expectedMap = expectedParser.map();
-                replaceBytesArrays(expectedMap);
-                assertEquals(expectedMap, actualMap);
+                assertMapEquals(expectedMap, actualMap);
             }
         }
     }
 
     /**
-     * Recursively navigates through the provided map argument and replaces every byte[] with a corresponding BytesArray object holding
-     * the original byte[]. This helps maps to maps comparisons as arrays need to be compared using Arrays.equals otherwise their
-     * references are compared, which is what happens in {@link java.util.AbstractMap#equals(Object)}.
+     * Compares two maps recursively, using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
     @SuppressWarnings("unchecked")
-    private static void replaceBytesArrays(Map<String, Object> map) {
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            Object value = entry.getValue();
-            if (value instanceof byte[]) {
-                map.put(entry.getKey(), new BytesArray((byte[]) value));
-            } else if (value instanceof Map) {
-                replaceBytesArrays((Map<String, Object>) value);
-            } else if (value instanceof List) {
-                List<Object> list = (List<Object>) value;
-                replaceBytesArrays(list);
+    private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual) {
+        assertEquals(expected.size(), actual.size());
+        for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
+            String expectedKey = expectedEntry.getKey();
+            Object expectedValue = expectedEntry.getValue();
+            if (expectedValue == null) {
+                assertTrue(actual.get(expectedKey) == null && actual.containsKey(expectedKey));
+            } else {
+                Object actualValue = actual.get(expectedKey);
+                assertObjectEquals(expectedValue, actualValue);
             }
         }
     }
 
     /**
-     * Recursively navigates through the provided list argument and replaces every byte[] with a corresponding BytesArray object holding
-     * the original byte[]. This helps maps to maps comparisons as arrays need to be compared using Arrays.equals otherwise their
-     * references are compared, which is what happens in {@link java.util.AbstractMap#equals(Object)}.
+     * Compares two lists recursively, but using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
     @SuppressWarnings("unchecked")
-    private static void replaceBytesArrays(List<Object> list) {
-        for (int i = 0; i < list.size(); i++) {
-            Object object = list.get(i);
-            if (object instanceof byte[]) {
-                list.set(i, new BytesArray((byte[]) object));
-            } else if (object instanceof Map) {
-                replaceBytesArrays((Map<String, Object>) object);
-            } else if (object instanceof List) {
-                replaceBytesArrays((List<Object>) object);
-            }
+    private static void assertListEquals(List<Object> expected, List<Object> actual) {
+        assertEquals(expected.size(), actual.size());
+        Iterator<Object> actualIterator = actual.iterator();
+        for (Object expectedValue : expected) {
+            Object actualValue = actualIterator.next();
+            assertObjectEquals(expectedValue, actualValue);
+        }
+    }
+
+    /**
+     * Compares two objects, recursively walking eventual maps and lists encountered, and using arrays comparisons
+     * for byte[] through Arrays.equals(byte[], byte[])
+     */
+    @SuppressWarnings("unchecked")
+    private static void assertObjectEquals(Object expected, Object actual) {
+        if (expected instanceof Map) {
+            assertThat(actual, instanceOf(Map.class));
+            assertMapEquals((Map<String, Object>) expected, (Map<String, Object>) actual);
+        } else if (expected instanceof List) {
+            assertListEquals((List<Object>) expected, (List<Object>) actual);
+        } else if (expected instanceof byte[]) {
+            //byte[] is really a special case for binary values when comparing SMILE and CBOR, arrays of other types
+            //don't need to be handled. Ordinary arrays get parsed as lists.
+            assertArrayEquals((byte[]) expected, (byte[]) actual);
+        } else {
+            assertEquals(expected, actual);
         }
     }
 }

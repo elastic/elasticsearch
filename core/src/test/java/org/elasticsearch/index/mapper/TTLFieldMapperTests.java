@@ -67,9 +67,9 @@ public class TTLFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject()
                 .endObject().endObject().string();
         IndexService index = createIndex("test");
-        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class,
+        MapperParsingException expected = expectThrows(MapperParsingException.class,
                 () -> index.mapperService().merge("type", new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE, false));
-        assertThat(expected.getMessage(), startsWith("[_ttl] is removed"));
+        assertThat(expected.getMessage(), containsString("[_ttl] is removed"));
     }
 
     public void testSimpleDisabled() throws Exception {

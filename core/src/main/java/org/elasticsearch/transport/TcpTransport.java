@@ -148,9 +148,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         Setting.byteSizeSetting("transport.tcp.receive_buffer_size", NetworkService.TcpSettings.TCP_RECEIVE_BUFFER_SIZE,
             Setting.Property.NodeScope);
 
-    // test-setting only
-    static final Setting<Boolean> CONNECTION_HANDSHAKE = Setting.boolSetting("transport.tcp.handshake", true);
-
     private static final long NINETY_PER_HEAP_SIZE = (long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.9);
     private static final int PING_DATA_SIZE = -1;
     protected final boolean blockingClient;
@@ -161,7 +158,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     protected final ThreadPool threadPool;
     private final BigArrays bigArrays;
     protected final NetworkService networkService;
-    private final boolean doHandshakes;
 
     protected volatile TransportServiceAdapter transportServiceAdapter;
     // node id to actual channel
@@ -200,7 +196,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         this.transportName = transportName;
         this.blockingClient = TCP_BLOCKING_CLIENT.get(settings);
         defaultConnectionProfile = buildDefaultConnectionProfile(settings);
-        this.doHandshakes = CONNECTION_HANDSHAKE.get(settings);
     }
 
     static ConnectionProfile buildDefaultConnectionProfile(Settings settings) {
@@ -463,21 +458,13 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                                 "failed to connect to [{}], cleaning dangling connections", node), e);
                         throw e;
                     }
-                    if (doHandshakes) { // some tests need to disable this
-                        Channel channel = nodeChannels.channel(TransportRequestOptions.Type.PING);
-                        final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
-                            defaultConnectionProfile.getConnectTimeout():
-                            connectionProfile.getConnectTimeout();
-                        final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
-                            connectTimeout : connectionProfile.getHandshakeTimeout();
-                        Version version = executeHandshake(node, channel, handshakeTimeout);
-                        if (version != null) {
-                            // this is a BWC layer, if we talk to a pre 5.2 node then the handshake is not supported
-                            // this will go away in master once it's all ported to 5.2 but for now we keep this to make
-                            // the backport straight forward
-                            nodeChannels = new NodeChannels(nodeChannels, version);
-                        }
-                    }
+                    Channel channel = nodeChannels.channel(TransportRequestOptions.Type.PING);
+                    final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
+                        defaultConnectionProfile.getConnectTimeout() :
+                        connectionProfile.getConnectTimeout();
+                    final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
+                        connectTimeout : connectionProfile.getHandshakeTimeout();
+                    Version version = executeHandshake(node, channel, handshakeTimeout);
                     // we acquire a connection lock, so no way there is an existing connection
                     connectedNodes.put(node, nodeChannels);
                     if (logger.isDebugEnabled()) {
@@ -1130,7 +1117,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
      * @param length          the payload length in bytes
      * @see TcpHeader
      */
-    private BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
+    final BytesReference buildHeader(long requestId, byte status, Version protocolVersion, int length) throws IOException {
         try (BytesStreamOutput headerOutput = new BytesStreamOutput(TcpHeader.HEADER_SIZE)) {
             headerOutput.setVersion(protocolVersion);
             TcpHeader.writeHeader(headerOutput, requestId, status, protocolVersion, length);
@@ -1306,7 +1293,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 handleRequest(channel, profileName, streamIn, requestId, messageLengthBytes, version, remoteAddress, status);
             } else {
                 final TransportResponseHandler<?> handler;
-                if (TransportStatus.isHandshake(status) && doHandshakes) {
+                if (TransportStatus.isHandshake(status)) {
                     handler = pendingHandshakes.remove(requestId);
                 } else {
                     TransportResponseHandler theHandler = transportServiceAdapter.onResponseReceived(requestId);
@@ -1398,7 +1385,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         transportServiceAdapter.onRequestReceived(requestId, action);
         TransportChannel transportChannel = null;
         try {
-            if (TransportStatus.isHandshake(status) && doHandshakes) {
+            if (TransportStatus.isHandshake(status)) {
                 final VersionHandshakeResponse response = new VersionHandshakeResponse(getCurrentVersion());
                 sendResponse(version, channel, response, requestId, HANDSHAKE_ACTION_NAME, TransportResponseOptions.EMPTY,
                     TransportStatus.setHandshake((byte)0));
@@ -1509,8 +1496,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         }
     }
 
-    // pkg private for testing
-    final Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException, InterruptedException {
+    protected Version executeHandshake(DiscoveryNode node, Channel channel, TimeValue timeout) throws IOException, InterruptedException {
         numHandshakes.inc();
         final long requestId = newRequestId();
         final HandshakeResponseHandler handler = new HandshakeResponseHandler(channel);
@@ -1520,7 +1506,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         boolean success = false;
         try {
             if (isOpen(channel) == false) {
-                // we have to protect ourself here since sendRequestToChannel won't barf if the channel is closed.
+                // we have to protect us here since sendRequestToChannel won't barf if the channel is closed.
                 // it's weird but to change it will cause a lot of impact on the exception handling code all over the codebase.
                 // yet, if we don't check the state here we might have registered a pending handshake handler but the close
                 // listener calling #onChannelClosed might have already run and we are waiting on the latch below unitl we time out.

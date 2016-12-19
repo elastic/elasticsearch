@@ -148,13 +148,12 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
                 // Loop if more work has become available while we were working, because the
                 // tasks originally submitted to do that work will have exited early.
             } while (tryFinishWork() == false);
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             LOGGER.error("[" + jobId + "] Normalization failed", e);
             if (latch != null) {
                 latch.countDown();
             }
             forceFinishWork();
-            throw e;
         }
     }
 

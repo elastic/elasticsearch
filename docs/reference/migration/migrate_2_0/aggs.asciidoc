@@ -66,8 +66,3 @@ which applies to all bucket aggregations:
 * All other `getKeyAsX()` methods have been removed.
 * The `getBucketAsKey(String)` methods have been removed on all aggregations
   except the `filters` and `terms` aggregations.
-
-
-==== `order: {"count": "asc"}` on Terms
-The ability to sort the terms aggregation by ascending count has been deprecated.
-It is not recommended as it can return inaccurate doc counts and/or select the wrong buckets.

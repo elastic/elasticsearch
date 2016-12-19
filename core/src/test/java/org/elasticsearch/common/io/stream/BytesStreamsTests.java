@@ -456,6 +456,22 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
+    public void testWriteMap() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final Map<String, String> expected = new HashMap<>(randomIntBetween(0, 100));
+        for (int i = 0; i < size; ++i) {
+            expected.put(randomAsciiOfLength(2), randomAsciiOfLength(5));
+        }
+
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        final Map<String, String> loaded = in.readMap(StreamInput::readString, StreamInput::readString);
+
+        assertThat(loaded.size(), equalTo(expected.size()));
+        assertThat(expected, equalTo(loaded));
+    }
+
     public void testWriteMapOfLists() throws IOException {
         final int size = randomIntBetween(0, 5);
         final Map<String, List<String>> expected = new HashMap<>(size);

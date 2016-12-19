@@ -767,7 +767,7 @@ such a case, `target_field` will still be updated with the unconverted field val
 --------------------------------------------------
 {
   "convert": {
-    "field" : "foo"
+    "field" : "foo",
     "type": "integer"
   }
 }
@@ -1473,6 +1473,7 @@ Converts a JSON string into a structured JSON object.
 | Name           | Required  | Default  | Description
 | `field`        | yes       | -        | The field to be parsed
 | `target_field` | no        | `field`  | The field to insert the converted structured object into
+| `add_to_root`  | no        | false    | Flag that forces the serialized json to be injected into the top level of the document. `target_field` must not be set when this option is chosen.
 |======
 
 [source,js]

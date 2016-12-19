@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
@@ -50,6 +49,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting add and remove aliases requests
@@ -172,7 +172,7 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
             return currentState;
         } finally {
             for (Index index : indicesToClose) {
-                indicesService.removeIndex(index, "created for alias processing");
+                indicesService.removeIndex(index, NO_LONGER_ASSIGNED, "created for alias processing");
             }
         }
     }

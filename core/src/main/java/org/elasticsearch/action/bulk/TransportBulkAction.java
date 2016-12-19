@@ -19,19 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.SparseFixedBitSet;
@@ -71,6 +58,18 @@ import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * Groups bulk request items by shard, optionally creating non-existent indices and
@@ -115,7 +114,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.allowIdGeneration = this.settings.getAsBoolean("action.bulk.action.allow_id_generation", true);
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
-        clusterService.add(this.ingestForwarder);
+        clusterService.addStateApplier(this.ingestForwarder);
     }
 
     @Override

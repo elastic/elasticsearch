@@ -35,6 +35,7 @@ way to reindex old indices is to use the `reindex` API.
 * <<breaking_60_plugins_changes>>
 * <<breaking_60_indices_changes>>
 * <<breaking_60_scripting_changes>>
+* <<breaking_60_ingest_changes>>
 
 include::migrate_6_0/cat.asciidoc[]
 
@@ -57,3 +58,5 @@ include::migrate_6_0/plugins.asciidoc[]
 include::migrate_6_0/indices.asciidoc[]
 
 include::migrate_6_0/scripting.asciidoc[]
+
+include::migrate_6_0/ingest.asciidoc[]

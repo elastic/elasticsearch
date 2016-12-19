@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -68,6 +69,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
+import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -114,7 +116,11 @@ public class ClusterStateHealthTests extends ESTestCase {
     public void testClusterHealthWaitsForClusterStateApplication() throws InterruptedException, ExecutionException {
         final CountDownLatch applyLatch = new CountDownLatch(1);
         final CountDownLatch listenerCalled = new CountDownLatch(1);
-        clusterService.add(event -> {
+
+        setState(clusterService, ClusterState.builder(clusterService.state())
+            .nodes(DiscoveryNodes.builder(clusterService.state().nodes()).masterNodeId(null)).build());
+
+        clusterService.addStateApplier(event -> {
             listenerCalled.countDown();
             try {
                 applyLatch.await();
@@ -123,15 +129,22 @@ public class ClusterStateHealthTests extends ESTestCase {
             }
         });
 
-        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        logger.info("--> submit task to restore master");
+        clusterService.submitStateUpdateTask("restore master", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                return ClusterState.builder(currentState).build();
+                final DiscoveryNodes nodes = currentState.nodes();
+                return ClusterState.builder(currentState).nodes(DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId())).build();
             }
 
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn("unexpected failure", e);
+            }
+
+            @Override
+            public boolean runOnlyOnMaster() {
+                return false;
             }
         });
 
@@ -141,10 +154,11 @@ public class ClusterStateHealthTests extends ESTestCase {
         TransportClusterHealthAction action = new TransportClusterHealthAction(Settings.EMPTY, transportService,
             clusterService, threadPool, new ActionFilters(new HashSet<>()), indexNameExpressionResolver, new TestGatewayAllocator());
         PlainActionFuture<ClusterHealthResponse> listener = new PlainActionFuture<>();
-        action.execute(new ClusterHealthRequest(), listener);
+        action.execute(new ClusterHealthRequest().waitForGreenStatus(), listener);
 
         assertFalse(listener.isDone());
 
+        logger.info("--> realising task to restore master");
         applyLatch.countDown();
         listener.get();
     }

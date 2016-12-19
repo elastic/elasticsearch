@@ -22,6 +22,7 @@ package org.elasticsearch.common.settings.loader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
@@ -68,6 +69,9 @@ public class YamlSettingsLoaderTests extends ESTestCase {
     }
 
     public void testDuplicateKeysThrowsException() {
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
+
         String yaml = "foo: bar\nfoo: baz";
         SettingsException e = expectThrows(SettingsException.class, () -> {
             Settings.builder().loadFromSource(yaml);

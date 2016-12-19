@@ -34,8 +34,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.ClusterServiceState;
-import org.elasticsearch.cluster.service.ClusterStateStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -45,6 +43,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.function.Predicate;
 
 public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
@@ -142,19 +142,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
         assert waitFor >= 0;
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
-        final ClusterServiceState observedState = observer.observedState();
-        final ClusterState state = observedState.getClusterState();
+        final ClusterState state = observer.observedState();
         if (request.timeout().millis() == 0) {
             listener.onResponse(getResponse(request, state, waitFor, request.timeout().millis() == 0));
             return;
         }
         final int concreteWaitFor = waitFor;
-        final ClusterStateObserver.ChangePredicate validationPredicate = new ClusterStateObserver.ValidationPredicate() {
-            @Override
-            protected boolean validate(ClusterServiceState newState) {
-                return newState.getClusterStateStatus() == ClusterStateStatus.APPLIED && validateRequest(request, newState.getClusterState(), concreteWaitFor);
-            }
-        };
+        final Predicate<ClusterState> validationPredicate = newState -> validateRequest(request, newState, concreteWaitFor);
 
         final ClusterStateObserver.Listener stateListener = new ClusterStateObserver.Listener() {
             @Override
@@ -174,7 +168,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 listener.onResponse(response);
             }
         };
-        if (observedState.getClusterStateStatus() == ClusterStateStatus.APPLIED && validateRequest(request, state, concreteWaitFor)) {
+        if (validationPredicate.test(state)) {
             stateListener.onNewClusterState(state);
         } else {
             observer.waitForNextChange(stateListener, validationPredicate, request.timeout());

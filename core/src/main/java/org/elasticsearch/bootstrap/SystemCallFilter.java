@@ -43,8 +43,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Installs a limited form of secure computing mode,
- * to filters system calls to block process execution.
+ * Installs a system call filter to block process execution.
  * <p>
  * This is supported on Linux, Solaris, FreeBSD, OpenBSD, Mac OS X, and Windows.
  * <p>
@@ -91,8 +90,8 @@ import java.util.Map;
  *      https://docs.oracle.com/cd/E23824_01/html/821-1456/prbac-2.html</a>
  */
 // not an example of how to write code!!!
-final class Seccomp {
-    private static final Logger logger = Loggers.getLogger(Seccomp.class);
+final class SystemCallFilter {
+    private static final Logger logger = Loggers.getLogger(SystemCallFilter.class);
 
     // Linux implementation, based on seccomp(2) or prctl(2) with bpf filtering
 
@@ -269,7 +268,8 @@ final class Seccomp {
 
         // we couldn't link methods, could be some really ancient kernel (e.g. < 2.1.57) or some bug
         if (linux_libc == null) {
-            throw new UnsupportedOperationException("seccomp unavailable: could not link methods. requires kernel 3.5+ with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
+            throw new UnsupportedOperationException("seccomp unavailable: could not link methods. requires kernel 3.5+ " +
+                "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
         }
 
         // pure paranoia:
@@ -319,7 +319,8 @@ final class Seccomp {
             switch (errno) {
                 case ENOSYS: break; // ok
                 case EINVAL: break; // ok
-                default: throw new UnsupportedOperationException("seccomp(SECCOMP_SET_MODE_FILTER, BOGUS_FLAG): " + JNACLibrary.strerror(errno));
+                default: throw new UnsupportedOperationException("seccomp(SECCOMP_SET_MODE_FILTER, BOGUS_FLAG): "
+                                                                 + JNACLibrary.strerror(errno));
             }
         }
 
@@ -346,7 +347,8 @@ final class Seccomp {
                 int errno = Native.getLastError();
                 if (errno == EINVAL) {
                     // friendly error, this will be the typical case for an old kernel
-                    throw new UnsupportedOperationException("seccomp unavailable: requires kernel 3.5+ with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
+                    throw new UnsupportedOperationException("seccomp unavailable: requires kernel 3.5+ with" +
+                                                            " CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
                 } else {
                     throw new UnsupportedOperationException("prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(errno));
                 }
@@ -358,7 +360,8 @@ final class Seccomp {
             default:
                 int errno = Native.getLastError();
                 if (errno == EINVAL) {
-                    throw new UnsupportedOperationException("seccomp unavailable: CONFIG_SECCOMP not compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed");
+                    throw new UnsupportedOperationException("seccomp unavailable: CONFIG_SECCOMP not compiled into kernel," +
+                                                            " CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed");
                 } else {
                     throw new UnsupportedOperationException("prctl(PR_GET_SECCOMP): " + JNACLibrary.strerror(errno));
                 }
@@ -368,7 +371,8 @@ final class Seccomp {
             int errno = Native.getLastError();
             switch (errno) {
                 case EFAULT: break; // available
-                case EINVAL: throw new UnsupportedOperationException("seccomp unavailable: CONFIG_SECCOMP_FILTER not compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed");
+                case EINVAL: throw new UnsupportedOperationException("seccomp unavailable: CONFIG_SECCOMP_FILTER not" +
+                    " compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed");
                 default: throw new UnsupportedOperationException("prctl(PR_SET_SECCOMP): " + JNACLibrary.strerror(errno));
             }
         }
@@ -380,10 +384,12 @@ final class Seccomp {
 
         // check it worked
         if (linux_prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) != 1) {
-            throw new UnsupportedOperationException("seccomp filter did not really succeed: prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(Native.getLastError()));
+            throw new UnsupportedOperationException("seccomp filter did not really succeed: prctl(PR_GET_NO_NEW_PRIVS): " +
+                                                    JNACLibrary.strerror(Native.getLastError()));
         }
 
-        // BPF installed to check arch, limit, then syscall. See https://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt for details.
+        // BPF installed to check arch, limit, then syscall.
+        // See https://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt for details.
         SockFilter insns[] = {
           /* 1  */ BPF_STMT(BPF_LD  + BPF_W   + BPF_ABS, SECCOMP_DATA_ARCH_OFFSET),             //
           /* 2  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,   arch.audit,     0, 7),                 // if (arch != audit) goto fail;
@@ -408,7 +414,8 @@ final class Seccomp {
             method = 0;
             int errno1 = Native.getLastError();
             if (logger.isDebugEnabled()) {
-                logger.debug("seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...", JNACLibrary.strerror(errno1));
+                logger.debug("seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...",
+                             JNACLibrary.strerror(errno1));
             }
             if (linux_prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, pointer, 0, 0) != 0) {
                 int errno2 = Native.getLastError();
@@ -419,7 +426,8 @@ final class Seccomp {
 
         // now check that the filter was really installed, we should be in filter mode.
         if (linux_prctl(PR_GET_SECCOMP, 0, 0, 0, 0) != 2) {
-            throw new UnsupportedOperationException("seccomp filter installation did not really succeed. seccomp(PR_GET_SECCOMP): " + JNACLibrary.strerror(Native.getLastError()));
+            throw new UnsupportedOperationException("seccomp filter installation did not really succeed. seccomp(PR_GET_SECCOMP): "
+                                                    + JNACLibrary.strerror(Native.getLastError()));
         }
 
         logger.debug("Linux seccomp filter installation successful, threads: [{}]", method == 1 ? "all" : "app" );

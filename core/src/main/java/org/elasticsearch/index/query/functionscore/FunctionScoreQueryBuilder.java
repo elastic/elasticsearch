@@ -425,6 +425,7 @@ public class FunctionScoreQueryBuilder extends AbstractQueryBuilder<FunctionScor
             newQueryBuilder.scoreMode = scoreMode;
             newQueryBuilder.minScore = minScore;
             newQueryBuilder.maxBoost = maxBoost;
+            newQueryBuilder.boostMode = boostMode;
             return newQueryBuilder;
         }
         return this;

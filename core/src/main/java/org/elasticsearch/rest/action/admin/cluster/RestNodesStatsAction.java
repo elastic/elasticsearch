@@ -34,7 +34,6 @@ import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -180,8 +179,8 @@ public class RestNodesStatsAction extends BaseRestHandler {
         if (nodesStatsRequest.indices().isSet(Flag.Indexing) && (request.hasParam("types"))) {
             nodesStatsRequest.indices().types(request.paramAsStringArray("types", null));
         }
-        if (nodesStatsRequest.indices().isSet(Flag.Segments) && (request.hasParam("include_segment_file_sizes"))) {
-            nodesStatsRequest.indices().includeSegmentFileSizes(true);
+        if (nodesStatsRequest.indices().isSet(Flag.Segments)) {
+            nodesStatsRequest.indices().includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
         }
 
         return channel -> client.admin().cluster().nodesStats(nodesStatsRequest, new NodesResponseRestListener<>(channel));

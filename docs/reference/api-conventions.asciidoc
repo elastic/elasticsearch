@@ -600,7 +600,8 @@ invalid `size` parameter to the `_search` API:
 POST /twitter/_search?size=surprise_me
 ----------------------------------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[s/surprise_me/surprise_me&error_trace=false/ catch:request]
+// Since the test system sends error_trace=true by default we have to override
 
 The response looks like:
 

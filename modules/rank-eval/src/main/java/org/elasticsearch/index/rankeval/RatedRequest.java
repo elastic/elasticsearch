@@ -63,7 +63,6 @@ public class RatedRequest extends ToXContentToBytes implements Writeable {
     @Nullable
     private String templateId;
 
-    // TODO include template id in sanity checks
     public RatedRequest(
             String id, List<RatedDocument> ratedDocs, SearchSourceBuilder testRequest, Map<String, Object> params, String templateId) {
         if (params != null && (params.size() > 0 && testRequest != null)) {

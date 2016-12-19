@@ -20,7 +20,6 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -52,7 +51,6 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     /** Definition of the quality metric, e.g. precision at N */
     private RankedListQualityMetric metric;
     /** optional: Template to base test requests on */
-    @Nullable
     private Map<String, Script> templates = new HashMap<>();
 
     public RankEvalSpec(Collection<RatedRequest> ratedRequests, RankedListQualityMetric metric, Collection<ScriptWithId> templates) {
@@ -87,13 +85,13 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
     }
 
     public RankEvalSpec(StreamInput in) throws IOException {
-        int specSize = in.readInt();
+        int specSize = in.readVInt();
         ratedRequests = new ArrayList<>(specSize);
         for (int i = 0; i < specSize; i++) {
             ratedRequests.add(new RatedRequest(in));
         }
         metric = in.readNamedWriteable(RankedListQualityMetric.class);
-        int size = in.readInt();
+        int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             String key = in.readString();
             Script value = new Script(in);
@@ -103,12 +101,12 @@ public class RankEvalSpec extends ToXContentToBytes implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeInt(ratedRequests.size());
+        out.writeVInt(ratedRequests.size());
         for (RatedRequest spec : ratedRequests) {
             spec.writeTo(out);
         }
         out.writeNamedWriteable(metric);
-        out.writeInt(templates.size());
+        out.writeVInt(templates.size());
         for (Entry<String, Script> entry : templates.entrySet()) {
             out.writeString(entry.getKey());
             entry.getValue().writeTo(out);

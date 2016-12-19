@@ -48,6 +48,8 @@ import java.util.Set;
 
 public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
 
+    private static final String MATCH_TEMPLATE = "match_template";
+
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(RankEvalPlugin.class);
@@ -86,7 +88,7 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         Map<String, Object> ams_params = new HashMap<>();
         ams_params.put("querystring", "amsterdam");
         RatedRequest amsterdamRequest = new RatedRequest(
-                "amsterdam_query", createRelevant("2", "3", "4", "5"), ams_params, "match_template");
+                "amsterdam_query", createRelevant("2", "3", "4", "5"), ams_params, MATCH_TEMPLATE);
         amsterdamRequest.setIndices(indices);
         amsterdamRequest.setTypes(types);
 
@@ -95,7 +97,7 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
         Map<String, Object> berlin_params = new HashMap<>();
         berlin_params.put("querystring", "berlin");
         RatedRequest berlinRequest = new RatedRequest(
-                "berlin_query", createRelevant("1"), berlin_params, "match_template");
+                "berlin_query", createRelevant("1"), berlin_params, MATCH_TEMPLATE);
         berlinRequest.setIndices(indices);
         berlinRequest.setTypes(types);
         specifications.add(berlinRequest);
@@ -104,7 +106,7 @@ public class SmokeMultipleTemplatesIT  extends ESIntegTestCase {
 
         ScriptWithId template = 
                 new ScriptWithId(
-                        "match_template",
+                        MATCH_TEMPLATE,
                         new Script(
                                 ScriptType.INLINE,
                                 "mustache", "{\"query\": {\"match\": {\"text\": \"{{querystring}}\"}}}",

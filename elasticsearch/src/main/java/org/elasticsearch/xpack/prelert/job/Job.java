@@ -417,7 +417,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field(ID.getPreferredName(), jobId);
-        builder.field(DESCRIPTION.getPreferredName(), description);
+        if (description != null) {
+            builder.field(DESCRIPTION.getPreferredName(), description);
+        }
         builder.field(CREATE_TIME.getPreferredName(), createTime.getTime());
         if (finishedTime != null) {
             builder.field(FINISHED_TIME.getPreferredName(), finishedTime.getTime());

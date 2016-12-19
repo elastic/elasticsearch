@@ -61,6 +61,8 @@ public interface ShardSearchRequest {
 
     QueryBuilder filteringAliases();
 
+    float indexBoost();
+
     long nowInMillis();
 
     Boolean requestCache();

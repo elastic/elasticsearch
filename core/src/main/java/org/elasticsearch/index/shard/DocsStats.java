@@ -57,12 +57,6 @@ public class DocsStats implements Streamable, ToXContent {
         return this.deleted;
     }
 
-    public static DocsStats readDocStats(StreamInput in) throws IOException {
-        DocsStats docsStats = new DocsStats();
-        docsStats.readFrom(in);
-        return docsStats;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         count = in.readVLong();

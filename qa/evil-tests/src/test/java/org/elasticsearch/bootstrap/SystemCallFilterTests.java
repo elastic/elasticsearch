@@ -22,30 +22,30 @@ package org.elasticsearch.bootstrap;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
-/** Simple tests seccomp filter is working. */
-public class SeccompTests extends ESTestCase {
-    
+/** Simple tests system call filter is working. */
+public class SystemCallFilterTests extends ESTestCase {
+
     /** command to try to run in tests */
     static final String EXECUTABLE = Constants.WINDOWS ? "calc" : "ls";
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        assumeTrue("requires seccomp filter installation", Natives.isSeccompInstalled());
+        assumeTrue("requires system call filter installation", Natives.isSystemCallFilterInstalled());
         // otherwise security manager will block the execution, no fun
         assumeTrue("cannot test with security manager enabled", System.getSecurityManager() == null);
         // otherwise, since we don't have TSYNC support, rules are not applied to the test thread
         // (randomizedrunner class initialization happens in its own thread, after the test thread is created)
         // instead we just forcefully run it for the test thread here.
-        if (!JNANatives.LOCAL_SECCOMP_ALL) {
+        if (!JNANatives.LOCAL_SYSTEM_CALL_FILTER_ALL) {
             try {
-                Seccomp.init(createTempDir());
+                SystemCallFilter.init(createTempDir());
             } catch (Exception e) {
-                throw new RuntimeException("unable to forcefully apply seccomp to test thread", e);
+                throw new RuntimeException("unable to forcefully apply system call filter to test thread", e);
             }
         }
     }
-    
+
     public void testNoExecution() throws Exception {
         try {
             Runtime.getRuntime().exec(EXECUTABLE);
@@ -63,11 +63,11 @@ public class SeccompTests extends ESTestCase {
                     at java.lang.UNIXProcess.<init>(UNIXProcess.java:248)
                     at java.lang.ProcessImpl.start(ProcessImpl.java:134)
                     at java.lang.ProcessBuilder.start(ProcessBuilder.java:1029)
-                    ... 
+                    ...
             */
         }
     }
-    
+
     // make sure thread inherits this too (its documented that way)
     public void testNoExecutionFromThread() throws Exception {
         Thread t = new Thread() {

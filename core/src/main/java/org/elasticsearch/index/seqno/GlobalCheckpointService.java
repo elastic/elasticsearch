@@ -149,12 +149,14 @@ public class GlobalCheckpointService extends AbstractIndexShardComponent {
      * updates the global checkpoint on a replica shard (after it has been updated by the primary).
      */
     synchronized void updateCheckpointOnReplica(long globalCheckpoint) {
+        /*
+         * The global checkpoint here is a local knowledge which is updated under the mandate of the primary. It can happen that the primary
+         * information is lagging compared to a replica (e.g., if a replica is promoted to primary but has stale info relative to other
+         * replica shards). In these cases, the local knowledge of the global checkpoint could be higher than sync from the lagging primary.
+         */
         if (this.globalCheckpoint <= globalCheckpoint) {
             this.globalCheckpoint = globalCheckpoint;
             logger.trace("global checkpoint updated from primary to [{}]", globalCheckpoint);
-        } else {
-            throw new IllegalArgumentException("global checkpoint from primary should never decrease. current [" +
-                this.globalCheckpoint + "], got [" + globalCheckpoint + "]");
         }
     }
 

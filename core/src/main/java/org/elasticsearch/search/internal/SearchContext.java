@@ -148,8 +148,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
 
     public abstract float queryBoost();
 
-    public abstract SearchContext queryBoost(float queryBoost);
-
     public abstract long getOriginNanoTime();
 
     public abstract ScrollContext scrollContext();

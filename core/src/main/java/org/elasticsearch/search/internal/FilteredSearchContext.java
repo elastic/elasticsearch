@@ -37,7 +37,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -142,11 +141,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public float queryBoost() {
         return in.queryBoost();
-    }
-
-    @Override
-    public SearchContext queryBoost(float queryBoost) {
-        return in.queryBoost(queryBoost);
     }
 
     @Override

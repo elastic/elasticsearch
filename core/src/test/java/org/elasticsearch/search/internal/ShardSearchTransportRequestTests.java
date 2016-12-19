@@ -81,6 +81,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
                 assertEquals(deserializedRequest.cacheKey(), shardSearchTransportRequest.cacheKey());
                 assertNotSame(deserializedRequest, shardSearchTransportRequest);
                 assertEquals(deserializedRequest.filteringAliases(), shardSearchTransportRequest.filteringAliases());
+                assertEquals(deserializedRequest.indexBoost(), shardSearchTransportRequest.indexBoost(), 0.0f);
             }
         }
     }
@@ -96,7 +97,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
             filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
         }
         return new ShardSearchTransportRequest(searchRequest, shardId,
-                randomIntBetween(1, 100), filteringAliases, Math.abs(randomLong()));
+                randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(), Math.abs(randomLong()));
     }
 
     public void testFilteringAliases() throws Exception {
@@ -212,4 +213,24 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
         }
     }
 
+    // BWC test for changes from #21393
+    public void testSerialize50RequestForIndexBoost() throws IOException {
+        BytesArray requestBytes = new BytesArray(Base64.getDecoder()
+            // this is a base64 encoded request generated with the same input
+            .decode("AAZpbmRleDEWTjEyM2trbHFUT21XZDY1Z2VDYlo5ZwABBAABAAIA/wD/////DwABBmluZGV4MUAAAAAAAAAAAP////8PAAAAAAAAAgAAAA" +
+                "AAAPa/q8mOKwIAJg=="));
+
+        try (StreamInput in = new NamedWriteableAwareStreamInput(requestBytes.streamInput(), namedWriteableRegistry)) {
+            in.setVersion(Version.V_5_0_0);
+            ShardSearchTransportRequest readRequest = new ShardSearchTransportRequest();
+            readRequest.readFrom(in);
+            assertEquals(0, in.available());
+            assertEquals(2.0f, readRequest.indexBoost(), 0);
+
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.setVersion(Version.V_5_0_0);
+            readRequest.writeTo(output);
+            assertEquals(output.bytes().toBytesRef(), requestBytes.toBytesRef());
+        }
+    }
 }

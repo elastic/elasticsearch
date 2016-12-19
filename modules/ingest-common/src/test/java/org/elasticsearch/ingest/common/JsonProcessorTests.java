@@ -39,7 +39,7 @@ public class JsonProcessorTests extends ESTestCase {
         String processorTag = randomAsciiOfLength(3);
         String randomField = randomAsciiOfLength(3);
         String randomTargetField = randomAsciiOfLength(2);
-        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, randomField, randomTargetField);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, randomField, randomTargetField, false);
         Map<String, Object> document = new HashMap<>();
 
         Map<String, Object> randomJsonMap = RandomDocumentPicks.randomSource(random());
@@ -54,7 +54,7 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testInvalidJson() {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field");
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field", false);
         Map<String, Object> document = new HashMap<>();
         document.put("field", "invalid json");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
@@ -66,11 +66,34 @@ public class JsonProcessorTests extends ESTestCase {
     }
 
     public void testFieldMissing() {
-        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field");
+        JsonProcessor jsonProcessor = new JsonProcessor("tag", "field", "target_field", false);
         Map<String, Object> document = new HashMap<>();
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
         assertThat(exception.getMessage(), equalTo("field [field] not present as part of path [field]"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testAddToRoot() throws Exception {
+        String processorTag = randomAsciiOfLength(3);
+        String randomTargetField = randomAsciiOfLength(2);
+        JsonProcessor jsonProcessor = new JsonProcessor(processorTag, "a", randomTargetField, true);
+        Map<String, Object> document = new HashMap<>();
+
+        String json = "{\"a\": 1, \"b\": 2}";
+        document.put("a", json);
+        document.put("c", "see");
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        jsonProcessor.execute(ingestDocument);
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("a", 1);
+        expected.put("b", 2);
+        expected.put("c", "see");
+        IngestDocument expectedIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), expected);
+
+        assertIngestDocument(ingestDocument, expectedIngestDocument);
     }
 }

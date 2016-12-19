@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.normalizer;
+
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.prelert.job.process.normalizer.output.NormalizerResultHandler;
+
+import java.io.IOException;
 import java.io.PipedInputStream;
 import java.io.PipedOutputStream;
 

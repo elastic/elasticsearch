@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.action;
+
+import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction.Response;
+import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
+import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
+import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class GetModelSnapshotsActionResponseTests extends AbstractStreamableTestCase<GetModelSnapshotsAction.Response> {
+
     @Override
     protected Response createTestInstance() {
         int listSize = randomInt(10);

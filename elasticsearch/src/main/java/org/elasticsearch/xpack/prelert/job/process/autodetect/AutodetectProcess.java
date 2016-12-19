@@ -3,6 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.autodetect;
+
+import org.elasticsearch.xpack.prelert.job.process.autodetect.params.DataLoadParams;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
+
+import java.io.Closeable;
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.ZonedDateTime;
+
+/**
+ * Interface representing the native C++ autodetect process
+ */
 public interface AutodetectProcess extends Closeable {
 
     /**

@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.persistence;
+
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.prelert.job.CategorizerState;
+import org.elasticsearch.xpack.prelert.job.DataCounts;
+import org.elasticsearch.xpack.prelert.job.Job;
+import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
+import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
+import org.elasticsearch.xpack.prelert.job.ModelState;
+import org.elasticsearch.xpack.prelert.job.audit.AuditActivity;
+import org.elasticsearch.xpack.prelert.job.audit.AuditMessage;
+import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyCause;
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;

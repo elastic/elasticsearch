@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.utils;
+
+import java.util.regex.Pattern;
+
+/**
+ * Another String utilities class. Class name is prefixed with Prelert to avoid confusion
+ * with one of the myriad String utility classes out there.
+ */
+public final class PrelertStrings {
+
+    private static final Pattern NEEDS_QUOTING = Pattern.compile("\\W");
+
     /**
      * Valid user id pattern.
      * Matches a string that contains lower case characters, digits, hyphens, underscores or dots.

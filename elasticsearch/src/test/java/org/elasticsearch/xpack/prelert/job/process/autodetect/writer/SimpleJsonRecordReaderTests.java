@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
+
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.prelert.job.status.CountingInputStream;
+import org.elasticsearch.xpack.prelert.job.status.StatusReporter;
+
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.core.JsonParser;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;

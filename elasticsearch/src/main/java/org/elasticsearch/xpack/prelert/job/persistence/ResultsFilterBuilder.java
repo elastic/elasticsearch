@@ -3,6 +3,17 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.persistence;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 
 /**
  * This builder facilitates the creation of a {@link QueryBuilder} with common

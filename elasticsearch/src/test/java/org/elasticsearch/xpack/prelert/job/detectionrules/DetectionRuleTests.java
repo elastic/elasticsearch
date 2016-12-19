@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.detectionrules;
+
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.prelert.job.condition.Condition;
+import org.elasticsearch.xpack.prelert.job.condition.Operator;
+import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 

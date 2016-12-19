@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
+
+import java.io.IOException;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Map;
+
+import org.apache.logging.log4j.Logger;
+
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+
 class SimpleJsonRecordReader extends AbstractJsonRecordReader {
     private Deque<String> nestedFields;
     private String nestedPrefix;

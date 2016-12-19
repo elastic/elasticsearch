@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.action;
+
+import org.elasticsearch.xpack.prelert.action.FlushJobAction.Request;
+import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
+
+public class PostDataFlushRequestTests extends AbstractStreamableTestCase<Request> {
+
+    @Override
+    protected Request createTestInstance() {
+        Request request = new Request(randomAsciiOfLengthBetween(1, 20));
+        request.setCalcInterim(randomBoolean());
+        if (randomBoolean()) {
             request.setStart(randomAsciiOfLengthBetween(1, 20));
         }
         if (randomBoolean()) {

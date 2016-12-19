@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.normalizer;
+
+import java.util.Collections;
+import java.util.List;
+
+abstract class AbstractLeafNormalizable implements Normalizable {
+    @Override
+    public final boolean isContainerOnly() {
+        return false;
+    }
+
+    @Override
     public final List<Integer> getChildrenTypes() {
         return Collections.emptyList();
     }

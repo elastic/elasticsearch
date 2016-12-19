@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.normalizer.noop;
+
+import org.elasticsearch.xpack.prelert.job.process.normalizer.Renormalizer;
+import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
+
+/**
+ * A {@link Renormalizer} implementation that does absolutely nothing
+ * This should be removed when the normalizer code is ported
+ */
+public class NoOpRenormalizer implements Renormalizer {
+
+    @Override
     public void renormalize(Quantiles quantiles) {
     }
 

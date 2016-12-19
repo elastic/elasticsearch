@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.transform.verification;
+
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.xpack.prelert.job.messages.Messages;
+import org.elasticsearch.xpack.prelert.job.transform.IntRange;
+import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
+import org.elasticsearch.xpack.prelert.job.transform.TransformType;
+
+import java.util.List;
+
+public final class TransformConfigVerifier {
+    private TransformConfigVerifier() {
         // Hide default constructor
     }
 

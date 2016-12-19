@@ -3,6 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.status;
+
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+
+/**
+ * Simple wrapper around an inputstream instance that counts
+ * all the bytes passing through it reporting that number to
+ * the {@link StatusReporter}
+ * <p>
+ * Overrides the read methods counting the number of bytes read.
+ */
 public class CountingInputStream extends FilterInputStream {
     private StatusReporter statusReporter;
 

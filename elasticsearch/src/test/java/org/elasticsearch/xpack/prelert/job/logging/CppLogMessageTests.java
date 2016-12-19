@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.logging;
+
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
+
+public class CppLogMessageTests extends AbstractSerializingTestCase<CppLogMessage> {
+
+    public void testDefaultConstructor() {
+        CppLogMessage msg = new CppLogMessage();
+        assertEquals("", msg.getLogger());
         assertTrue(msg.getTimestamp().toString(), msg.getTimestamp().getTime() > 0);
         assertEquals("", msg.getLevel());
         assertEquals(0, msg.getPid());

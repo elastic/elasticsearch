@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.action;
+
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.prelert.action.ValidateTransformsAction.Request;
+import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
+import org.elasticsearch.xpack.prelert.job.transform.TransformType;
+import org.elasticsearch.xpack.prelert.support.AbstractStreamableXContentTestCase;
+
+import java.util.ArrayList;
+import java.util.List;
+
 public class ValidateTransformsActionRequestTests extends AbstractStreamableXContentTestCase<ValidateTransformsAction.Request> {
 
     @Override

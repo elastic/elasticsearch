@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.extraction;
+
+import org.apache.logging.log4j.Logger;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Optional;
+
+public interface DataExtractor {
+    /**
+     * Set-up the extractor for a new search
+     *
      * @param start start time
      * @param end end time
      * @param logger logger

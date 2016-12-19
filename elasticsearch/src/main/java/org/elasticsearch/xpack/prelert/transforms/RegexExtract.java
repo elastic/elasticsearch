@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.transforms;
+
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.apache.logging.log4j.Logger;
+
+public class RegexExtract extends Transform {
+    private final Pattern pattern;
+
+    public RegexExtract(String regex, List<TransformIndex> readIndexes,
             List<TransformIndex> writeIndexes, Logger logger) {
         super(readIndexes, writeIndexes, logger);
 

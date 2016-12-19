@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job;
+
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.prelert.job.messages.Messages;
+import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
+
+public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLimits> {
+
+    @Override
+    protected AnalysisLimits createTestInstance() {
         return new AnalysisLimits(randomBoolean() ? randomLong() : null, randomBoolean() ? randomPositiveLong() : null);
     }
 

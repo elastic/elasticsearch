@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.scheduler.http;
+
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+
+public class ElasticsearchUrlBuilderTests extends ESTestCase {
+
+    private static final List<String> SINGLE_INDEX = Arrays.asList("foo-*");
+    private static final List<String> TWO_INDEXES = Arrays.asList("index_1", "index_2");
     private static final List<String> EMPTY_TYPES = Collections.emptyList();
     private static final List<String> TWO_TYPES = Arrays.asList("type_1", "type_2");
 

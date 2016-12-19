@@ -3,6 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.detectionrules;
+
+import java.io.IOException;
+
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+
+public class RuleConditionTypeTests extends ESTestCase {
+
     public void testForString() {
         assertEquals(RuleConditionType.CATEGORICAL, RuleConditionType.forString("categorical"));
         assertEquals(RuleConditionType.CATEGORICAL, RuleConditionType.forString("CATEGORICAL"));

@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
+
+import java.io.IOException;
+import java.util.List;
+
+/**
+ * Interface for classes that write arrays of strings to the
+ * Prelert analytics processes.
+ */
+public interface RecordWriter {
+    /**
+     * Value must match api::CAnomalyDetector::CONTROL_FIELD_NAME in the C++
      * code.
      */
     String CONTROL_FIELD_NAME = ".";

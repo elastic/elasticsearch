@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.transforms;
+
+import java.util.List;
+import java.util.Locale;
+import java.util.function.Function;
+
+import org.apache.logging.log4j.Logger;
+
+public class StringTransform extends Transform {
+    private final Function<String, String> convertFunction;
+
+    private StringTransform(Function<String, String> convertFunction,
             List<TransformIndex> readIndexes, List<TransformIndex> writeIndexes, Logger logger) {
         super(readIndexes, writeIndexes, logger);
         this.convertFunction = convertFunction;

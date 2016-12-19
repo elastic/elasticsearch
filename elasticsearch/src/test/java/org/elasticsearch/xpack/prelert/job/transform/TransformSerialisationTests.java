@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.transform;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+
+public class TransformSerialisationTests extends ESTestCase {
+
     public void testDeserialise_singleFieldAsArray() throws JsonProcessingException, IOException {
 
         String json = "{\"inputs\":\"dns\", \"transform\":\"domain_split\"}";

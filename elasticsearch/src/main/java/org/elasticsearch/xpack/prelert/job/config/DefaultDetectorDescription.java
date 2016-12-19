@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.config;
+
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.prelert.job.Detector;
+import org.elasticsearch.xpack.prelert.utils.PrelertStrings;
+
+
+public final class DefaultDetectorDescription {
+    private static final String BY_TOKEN = " by ";
+    private static final String OVER_TOKEN = " over ";
+
+    private static final String USE_NULL_OPTION = " usenull=";
     private static final String PARTITION_FIELD_OPTION = " partitionfield=";
     private static final String EXCLUDE_FREQUENT_OPTION = " excludefrequent=";
 

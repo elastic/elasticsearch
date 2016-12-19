@@ -3,6 +3,21 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.transforms;
+
+import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.ListIterator;
+
+import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
+
+/**
+ * Transform inputs and outputs can be chained together this class provides
+ * methods for finding the chains of dependencies is a list of transforms. The
+ * results are ordered list of transforms that should be executed in order
+ * starting at index 0
+ */
 public final class DependencySorter {
     /**
      * Hide public constructor

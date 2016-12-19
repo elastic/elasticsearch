@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.transforms;
+
+import org.elasticsearch.test.ESTestCase;
+
+// TODO Reimplement
+public class HighestRegisteredDomainTests extends ESTestCase {
+    // private void checkHighestRegisteredDomain(String fullName, String
+    // registeredNameExpected)
+    // {
+    // InternetDomainName effectiveTLD = InternetDomainName.from(fullName);
+    //
+    // effectiveTLD = effectiveTLD.topPrivateDomain();
     // assertTrue(effectiveTLD.isTopPrivateDomain());
     // String registeredName = effectiveTLD.toString();
     //

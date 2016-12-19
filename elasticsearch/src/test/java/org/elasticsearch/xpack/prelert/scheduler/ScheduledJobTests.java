@@ -3,6 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.scheduler;
+
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.prelert.action.FlushJobAction;
+import org.elasticsearch.xpack.prelert.action.JobDataAction;
+import org.elasticsearch.xpack.prelert.job.DataCounts;
+import org.elasticsearch.xpack.prelert.job.audit.Auditor;
+import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
+import org.junit.Before;
+import org.mockito.ArgumentCaptor;
+
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;

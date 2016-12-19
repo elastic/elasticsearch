@@ -3,6 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.autodetect;
+
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.output.FlushAcknowledgement;
+import org.elasticsearch.xpack.prelert.job.process.autodetect.params.InterimResultsParams;
+import org.elasticsearch.xpack.prelert.job.results.AutodetectResult;
+
+public class BlackHoleAutodetectProcessTests extends ESTestCase {
+
     public void testFlushJob_writesAck() throws Exception {
         try (BlackHoleAutodetectProcess process = new BlackHoleAutodetectProcess()) {
 

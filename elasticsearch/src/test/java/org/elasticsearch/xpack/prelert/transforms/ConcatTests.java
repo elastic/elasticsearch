@@ -3,6 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.transforms;
+
+import static org.elasticsearch.xpack.prelert.transforms.TransformTestUtils.createIndexArray;
+import static org.mockito.Mockito.mock;
+
+import java.util.List;
+
+import org.apache.logging.log4j.Logger;
+
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.prelert.transforms.Transform.TransformIndex;
+import org.elasticsearch.xpack.prelert.transforms.Transform.TransformResult;
+
 public class ConcatTests extends ESTestCase {
     public void testMultipleInputs() throws TransformException {
         List<TransformIndex> readIndexes = createIndexArray(new TransformIndex(0, 1), new TransformIndex(0, 2), new TransformIndex(0, 4));

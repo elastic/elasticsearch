@@ -3,6 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.List;
+
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Assert;
+
+
 public class LengthEncodedWriterTests extends ESTestCase {
     /**
      * Simple test push a list of records through the writer and

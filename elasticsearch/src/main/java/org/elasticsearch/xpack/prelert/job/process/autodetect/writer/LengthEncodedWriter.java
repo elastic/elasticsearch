@@ -3,6 +3,25 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.autodetect.writer;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.List;
+
+/**
+ * Writes the data records to the outputIndex stream as length encoded pairs.
+ * Each record consists of number of fields followed by length/value pairs. The
+ * first call to one the of the <code>writeRecord() </code> methods should be
+ * with the header fields, once the headers are written records can be written
+ * sequentially.
+ * <p>
+ * See CLengthEncodedInputParser.h in the C++ code for a more detailed
+ * description.
+ * </p>
+ */
 public class LengthEncodedWriter implements RecordWriter {
     private OutputStream outputStream;
     private ByteBuffer lengthBuffer;

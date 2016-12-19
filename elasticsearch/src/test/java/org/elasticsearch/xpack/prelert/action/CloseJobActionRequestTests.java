@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.action;
+
+import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
+import org.elasticsearch.xpack.prelert.action.CloseJobAction.Request;
+
+public class CloseJobActionRequestTests extends AbstractStreamableTestCase<Request> {
+
+    @Override
+    protected Request createTestInstance() {
+        return new Request(randomAsciiOfLengthBetween(1, 20));
+    }
+
     @Override
     protected Request createBlankInstance() {
         return new Request();

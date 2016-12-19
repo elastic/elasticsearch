@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.action;
+
+import org.elasticsearch.xpack.prelert.action.GetBucketsAction.Response;
+import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
+import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
+import org.elasticsearch.xpack.prelert.job.results.Bucket;
+import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
+import org.elasticsearch.xpack.prelert.job.results.PartitionScore;
+import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
+
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;

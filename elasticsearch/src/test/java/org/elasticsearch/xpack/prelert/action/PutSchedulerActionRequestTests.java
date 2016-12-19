@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.action;
+
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.prelert.action.PutSchedulerAction.Request;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfigTests;
+import org.elasticsearch.xpack.prelert.support.AbstractStreamableXContentTestCase;
+import org.junit.Before;
+
+import java.util.Arrays;
+
 public class PutSchedulerActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
     private String schedulerId;

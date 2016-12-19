@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.persistence;
+
+import java.util.Deque;
+import java.util.NoSuchElementException;
+
+/**
+ * An iterator useful to fetch a big number of documents of type T
+ * and iterate through them in batches.
+ */
+public interface BatchedDocumentsIterator<T> {
+    /**
+     * Query documents whose timestamp is within the given time range
      *
      * @param startEpochMs the start time as epoch milliseconds (inclusive)
      * @param endEpochMs the end time as epoch milliseconds (exclusive)

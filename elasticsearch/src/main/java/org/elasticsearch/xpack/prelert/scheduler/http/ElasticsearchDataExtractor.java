@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.scheduler.http;
+
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.Locale;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ElasticsearchDataExtractor implements DataExtractor {

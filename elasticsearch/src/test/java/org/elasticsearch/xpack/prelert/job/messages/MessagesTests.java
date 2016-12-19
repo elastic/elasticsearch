@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.messages;
+
+import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.test.ESTestCase;
+
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.ResourceBundle;
+import java.util.Set;
+
 @SuppressForbidden(reason = "Need to use reflection to make sure all constants are resolvable")
 public class MessagesTests extends ESTestCase {
 

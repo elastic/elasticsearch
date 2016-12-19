@@ -3,6 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.scheduler.http;
+
+import org.apache.logging.log4j.Logger;
+
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Locale;
+import java.util.Objects;
+
+public class ElasticsearchQueryBuilder {
+
     /**
      * The search body for Elasticsearch version 2.x contains sorting
      * based on the time field and a query. The query is composed by

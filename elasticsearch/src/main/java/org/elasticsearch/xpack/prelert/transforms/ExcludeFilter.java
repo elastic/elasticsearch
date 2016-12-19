@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.transforms;
+
+import java.util.List;
+
+import org.apache.logging.log4j.Logger;
+
+import org.elasticsearch.xpack.prelert.job.condition.Condition;
+
+
+/**
+ * Abstract base class for exclude filters
+ */
 public abstract class ExcludeFilter extends Transform {
     private final Condition condition;
 

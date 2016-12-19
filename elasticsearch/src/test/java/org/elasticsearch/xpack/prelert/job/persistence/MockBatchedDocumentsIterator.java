@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.persistence;
+
+import java.util.Deque;
+import java.util.List;
+import java.util.NoSuchElementException;
+
+import static org.junit.Assert.assertEquals;
+
+public class MockBatchedDocumentsIterator<T> implements BatchedDocumentsIterator<T> {
+    private final Long startEpochMs;
+    private final Long endEpochMs;
+    private final List<Deque<T>> batches;
     private int index;
     private boolean wasTimeRangeCalled;
     private String interimFieldName;

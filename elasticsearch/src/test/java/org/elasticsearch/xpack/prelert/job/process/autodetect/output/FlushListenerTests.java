@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.autodetect.output;
+
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+public class FlushListenerTests extends ESTestCase {
+
+    public void testAcknowledgeFlush() throws Exception {
+        FlushListener listener = new FlushListener();
         AtomicBoolean bool = new AtomicBoolean();
         new Thread(() -> {
             boolean result = listener.waitForFlush("_id", 10000);

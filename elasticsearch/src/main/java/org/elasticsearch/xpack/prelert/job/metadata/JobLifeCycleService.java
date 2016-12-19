@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.metadata;
+
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
+import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 
 import java.util.HashSet;

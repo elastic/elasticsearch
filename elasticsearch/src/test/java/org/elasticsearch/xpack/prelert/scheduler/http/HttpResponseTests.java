@@ -3,6 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.scheduler.http;
+
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
 public class HttpResponseTests extends ESTestCase {
 
     public void testGetResponseAsStream() throws IOException {

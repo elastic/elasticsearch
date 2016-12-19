@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job.process.autodetect.output;
+
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
+
+import java.io.IOException;
+import java.io.InputStream;
 
 /**
  * Reads the autodetect persisted state and writes the results via the {@linkplain JobResultsPersister} passed in the constructor.

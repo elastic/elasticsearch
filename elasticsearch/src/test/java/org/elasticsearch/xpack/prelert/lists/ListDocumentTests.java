@@ -3,6 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.lists;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
+
+public class ListDocumentTests extends AbstractSerializingTestCase<ListDocument> {
+
     @Override
     protected ListDocument createTestInstance() {
         int size = randomInt(10);

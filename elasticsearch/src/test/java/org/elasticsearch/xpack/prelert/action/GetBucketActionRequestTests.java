@@ -3,6 +3,18 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.action;
+
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.prelert.action.GetBucketsAction.Request;
+import org.elasticsearch.xpack.prelert.job.results.PageParams;
+import org.elasticsearch.xpack.prelert.support.AbstractStreamableXContentTestCase;
+
+public class GetBucketActionRequestTests extends AbstractStreamableXContentTestCase<GetBucketsAction.Request> {
+
+    @Override
+    protected Request createTestInstance() {
         GetBucketsAction.Request request = new GetBucketsAction.Request(randomAsciiOfLengthBetween(1, 20));
 
         if (randomBoolean()) {

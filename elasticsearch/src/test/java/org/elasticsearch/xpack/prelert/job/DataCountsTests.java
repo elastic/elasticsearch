@@ -3,6 +3,19 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
+package org.elasticsearch.xpack.prelert.job;
+
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.prelert.support.AbstractSerializingTestCase;
+import org.joda.time.DateTime;
+
+import java.util.Date;
+
+import static org.hamcrest.Matchers.greaterThan;
+
 public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
 
     @Override

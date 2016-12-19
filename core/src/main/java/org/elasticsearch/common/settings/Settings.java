@@ -187,7 +187,7 @@ public final class Settings implements ToXContent {
      * A settings that are filtered (and key is removed) with the specified prefix.
      */
     public Settings getByPrefix(String prefix) {
-        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix) && k.length() >= prefix.length(), prefix));
+        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix));
     }
 
     /**

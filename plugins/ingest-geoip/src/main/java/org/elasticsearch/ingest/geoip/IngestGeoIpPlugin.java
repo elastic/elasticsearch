@@ -54,7 +54,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
 
     @Override
     public List<Setting<?>> getSettings() {
-        return Arrays.asList(CACHE_ENABLED, CACHE_SIZE);
+        return Arrays.asList(CACHE_SIZE);
     }
 
     @Override
@@ -63,25 +63,24 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, Closeable
             throw new IllegalStateException("getProcessors called twice for geoip plugin!!");
         }
         Path geoIpConfigDirectory = parameters.env.configFile().resolve("ingest-geoip");
+        NodeCache cache;
+        long cacheSize = CACHE_SIZE.get(parameters.env.settings());
+        if (cacheSize > 0) {
+            cache = new GeoIpCache(cacheSize);
+        } else {
+            cache = NoCache.getInstance();
+        }
         try {
-            databaseReaders = loadDatabaseReaders(parameters, geoIpConfigDirectory);
+            databaseReaders = loadDatabaseReaders(geoIpConfigDirectory, cache);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
         return Collections.singletonMap(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(databaseReaders));
     }
 
-    static Map<String, DatabaseReader> loadDatabaseReaders(Processor.Parameters parameters, Path geoIpConfigDirectory) throws IOException {
+    static Map<String, DatabaseReader> loadDatabaseReaders(Path geoIpConfigDirectory, NodeCache cache) throws IOException {
         if (Files.exists(geoIpConfigDirectory) == false && Files.isDirectory(geoIpConfigDirectory)) {
             throw new IllegalStateException("the geoip directory [" + geoIpConfigDirectory  + "] containing databases doesn't exist");
-        }
-
-        NodeCache cache;
-        if (CACHE_ENABLED.get(parameters.env.settings())) {
-            long cacheSize = CACHE_SIZE.get(parameters.env.settings());
-            cache = new GeoIpCache(cacheSize);
-        } else {
-            cache = NoCache.getInstance();
         }
 
         Map<String, DatabaseReader> databaseReaders = new HashMap<>();

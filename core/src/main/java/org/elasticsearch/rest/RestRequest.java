@@ -197,7 +197,7 @@ public abstract class RestRequest implements ToXContent.Params {
     @Override
     public boolean paramAsBoolean(String key, boolean defaultValue) {
         String rawParam = param(key);
-        // treat the sheer presence of a parameter as "true"
+        // Treat empty string as true because that allows the presence of the url parameter to mean "turn this on"
         if (rawParam != null && rawParam.length() == 0) {
             return true;
         } else {

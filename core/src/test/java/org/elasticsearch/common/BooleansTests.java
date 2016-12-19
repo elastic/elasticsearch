@@ -21,65 +21,63 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Locale;
-
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class BooleansTests extends ESTestCase {
+    private static final String[] NON_BOOLEANS = new String[]{"11", "00", "sdfsdfsf", "F", "T", "on", "off", "yes", "no", "0", "1",
+        "True", "False"};
+    private static final String[] BOOLEANS = new String[]{"true", "false"};
+
     public void testIsBoolean() {
-        String[] booleans = new String[]{"true", "false"};
-        String[] notBooleans = new String[]{"11", "00", "sdfsdfsf", "F", "T", "on", "off", "yes", "no", "0", "1"};
+        for (String b : BOOLEANS) {
+            String t = "prefix" + b + "suffix";
+            assertTrue("failed to recognize [" + b + "] as boolean",
+                Booleans.isBoolean(t.toCharArray(), "prefix".length(), b.length()));
+            assertTrue("failed to recognize [" + b + "] as boolean", Booleans.isBoolean(t));
+        }
+    }
+
+    public void testIsNonBoolean() {
         assertThat(Booleans.isBoolean(null, 0, 1), is(false));
 
-        for (String b : booleans) {
-            String t = "prefix" + b + "suffix";
-            assertThat("failed to recognize [" + b + "] as boolean",
-                Booleans.isBoolean(t.toCharArray(), "prefix".length(), b.length()), is(true));
-        }
-
-        for (String nb : notBooleans) {
+        for (String nb : NON_BOOLEANS) {
             String t = "prefix" + nb + "suffix";
-            assertThat("recognized [" + nb + "] as boolean",
-                Booleans.isBoolean(t.toCharArray(), "prefix".length(), nb.length()), is(false));
+            assertFalse("recognized [" + nb + "] as boolean", Booleans.isBoolean(t.toCharArray(), "prefix".length(), nb.length()));
+            assertFalse("recognized [" + nb + "] as boolean", Booleans.isBoolean(t));
+        }
+    }
+
+    public void testParseBooleanWithFallback() {
+        assertFalse(Booleans.parseBoolean(null, false));
+        assertTrue(Booleans.parseBoolean(null, true));
+        assertNull(Booleans.parseBoolean(null, null));
+        assertFalse(Booleans.parseBoolean(null, Boolean.FALSE));
+        assertTrue(Booleans.parseBoolean(null, Boolean.TRUE));
+
+        assertTrue(Booleans.parseBoolean("true", randomFrom(Boolean.TRUE, Boolean.FALSE, null)));
+        assertFalse(Booleans.parseBoolean("false", randomFrom(Boolean.TRUE, Boolean.FALSE, null)));
+    }
+
+    public void testParseNonBooleanWithFallback() {
+        for (String nonBoolean : NON_BOOLEANS) {
+            boolean defaultValue = randomFrom(Boolean.TRUE, Boolean.FALSE, null);
+
+            expectThrows(IllegalArgumentException.class,
+                () -> Booleans.parseBoolean(nonBoolean, defaultValue));
+            expectThrows(IllegalArgumentException.class,
+                () -> Booleans.parseBoolean(nonBoolean.toCharArray(), 0, nonBoolean.length(), defaultValue));
         }
     }
 
     public void testParseBoolean() {
-        assertThat(Booleans.parseBoolean(null, false), is(false));
-        assertThat(Booleans.parseBoolean(null, true), is(true));
-
-        assertThat(Booleans.parseBoolean("true", randomFrom(Boolean.TRUE, Boolean.FALSE, null)), is(true));
-        assertThat(Booleans.parseBoolean("false", randomFrom(Boolean.TRUE, Boolean.FALSE, null)), is(false));
-        expectThrows(IllegalArgumentException.class,
-            () -> Booleans.parseBoolean("true".toUpperCase(Locale.ROOT),randomFrom(Boolean.TRUE, Boolean.FALSE, null)));
-        assertThat(Booleans.parseBoolean(null, Boolean.FALSE), is(false));
-        assertThat(Booleans.parseBoolean(null, Boolean.TRUE), is(true));
-        assertThat(Booleans.parseBoolean(null, null), nullValue());
-
-        char[] chars = "true".toCharArray();
-        assertThat(Booleans.parseBoolean(chars, 0, chars.length, randomBoolean()), is(true));
-        chars = "false".toCharArray();
-        assertThat(Booleans.parseBoolean(chars,0, chars.length, randomBoolean()), is(false));
-        final char[] TRUE = "true".toUpperCase(Locale.ROOT).toCharArray();
-        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(TRUE, 0, TRUE.length, randomBoolean()));
+        assertTrue(Booleans.parseBoolean("true"));
+        assertFalse(Booleans.parseBoolean("false"));
     }
 
-    public void testParseBooleanExact() {
-        assertThat(Booleans.parseBoolean("true"), is(true));
-        assertThat(Booleans.parseBoolean("false"), is(false));
-        try {
-            Booleans.parseBoolean(randomFrom("fred", "foo", "barney", null, "on", "yes", "1", "off", "no", "0", "True", "False"));
-            fail("Expected exception while parsing invalid boolean value");
-        } catch (Exception ex) {
-            assertTrue(ex instanceof IllegalArgumentException);
+    public void testParseNonBoolean() {
+        expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(null));
+        for (String nonBoolean : NON_BOOLEANS) {
+            expectThrows(IllegalArgumentException.class, () -> Booleans.parseBoolean(nonBoolean));
         }
-    }
-
-    public void testIsExplicit() {
-        assertThat(Booleans.isExplicitFalse(randomFrom("true", "on", "yes", "1", "foo", null, "False")), is(false));
-        assertThat(Booleans.isExplicitFalse("false"), is(true));
-        assertThat(Booleans.isExplicitTrue("true"), is(true));
-        assertThat(Booleans.isExplicitTrue(randomFrom("false", "off", "no", "0", "foo", null, "True")), is(false));
     }
 }

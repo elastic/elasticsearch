@@ -54,7 +54,7 @@ public final class Booleans {
     }
 
     public static boolean isBoolean(String value) {
-        return isExplicitFalse(value) || isExplicitTrue(value);
+        return isFalse(value) || isTrue(value);
     }
 
     /**
@@ -64,13 +64,13 @@ public final class Booleans {
      * @throws IllegalArgumentException if the string cannot be parsed to boolean.
      */
     public static boolean parseBoolean(String value) {
-        if (isExplicitFalse(value)) {
+        if (isFalse(value)) {
             return false;
         }
-        if (isExplicitTrue(value)) {
+        if (isTrue(value)) {
             return true;
         }
-        throw new IllegalArgumentException("Failed to parse value [" + value + "] as boolean (only 'true' and 'false' are allowed)");
+        throw new IllegalArgumentException("Failed to parse value [" + value + "] as only [true] or [false] are allowed.");
     }
 
     /**
@@ -96,15 +96,15 @@ public final class Booleans {
     /**
      * @return <code>true</code> iff the value is <tt>false</tt>, otherwise <code>false</code>.
      */
-    public static boolean isExplicitFalse(String value) {
-        return value != null && value.equals("false");
+    public static boolean isFalse(String value) {
+        return "false".equals(value);
     }
 
     /**
      * @return <code>true</code> iff the value is <tt>true</tt>, otherwise <code>false</code>
      */
-    public static boolean isExplicitTrue(String value) {
-        return value != null && value.equals("true");
+    public static boolean isTrue(String value) {
+        return "true".equals(value);
     }
 
 }

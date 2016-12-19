@@ -1005,7 +1005,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         // also check here, before we apply the translog
-        if (Booleans.isExplicitFalse(checkIndexOnStartup) == false) {
+        if (Booleans.isFalse(checkIndexOnStartup) == false) {
             try {
                 checkIndex();
             } catch (IOException ex) {

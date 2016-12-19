@@ -22,7 +22,7 @@ import org.apache.logging.log4j.core.config.LoggerConfig;
 import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.MultiCommand;
-import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.common.Nullable;
@@ -80,7 +80,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
     }
 
     /** Command to migrate users and roles to the native realm */
-    public static class MigrateUserOrRoles extends SettingCommand {
+    public static class MigrateUserOrRoles extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> username;
         private final OptionSpec<String> password;
@@ -121,14 +121,10 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
 
         // Visible for testing
         @Override
-        public void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             terminal.println("starting migration of users and roles...");
-            Settings.Builder sb = Settings.builder();
-            sb.put(settings);
-            Settings shieldSettings = sb.build();
-            Environment shieldEnv = new Environment(shieldSettings);
-            importUsers(terminal, shieldSettings, shieldEnv, options);
-            importRoles(terminal, shieldSettings, shieldEnv, options);
+            importUsers(terminal, env, options);
+            importRoles(terminal, env, options);
             terminal.println("users and roles imported.");
         }
 
@@ -231,7 +227,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             return builder.string();
         }
 
-        void importUsers(Terminal terminal, Settings settings, Environment env, OptionSet options) throws FileNotFoundException {
+        void importUsers(Terminal terminal, Environment env, OptionSet options) throws FileNotFoundException {
             String usersCsv = usersToMigrateCsv.value(options);
             String[] usersToMigrate = (usersCsv != null) ? usersCsv.split(",") : Strings.EMPTY_ARRAY;
             Path usersFile = FileUserPasswdStore.resolveFile(env);
@@ -244,11 +240,11 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
 
             terminal.println("importing users from [" + usersFile + "]...");
             final Logger logger = getTerminalLogger(terminal);
-            Map<String, char[]> userToHashedPW = FileUserPasswdStore.parseFile(usersFile, logger, settings);
+            Map<String, char[]> userToHashedPW = FileUserPasswdStore.parseFile(usersFile, logger, env.settings());
             Map<String, String[]> userToRoles = FileUserRolesStore.parseFile(usersRolesFile, logger);
             Set<String> existingUsers;
             try {
-                existingUsers = getUsersThatExist(terminal, settings, env, options);
+                existingUsers = getUsersThatExist(terminal, env.settings(), env, options);
             } catch (Exception e) {
                 throw new ElasticsearchException("failed to get users that already exist, skipping user import", e);
             }
@@ -267,7 +263,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
                 String reqBody = "n/a";
                 try {
                     reqBody = createUserJson(userToRoles.get(user), userToHashedPW.get(user));
-                    String resp = postURL(settings, env, "POST",
+                    String resp = postURL(env.settings(), env, "POST",
                             this.url.value(options) + "/_xpack/security/user/" + user, options, reqBody);
                     terminal.println(resp);
                 } catch (Exception e) {
@@ -303,7 +299,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             return builder.string();
         }
 
-        void importRoles(Terminal terminal, Settings settings, Environment env, OptionSet options) throws FileNotFoundException {
+        void importRoles(Terminal terminal, Environment env, OptionSet options) throws FileNotFoundException {
             String rolesCsv = rolesToMigrateCsv.value(options);
             String[] rolesToMigrate = (rolesCsv != null) ? rolesCsv.split(",") : Strings.EMPTY_ARRAY;
             Path rolesFile = FileRolesStore.resolveFile(env).toAbsolutePath();
@@ -312,10 +308,10 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             }
             terminal.println("importing roles from [" + rolesFile + "]...");
             Logger logger = getTerminalLogger(terminal);
-            Map<String, RoleDescriptor> roles = FileRolesStore.parseRoleDescriptors(rolesFile, logger, true, settings);
+            Map<String, RoleDescriptor> roles = FileRolesStore.parseRoleDescriptors(rolesFile, logger, true, env.settings());
             Set<String> existingRoles;
             try {
-                existingRoles = getRolesThatExist(terminal, settings, env, options);
+                existingRoles = getRolesThatExist(terminal, env.settings(), env, options);
             } catch (Exception e) {
                 throw new ElasticsearchException("failed to get roles that already exist, skipping role import", e);
             }
@@ -334,7 +330,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
                 String reqBody = "n/a";
                 try {
                     reqBody = createRoleJson(roles.get(roleName));;
-                    String resp = postURL(settings, env, "POST",
+                    String resp = postURL(env.settings(), env, "POST",
                             this.url.value(options) + "/_xpack/security/role/" + roleName, options, reqBody);
                     terminal.println(resp);
                 } catch (Exception e) {

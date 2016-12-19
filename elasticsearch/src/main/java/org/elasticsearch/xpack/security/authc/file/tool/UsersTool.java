@@ -9,7 +9,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
-import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -55,7 +55,7 @@ public class UsersTool extends MultiCommand {
         subcommands.put("list", new ListCommand());
     }
 
-    static class AddUserCommand extends SettingCommand {
+    static class AddUserCommand extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> passwordOption;
         private final OptionSpec<String> rolesOption;
@@ -84,8 +84,7 @@ public class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
             String username = parseUsername(arguments.values(options), env.settings());
             final boolean allowReserved = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(env.settings()) == false;
@@ -119,7 +118,7 @@ public class UsersTool extends MultiCommand {
         }
     }
 
-    static class DeleteUserCommand extends SettingCommand {
+    static class DeleteUserCommand extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> arguments;
 
@@ -140,8 +139,7 @@ public class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             String username = parseUsername(arguments.values(options), env.settings());
             Path passwordFile = FileUserPasswdStore.resolveFile(env);
             Path rolesFile = FileUserRolesStore.resolveFile(env);
@@ -170,7 +168,7 @@ public class UsersTool extends MultiCommand {
         }
     }
 
-    static class PasswordCommand extends SettingCommand {
+    static class PasswordCommand extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> passwordOption;
         private final OptionSpec<String> arguments;
@@ -195,8 +193,7 @@ public class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             String username = parseUsername(arguments.values(options), env.settings());
             char[] password = parsePassword(terminal, passwordOption.value(options));
 
@@ -213,7 +210,7 @@ public class UsersTool extends MultiCommand {
         }
     }
 
-    static class RolesCommand extends SettingCommand {
+    static class RolesCommand extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> addOption;
         private final OptionSpec<String> removeOption;
@@ -239,8 +236,7 @@ public class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             String username = parseUsername(arguments.values(options), env.settings());
             String[] addRoles = parseRoles(terminal, env, addOption.value(options));
             String[] removeRoles = parseRoles(terminal, env, removeOption.value(options));
@@ -283,7 +279,7 @@ public class UsersTool extends MultiCommand {
         }
     }
 
-    static class ListCommand extends SettingCommand {
+    static class ListCommand extends EnvironmentAwareCommand {
 
         private final OptionSpec<String> arguments;
 
@@ -299,12 +295,11 @@ public class UsersTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
             String username = null;
             if (options.has(arguments)) {
                 username = arguments.value(options);
             }
-            Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
             listUsersAndRoles(terminal, env, username);
         }
     }

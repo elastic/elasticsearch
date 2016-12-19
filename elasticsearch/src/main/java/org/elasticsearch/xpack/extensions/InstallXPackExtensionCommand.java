@@ -11,7 +11,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -66,7 +66,7 @@ import static org.elasticsearch.xpack.XPackPlugin.resolveXPackExtensionsFile;
  *     <li>If the extension contains extra security permissions, the policy file is validated</li>
  * </ul>
  */
-final class InstallXPackExtensionCommand extends SettingCommand {
+final class InstallXPackExtensionCommand extends EnvironmentAwareCommand {
 
     private final OptionSpec<Void> batchOption;
     private final OptionSpec<String> arguments;
@@ -79,7 +79,7 @@ final class InstallXPackExtensionCommand extends SettingCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
@@ -87,13 +87,12 @@ final class InstallXPackExtensionCommand extends SettingCommand {
         }
         String extensionURL = args.get(0);
         boolean isBatch = options.has(batchOption) || System.console() == null;
-        execute(terminal, extensionURL, isBatch, settings);
+        execute(terminal, extensionURL, isBatch, env);
     }
 
 
     // pkg private for testing
-    void execute(Terminal terminal, String extensionId, boolean isBatch, Map<String, String> properties) throws Exception {
-        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, properties);
+    void execute(Terminal terminal, String extensionId, boolean isBatch, Environment env) throws Exception {
         if (Files.exists(resolveXPackExtensionsFile(env)) == false) {
             terminal.println("xpack extensions directory [" + resolveXPackExtensionsFile(env) + "] does not exist. Creating...");
             Files.createDirectories(resolveXPackExtensionsFile(env));

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.security.action.user.PutUserResponse;
@@ -59,7 +60,7 @@ public class MigrateToolIT extends MigrateToolTestCase {
         ESNativeRealmMigrateTool.MigrateUserOrRoles muor = new ESNativeRealmMigrateTool.MigrateUserOrRoles();
         OptionParser parser = muor.getParser();
         OptionSet options = parser.parse("-u", "test_admin", "-p", "changeme", "-U", url);
-        muor.execute(t, options, settings.getAsMap());
+        muor.execute(t, options, new Environment(settings));
 
         logger.info("--> output:\n{}", t.getOutput());
 

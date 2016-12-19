@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent.yaml;
 
 import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,6 +51,7 @@ public class YamlXContent implements XContent {
 
     static {
         yamlFactory = new YAMLFactory();
+        yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, XContent.isStrictDuplicateDetectionEnabled());
         yamlXContent = new YamlXContent();
     }
 

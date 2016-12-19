@@ -202,6 +202,11 @@ public class TransportWriteActionTests extends ESTestCase {
         public TestRequest() {
             setShardId(new ShardId("test", "test", 1));
         }
+
+        @Override
+        public String toString() {
+            return "TestRequest{}";
+        }
     }
 
     private static class TestResponse extends ReplicationResponse implements WriteResponse {

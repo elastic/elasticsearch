@@ -36,6 +36,7 @@ import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -739,8 +740,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testMalformedQueryMultipleQueryElements() throws IOException {
-        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
-            JsonXContent.isStrictDuplicateDetectionEnabled());
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
         String json = "{\n" +
                 "    \"function_score\":{\n" +
                 "        \"query\":{\n" +

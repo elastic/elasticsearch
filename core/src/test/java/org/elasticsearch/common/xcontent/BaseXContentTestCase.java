@@ -22,6 +22,7 @@ package org.elasticsearch.common.xcontent;
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -66,6 +67,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public abstract class BaseXContentTestCase extends ESTestCase {
 
@@ -983,6 +985,22 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
         assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
     }
+
+    public void testChecksForDuplicates() throws Exception {
+        assumeTrue("Test only makes sense if XContent parser has strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
+
+        BytesReference bytes = builder()
+                .startObject()
+                    .field("key", 1)
+                    .field("key", 2)
+                .endObject()
+            .bytes();
+
+        JsonParseException pex = expectThrows(JsonParseException.class, () -> createParser(xcontentType().xContent(), bytes).map());
+        assertThat(pex.getMessage(), startsWith("Duplicate field 'key'"));
+    }
+
 
     private static void expectUnclosedException(ThrowingRunnable runnable) {
         IllegalStateException e = expectThrows(IllegalStateException.class, runnable);

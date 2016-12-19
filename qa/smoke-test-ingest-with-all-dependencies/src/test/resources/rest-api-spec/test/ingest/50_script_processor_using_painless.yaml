@@ -115,3 +115,26 @@
   - match: { _source.bytes_in: 1234 }
   - match: { _source.bytes_out: 4321 }
   - match: { _source.bytes_total: 5555 }
+
+---
+"Test script processor with syntax error in inline script":
+  - do:
+      catch: request
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "inline": "invalid painless, hear me roar!"
+                }
+              }
+            ]
+          }
+  - match: { error.header.processor_type: "script" }
+  - match: { error.header.property_name: "inline" }
+  - match: { error.type: "script_exception" }
+  - match: { error.reason: "compile error" }
+

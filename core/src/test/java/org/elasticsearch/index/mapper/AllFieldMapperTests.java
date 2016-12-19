@@ -30,6 +30,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -475,5 +476,15 @@ public class AllFieldMapperTests extends ESSingleNodeTestCase {
             assertTrue(e.getMessage(),
                 e.getMessage().contains("Field [_all] is a metadata field and cannot be added inside a document"));
         }
+    }
+
+    public void testAllDefaults() {
+        // We use to have a bug with the default mapping having null analyzers because
+        // it was not fully constructed and was in particular lacking analyzers
+        IndexService index = createIndex("index", Settings.EMPTY, "type");
+        AllFieldMapper all = index.mapperService().documentMapper("type").allFieldMapper();
+        assertNotNull(all.fieldType().indexAnalyzer());
+        assertNotNull(all.fieldType().searchAnalyzer());
+        assertNotNull(all.fieldType().searchQuoteAnalyzer());
     }
 }

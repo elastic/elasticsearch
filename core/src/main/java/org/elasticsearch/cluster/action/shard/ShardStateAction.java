@@ -92,7 +92,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     private void sendShardAction(final String actionName, final ClusterStateObserver observer, final ShardEntry shardEntry, final Listener listener) {
-        DiscoveryNode masterNode = observer.observedState().getClusterState().nodes().getMasterNode();
+        DiscoveryNode masterNode = observer.observedState().nodes().getMasterNode();
         if (masterNode == null) {
             logger.warn("{} no master known for action [{}] for shard entry [{}]", shardEntry.shardId, actionName, shardEntry);
             waitForNewMasterAndRetry(actionName, observer, shardEntry, listener);
@@ -142,18 +142,27 @@ public class ShardStateAction extends AbstractComponent {
      */
     public void remoteShardFailed(final ShardId shardId, String allocationId, long primaryTerm, final String message, @Nullable final Exception failure, Listener listener) {
         assert primaryTerm > 0L : "primary term should be strictly positive";
-        shardFailed(shardId, allocationId, primaryTerm, message, failure, listener);
+        shardFailed(shardId, allocationId, primaryTerm, message, failure, listener, clusterService.state());
     }
 
     /**
      * Send a shard failed request to the master node to update the cluster state when a shard on the local node failed.
      */
     public void localShardFailed(final ShardRouting shardRouting, final String message, @Nullable final Exception failure, Listener listener) {
-        shardFailed(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, failure, listener);
+        localShardFailed(shardRouting, message, failure, listener, clusterService.state());
     }
 
-    private void shardFailed(final ShardId shardId, String allocationId, long primaryTerm, final String message, @Nullable final Exception failure, Listener listener) {
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
+    /**
+     * Send a shard failed request to the master node to update the cluster state when a shard on the local node failed.
+     */
+    public void localShardFailed(final ShardRouting shardRouting, final String message, @Nullable final Exception failure, Listener listener,
+                                 final ClusterState currentState) {
+        shardFailed(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, failure, listener, currentState);
+    }
+
+    private void shardFailed(final ShardId shardId, String allocationId, long primaryTerm, final String message,
+                             @Nullable final Exception failure, Listener listener, ClusterState currentState) {
+        ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
         ShardEntry shardEntry = new ShardEntry(shardId, allocationId, primaryTerm, message, failure);
         sendShardAction(SHARD_FAILED_ACTION_NAME, observer, shardEntry, listener);
     }
@@ -180,7 +189,7 @@ public class ShardStateAction extends AbstractComponent {
                 // we wait indefinitely for a new master
                 assert false;
             }
-        }, MasterNodeChangePredicate.INSTANCE);
+        }, MasterNodeChangePredicate.build(observer.observedState()));
     }
 
     private static class ShardFailedTransportHandler implements TransportRequestHandler<ShardEntry> {
@@ -342,7 +351,10 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     public void shardStarted(final ShardRouting shardRouting, final String message, Listener listener) {
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
+        shardStarted(shardRouting, message, listener, clusterService.state());
+    }
+    public void shardStarted(final ShardRouting shardRouting, final String message, Listener listener, ClusterState currentState) {
+        ClusterStateObserver observer = new ClusterStateObserver(currentState, clusterService, null, logger, threadPool.getThreadContext());
         ShardEntry shardEntry = new ShardEntry(shardRouting.shardId(), shardRouting.allocationId().getId(), 0L, message, null);
         sendShardAction(SHARD_STARTED_ACTION_NAME, observer, shardEntry, listener);
     }

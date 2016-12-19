@@ -19,11 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
@@ -53,6 +48,11 @@ import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 /**
  * InternalClusterInfoService provides the ClusterInfoService interface,
  * routinely updated on a timer. The timer can be dynamically changed by
@@ -64,7 +64,8 @@ import org.elasticsearch.transport.ReceiveTimeoutTransportException;
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  */
-public class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
+public class InternalClusterInfoService extends AbstractComponent
+    implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
 
     public static final Setting<TimeValue> INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING =
         Setting.timeSetting("cluster.info.update.interval", TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(10),
@@ -105,9 +106,9 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
         clusterSettings.addSettingsUpdateConsumer(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
 
         // Add InternalClusterInfoService to listen for Master changes
-        this.clusterService.add((LocalNodeMasterListener)this);
+        this.clusterService.addLocalNodeMasterListener(this);
         // Add to listen for state changes (when nodes are added)
-        this.clusterService.add((ClusterStateListener)this);
+        this.clusterService.addListener(this);
     }
 
     private void setEnabled(boolean enabled) {
@@ -167,7 +168,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             }
         }
 
-        if (this.isMaster && dataNodeAdded && clusterService.state().getNodes().getDataNodes().size() > 1) {
+        if (this.isMaster && dataNodeAdded && event.state().getNodes().getDataNodes().size() > 1) {
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }

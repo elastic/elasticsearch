@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -100,7 +101,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                                  ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
@@ -141,8 +142,14 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
-            return new AllFieldMapper(indexSettings, fieldType);
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
+            if (fieldType != null) {
+                return new AllFieldMapper(indexSettings, fieldType);
+            } else {
+                return parse(NAME, Collections.emptyMap(), context)
+                        .build(new BuilderContext(indexSettings, new ContentPath(1)));
+            }
         }
     }
 
@@ -179,7 +186,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
     private EnabledAttributeMapper enabledState;
 
     private AllFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), Defaults.ENABLED, indexSettings);
+        this(existing.clone(), Defaults.ENABLED, indexSettings);
     }
 
     private AllFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabled, Settings indexSettings) {

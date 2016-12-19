@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.ClusterServiceState;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -313,9 +312,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()))
-            {
-                recoveryRef.status().finalizeRecovery();
+            try (RecoveriesCollection.RecoveryRef recoveryRef =
+                     onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
+                recoveryRef.status().finalizeRecovery(request.globalCheckpoint());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -400,7 +399,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     private void waitForClusterState(long clusterStateVersion) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, TimeValue.timeValueMinutes(5), logger,
             threadPool.getThreadContext());
-        final ClusterState clusterState = observer.observedState().getClusterState();
+        final ClusterState clusterState = observer.observedState();
         if (clusterState.getVersion() >= clusterStateVersion) {
             logger.trace("node has cluster state with version higher than {} (current: {})", clusterStateVersion,
                 clusterState.getVersion());
@@ -424,23 +423,17 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 public void onTimeout(TimeValue timeout) {
                     future.onFailure(new IllegalStateException("cluster state never updated to version " + clusterStateVersion));
                 }
-            }, new ClusterStateObserver.ValidationPredicate() {
-
-                @Override
-                protected boolean validate(ClusterServiceState newState) {
-                    return newState.getClusterState().getVersion() >= clusterStateVersion;
-                }
-            });
+            }, newState -> newState.getVersion() >= clusterStateVersion);
             try {
                 future.get();
                 logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion,
-                    observer.observedState().getClusterState().getVersion());
+                    observer.observedState().getVersion());
             } catch (Exception e) {
                 logger.debug(
                     (Supplier<?>) () -> new ParameterizedMessage(
                         "failed waiting for cluster state with version {} (current: {})",
                         clusterStateVersion,
-                        observer.observedState().getClusterState().getVersion()),
+                        observer.observedState().getVersion()),
                     e);
                 throw ExceptionsHelper.convertToRuntime(e);
             }

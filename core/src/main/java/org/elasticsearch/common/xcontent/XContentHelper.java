@@ -349,4 +349,22 @@ public class XContentHelper {
             builder.rawField(field, source);
         }
     }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object depending on the value of the wrapInObject argument.
+     */
+    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, boolean wrapInObject) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            if (wrapInObject) {
+                builder.startObject();
+            }
+            toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            if (wrapInObject) {
+                builder.endObject();
+            }
+            return builder.bytes();
+        }
+    }
+
 }

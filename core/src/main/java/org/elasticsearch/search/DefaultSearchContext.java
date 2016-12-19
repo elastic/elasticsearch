@@ -96,7 +96,7 @@ final class DefaultSearchContext extends SearchContext {
     private final DfsSearchResult dfsResult;
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
-    private float queryBoost = 1.0f;
+    private final float queryBoost;
     private TimeValue timeout;
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
@@ -173,6 +173,7 @@ final class DefaultSearchContext extends SearchContext {
         this.timeout = timeout;
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis);
         queryShardContext.setTypes(request.types());
+        queryBoost = request.indexBoost();
     }
 
     @Override
@@ -350,12 +351,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public float queryBoost() {
         return queryBoost;
-    }
-
-    @Override
-    public SearchContext queryBoost(float queryBoost) {
-        this.queryBoost = queryBoost;
-        return this;
     }
 
     @Override

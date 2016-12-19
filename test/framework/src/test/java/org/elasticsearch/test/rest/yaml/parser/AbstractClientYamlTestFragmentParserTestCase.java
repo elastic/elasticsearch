@@ -36,8 +36,11 @@ public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTes
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        //this is the way to make sure that we consumed the whole yaml
-        assertThat(parser.currentToken(), nullValue());
-        parser.close();
+        // test may be skipped so we did not create a parser instance
+        if (parser != null) {
+            //this is the way to make sure that we consumed the whole yaml
+            assertThat(parser.currentToken(), nullValue());
+            parser.close();
+        }
     }
 }

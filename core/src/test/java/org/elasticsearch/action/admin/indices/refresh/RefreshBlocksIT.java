@@ -42,7 +42,7 @@ public class RefreshBlocksIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         // Request is not blocked
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
                 RefreshResponse response = client().admin().indices().prepareRefresh("test").execute().actionGet();
@@ -51,28 +51,6 @@ public class RefreshBlocksIT extends ESIntegTestCase {
             } finally {
                 disableIndexBlock("test", blockSetting);
             }
-        }
-
-        // Request is blocked
-        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
-            try {
-                enableIndexBlock("test", blockSetting);
-                assertBlocked(client().admin().indices().prepareRefresh("test").get());
-            } finally {
-                disableIndexBlock("test", blockSetting);
-            }
-        }
-
-        // Refreshing all indices is blocked when the cluster is read-only
-        try {
-            RefreshResponse response = client().admin().indices().prepareRefresh().execute().actionGet();
-            assertNoFailures(response);
-            assertThat(response.getSuccessfulShards(), equalTo(numShards.totalNumShards));
-
-            setClusterReadOnly(true);
-            assertBlocked(client().admin().indices().prepareRefresh().get());
-        } finally {
-            setClusterReadOnly(false);
         }
     }
 }

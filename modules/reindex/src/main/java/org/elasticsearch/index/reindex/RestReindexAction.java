@@ -117,16 +117,13 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
 
     @Override
     protected ReindexRequest buildRequest(RestRequest request) throws IOException {
-        if (false == request.hasContent()) {
-            throw new IllegalArgumentException("_reindex requires a request body");
-        }
         if (request.hasParam("pipeline")) {
             throw new IllegalArgumentException("_reindex doesn't support [pipeline] as a query parmaeter. "
                     + "Specify it in the [dest] object instead.");
         }
         ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
-        try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
-            PARSER.parse(xcontent, internal, new ReindexParseContext(searchRequestParsers, parseFieldMatcher));
+        try (XContentParser parser = request.contentParser()) {
+            PARSER.parse(parser, internal, new ReindexParseContext(searchRequestParsers, parseFieldMatcher));
         }
         return internal;
     }

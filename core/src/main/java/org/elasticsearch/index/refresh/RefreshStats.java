@@ -81,12 +81,6 @@ public class RefreshStats implements Streamable, ToXContent {
         return new TimeValue(totalTimeInMillis);
     }
 
-    public static RefreshStats readRefreshStats(StreamInput in) throws IOException {
-        RefreshStats refreshStats = new RefreshStats();
-        refreshStats.readFrom(in);
-        return refreshStats;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.REFRESH);

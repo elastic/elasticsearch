@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.internal;
 
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -34,10 +33,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SearchSortValuesTests extends ESTestCase {
 
@@ -79,8 +79,7 @@ public class SearchSortValuesTests extends ESTestCase {
         parser.nextToken();
         if (sortValues.sortValues().length > 0) {
             SearchSortValues parsed = SearchSortValues.fromXContent(parser);
-
-            assertEquivalent(builder.bytes(), toXContent(parsed,  xcontentType), xcontentType);
+            assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType, true), xcontentType);
             parser.nextToken();
         }
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -126,43 +125,5 @@ public class SearchSortValuesTests extends ESTestCase {
 
     private static SearchSortValues copy(SearchSortValues original) {
         return new SearchSortValues(Arrays.copyOf(original.sortValues(), original.sortValues().length));
-    }
-
-    /**
-     * Asserts that the provided {@link BytesReference}s hold the same content.
-     * The comparison is done between the map representation of the provided
-     * objects.
-     */
-    // TODO move this to a common place
-    public static void assertEquivalent(BytesReference expected, BytesReference actual, XContentType xContentType) throws IOException {
-        // we tried comparing byte per byte, but that didn't fly for a couple of
-        // reasons:
-        // 1) whenever anything goes through a map while parsing, ordering is
-        // not preserved, which is perfectly ok
-        // 2) Jackson SMILE parser parses floats as double, which then get
-        // printed out as double (with double precision)
-        try (XContentParser actualParser = xContentType.xContent().createParser(actual)) {
-            Map<String, Object> actualMap = actualParser.map();
-            try (XContentParser expectedParser = xContentType.xContent().createParser(expected)) {
-                Map<String, Object> expectedMap = expectedParser.map();
-                assertEquals(expectedMap, actualMap);
-            }
-        }
-    }
-
-    /**
-     * Returns the bytes that represent the XContent output of the provided
-     * {@link ToXContent} object, using the provided {@link XContentType}. Wraps
-     * the output into a new anonymous object depending on the value of the
-     * wrapInObject argument.
-     */
-    // TODO move this to a common place
-    private static BytesReference toXContent(ToXContent toXContent, XContentType xContentType) throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            builder.startObject();
-            toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
-            return builder.bytes();
-        }
     }
 }

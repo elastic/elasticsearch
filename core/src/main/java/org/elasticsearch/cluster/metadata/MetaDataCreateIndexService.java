@@ -67,6 +67,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
@@ -356,10 +357,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             // now add the mappings
                             MapperService mapperService = indexService.mapperService();
                             try {
-                                mapperService.merge(mappings, request.updateAllTypes());
-                            } catch (MapperParsingException mpe) {
+                                mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, request.updateAllTypes());
+                            } catch (Exception e) {
                                 removalExtraInfo = "failed on parsing default mapping/mappings on index creation";
-                                throw mpe;
+                                throw e;
                             }
 
                             // the context is only used for validation so it's fine to pass fake values for the shard id and the current

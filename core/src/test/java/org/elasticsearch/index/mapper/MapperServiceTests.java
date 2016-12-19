@@ -49,7 +49,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         String index = "test-index";
         String type = ".test-type";
         String field = "field";
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate(index)
                     .addMapping(type, field, "type=text")
                     .execute().actionGet();
@@ -62,7 +62,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         String field = "field";
         String type = new String(new char[256]).replace("\0", "a");
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        MapperException e = expectThrows(MapperException.class, () -> {
             client().admin().indices().prepareCreate(index)
                     .addMapping(type, field, "type=text")
                     .execute().actionGet();
@@ -175,14 +175,14 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
         mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping("{}"));
         MapperException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge(mappings, false));
+            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
 
         mappings.clear();
         mappings.put("type1", MapperService.parseMapping("{}"));
 
         e = expectThrows( MapperParsingException.class,
-            () -> mapperService.merge(mappings, false));
+            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
     }
 

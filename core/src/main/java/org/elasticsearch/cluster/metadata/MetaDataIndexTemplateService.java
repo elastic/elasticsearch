@@ -39,6 +39,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -222,7 +223,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(entry.getValue()));
             }
 
-            dummyIndexService.mapperService().merge(mappingsForValidation, false);
+            dummyIndexService.mapperService().merge(mappingsForValidation, MergeReason.MAPPING_UPDATE, false);
 
         } finally {
             if (createdIndex != null) {

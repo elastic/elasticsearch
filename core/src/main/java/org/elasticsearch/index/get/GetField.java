@@ -121,12 +121,14 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
         while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             Object value;
             if (token == XContentParser.Token.VALUE_STRING) {
+                //binary values will be parsed back and returned as base64 strings when reading from json and yaml
                 value = parser.text();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 value = parser.numberValue();
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 value = parser.booleanValue();
             } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+                //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
                 value = new BytesArray(parser.binaryValue());
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "Failed to parse object: unsupported token found [" + token + "]");

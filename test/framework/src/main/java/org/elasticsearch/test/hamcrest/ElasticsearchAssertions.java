@@ -822,7 +822,7 @@ public class ElasticsearchAssertions {
             if (object instanceof byte[]) {
                 list.set(i, new BytesArray((byte[]) object));
             } else if (object instanceof Map) {
-                replaceBytesArrays((Map<String, Object>) list);
+                replaceBytesArrays((Map<String, Object>) object);
             } else if (object instanceof List) {
                 replaceBytesArrays((List<Object>) object);
             }

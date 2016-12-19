@@ -225,6 +225,17 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertListenerThrows("primary phase should fail operation when moving from a retryable block to a non-retryable one", listener,
             ClusterBlockException.class);
         assertIndexShardUninitialized();
+
+        action = new Action(Settings.EMPTY, "testActionWithNoBlocks", transportService, clusterService, shardStateAction, threadPool) {
+            @Override
+            protected ClusterBlockLevel globalBlockLevel() {
+                return null;
+            }
+        };
+        listener = new PlainActionFuture<>();
+        reroutePhase = action.new ReroutePhase(task, new Request().timeout("5ms"), listener);
+        reroutePhase.run();
+        assertListenerThrows("should fail with an IndexNotFoundException when no blocks checked", listener, IndexNotFoundException.class);
     }
 
     public void assertIndexShardUninitialized() {

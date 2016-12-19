@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasable;
@@ -183,15 +184,17 @@ public abstract class TransportReplicationAction<
     protected abstract ReplicaResult shardOperationOnReplica(ReplicaRequest shardRequest, IndexShard replica) throws Exception;
 
     /**
-     * Cluster level block to check before request execution
+     * Cluster level block to check before request execution. Returning null means that no blocks need to be checked.
      */
+    @Nullable
     protected ClusterBlockLevel globalBlockLevel() {
         return null;
     }
 
     /**
-     * Index level block to check before request execution
+     * Index level block to check before request execution. Returning null means that no blocks need to be checked.
      */
+    @Nullable
     protected ClusterBlockLevel indexBlockLevel() {
         return null;
     }

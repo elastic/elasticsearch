@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -104,8 +105,8 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     public void testTwoAggs() throws Exception {
-        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
-            JsonXContent.isStrictDuplicateDetectionEnabled());
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
                     .startObject("by_date")
@@ -180,8 +181,8 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     public void testSameAggregationName() throws Exception {
-        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
-            JsonXContent.isStrictDuplicateDetectionEnabled());
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
         final String name = randomAsciiOfLengthBetween(1, 10);
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()

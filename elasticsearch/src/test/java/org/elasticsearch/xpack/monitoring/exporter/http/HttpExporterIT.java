@@ -510,7 +510,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
             doc.setClusterUUID(internalCluster().getClusterName());
             doc.setTimestamp(System.currentTimeMillis());
             doc.setSourceNode(new DiscoveryNode("id", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT));
-            doc.setClusterState(ClusterState.PROTO);
+            doc.setClusterState(ClusterState.EMPTY_STATE);
             doc.setStatus(ClusterHealthStatus.GREEN);
             return doc;
         }

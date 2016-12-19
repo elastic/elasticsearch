@@ -9,12 +9,15 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.util.Providers;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
@@ -187,8 +190,19 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
 
     private static final Logger logger = Loggers.getLogger(XPackPlugin.class);
 
-    static {
-        MetaData.registerPrototype(WatcherMetaData.TYPE, WatcherMetaData.PROTO);
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, WatcherMetaData.TYPE, WatcherMetaData::new));
+        entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, WatcherMetaData.TYPE, WatcherMetaData::readDiffFrom));
+        return entries;
+    }
+
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
+        // Metadata
+        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(WatcherMetaData.TYPE),
+                WatcherMetaData::fromXContent));
+        return entries;
     }
 
     protected final Settings settings;

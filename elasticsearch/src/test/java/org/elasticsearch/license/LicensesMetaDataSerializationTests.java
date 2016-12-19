@@ -5,11 +5,13 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -19,6 +21,8 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -46,11 +50,11 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         RepositoriesMetaData repositoriesMetaData = new RepositoriesMetaData(repositoryMetaData);
         final MetaData.Builder metaDataBuilder = MetaData.builder();
         if (randomBoolean()) { // random order of insertion
-            metaDataBuilder.putCustom(licensesMetaData.type(), licensesMetaData);
-            metaDataBuilder.putCustom(repositoriesMetaData.type(), repositoriesMetaData);
+            metaDataBuilder.putCustom(licensesMetaData.getWriteableName(), licensesMetaData);
+            metaDataBuilder.putCustom(repositoriesMetaData.getWriteableName(), repositoriesMetaData);
         } else {
-            metaDataBuilder.putCustom(repositoriesMetaData.type(), repositoriesMetaData);
-            metaDataBuilder.putCustom(licensesMetaData.type(), licensesMetaData);
+            metaDataBuilder.putCustom(repositoriesMetaData.getWriteableName(), repositoriesMetaData);
+            metaDataBuilder.putCustom(licensesMetaData.getWriteableName(), licensesMetaData);
         }
         // serialize metadata
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -61,8 +65,8 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
         // deserialize metadata again
         MetaData metaData = MetaData.Builder.fromXContent(createParser(builder));
         // check that custom metadata still present
-        assertThat(metaData.custom(licensesMetaData.type()), notNullValue());
-        assertThat(metaData.custom(repositoriesMetaData.type()), notNullValue());
+        assertThat(metaData.custom(licensesMetaData.getWriteableName()), notNullValue());
+        assertThat(metaData.custom(repositoriesMetaData.getWriteableName()), notNullValue());
     }
 
     public void testXContentSerializationOneTrial() throws Exception {
@@ -99,9 +103,17 @@ public class LicensesMetaDataSerializationTests extends ESTestCase {
     private static LicensesMetaData getLicensesMetaDataFromXContent(XContentParser parser) throws Exception {
         parser.nextToken(); // consume null
         parser.nextToken(); // consume "licenses"
-        LicensesMetaData licensesMetaDataFromXContent = LicensesMetaData.PROTO.fromXContent(parser);
+        LicensesMetaData licensesMetaDataFromXContent = LicensesMetaData.fromXContent(parser);
         parser.nextToken(); // consume endObject
         assertThat(parser.nextToken(), nullValue());
         return licensesMetaDataFromXContent;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(Stream.concat(
+                new Licensing(Settings.EMPTY).getNamedXContent().stream(),
+                ClusterModule.getNamedXWriteables().stream()
+        ).collect(Collectors.toList()));
     }
 }

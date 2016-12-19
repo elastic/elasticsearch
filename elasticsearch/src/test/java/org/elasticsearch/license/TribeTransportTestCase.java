@@ -136,11 +136,15 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
                 .put(tribe2Defaults.build())
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)
                 .put(internalCluster().getDefaultSettings())
+                .put(XPackSettings.SECURITY_ENABLED.getKey(), false) // otherwise it conflicts with mock transport
+                .put("tribe.t1." + XPackSettings.SECURITY_ENABLED.getKey(), false)
+                .put("tribe.t2." + XPackSettings.SECURITY_ENABLED.getKey(), false)
                 .put("node.name", "tribe_node") // make sure we can identify threads from this node
                 .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
                 .build();
 
-        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(TestZenDiscovery.TestPlugin.class, MockTcpTransportPlugin.class);
+        final List<Class<? extends Plugin>> mockPlugins = Arrays.asList(TestZenDiscovery.TestPlugin.class, MockTcpTransportPlugin.class,
+                XPackPlugin.class);
         final Node tribeNode = new MockNode(merged, mockPlugins).start();
         Client tribeClient = tribeNode.client();
 
@@ -189,7 +193,7 @@ public abstract class TribeTransportTestCase extends ESIntegTestCase {
     /**
      * Verify transport action behaviour on tribe node
      */
-    protected abstract void verifyActionOnTribeNode(Client tribeClient);
+    protected abstract void verifyActionOnTribeNode(Client tribeClient) throws Exception;
 
     protected void failAction(Client client, Action action) {
         try {

@@ -408,12 +408,23 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Arrays.asList(
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, SECURITY, SecurityFeatureSet.Usage::new),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, WATCHER, WatcherFeatureSet.Usage::new),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, MONITORING, MonitoringFeatureSet.Usage::new),
-            new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, GRAPH, GraphFeatureSet.Usage::new)
-        );
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, SECURITY, SecurityFeatureSet.Usage::new));
+        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, WATCHER, WatcherFeatureSet.Usage::new));
+        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, MONITORING, MonitoringFeatureSet.Usage::new));
+        entries.add(new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, GRAPH, GraphFeatureSet.Usage::new));
+        entries.addAll(watcher.getNamedWriteables());
+        entries.addAll(licensing.getNamedWriteables());
+        return entries;
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
+        entries.addAll(watcher.getNamedXContent());
+        entries.addAll(licensing.getNamedXContent());
+        return entries;
+
     }
 
     public void onIndexModule(IndexModule module) {

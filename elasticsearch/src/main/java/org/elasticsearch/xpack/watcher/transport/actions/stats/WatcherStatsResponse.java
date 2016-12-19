@@ -127,7 +127,7 @@ public class WatcherStatsResponse extends ActionResponse implements ToXContent {
                 queuedWatches.add(new QueuedWatch(in));
             }
         }
-        watcherMetaData = (WatcherMetaData) WatcherMetaData.PROTO.readFrom(in);
+        watcherMetaData = new WatcherMetaData(in);
     }
 
     @Override

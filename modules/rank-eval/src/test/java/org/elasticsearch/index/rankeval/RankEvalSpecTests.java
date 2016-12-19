@@ -20,6 +20,7 @@
 package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
@@ -43,6 +46,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -124,7 +128,7 @@ public class RankEvalSpecTests extends ESTestCase {
         return new RankEvalSpec(ratedRequests, metric, template); 
     }
 
-    public void testRoundtripping() throws IOException {
+    public void testXContentRoundtrip() throws IOException {
         RankEvalSpec testItem = createTestItem();
 
         XContentBuilder shuffled = ESTestCase.shuffleXContent(testItem.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
@@ -140,6 +144,104 @@ public class RankEvalSpecTests extends ESTestCase {
         assertNotSame(testItem, parsedItem);
         assertEquals(testItem, parsedItem);
         assertEquals(testItem.hashCode(), parsedItem.hashCode());
+    }
+
+    public void testSerialization() throws IOException {
+        List<String> indices = new ArrayList<>();
+        int size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            indices.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        List<String> types = new ArrayList<>();
+        size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            types.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        RankEvalSpec original = createTestItem();
+
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, Precision.NAME, Precision::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(
+                RankedListQualityMetric.class, DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, ReciprocalRank.NAME, ReciprocalRank::new));
+
+
+        RankEvalSpec deserialized = RankEvalTestHelper.copy(original, RankEvalSpec::new, new NamedWriteableRegistry(namedWriteables));
+        assertEquals(deserialized, original);
+        assertEquals(deserialized.hashCode(), original.hashCode());
+        assertNotSame(deserialized, original);
+    }
+
+    public void testEqualsAndHash() throws IOException {
+        List<String> indices = new ArrayList<>();
+        int size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            indices.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        List<String> types = new ArrayList<>();
+        size = randomIntBetween(0, 20);
+        for (int i = 0; i < size; i++) {
+            types.add(randomAsciiOfLengthBetween(0, 50));
+        }
+
+        RankEvalSpec testItem = createTestItem();
+
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, Precision.NAME, Precision::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(
+                RankedListQualityMetric.class, DiscountedCumulativeGain.NAME, DiscountedCumulativeGain::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RankedListQualityMetric.class, ReciprocalRank.NAME, ReciprocalRank::new));
+
+        RankEvalTestHelper.testHashCodeAndEquals(testItem, mutateTestItem(testItem),
+                RankEvalTestHelper.copy(testItem, RankEvalSpec::new, new NamedWriteableRegistry(namedWriteables)));
+    }
+
+    private RankEvalSpec mutateTestItem(RankEvalSpec original) {
+        Collection<RatedRequest> ratedRequests = original.getRatedRequests();
+        RankedListQualityMetric metric = original.getMetric();
+        Script template = original.getTemplate();
+
+        int mutate = randomIntBetween(0, 2);
+        switch (mutate) {
+            case 0:
+                Collection<RatedRequest> mutantRatedRequests = new ArrayList<>();
+                mutantRatedRequests.addAll(ratedRequests);
+                
+                List<RatedDocument> docs = new ArrayList<>();
+                docs.add(new RatedDocument("index", "type", "docId", 23));
+                SearchSourceBuilder request = new SearchSourceBuilder();
+                request.size(randomInt());
+                request.query(new MatchAllQueryBuilder());
+                mutantRatedRequests.add(new RatedRequest("id", docs , request));
+                
+                ratedRequests = mutantRatedRequests;
+                break;
+            case 1:
+                if (metric instanceof Precision) {
+                    metric = new DiscountedCumulativeGain();
+                } else {
+                    metric = new Precision();
+                }
+                break;
+            case 2:
+                if (template != null && randomBoolean()) {
+                    template = null;
+                } else {
+                    String mutatedTemplate = randomValueOtherThan(template.getIdOrCode(), () -> randomAsciiOfLength(10));
+                    template = new Script(ScriptType.INLINE, "mustache", mutatedTemplate, new HashMap<>());
+                }
+                break;
+            default:
+                throw new IllegalStateException("Requested to modify more than available parameters.");
+        }
+
+        RankEvalSpec result = new RankEvalSpec(ratedRequests, metric, template);
+        return result;
     }
 
     public void testMissingRatedRequestsFailsParsing() {

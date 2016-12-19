@@ -144,15 +144,14 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         this.hostsProvider = unicastHostsProvider;
 
         this.concurrentConnects = DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.get(settings);
-        final List<String> hosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
-        if (hosts.isEmpty()) {
+        if (DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.exists(settings)) {
+            configuredHosts = DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.get(settings);
+            // we only limit to 1 addresses, makes no sense to ping 100 ports
+            limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
+        } else {
             // if unicast hosts are not specified, fill with simple defaults on the local machine
             configuredHosts = transportService.getLocalAddresses();
             limitPortCounts = LIMIT_LOCAL_PORTS_COUNT;
-        } else {
-            configuredHosts = hosts;
-            // we only limit to 1 addresses, makes no sense to ping 100 ports
-            limitPortCounts = LIMIT_FOREIGN_PORTS_COUNT;
         }
         resolveTimeout = DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.get(settings);
         logger.debug(
@@ -247,7 +246,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
     @Override
     public void close() {
-        ThreadPool.terminate(unicastZenPingExecutorService, 0, TimeUnit.SECONDS);
+        ThreadPool.terminate(unicastZenPingExecutorService, 10, TimeUnit.SECONDS);
         Releasables.close(activePingingRounds.values());
         closed = true;
     }
@@ -344,7 +343,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         pingingRound.close();
     }
 
-    class PingingRound implements Releasable {
+    protected class PingingRound implements Releasable {
         private final int id;
         private final Map<TransportAddress, Connection> tempConnections = new HashMap<>();
         private final PingCollection pingCollection;
@@ -424,7 +423,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     }
 
 
-    void sendPings(final TimeValue timeout, final PingingRound pingingRound) {
+    protected void sendPings(final TimeValue timeout, final PingingRound pingingRound) {
         final UnicastPingRequest pingRequest = new UnicastPingRequest();
         pingRequest.id = pingingRound.id();
         pingRequest.timeout = timeout;
@@ -442,9 +441,10 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
         // sort the nodes by likelihood of being an active master
         List<DiscoveryNode> sortedNodesToPing = ElectMasterService.sortByMasterLikelihood(nodesToPingSet);
-        // add the configured hosts first
         final List<DiscoveryNode> nodesToPing =
+            // add the configured hosts first
             Stream.concat(pingingRound.getSeedNodes().stream(), sortedNodesToPing.stream())
+                // resolve what we can via the latest cluster state
                 .map(node -> {
                     DiscoveryNode foundNode = discoNodes.findByAddress(node.getAddress());
                     if (foundNode == null) {
@@ -454,75 +454,78 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                     }
                 }).collect(Collectors.toList());
 
-        for (final DiscoveryNode node : nodesToPing) {
-            unicastZenPingExecutorService.execute(new AbstractRunnable() {
-                @Override
-                protected void doRun() throws Exception {
-                    Connection connection = null;
-                    if (transportService.nodeConnected(node)) {
-                        try {
-                            // concurrency can still cause disconnects
-                            connection = transportService.getConnection(node);
-                        } catch (NodeNotConnectedException e) {
-                            // meh
-                        }
-                    } else {
-                        connection = pingingRound.getConnection(node.getAddress());
-                    }
-
-                    if (connection == null) {
-                        logger.trace("[{}] connecting (light) to {}", pingingRound.id(), node);
-                        boolean success = false;
-                        connection = transportService.openConnection(node, ConnectionProfile.LIGHT_PROFILE);
-                        try {
-                            transportService.handshake(connection, timeout.millis());
-                            connection = pingingRound.addConnectionIfNeeded(node.getAddress(), connection);
-                            success = true;
-                        } finally {
-                            if (success == false) {
-                                IOUtils.closeWhileHandlingException(connection);
-                            }
-                        }
-                    }
-
-                    sendPingRequestToNode(pingingRound, timeout, pingRequest, connection, node);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof ConnectTransportException) {
-                        // can't connect to the node - this is more common path!
-                        logger.trace(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "[{}] failed to connect to {}", pingingRound.id(), node), e);
-                    } else if (e instanceof RemoteTransportException) {
-                        // something went wrong on the other side
-                        logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "[{}] received a remote error as a response to ping {}", pingingRound.id(), node), e);
-                    } else {
-                        logger.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "[{}] failed send ping to {}", pingingRound.id(), node), e);
-                    }
-                }
-
-                @Override
-                public void onRejection(Exception e) {
-                    // The RejectedExecutionException can come from the fact unicastZenPingExecutorService is at its max down in sendPings
-                    // But don't bail here, we can retry later on after the send ping has been scheduled.
-                    logger.debug("Ping execution rejected", e);
-                }
-            });
-        }
+        nodesToPing.forEach(node -> sendPingRequestToNode(node, timeout, pingingRound, pingRequest));
     }
 
-    private void sendPingRequestToNode(final PingingRound pingingRound, final TimeValue timeout, final UnicastPingRequest pingRequest,
-                                       Connection connection, final DiscoveryNode node) {
-        logger.trace("[{}] sending to {}", pingingRound.id(), node);
-        transportService.sendRequest(connection, ACTION_NAME, pingRequest,
-            TransportRequestOptions.builder().withTimeout((long) (timeout.millis() * 1.25)).build(),
-            getPingResponseHandler(pingingRound, node));
+    private void sendPingRequestToNode(final DiscoveryNode node, TimeValue timeout, final PingingRound pingingRound,
+                                       final UnicastPingRequest pingRequest) {
+        submitToExecutor(new AbstractRunnable() {
+            @Override
+            protected void doRun() throws Exception {
+                Connection connection = null;
+                if (transportService.nodeConnected(node)) {
+                    try {
+                        // concurrency can still cause disconnects
+                        connection = transportService.getConnection(node);
+                    } catch (NodeNotConnectedException e) {
+                        // meh
+                    }
+                } else {
+                    connection = pingingRound.getConnection(node.getAddress());
+                }
+
+                if (connection == null) {
+                    logger.trace("[{}] connecting (light) to {}", pingingRound.id(), node);
+                    boolean success = false;
+                    connection = transportService.openConnection(node, ConnectionProfile.LIGHT_PROFILE);
+                    try {
+                        transportService.handshake(connection, timeout.millis());
+                        connection = pingingRound.addConnectionIfNeeded(node.getAddress(), connection);
+                        success = true;
+                    } finally {
+                        if (success == false) {
+                            IOUtils.closeWhileHandlingException(connection);
+                        }
+                    }
+                }
+
+                logger.trace("[{}] sending to {}", pingingRound.id(), node);
+                transportService.sendRequest(connection, ACTION_NAME, pingRequest,
+                    TransportRequestOptions.builder().withTimeout((long) (timeout.millis() * 1.25)).build(),
+                    getPingResponseHandler(pingingRound, node));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof ConnectTransportException || e instanceof AlreadyClosedException) {
+                    // can't connect to the node - this is more common path!
+                    logger.trace(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "[{}] failed to ping {}", pingingRound.id(), node), e);
+                } else if (e instanceof RemoteTransportException) {
+                    // something went wrong on the other side
+                    logger.debug(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "[{}] received a remote error as a response to ping {}", pingingRound.id(), node), e);
+                } else {
+                    logger.warn(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "[{}] failed send ping to {}", pingingRound.id(), node), e);
+                }
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // The RejectedExecutionException can come from the fact unicastZenPingExecutorService is at its max down in sendPings
+                // But don't bail here, we can retry later on after the send ping has been scheduled.
+                logger.debug("Ping execution rejected", e);
+            }
+        });
+    }
+
+    // for testing
+    protected void submitToExecutor(AbstractRunnable abstractRunnable) {
+        unicastZenPingExecutorService.execute(abstractRunnable);
     }
 
     // for testing
@@ -542,9 +545,11 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
             @Override
             public void handleResponse(UnicastPingResponse response) {
-                logger.trace("[{}] received response from {}: {}", pingingRound, node, Arrays.toString(response.pingResponses));
+                logger.trace("[{}] received response from {}: {}", pingingRound.id(), node, Arrays.toString(response.pingResponses));
                 if (pingingRound.isClosed() == false) {
                     Arrays.asList(response.pingResponses).forEach(pingingRound::addPingResponseToCollection);
+                } else {
+                    logger.trace("[{}] skipping received response from {}. already closed", pingingRound.id(), node);
                 }
             }
 
@@ -553,7 +558,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                 if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                     // ok, not connected...
                     logger.trace((Supplier<?>) () -> new ParameterizedMessage("failed to connect to {}", node), exp);
-                } else if (closed == false){
+                } else if (closed == false) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to send ping to [{}]", node), exp);
                 }
             }

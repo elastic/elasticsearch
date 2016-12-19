@@ -26,10 +26,29 @@ set -o pipefail
 key=${1-check}
 case $key in
     packagingTest)
-        GRADLE_OPT_STRING="--info -Pvagrant.boxes=all :x-pack:qa:vagrant:packagingTest"
+        GRADLE_CLI_ARGS=(
+            "--info"
+            "-Pvagrant.boxes=all"
+            ":x-pack:qa:vagrant:packagingTest"
+        )
         ;;
     check)
-        GRADLE_OPT_STRING="--info check -Dtests.network=true -Dtests.badapples=true"
+        GRADLE_CLI_ARGS=(
+            "--info"
+            "check"
+            "-Dtests.network=true"
+            "-Dtests.badapples=true"
+        )
+        ;;
+    jdk9)
+        GRADLE_CLI_ARGS=(
+            "-Pxpack.kibana.build=false"
+            "--info"
+            "check"
+            "-Dtests.network=true"
+            "-Dtests.badapples=true"
+            '-Dtests.jvm.argline="--add-opens=java.base/java.lang=ALL-UNNAMED --add-opens=java.base/java.net=ALL-UNNAMED --add-opens=java.base/java.nio=ALL-UNNAMED --add-opens=java.base/java.nio.file=ALL-UNNAMED --add-opens=java.base/java.security.cert=ALL-UNNAMED --add-opens=java.base/java.util=ALL-UNNAMED --add-opens=java.base/javax.net.ssl=ALL-UNNAMED"'
+        )
         ;;
     *)
         echo "Unsupported cli argument $1. Allowed arguments are packagingTest or check. No argument defaults to check."
@@ -118,6 +137,6 @@ set -xuf
 gradle --stacktrace clean
 
 # Actually run the tests
-gradle $GRADLE_OPT_STRING
+gradle "${GRADLE_CLI_ARGS[@]}"
 
 # ~*~ shell-script-mode ~*~

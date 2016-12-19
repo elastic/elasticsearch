@@ -27,8 +27,10 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
@@ -372,16 +374,42 @@ public class SettingsTests extends ESTestCase {
         assertEquals("ab2", fiteredMap.get("a.b.c"));
         assertEquals("ab3", fiteredMap.get("a.b.c.d"));
 
+        Iterator<String> iterator = fiteredMap.keySet().iterator();
+        for (int i = 0; i < 10; i++) {
+            assertTrue(iterator.hasNext());
+        }
+        assertEquals("a.b", iterator.next());
+        if (randomBoolean()) {
+            assertTrue(iterator.hasNext());
+        }
+        assertEquals("a.b.c", iterator.next());
+        if (randomBoolean()) {
+            assertTrue(iterator.hasNext());
+        }
+        assertEquals("a.b.c.d", iterator.next());
+        assertFalse(iterator.hasNext());
+        expectThrows(NoSuchElementException.class, () -> iterator.next());
+
+    }
+
+    public void testPrefixMap() {
+        Settings.Builder builder = Settings.builder();
+        builder.put("a", "a1");
+        builder.put("a.b", "ab1");
+        builder.put("a.b.c", "ab2");
+        builder.put("a.c", "ac1");
+        builder.put("a.b.c.d", "ab3");
+
         Map<String, String> prefixMap = builder.build().getByPrefix("a.").getAsMap();
         assertEquals(4, prefixMap.size());
-        numKeys = 0;
+        int numKeys = 0;
         for (String k : prefixMap.keySet()) {
             numKeys++;
             assertTrue(k, k.startsWith("b") || k.startsWith("c"));
         }
 
         assertEquals(4, numKeys);
-        numValues = 0;
+        int numValues = 0;
 
         for (String v : prefixMap.values()) {
             numValues++;
@@ -398,27 +426,59 @@ public class SettingsTests extends ESTestCase {
         assertEquals("ab1", prefixMap.get("b"));
         assertEquals("ab2", prefixMap.get("b.c"));
         assertEquals("ab3", prefixMap.get("b.c.d"));
+        Iterator<String> prefixIterator = prefixMap.keySet().iterator();
+        for (int i = 0; i < 10; i++) {
+            assertTrue(prefixIterator.hasNext());
+        }
+        assertEquals("b", prefixIterator.next());
+        if (randomBoolean()) {
+            assertTrue(prefixIterator.hasNext());
+        }
+        assertEquals("b.c", prefixIterator.next());
+        if (randomBoolean()) {
+            assertTrue(prefixIterator.hasNext());
+        }
+        assertEquals("b.c.d", prefixIterator.next());
+        if (randomBoolean()) {
+            assertTrue(prefixIterator.hasNext());
+        }
+        assertEquals("c", prefixIterator.next());
+        assertFalse(prefixIterator.hasNext());
+        expectThrows(NoSuchElementException.class, () -> prefixIterator.next());
     }
 
-    // TODO remove this
-//    public void testME() {
-//        Settings.Builder builder = Settings.builder();
-//        List<String> values = new ArrayList<>();
-//        for (int i = 0; i < 250000; i++) {
-//            values.add(randomAsciiOfLengthBetween(2,5));
-//        }
-//
-//        Settings build = builder.putArray("foo.bar", values).build();
-//        long time = System.nanoTime();
-//        for (int i = 0; i < 200; i++) {
-//            build.getByPrefix("foo.");
-//        }
-//        logger.info("new getByPrefix took: {} ms", TimeValue.nsecToMSec(System.nanoTime() - time));
-//
-//        time = System.nanoTime();
-//        for (int i = 0; i < 200; i++) {
-//            build.getByPrefix1("foo.");
-//        }
-//        logger.info("old getByPrefix took: {} ms", TimeValue.nsecToMSec(System.nanoTime() - time));
-//    }
+    public void testEmptyFilterMap() {
+        Settings.Builder builder = Settings.builder();
+        builder.put("a", "a1");
+        builder.put("a.b", "ab1");
+        builder.put("a.b.c", "ab2");
+        builder.put("a.c", "ac1");
+        builder.put("a.b.c.d", "ab3");
+
+        Map<String, String> fiteredMap = builder.build().filter((k) -> false).getAsMap();
+        assertEquals(0, fiteredMap.size());
+        for (String k : fiteredMap.keySet()) {
+            fail("no element");
+
+        }
+        for (String v : fiteredMap.values()) {
+            fail("no element");
+        }
+        assertFalse(fiteredMap.containsKey("a.c"));
+        assertFalse(fiteredMap.containsKey("a"));
+        assertFalse(fiteredMap.containsKey("a.b"));
+        assertFalse(fiteredMap.containsKey("a.b.c"));
+        assertFalse(fiteredMap.containsKey("a.b.c.d"));
+        expectThrows(UnsupportedOperationException.class, () ->
+            fiteredMap.remove("a.b"));
+        assertNull(fiteredMap.get("a.b"));
+        assertNull(fiteredMap.get("a.b.c"));
+        assertNull(fiteredMap.get("a.b.c.d"));
+
+        Iterator<String> iterator = fiteredMap.keySet().iterator();
+        for (int i = 0; i < 10; i++) {
+            assertFalse(iterator.hasNext());
+        }
+        expectThrows(NoSuchElementException.class, () -> iterator.next());
+    }
 }

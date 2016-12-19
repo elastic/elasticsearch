@@ -54,6 +54,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
@@ -187,20 +188,6 @@ public final class Settings implements ToXContent {
      */
     public Settings getByPrefix(String prefix) {
         return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix) && k.length() >= prefix.length(), prefix));
-    }
-
-    Settings getByPrefix1(String prefix) { // TODO remove
-        Builder builder = new Builder();
-        for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
-            if (entry.getKey().startsWith(prefix)) {
-                if (entry.getKey().length() < prefix.length()) {
-                    // ignore this. one
-                    continue;
-                }
-                builder.put(entry.getKey().substring(prefix.length()), entry.getValue());
-            }
-        }
-        return builder.build();
     }
 
     /**
@@ -1037,11 +1024,13 @@ public final class Settings implements ToXContent {
     }
 
     // TODO We could use an FST internally to make things even faster and more compact
-    private static final class FilteredMap extends AbstractMap<String, String> { // pkg private for testing
+    private static final class FilteredMap extends AbstractMap<String, String> {
         private final Map<String, String> delegate;
         private final Predicate<String> filter;
         private final String prefix;
-        private int size = -1; // we cache that size since we have to iterate the entire set
+        // we cache that size since we have to iterate the entire set
+        // this is safe to do since this map is only used with unmodifiable maps
+        private int size = -1;
         @Override
         public Set<Entry<String, String>> entrySet() {
             Set<Entry<String, String>> delegateSet = delegate.entrySet();
@@ -1053,25 +1042,36 @@ public final class Settings implements ToXContent {
 
                     return new Iterator<Entry<String, String>>() {
                         private int numIterated;
-                        Entry<String, String> current;
+                        private Entry<String, String> currentElement;
                         @Override
                         public boolean hasNext() {
-                            if (numIterated == size) { // early terminate
-                                assert size != -1 : "size was never set: " + numIterated + " vs. " + size;
+                            if (currentElement != null) {
+                                return true; // protect against calling hasNext twice
+                            } else {
+                                if (numIterated == size) { // early terminate
+                                    assert size != -1 : "size was never set: " + numIterated + " vs. " + size;
+                                    return false;
+                                }
+                                while (iter.hasNext()) {
+                                    if (filter.test((currentElement = iter.next()).getKey())) {
+                                        numIterated++;
+                                        return true;
+                                    }
+                                }
+                                // we didn't find anything
+                                currentElement = null;
                                 return false;
                             }
-                            while(iter.hasNext()) {
-                                if (filter.test((current = iter.next()).getKey())) {
-                                    numIterated++;
-                                    return true;
-                                }
-                            }
-                            current = null;
-                            return false;
                         }
 
                         @Override
                         public Entry<String, String> next() {
+                            if (currentElement == null && hasNext() == false) { // protect against no #hasNext call or not respecting it
+
+                                throw new NoSuchElementException("make sure to call hasNext first");
+                            }
+                            final Entry<String, String> current = this.currentElement;
+                            this.currentElement = null;
                             if (prefix == null) {
                                 return current;
                             }
@@ -1097,10 +1097,7 @@ public final class Settings implements ToXContent {
 
                 @Override
                 public int size() {
-                    if (size == -1) {
-                        size = Math.toIntExact(delegateSet.stream().filter((e) -> filter.test(e.getKey())).count());
-                    }
-                    return size;
+                    return FilteredMap.this.size();
                 }
             };
             return filterSet;
@@ -1114,26 +1111,30 @@ public final class Settings implements ToXContent {
 
         @Override
         public String get(Object key) {
-            String theKey = prefix == null ? key.toString() : prefix + key;
-            if (filter.test(theKey)) {
-                return delegate.get(theKey);
+            if (key instanceof String) {
+                final String theKey = prefix == null ? (String)key : prefix + key;
+                if (filter.test(theKey)) {
+                    return delegate.get(theKey);
+                }
             }
             return null;
         }
 
         @Override
         public boolean containsKey(Object key) {
-            String theKey = prefix == null ? key.toString() : prefix + key;
-            if (filter.test(theKey)) {
-                return delegate.containsKey(theKey);
+            if (key instanceof String) {
+                final String theKey = prefix == null ? (String) key : prefix + key;
+                if (filter.test(theKey)) {
+                    return delegate.containsKey(theKey);
+                }
             }
             return false;
         }
 
         @Override
         public int size() {
-            if (this.size == -1) {
-                size = super.size();
+            if (size == -1) {
+                size = Math.toIntExact(delegate.keySet().stream().filter((e) -> filter.test(e)).count());
             }
             return size;
         }

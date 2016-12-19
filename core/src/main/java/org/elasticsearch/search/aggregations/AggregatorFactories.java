@@ -32,6 +32,7 @@ import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -255,7 +256,7 @@ public class AggregatorFactories {
                             } else {
                                 // Check the non-pipeline sub-aggregator
                                 // factories
-                                AggregationBuilder[] subBuilders = aggBuilder.factoriesBuilder.getAggregatorFactories();
+                                List<AggregationBuilder> subBuilders = aggBuilder.factoriesBuilder.aggregationBuilders;
                                 boolean foundSubBuilder = false;
                                 for (AggregationBuilder subBuilder : subBuilders) {
                                     if (aggName.equals(subBuilder.name)) {
@@ -297,12 +298,12 @@ public class AggregatorFactories {
             }
         }
 
-        AggregationBuilder[] getAggregatorFactories() {
-            return this.aggregationBuilders.toArray(new AggregationBuilder[this.aggregationBuilders.size()]);
+        public List<AggregationBuilder> getAggregatorFactories() {
+            return Collections.unmodifiableList(aggregationBuilders);
         }
 
-        List<PipelineAggregationBuilder> getPipelineAggregatorFactories() {
-            return this.pipelineAggregatorBuilders;
+        public List<PipelineAggregationBuilder> getPipelineAggregatorFactories() {
+            return Collections.unmodifiableList(pipelineAggregatorBuilders);
         }
 
         public int count() {

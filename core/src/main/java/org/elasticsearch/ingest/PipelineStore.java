@@ -119,13 +119,10 @@ public class PipelineStore extends AbstractComponent implements ClusterStateAppl
                 toRemove.add(pipelineKey);
             }
         }
-        if (pipelines.isEmpty()) {
-            // if its a match all pattern, and no pipelines are found (we have none),
-            // don't fail with exception
-            if (Regex.isMatchAllPattern(request.getId())) {
-                return currentState;
-            }
+        if (toRemove.isEmpty() && Regex.isMatchAllPattern(request.getId()) == false) {
             throw new ResourceNotFoundException("pipeline [{}] is missing", request.getId());
+        } else if (toRemove.isEmpty()) {
+            return currentState;
         }
         final Map<String, PipelineConfiguration> pipelinesCopy = new HashMap<>(pipelines);
         for (String key : toRemove) {

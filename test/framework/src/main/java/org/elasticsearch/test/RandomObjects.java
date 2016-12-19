@@ -28,13 +28,16 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Random;
+
+import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomUnicodeOfLengthBetween;
 
 public final class RandomObjects {
 
@@ -105,40 +108,17 @@ public final class RandomObjects {
                     break;
                 case 7:
                     String randomString = random.nextBoolean() ? RandomStrings.randomAsciiOfLengthBetween(random, 3, 10 ) :
-                            RandomStrings.randomUnicodeOfLengthBetween(random, 3, 10);
+                            randomUnicodeOfLengthBetween(random, 3, 10);
                     originalValues.add(randomString);
                     expectedParsedValues.add(randomString);
                     break;
                 case 8:
-                    BytesArray randomBytesArray = new BytesArray(RandomStrings.randomUnicodeOfLengthBetween(random, 10, 50));
+                    byte[] randomBytes = RandomStrings.randomUnicodeOfLengthBetween(random, 10, 50).getBytes(StandardCharsets.UTF_8);
+                    BytesArray randomBytesArray = new BytesArray(randomBytes);
                     originalValues.add(randomBytesArray);
                     if (xContentType == XContentType.JSON || xContentType == XContentType.YAML) {
                         //JSON and YAML write the base64 format
-                        try (XContentBuilder builder = XContentFactory.contentBuilder(xContentType)) {
-                            BytesReference bytes = builder.startObject().field("binary").value(randomBytesArray).endObject().bytes();
-                            try (XContentParser parser = xContentType.xContent().createParser(bytes)) {
-                                parser.nextToken();
-                                assert parser.currentToken() == XContentParser.Token.START_OBJECT;
-                                parser.nextToken();
-                                assert parser.currentToken() == XContentParser.Token.FIELD_NAME;
-                                assert "binary".equals(parser.currentName());
-                                parser.nextToken();
-                                assert parser.currentToken().isValue();
-                                //base64 format gets parsed back as strings. the base64 decode needs to be done externally.
-                                //for some reason the way jackson encodes base64 is not as straightforward as it should be.
-                                //for now we simply write and read it back so that we get exactly what we expect to be written.
-                                //This should be ideally replaced with a one-liner that does the encode.
-                                //TODO provide a utility method to do the base64 decode on demand?
-                                String text = parser.text();
-                                expectedParsedValues.add(text);
-                                parser.nextToken();
-                                assert parser.currentToken() == XContentParser.Token.END_OBJECT;
-                                parser.nextToken();
-                                assert parser.currentToken() == null;
-                            }
-                        } catch( IOException e) {
-                            throw new RuntimeException(e);
-                        }
+                        expectedParsedValues.add(Base64.getEncoder().encodeToString(randomBytes));
                     } else {
                         //SMILE and CBOR write the original bytes as they support binary format
                         expectedParsedValues.add(randomBytesArray);

@@ -202,16 +202,27 @@ public class RatedRequestsTests extends ESTestCase {
         List<String> summaryFields = original.getSummaryFields();
         String templateId = original.getTemplateId();
 
-        int mutate = randomIntBetween(0, 7);
+        int mutate = randomIntBetween(0, 5);
         switch (mutate) {
             case 0:
                 id = randomValueOtherThan(id, () -> randomAsciiOfLength(10));
                 break;
             case 1:
-                int size = randomValueOtherThan(testRequest.size(), () -> randomInt());
-                testRequest = new SearchSourceBuilder();
-                testRequest.size(size);
-                testRequest.query(new MatchAllQueryBuilder());
+                if (testRequest != null) {
+                    int size = randomValueOtherThan(testRequest.size(), () -> randomInt());
+                    testRequest = new SearchSourceBuilder();
+                    testRequest.size(size);
+                    testRequest.query(new MatchAllQueryBuilder());
+                } else {
+                    if (randomBoolean()) {
+                        Map<String, Object> mutated = new HashMap<>();
+                        mutated.putAll(params);
+                        mutated.put("one_more_key", "one_more_value");
+                        params = mutated;
+                    } else {
+                        templateId = randomValueOtherThan(templateId, () -> randomAsciiOfLength(5));
+                    }
+                }
                 break;
             case 2:
                 ratedDocs = Arrays.asList(
@@ -224,15 +235,7 @@ public class RatedRequestsTests extends ESTestCase {
                 types =  Arrays.asList(randomValueOtherThanMany(types::contains, () -> randomAsciiOfLength(10)));
                 break;
             case 5:
-                params = new HashMap<>();
-                params.putAll(params);
-                params.put("one_more_key", "one_more_value");
-                break;
-            case 6:
                 summaryFields = Arrays.asList(randomValueOtherThanMany(summaryFields::contains, () -> randomAsciiOfLength(10)));
-                break;
-            case 7:
-                templateId = randomValueOtherThan(templateId, () -> randomAsciiOfLength(5));
                 break;
             default:
                 throw new IllegalStateException("Requested to modify more than available parameters.");

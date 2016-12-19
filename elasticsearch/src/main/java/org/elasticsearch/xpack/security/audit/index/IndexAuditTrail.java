@@ -445,7 +445,8 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             if (XPackUser.is(token.principal()) == false) {
                 try {
-                    enqueue(message("authentication_failed", action, token, realm, indices(message), message), "authentication_failed");
+                    enqueue(message("realm_authentication_failed", action, token, realm, indices(message), message),
+                            "realm_authentication_failed");
                 } catch (Exception e) {
                     logger.warn("failed to index audit event: [authentication_failed]", e);
                 }
@@ -458,7 +459,7 @@ public class IndexAuditTrail extends AbstractComponent implements AuditTrail, Cl
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             if (XPackUser.is(token.principal()) == false) {
                 try {
-                    enqueue(message("authentication_failed", null, token, realm, null, request), "authentication_failed");
+                    enqueue(message("realm_authentication_failed", null, token, realm, null, request), "realm_authentication_failed");
                 } catch (Exception e) {
                     logger.warn("failed to index audit event: [authentication_failed]", e);
                 }

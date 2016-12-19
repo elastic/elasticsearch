@@ -521,16 +521,12 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed("admin", "GET", "/" + index + "/foo/1");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/foo/1/_termvector");
-                    assertAccessIsAllowed(user, "GET",
-                            "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
                     assertUserIsAllowed(user, "search", index);
                 } else {
                     assertAccessIsDenied(user, "GET", "/" + index + "/_count");
                     assertAccessIsDenied(user, "GET", "/" + index + "/_search");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_explain", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsDenied(user, "GET", "/" + index + "/foo/1/_termvector");
-                    assertAccessIsDenied(user,
-                            "GET", "/" + index + "/_suggest", "{ \"sgs\" : { \"text\" : \"foo\", \"term\" : { \"field\" : \"body\" } } }");
                     assertUserIsDenied(user, "search", index);
                 }
                 break;
@@ -538,12 +534,8 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
             case "search" :
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_search");
-                    assertAccessIsAllowed(user, "GET", "/" + index + "/_suggest", "{ \"my-suggestion\" : { \"text\":\"elasticsearch\", " +
-                            "\"term\" : { \"field\" : \"name\" } } }");
                 } else {
                     assertAccessIsDenied(user, "GET", "/" + index + "/_search");
-                    assertAccessIsDenied(user, "GET", "/" + index + "/_suggest", "{ \"my-suggestion\" : { \"text\":\"elasticsearch\", " +
-                            "\"term\" : { \"field\" : \"name\" } } }");
                 }
                 break;
 

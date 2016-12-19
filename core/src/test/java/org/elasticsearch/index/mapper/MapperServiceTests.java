@@ -187,4 +187,31 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             () -> mapperService.merge(mappings, false));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
     }
+
+    public void testAllEnabled() throws Exception {
+        IndexService indexService = createIndex("test");
+        assertFalse(indexService.mapperService().allEnabled());
+
+        CompressedXContent enabledAll = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+                .startObject("_all")
+                    .field("enabled", true)
+                .endObject().endObject().bytes());
+
+        CompressedXContent disabledAll = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+                .startObject("_all")
+                    .field("enabled", false)
+                .endObject().endObject().bytes());
+
+        indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
+                MergeReason.MAPPING_UPDATE, random().nextBoolean());
+        assertFalse(indexService.mapperService().allEnabled()); // _default_ does not count
+
+        indexService.mapperService().merge("some_type", enabledAll,
+                MergeReason.MAPPING_UPDATE, random().nextBoolean());
+        assertTrue(indexService.mapperService().allEnabled());
+
+        indexService.mapperService().merge("other_type", disabledAll,
+                MergeReason.MAPPING_UPDATE, random().nextBoolean());
+        assertTrue(indexService.mapperService().allEnabled()); // this returns true if any of the types has _all enabled
+    }
 }

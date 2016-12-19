@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -98,7 +99,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -114,8 +115,14 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
-            return new FieldNamesFieldMapper(indexSettings, fieldType);
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
+            if (fieldType != null) {
+                return new FieldNamesFieldMapper(indexSettings, fieldType);
+            } else {
+                return parse(NAME, Collections.emptyMap(), context)
+                        .build(new BuilderContext(indexSettings, new ContentPath(1)));
+            }
         }
     }
 
@@ -183,7 +190,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
     }
 
     private FieldNamesFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), indexSettings);
+        this(existing.clone(), indexSettings);
     }
 
     private FieldNamesFieldMapper(MappedFieldType fieldType, Settings indexSettings) {

@@ -145,8 +145,24 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public byte[] getFieldValueAsBytes(String path) {
-        Object object = getFieldValue(path, Object.class);
-        if (object instanceof byte[]) {
+        return getFieldValueAsBytes(path, false);
+    }
+
+    /**
+     * Returns the value contained in the document for the provided path as a byte array.
+     * If the path value is a string, a base64 decode operation will happen.
+     * If the path value is a byte array, it is just returned
+     * @param path The path within the document in dot-notation
+     * @param ignoreMissing The flag to determine whether to throw an exception when `path` is not found in the document.
+     * @return the byte array for the provided path if existing
+     * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
+     * or if the field that is found at the provided path is not of the expected type.
+     */
+    public byte[] getFieldValueAsBytes(String path, boolean ignoreMissing) {
+        Object object = getFieldValue(path, Object.class, ignoreMissing);
+        if (object == null) {
+            return null;
+        } else if (object instanceof byte[]) {
             return (byte[]) object;
         } else if (object instanceof String) {
             return Base64.getDecoder().decode(object.toString());

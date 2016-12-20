@@ -193,11 +193,9 @@ public class SearchTransportService extends AbstractComponent {
         try {
             //TODO at the moment the configured cluster names are really just labels. We should validate that all the nodes
             //belong to the same cluster, also validate the cluster name against the configured label and make sure they match
-            DiscoveryNode discoveryNode = transportService.connectToNodeAndHandshake(remoteNode, 10000, false);
-            transportService.disconnectFromNode(remoteNode); // disconnect the light connection
             // now go and do a real connection with the updated version of the node
-            connectToRemoteNode(discoveryNode);
-            return discoveryNode;
+            connectToRemoteNode(remoteNode);
+            return remoteNode;
         } catch(ConnectTransportException e) {
             throw new ConnectTransportException(remoteNode, "unable to connect to remote cluster [" + clusterName + "]", e);
         }

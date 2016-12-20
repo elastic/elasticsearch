@@ -1,25 +1,23 @@
 /*
- * ELASTICSEARCH CONFIDENTIAL
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * Copyright (c) 2016 Elasticsearch BV. All Rights Reserved.
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
- * Notice: this software, and all information contained
- * therein, is the exclusive property of Elasticsearch BV
- * and its licensors, if any, and is protected under applicable
- * domestic and foreign law, and international treaties.
- *
- * Reproduction, republication or distribution without the
- * express written consent of Elasticsearch BV is
- * strictly prohibited.
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
  */
 package org.elasticsearch.test;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
-
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,51 +27,58 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
+
 public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeable> extends AbstractWireSerializingTestCase<T> {
 
     /**
      * Generic test that creates new instance from the test instance and checks
-     * both for equality and asserts equality on the two queries.
+     * both for equality and asserts equality on the two instances.
      */
     public void testFromXContent() throws IOException {
-        for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
             T testInstance = createTestInstance();
-            XContentBuilder builder = toXContent(testInstance, randomFrom(XContentType.values()));
-            XContentBuilder shuffled = shuffleXContent(builder, shuffleProtectedFields());
-            assertParsedInstance(shuffled.bytes(), testInstance);
+            XContentType xContentType = randomFrom(XContentType.values());
+            XContentBuilder builder = toXContent(testInstance, xContentType);
+            XContentBuilder shuffled = shuffleXContent(builder);
+            assertParsedInstance(xContentType, shuffled.bytes(), testInstance);
             for (Map.Entry<String, T> alternateVersion : getAlternateVersions().entrySet()) {
                 String instanceAsString = alternateVersion.getKey();
-                assertParsedInstance(new BytesArray(instanceAsString), alternateVersion.getValue());
+                assertParsedInstance(XContentType.JSON, new BytesArray(instanceAsString), alternateVersion.getValue());
             }
         }
     }
 
-    private void assertParsedInstance(BytesReference queryAsBytes, T expectedInstance)
+    private void assertParsedInstance(XContentType xContentType, BytesReference instanceAsBytes, T expectedInstance)
             throws IOException {
-        XContentParser parser = XContentFactory.xContent(queryAsBytes).createParser(queryAsBytes);
-        T newInstance = parseQuery(parser, ParseFieldMatcher.STRICT);
+        XContentParser parser = XContentFactory.xContent(xContentType).createParser(instanceAsBytes);
+        T newInstance = parseInstance(parser);
         assertNotSame(newInstance, expectedInstance);
         assertEquals(expectedInstance, newInstance);
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
     }
 
-    private T parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
-        T parsedInstance = parseInstance(parser, matcher);
+    private T parseInstance(XContentParser parser) throws IOException {
+        T parsedInstance = doParseInstance(parser);
         assertNull(parser.nextToken());
         return parsedInstance;
     }
 
-    protected abstract T parseInstance(XContentParser parser, ParseFieldMatcher matcher);
+    /**
+     * Parses to a new instance using the provided {@link XContentParser}
+     */
+    protected abstract T doParseInstance(XContentParser parser);
 
     /**
-     * Subclasses can override this method and return an array of fieldnames
-     * which should be protected from recursive random shuffling in the
-     * {@link #testFromXContent()} test case
+     * Renders the provided instance in XContent
+     * 
+     * @param instance
+     *            the instance to render
+     * @param contentType
+     *            the content type to render to
      */
-    protected String[] shuffleProtectedFields() {
-        return Strings.EMPTY_ARRAY;
-    }
-
     protected XContentBuilder toXContent(T instance, XContentType contentType)
             throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(contentType);
@@ -85,9 +90,11 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     }
 
     /**
-     * Returns alternate string representation of the query that need to be
+     * Returns alternate string representation of the instance that need to be
      * tested as they are never used as output of the test instance. By default
      * there are no alternate versions.
+     * 
+     * These alternatives must be JSON strings.
      */
     protected Map<String, T> getAlternateVersions() {
         return Collections.emptyMap();

@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
@@ -188,6 +189,36 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
     }
 
     public abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, metaData, pipelineAggregators, doHashCode());
+    }
+
+    // norelease: make this abstract when all InternalAggregations implement this method
+    protected int doHashCode() {
+        return System.identityHashCode(this);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
+        InternalAggregation other = (InternalAggregation) obj;
+        return Objects.equals(name, other.name) &&
+                Objects.equals(pipelineAggregators, other.pipelineAggregators) &&
+                Objects.equals(metaData, other.metaData) &&
+                doEquals(obj);
+    }
+
+    // norelease: make this abstract when all InternalAggregations implement this method
+    protected boolean doEquals(Object obj) {
+        return this == obj;
+    }
 
     /**
      * Common xcontent fields that are shared among addAggregation

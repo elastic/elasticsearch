@@ -25,6 +25,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public abstract class InternalNumericMetricsAggregation extends InternalMetricsAggregation {
 
@@ -101,5 +102,26 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
      */
     protected InternalNumericMetricsAggregation(StreamInput in) throws IOException {
         super(in);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(format, innerHashCode());
+    }
+
+    // norelease: make this abstract when all InternalAggregations implement this method
+    protected int innerHashCode() {
+        return System.identityHashCode(this);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalNumericMetricsAggregation other = (InternalNumericMetricsAggregation) obj;
+        return Objects.equals(format, other.format) && innerEquals(other);
+    }
+
+    // norelease: make this abstract when all InternalAggregations implement this method
+    protected boolean innerEquals(InternalNumericMetricsAggregation obj) {
+        return this == obj;
     }
 }

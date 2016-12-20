@@ -101,10 +101,20 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
 
     private final TransportClient.HostFailureListener hostFailureListener;
 
+    // TODO: migrate this to use low level connections and single type channels
     /** {@link ConnectionProfile} to use when to connecting to the listed nodes and doing a liveness check */
-    private static final ConnectionProfile LISTED_NODES_PROFILE =
-        ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.STATE, null, null);
+    private static final ConnectionProfile LISTED_NODES_PROFILE;
 
+    static {
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1,
+            TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.PING,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STATE);
+        LISTED_NODES_PROFILE = builder.build();
+    }
 
     TransportClientNodesService(Settings settings, TransportService transportService,
                                        ThreadPool threadPool, TransportClient.HostFailureListener hostFailureListener) {

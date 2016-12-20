@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -345,6 +346,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     protected class PingingRound implements Releasable {
         private final int id;
         private final Map<TransportAddress, Connection> tempConnections = new HashMap<>();
+        private final KeyedLock<TransportAddress> connectionLock = new KeyedLock<>(true);
         private final PingCollection pingCollection;
         private final List<DiscoveryNode> seedNodes;
         private final Consumer<PingCollection> pingListener;
@@ -376,23 +378,34 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             return seedNodes;
         }
 
-        public synchronized Connection getConnection(TransportAddress address) {
-            ensureOpen();
-            return tempConnections.get(address);
+        public Connection getOrConnect(DiscoveryNode node) throws IOException {
+            Connection result;
+            try (Releasable ignore = connectionLock.acquire(node.getAddress())) {
+                result = tempConnections.get(node.getAddress());
+                if (result == null) {
+                    boolean success = false;
+                    result = transportService.openConnection(node, connectionProfile);
+                    try {
+                        transportService.handshake(result, connectionProfile.getHandshakeTimeout().millis());
+                        synchronized (this) {
+                            // acquire lock to prevent concurrent closing
+                            Connection existing = tempConnections.put(node.getAddress(), result);
+                            assert existing == null;
+                            success = true;
+                        }
+                    } finally {
+                        if (success == false) {
+                            IOUtils.closeWhileHandlingException(result);
+                        }
+                    }
+                }
+            }
+            return result;
         }
 
         private void ensureOpen() {
             if (isClosed()) {
                 throw new AlreadyClosedException("pinging round [" + id + "] is finished");
-            }
-        }
-
-        public synchronized void addConnection(TransportAddress address, Connection newConnection) {
-            final Connection existing = getConnection(address);
-            if (existing == null) {
-                tempConnections.put(address, newConnection);
-            } else {
-                throw new IllegalArgumentException("connection to [" + address + "] already exists");
             }
         }
 
@@ -409,6 +422,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                 if (closed.compareAndSet(false, true)) {
                     activePingingRounds.remove(id);
                     toClose = new ArrayList<>(tempConnections.values());
+                    tempConnections.clear();
                 }
             }
             if (toClose != null) {
@@ -474,23 +488,10 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                     } catch (NodeNotConnectedException e) {
                         logger.trace("[{}] node [{}] just disconnected, will create a temp connection", pingingRound.id(), node);
                     }
-                } else {
-                    connection = pingingRound.getConnection(node.getAddress());
                 }
 
                 if (connection == null) {
-                    logger.trace("[{}] temporarily connecting to {}", pingingRound.id(), node);
-                    boolean success = false;
-                    connection = transportService.openConnection(node, pingingRound.getConnectionProfile());
-                    try {
-                        transportService.handshake(connection, timeout.millis());
-                        pingingRound.addConnection(node.getAddress(), connection);
-                        success = true;
-                    } finally {
-                        if (success == false) {
-                            IOUtils.closeWhileHandlingException(connection);
-                        }
-                    }
+                    connection = pingingRound.getOrConnect(node);
                 }
 
                 logger.trace("[{}] sending to {}", pingingRound.id(), node);

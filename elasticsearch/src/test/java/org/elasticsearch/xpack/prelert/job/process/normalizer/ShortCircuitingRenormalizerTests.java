@@ -54,7 +54,7 @@ public class ShortCircuitingRenormalizerTests extends ESTestCase {
 
             List<String> quantilesUsed = stateCaptor.getAllValues();
             assertFalse(quantilesUsed.isEmpty());
-            assertTrue(quantilesUsed.size() < TEST_SIZE);
+            assertTrue("quantilesUsed.size() is " + quantilesUsed.size(), quantilesUsed.size() <= TEST_SIZE);
 
             // Last quantiles state that was actually used must be the last quantiles state we supplied
             assertEquals(Integer.toString(TEST_SIZE), quantilesUsed.get(quantilesUsed.size() - 1));

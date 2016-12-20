@@ -693,7 +693,16 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             Date lastDataTime;
             String modelSnapshotId;
             if (fromApi) {
-                id = this.id == null ? UUIDs.base64UUID().toLowerCase(Locale.ROOT): this.id;
+                if (this.id != null) {
+                    id = this.id;
+                } else {
+                    // Base64 UUIDs are not necessarily valid job IDs
+                    id = "auto-" + UUIDs.base64UUID().toLowerCase(Locale.ROOT).replaceAll("/\\+=", "_");
+                    if (id.endsWith("_")) {
+                        // Job IDs cannot end with underscores
+                        id = id.substring(0, id.length() - 1) + "z";
+                    }
+                }
                 createTime = this.createTime == null ? new Date() : this.createTime;
                 finishedTime = null;
                 lastDataTime = null;

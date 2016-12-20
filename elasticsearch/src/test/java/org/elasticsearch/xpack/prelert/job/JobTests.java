@@ -82,6 +82,12 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertNotNull(buildJobBuilder(null).build(true).getId()); // test auto id generation
     }
 
+    public void testNoIdStartsWithAuto() {
+        String autoId = buildJobBuilder(null).build(true).getId();
+        assertTrue(autoId, autoId.startsWith("auto-"));
+        assertFalse(autoId, autoId.endsWith("_"));
+    }
+
     public void testEquals_GivenDifferentClass() {
         Job job = buildJobBuilder("foo").build();
         assertFalse(job.equals("a string"));

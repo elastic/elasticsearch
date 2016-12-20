@@ -392,7 +392,8 @@ public class MockClientBuilder {
         doAnswer(new Answer<Void>() {
             @Override
             public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                ActionListener<IndicesAliasesResponse> listener = (ActionListener<IndicesAliasesResponse>) invocationOnMock.getArguments()[0];
+                ActionListener<IndicesAliasesResponse> listener =
+                        (ActionListener<IndicesAliasesResponse>) invocationOnMock.getArguments()[0];
                 listener.onResponse(mock(IndicesAliasesResponse.class));
                 return null;
             }

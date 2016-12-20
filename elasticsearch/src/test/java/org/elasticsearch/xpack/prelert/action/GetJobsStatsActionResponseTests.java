@@ -41,12 +41,7 @@ public class GetJobsStatsActionResponseTests extends AbstractStreamableTestCase<
             }
             JobStatus jobStatus = randomFrom(EnumSet.allOf(JobStatus.class));
 
-            SchedulerStatus schedulerStatus = null;
-            if (randomBoolean()) {
-                schedulerStatus = randomFrom(SchedulerStatus.values());
-            }
-
-            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobStatus, schedulerStatus);
+            Response.JobStats jobStats = new Response.JobStats(jobId, dataCounts, sizeStats, jobStatus);
             jobStatsList.add(jobStats);
         }
 

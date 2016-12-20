@@ -89,7 +89,6 @@ setup:
   - match: { jobs.0.data_counts.input_field_count: 4 }
   - match: { jobs.0.model_size_stats.model_bytes: 100 }
   - match: { jobs.0.status: OPENED }
-  - is_false: jobs.0.scheduler_status
 
 ---
 "Test get job stats of scheduled job that has not received and data":
@@ -101,7 +100,6 @@ setup:
   - match: { jobs.0.data_counts.processed_record_count: 0 }
   - is_false: jobs.0.model_size_stats
   - match: { jobs.0.status: OPENED }
-  - match: { jobs.0.scheduler_status: STOPPED }
 
 ---
 "Test get job stats given missing job":

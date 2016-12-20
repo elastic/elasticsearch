@@ -24,7 +24,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-public class GetJobActionResponseTests extends AbstractStreamableTestCase<GetJobsAction.Response> {
+public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJobsAction.Response> {
 
     @Override
     protected Response createTestInstance() {

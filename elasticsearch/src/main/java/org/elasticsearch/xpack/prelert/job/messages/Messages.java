@@ -188,7 +188,6 @@ public final class Messages {
     public static final String JOB_DATA_CONCURRENT_USE_UPDATE = "job.data.concurrent.use.update";
     public static final String JOB_DATA_CONCURRENT_USE_UPLOAD = "job.data.concurrent.use.upload";
 
-    public static final String SCHEDULER_CONFIG_FIELD_NOT_SUPPORTED = "scheduler.config.field.not.supported";
     public static final String SCHEDULER_CONFIG_INVALID_OPTION_VALUE = "scheduler.config.invalid.option.value";
 
     public static final String SCHEDULER_DOES_NOT_SUPPORT_JOB_WITH_LATENCY = "scheduler.does.not.support.job.with.latency";

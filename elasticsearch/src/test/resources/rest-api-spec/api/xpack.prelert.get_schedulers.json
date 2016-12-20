@@ -1,0 +1,19 @@
+{
+  "xpack.prelert.get_schedulers": {
+    "methods": [ "GET"],
+    "url": {
+      "path": "/_xpack/prelert/schedulers/{scheduler_id}",
+      "paths": [
+        "/_xpack/prelert/schedulers/{scheduler_id}"
+      ],
+      "parts": {
+        "scheduler_id": {
+          "type": "string",
+          "required": true,
+          "description": "The ID of the schedulers to fetch"
+        }
+      }
+    },
+    "body": null
+  }
+}

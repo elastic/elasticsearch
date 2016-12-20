@@ -41,6 +41,8 @@ import org.elasticsearch.xpack.prelert.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.prelert.action.GetListAction;
 import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.prelert.action.GetRecordsAction;
+import org.elasticsearch.xpack.prelert.action.GetSchedulersAction;
+import org.elasticsearch.xpack.prelert.action.GetSchedulersStatsAction;
 import org.elasticsearch.xpack.prelert.action.JobDataAction;
 import org.elasticsearch.xpack.prelert.action.OpenJobAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
@@ -99,6 +101,8 @@ import org.elasticsearch.xpack.prelert.rest.results.RestGetCategoriesAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetInfluencersAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.prelert.rest.schedulers.RestDeleteSchedulerAction;
+import org.elasticsearch.xpack.prelert.rest.schedulers.RestGetSchedulersAction;
+import org.elasticsearch.xpack.prelert.rest.schedulers.RestGetSchedulersStatsAction;
 import org.elasticsearch.xpack.prelert.rest.schedulers.RestPutSchedulerAction;
 import org.elasticsearch.xpack.prelert.rest.schedulers.RestStartSchedulerAction;
 import org.elasticsearch.xpack.prelert.rest.schedulers.RestStopSchedulerAction;
@@ -246,6 +250,8 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 RestGetModelSnapshotsAction.class,
                 RestRevertModelSnapshotAction.class,
                 RestPutModelSnapshotDescriptionAction.class,
+                RestGetSchedulersAction.class,
+                RestGetSchedulersStatsAction.class,
                 RestPutSchedulerAction.class,
                 RestDeleteSchedulerAction.class,
                 RestStartSchedulerAction.class,
@@ -280,6 +286,8 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetModelSnapshotsAction.INSTANCE, GetModelSnapshotsAction.TransportAction.class),
                 new ActionHandler<>(RevertModelSnapshotAction.INSTANCE, RevertModelSnapshotAction.TransportAction.class),
                 new ActionHandler<>(PutModelSnapshotDescriptionAction.INSTANCE, PutModelSnapshotDescriptionAction.TransportAction.class),
+                new ActionHandler<>(GetSchedulersAction.INSTANCE, GetSchedulersAction.TransportAction.class),
+                new ActionHandler<>(GetSchedulersStatsAction.INSTANCE, GetSchedulersStatsAction.TransportAction.class),
                 new ActionHandler<>(PutSchedulerAction.INSTANCE, PutSchedulerAction.TransportAction.class),
                 new ActionHandler<>(DeleteSchedulerAction.INSTANCE, DeleteSchedulerAction.TransportAction.class),
                 new ActionHandler<>(StartSchedulerAction.INSTANCE, StartSchedulerAction.TransportAction.class),

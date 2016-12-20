@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
-import org.elasticsearch.xpack.prelert.scheduler.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -54,7 +53,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
     private static final String DATA_COUNTS = "data_counts";
     private static final String MODEL_SIZE_STATS = "model_size_stats";
-    private static final String SCHEDULER_STATUS = "scheduler_status";
     private static final String STATUS = "status";
 
     private GetJobsStatsAction() {
@@ -135,16 +133,12 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             @Nullable
             private ModelSizeStats modelSizeStats;
             private JobStatus status;
-            @Nullable
-            private SchedulerStatus schedulerStatus;
 
-            JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobStatus status,
-                     @Nullable SchedulerStatus schedulerStatus) {
+            JobStats(String jobId, DataCounts dataCounts, @Nullable ModelSizeStats modelSizeStats, JobStatus status) {
                 this.jobId = Objects.requireNonNull(jobId);
                 this.dataCounts = Objects.requireNonNull(dataCounts);
                 this.modelSizeStats = modelSizeStats;
                 this.status = Objects.requireNonNull(status);
-                this.schedulerStatus = schedulerStatus;
             }
 
             JobStats(StreamInput in) throws IOException {
@@ -152,7 +146,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 dataCounts = new DataCounts(in);
                 modelSizeStats = in.readOptionalWriteable(ModelSizeStats::new);
                 status = JobStatus.fromStream(in);
-                schedulerStatus = in.readOptionalWriteable(SchedulerStatus::fromStream);
             }
 
             public String getJobid() {
@@ -165,10 +158,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
 
             public ModelSizeStats getModelSizeStats() {
                 return modelSizeStats;
-            }
-
-            public SchedulerStatus getSchedulerStatus() {
-                return schedulerStatus;
             }
 
             public JobStatus getStatus() {
@@ -184,9 +173,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                     builder.field(MODEL_SIZE_STATS, modelSizeStats);
                 }
                 builder.field(STATUS, status);
-                if (schedulerStatus != null) {
-                    builder.field(SCHEDULER_STATUS, schedulerStatus);
-                }
                 builder.endObject();
 
                 return builder;
@@ -198,12 +184,11 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 dataCounts.writeTo(out);
                 out.writeOptionalWriteable(modelSizeStats);
                 status.writeTo(out);
-                out.writeOptionalWriteable(schedulerStatus);
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(jobId, dataCounts, modelSizeStats, schedulerStatus, status);
+                return Objects.hash(jobId, dataCounts, modelSizeStats, status);
             }
 
             @Override
@@ -218,8 +203,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 return Objects.equals(jobId, other.jobId)
                         && Objects.equals(this.dataCounts, other.dataCounts)
                         && Objects.equals(this.modelSizeStats, other.modelSizeStats)
-                        && Objects.equals(this.status, other.status)
-                        && Objects.equals(this.schedulerStatus, other.schedulerStatus);
+                        && Objects.equals(this.status, other.status);
             }
         }
 
@@ -321,8 +305,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
                 DataCounts dataCounts = readDataCounts(job.getId());
                 ModelSizeStats modelSizeStats = readModelSizeStats(job.getId());
                 JobStatus status = prelertMetadata.getAllocations().get(job.getId()).getStatus();
-                Optional<SchedulerStatus> schedulerStatus = prelertMetadata.getSchedulerStatusByJobId(job.getId());
-                jobsStats.add(new Response.JobStats(job.getId(), dataCounts, modelSizeStats, status, schedulerStatus.orElse(null)));
+                jobsStats.add(new Response.JobStats(job.getId(), dataCounts, modelSizeStats, status));
             }
 
             QueryPage<Response.JobStats> jobsStatsPage = new QueryPage<>(jobsStats, jobsStats.size(), Job.RESULTS_FIELD);

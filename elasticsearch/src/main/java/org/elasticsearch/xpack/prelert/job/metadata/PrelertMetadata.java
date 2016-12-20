@@ -307,7 +307,7 @@ public class PrelertMetadata implements MetaData.Custom {
         public Builder removeScheduler(String schedulerId) {
             Scheduler scheduler = schedulers.get(schedulerId);
             if (scheduler == null) {
-                throw new ResourceNotFoundException(Messages.getMessage(Messages.SCHEDULER_NOT_FOUND, schedulerId));
+                throw ExceptionsHelper.missingSchedulerException(schedulerId);
             }
             if (scheduler.getStatus() != SchedulerStatus.STOPPED) {
                 String msg = Messages.getMessage(Messages.SCHEDULER_CANNOT_DELETE_IN_CURRENT_STATE, schedulerId, scheduler.getStatus());
@@ -400,7 +400,7 @@ public class PrelertMetadata implements MetaData.Custom {
         public Builder updateSchedulerStatus(String schedulerId, SchedulerStatus newStatus) {
             Scheduler scheduler = schedulers.get(schedulerId);
             if (scheduler == null) {
-                throw new ResourceNotFoundException(Messages.getMessage(Messages.SCHEDULER_NOT_FOUND, schedulerId));
+                throw ExceptionsHelper.missingSchedulerException(schedulerId);
             }
 
             SchedulerStatus currentStatus = scheduler.getStatus();

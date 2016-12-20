@@ -34,10 +34,7 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         if (randomBoolean()) {
             builder.setQuery(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
         }
-        boolean retrieveWholeSource = randomBoolean();
-        if (retrieveWholeSource) {
-            builder.setRetrieveWholeSource(randomBoolean());
-        } else if (randomBoolean()) {
+        if (randomBoolean()) {
             builder.setScriptFields(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
         }
         if (randomBoolean()) {
@@ -149,7 +146,6 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         defaultQuery.put("match_all", new HashMap<String, Object>());
         expectedSchedulerConfig.setQuery(defaultQuery);
         expectedSchedulerConfig.setQueryDelay(60L);
-        expectedSchedulerConfig.setRetrieveWholeSource(false);
         expectedSchedulerConfig.setScrollSize(1000);
         SchedulerConfig.Builder defaultedSchedulerConfig = new SchedulerConfig.Builder("scheduler1", "job1");
         defaultedSchedulerConfig.setIndexes(Arrays.asList("index"));
@@ -266,7 +262,7 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         assertEquals(Collections.singletonMap("match_all", new HashMap<>()), conf.build().getQuery());
     }
 
-    public void testCheckValid_GivenScriptFieldsNotWholeSource() throws IOException {
+    public void testCheckValid_GivenScriptFields() throws IOException {
         SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
         conf.setIndexes(Arrays.asList("myindex"));
         conf.setTypes(Arrays.asList("mytype"));
@@ -274,20 +270,7 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
                 + "\"inline\" : \"doc['responsetime'].value * 2\" } } }";
         XContentParser parser = XContentFactory.xContent(json).createParser(json);
         conf.setScriptFields(parser.map());
-        conf.setRetrieveWholeSource(false);
         assertEquals(1, conf.build().getScriptFields().size());
-    }
-
-    public void testCheckValid_GivenScriptFieldsAndWholeSource() throws IOException {
-        SchedulerConfig.Builder conf = new SchedulerConfig.Builder("scheduler1", "job1");
-        conf.setIndexes(Arrays.asList("myindex"));
-        conf.setTypes(Arrays.asList("mytype"));
-        String json = "{ \"twiceresponsetime\" : { \"script\" : { \"lang\" : \"expression\", "
-                + "\"inline\" : \"doc['responsetime'].value * 2\" } } }";
-        XContentParser parser = XContentFactory.xContent(json).createParser(json);
-        conf.setScriptFields(parser.map());
-        conf.setRetrieveWholeSource(true);
-        expectThrows(IllegalArgumentException.class, conf::build);
     }
 
     public void testCheckValid_GivenNullIndexes() throws IOException {

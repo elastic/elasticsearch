@@ -134,7 +134,7 @@ public class ScheduledJobRunner extends AbstractComponent {
     public static void validate(String schedulerId, PrelertMetadata prelertMetadata) {
         Scheduler scheduler = prelertMetadata.getScheduler(schedulerId);
         if (scheduler == null) {
-            throw new ResourceNotFoundException(Messages.getMessage(Messages.SCHEDULER_NOT_FOUND, schedulerId));
+            throw ExceptionsHelper.missingSchedulerException(schedulerId);
         }
         Job job = prelertMetadata.getJobs().get(scheduler.getJobId());
         if (job == null) {

@@ -25,6 +25,9 @@ public class Scheduler extends AbstractDiffable<Scheduler> implements ToXContent
 
     public static final Scheduler PROTO = new Scheduler(null, null);
 
+    // Used for QueryPage
+    public static final ParseField RESULTS_FIELD = new ParseField("schedulers");
+
     public static final ConstructingObjectParser<Scheduler, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>("scheduler",
             a -> new Scheduler((SchedulerConfig) a[0], (SchedulerStatus) a[1]));
 

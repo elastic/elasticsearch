@@ -18,7 +18,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
 
@@ -54,21 +54,19 @@ public class BackwardsCompatibilityAliasesResource extends HttpResource {
         XContentBuilder request;
         try {
             Response response = client.performRequest("GET", "/.marvel-es-1-*", Collections.singletonMap("filter_path", "*.aliases"));
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(response.getEntity().getContent())) {
-                Map<String, Object> indices = parser.map();
-                request = JsonXContent.contentBuilder();
-                request.startObject().startArray("actions");
-                for (Map.Entry<String, Object> e : indices.entrySet()) {
-                    String index = e.getKey();
-                    // we add a suffix so that it will not collide with today's monitoring index following an upgrade
-                    String alias = ".monitoring-es-2-" + index.substring(".marvel-es-1-".length()) + "-alias";
-                    if (false == aliasesForIndex(e.getValue()).contains(alias)) {
-                        needNewAliases = true;
-                        addAlias(request, index, alias);
-                    }
+            Map<String, Object> indices = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
+            request = JsonXContent.contentBuilder();
+            request.startObject().startArray("actions");
+            for (Map.Entry<String, Object> e : indices.entrySet()) {
+                String index = e.getKey();
+                // we add a suffix so that it will not collide with today's monitoring index following an upgrade
+                String alias = ".monitoring-es-2-" + index.substring(".marvel-es-1-".length()) + "-alias";
+                if (false == aliasesForIndex(e.getValue()).contains(alias)) {
+                    needNewAliases = true;
+                    addAlias(request, index, alias);
                 }
-                request.endArray().endObject();
             }
+            request.endArray().endObject();
         } catch (ResponseException e) {
             int statusCode = e.getResponse().getStatusLine().getStatusCode();
 
@@ -97,15 +95,14 @@ public class BackwardsCompatibilityAliasesResource extends HttpResource {
             BytesRef bytes = request.bytes().toBytesRef();
             HttpEntity body = new ByteArrayEntity(bytes.bytes, bytes.offset, bytes.length, ContentType.APPLICATION_JSON);
             Response response = client.performRequest("POST", "/_aliases", parameters(), body);
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(response.getEntity().getContent())) {
-                Map<String, Object> aliasesResponse = parser.map();
-                Boolean acked = (Boolean) aliasesResponse.get("acknowledged");
-                if (acked == null) {
-                    logger.error("Unexpected response format from _aliases action {}", aliasesResponse);
-                    return false;
-                }
-                return acked;
+            Map<String, Object> aliasesResponse = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(),
+                    false);
+            Boolean acked = (Boolean) aliasesResponse.get("acknowledged");
+            if (acked == null) {
+                logger.error("Unexpected response format from _aliases action {}", aliasesResponse);
+                return false;
             }
+            return acked;
         } catch (IOException | RuntimeException e) {
             logger.error("failed to create aliases for 2.x monitoring indexes", e);
             return false;

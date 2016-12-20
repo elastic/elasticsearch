@@ -5,11 +5,12 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative;
 
-import com.google.common.base.Charsets;
-import javax.net.ssl.HttpsURLConnection;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
+import com.google.common.base.Charsets;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -59,6 +61,8 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+
+import javax.net.ssl.HttpsURLConnection;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.security.Security.setting;
@@ -194,7 +198,8 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
         Set<String> getUsersThatExist(Terminal terminal, Settings settings, Environment env, OptionSet options) throws Exception {
             Set<String> existingUsers = new HashSet<>();
             String allUsersJson = postURL(settings, env, "GET", this.url.value(options) + "/_xpack/security/user/", options, null);
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(allUsersJson)) {
+            // EMPTY is safe here because we never use namedObject
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, allUsersJson)) {
                 XContentParser.Token token = parser.nextToken();
                 String userName;
                 if (token == XContentParser.Token.START_OBJECT) {
@@ -275,7 +280,8 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
         Set<String> getRolesThatExist(Terminal terminal, Settings settings, Environment env, OptionSet options) throws Exception {
             Set<String> existingRoles = new HashSet<>();
             String allRolesJson = postURL(settings, env, "GET", this.url.value(options) + "/_xpack/security/role/", options, null);
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(allRolesJson)) {
+            // EMPTY is safe here because we never use namedObject
+            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, allRolesJson)) {
                 XContentParser.Token token = parser.nextToken();
                 String roleName;
                 if (token == XContentParser.Token.START_OBJECT) {

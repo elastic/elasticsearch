@@ -9,10 +9,12 @@ import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -49,7 +51,7 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
 
         when(response.getEntity()).thenReturn(entity);
         when(entity.getContent()).thenReturn(stream);
-        when(xContent.createParser(stream)).thenReturn(parser);
+        when(xContent.createParser(Mockito.any(NamedXContentRegistry.class), Mockito.eq(stream))).thenReturn(parser);
 
         // {, "took", 4, "errors", false
         when(parser.nextToken()).thenReturn(Token.START_OBJECT,
@@ -105,7 +107,7 @@ public class HttpExportBulkResponseListenerTests extends ESTestCase {
 
         when(response.getEntity()).thenReturn(entity);
         when(entity.getContent()).thenReturn(stream);
-        when(xContent.createParser(stream)).thenReturn(parser);
+        when(xContent.createParser(Mockito.any(NamedXContentRegistry.class), Mockito.eq(stream))).thenReturn(parser);
 
         // {, "took", 4, "errors", false                                                      nextToken, currentName
         when(parser.nextToken()).thenReturn(Token.START_OBJECT,                            // 1

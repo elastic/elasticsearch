@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -101,15 +102,16 @@ public class XContentSource implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        try (XContentParser parser = parser()) {
+        // EMPTY is safe here because we never use namedObject
+        try (XContentParser parser = parser(NamedXContentRegistry.EMPTY)) {
             parser.nextToken();
             XContentHelper.copyCurrentStructure(builder.generator(), parser);
             return builder;
         }
     }
 
-    public XContentParser parser() throws IOException {
-        return contentType.xContent().createParser(bytes);
+    public XContentParser parser(NamedXContentRegistry xContentRegistry) throws IOException {
+        return contentType.xContent().createParser(xContentRegistry, bytes);
     }
 
     public static XContentSource readFrom(StreamInput in) throws IOException {
@@ -123,7 +125,8 @@ public class XContentSource implements ToXContent {
 
     private Object data() {
         if (data == null) {
-            try (XContentParser parser = parser()) {
+            // EMPTY is safe here because we never use namedObject
+            try (XContentParser parser = parser(NamedXContentRegistry.EMPTY)) {
                 data = XContentUtils.readValue(parser, parser.nextToken());
             } catch (IOException ex) {
                 throw new ElasticsearchException("failed to read value", ex);

@@ -14,6 +14,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -34,8 +35,8 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
     private final boolean ssl;
 
     public SecurityNetty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
-                                             SSLService sslService, ThreadPool threadPool) {
-        super(settings, networkService, bigArrays, threadPool);
+                                             SSLService sslService, ThreadPool threadPool, NamedXContentRegistry xContentRegistry) {
+        super(settings, networkService, bigArrays, threadPool, xContentRegistry);
         this.ipFilter = ipFilter;
         this.ssl = HTTP_SSL_ENABLED.get(settings);
         this.sslService =  sslService;

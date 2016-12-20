@@ -14,7 +14,6 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.monitoring.action.MonitoringBulkRequestBuilder;

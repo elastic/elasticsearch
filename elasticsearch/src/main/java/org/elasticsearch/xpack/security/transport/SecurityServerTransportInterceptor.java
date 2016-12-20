@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

@@ -16,6 +16,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -162,7 +163,8 @@ public class RoleDescriptor implements ToXContent {
 
     public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat) throws IOException {
         assert name != null;
-        try (XContentParser parser = XContentHelper.createParser(source)) {
+        // EMPTY is safe here because we never use namedObject
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
             return parse(name, parser, allow2xFormat);
         }
     }

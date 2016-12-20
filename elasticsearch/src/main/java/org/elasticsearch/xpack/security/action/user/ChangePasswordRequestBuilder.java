@@ -12,6 +12,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -58,7 +59,8 @@ public class ChangePasswordRequestBuilder
     }
 
     public ChangePasswordRequestBuilder source(BytesReference source) throws IOException {
-        try (XContentParser parser = XContentHelper.createParser(source)) {
+        // EMPTY is ok here because we never call namedObject
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, source)) {
             XContentUtils.verifyObject(parser);
             XContentParser.Token token;
             String currentFieldName = null;

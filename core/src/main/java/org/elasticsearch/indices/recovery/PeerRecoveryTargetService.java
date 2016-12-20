@@ -406,12 +406,12 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             return;
         } else {
             logger.trace("waiting for cluster state version {} (current: {})", clusterStateVersion, clusterState.getVersion());
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            final PlainActionFuture<Long> future = new PlainActionFuture<>();
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
 
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    future.onResponse(null);
+                    future.onResponse(state.getVersion());
                 }
 
                 @Override
@@ -425,9 +425,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 }
             }, newState -> newState.getVersion() >= clusterStateVersion);
             try {
-                future.get();
-                logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion,
-                    clusterService.state().getVersion());
+                long currentVersion = future.get();
+                logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion, currentVersion);
             } catch (Exception e) {
                 logger.debug(
                     (Supplier<?>) () -> new ParameterizedMessage(

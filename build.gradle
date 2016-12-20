@@ -41,7 +41,7 @@ if (['true', 'false', 'auto'].contains(cppEnabledStr) == false) {
 project.ext.cppEnabled = cppEnabledStr == 'true'
 if (cppEnabledStr == 'auto') {
     // Disable the C++ build if the 3rd party tools/libraries aren't available
-    String[] cmdArray = [ project.ext.bash, '-c', 'source cpp/set_env.sh && 3rd_party/3rd_party.sh --check' ]
+    String[] cmdArray = [ project.ext.bash, '-c', 'source cpp/set_env.sh && cpp/3rd_party/3rd_party.sh --check' ]
     Process checkProcess = Runtime.getRuntime().exec(cmdArray, null, rootDir)
     StringBuffer checkOutput = new StringBuffer()
     checkProcess.consumeProcessOutputStream(checkOutput)

@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -16,18 +17,17 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
-import org.elasticsearch.xpack.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
 
 /**
- * Performs the delete operation.
+ * Performs the delete operation. This inherits directly from TransportMasterNodeAction, because deletion should always work
+ * independently from the license check in WatcherTransportAction!
  */
-public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWatchRequest, DeleteWatchResponse> {
+public class TransportDeleteWatchAction extends TransportMasterNodeAction<DeleteWatchRequest, DeleteWatchResponse> {
 
     private final WatcherClientProxy client;
     private final TriggerService triggerService;
@@ -36,9 +36,9 @@ public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWat
     public TransportDeleteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver, WatcherClientProxy client,
-                                      XPackLicenseState licenseState, TriggerService triggerService) {
+                                      TriggerService triggerService) {
         super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,
-                licenseState, DeleteWatchRequest::new);
+                DeleteWatchRequest::new);
         this.client = client;
         this.triggerService = triggerService;
     }

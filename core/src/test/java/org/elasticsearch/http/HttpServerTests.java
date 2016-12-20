@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.AbstractRestChannel;
@@ -193,7 +194,7 @@ public class HttpServerTests extends ESTestCase {
         private final BytesReference content;
 
         private TestRestRequest(String path, String content) {
-            super(Collections.emptyMap(), path);
+            super(NamedXContentRegistry.EMPTY, Collections.emptyMap(), path);
             this.content = new BytesArray(content);
         }
 

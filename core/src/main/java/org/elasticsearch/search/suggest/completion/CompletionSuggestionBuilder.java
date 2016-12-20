@@ -336,10 +336,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             regexOptions.toXContent(builder, params);
         }
         if (contextBytes != null) {
-            try (XContentParser contextParser = XContentFactory.xContent(XContentType.JSON).createParser(contextBytes)) {
-                builder.field(CONTEXTS_FIELD.getPreferredName());
-                builder.copyCurrentStructure(contextParser);
-            }
+            builder.rawField(CONTEXTS_FIELD.getPreferredName(), contextBytes);
         }
         return builder;
     }
@@ -374,7 +371,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
             suggestionContext.setFieldType(type);
             if (type.hasContextMappings() && contextBytes != null) {
-                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(contextBytes)) {
+                try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(context.getXContentRegistry(),
+                        contextBytes)) {
                     if (type.hasContextMappings() && contextParser != null) {
                         ContextMappings contextMappings = type.getContextMappings();
                         contextParser.nextToken();
@@ -400,7 +398,8 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             suggestionContext.setFieldType2x(type);
             if (type.requiresContext()) {
                 if (contextBytes != null) {
-                    try (XContentParser contextParser = XContentFactory.xContent(contextBytes).createParser(contextBytes)) {
+                    try (XContentParser contextParser = XContentFactory.xContent(contextBytes)
+                            .createParser(suggestionContext.getShardContext().getXContentRegistry(), contextBytes)) {
                         contextParser.nextToken();
                         suggestionContext.setContextQueries(ContextQuery.parseQueries(type.getContextMapping(), contextParser));
                     }

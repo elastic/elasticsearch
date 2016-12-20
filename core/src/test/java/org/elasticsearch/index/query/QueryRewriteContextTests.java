@@ -46,16 +46,17 @@ public class QueryRewriteContextTests extends ESTestCase {
         IndicesQueriesRegistry indicesQueriesRegistry = new SearchModule(Settings.EMPTY, false, emptyList()).getQueryParserRegistry();
         IndexSettings indexSettings = new IndexSettings(indexMetadata.build(),
                 Settings.builder().put(ScriptSettings.LEGACY_SCRIPT_SETTING, defaultLegacyScriptLanguage).build());
-        QueryRewriteContext queryRewriteContext =
-                new QueryRewriteContext(indexSettings, null, null, indicesQueriesRegistry, null, null, () -> nowInMills);
+        QueryRewriteContext queryRewriteContext = new QueryRewriteContext(indexSettings, null, null, xContentRegistry(),
+                indicesQueriesRegistry, null, null, () -> nowInMills);
 
         // verify that the default script language in the query parse context is equal to defaultLegacyScriptLanguage variable:
-        QueryParseContext queryParseContext =
-                queryRewriteContext.newParseContextWithLegacyScriptLanguage(XContentHelper.createParser(new BytesArray("{}")));
+        QueryParseContext queryParseContext = queryRewriteContext
+                .newParseContextWithLegacyScriptLanguage(XContentHelper.createParser(xContentRegistry(), new BytesArray("{}")));
         assertEquals(defaultLegacyScriptLanguage, queryParseContext.getDefaultScriptLanguage());
 
         // verify that the script query's script language is equal to defaultLegacyScriptLanguage variable:
-        XContentParser parser = XContentHelper.createParser(new BytesArray("{\"script\" : {\"script\": \"return true\"}}"));
+        XContentParser parser = XContentHelper.createParser(xContentRegistry(),
+                new BytesArray("{\"script\" : {\"script\": \"return true\"}}"));
         queryParseContext = queryRewriteContext.newParseContextWithLegacyScriptLanguage(parser);
         ScriptQueryBuilder queryBuilder = (ScriptQueryBuilder) queryParseContext.parseInnerQueryBuilder().get();
         assertEquals(defaultLegacyScriptLanguage, queryBuilder.script().getLang());

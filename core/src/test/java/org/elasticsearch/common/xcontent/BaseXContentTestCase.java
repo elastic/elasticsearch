@@ -24,7 +24,9 @@ import com.fasterxml.jackson.core.JsonGenerator;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -749,7 +751,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeEndObject();
         }
 
-        XContentParser parser = xcontentType().xContent().createParser(os.toByteArray());
+        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("bar", parser.currentName());
@@ -783,7 +785,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeRawValue(new BytesArray(rawData));
         }
 
-        XContentParser parser = xcontentType().xContent().createParser(os.toByteArray());
+        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("foo", parser.currentName());
@@ -799,7 +801,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
             generator.writeEndObject();
         }
 
-        parser = xcontentType().xContent().createParser(os.toByteArray());
+        parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, os.toByteArray());
         assertEquals(Token.START_OBJECT, parser.nextToken());
         assertEquals(Token.FIELD_NAME, parser.nextToken());
         assertEquals("test", parser.currentName());
@@ -827,7 +829,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         generator.flush();
         byte[] serialized = os.toByteArray();
 
-        XContentParser parser = xcontentType().xContent().createParser(serialized);
+        XContentParser parser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, serialized);
         Map<String, Object> map = parser.map();
         assertEquals("bar", map.get("foo"));
         assertEquals(bigInteger, map.get("bigint"));
@@ -982,6 +984,42 @@ public abstract class BaseXContentTestCase extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
         assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
+    }
+
+    public void testNamedObject() throws IOException {
+        Object test1 = new Object();
+        Object test2 = new Object();
+        NamedXContentRegistry registry = new NamedXContentRegistry(Arrays.asList(
+                new NamedXContentRegistry.Entry(Object.class, new ParseField("test1"), p -> test1),
+                new NamedXContentRegistry.Entry(Object.class, new ParseField("test2", "deprecated"), p -> test2),
+                new NamedXContentRegistry.Entry(Object.class, new ParseField("str"), p -> p.text())));
+        XContentBuilder b = XContentBuilder.builder(xcontentType().xContent());
+        b.value("test");
+        XContentParser p = xcontentType().xContent().createParser(registry, b.bytes());
+        assertEquals(test1, p.namedObject(Object.class, "test1", null));
+        assertEquals(test2, p.namedObject(Object.class, "test2", null));
+        assertEquals(test2, p.namedObject(Object.class, "deprecated", null));
+        // TODO wait for warnings commit to be backported and uncomment
+//        assertWarnings("Deprecated field [deprecated] used, expected [test2] instead");
+        {
+            p.nextToken();
+            assertEquals("test", p.namedObject(Object.class, "str", null));
+            NamedXContentRegistry.UnknownNamedObjectException e = expectThrows(NamedXContentRegistry.UnknownNamedObjectException.class,
+                    () -> p.namedObject(Object.class, "unknown", null));
+            assertEquals("Unknown Object [unknown]", e.getMessage());
+            assertEquals("java.lang.Object", e.getCategoryClass());
+            assertEquals("unknown", e.getName());
+        }
+        {
+            Exception e = expectThrows(ElasticsearchException.class, () -> p.namedObject(String.class, "doesn't matter", null));
+            assertEquals("Unknown namedObject category [java.lang.String]", e.getMessage());
+        }
+        {
+            XContentParser emptyRegistryParser = xcontentType().xContent().createParser(NamedXContentRegistry.EMPTY, new byte[] {});
+            Exception e = expectThrows(ElasticsearchException.class,
+                    () -> emptyRegistryParser.namedObject(String.class, "doesn't matter", null));
+            assertEquals("namedObject is not supported for this parser", e.getMessage());
+        }
     }
 
     private static void expectUnclosedException(ThrowingRunnable runnable) {

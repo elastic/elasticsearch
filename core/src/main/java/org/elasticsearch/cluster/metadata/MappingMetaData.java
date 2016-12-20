@@ -29,7 +29,6 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.TimestampFieldMapper;
 
@@ -177,10 +176,7 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
 
     public MappingMetaData(CompressedXContent mapping) throws IOException {
         this.source = mapping;
-        Map<String, Object> mappingMap;
-        try (XContentParser parser = XContentHelper.createParser(mapping.compressedReference())) {
-            mappingMap = parser.mapOrdered();
-        }
+        Map<String, Object> mappingMap = XContentHelper.convertToMap(mapping.compressedReference(), true).v2();
         if (mappingMap.size() != 1) {
             throw new IllegalStateException("Can't derive type from mapping, no root type: " + mapping.string());
         }

@@ -108,7 +108,7 @@ public class ParseField {
      * @return true if <code>fieldName</code> matches any of the acceptable
      *         names for this {@link ParseField}.
      */
-    boolean match(String fieldName, boolean strict) {
+    public boolean match(String fieldName, boolean strict) {
         Objects.requireNonNull(fieldName, "fieldName cannot be null");
         // if this parse field has not been completely deprecated then try to
         // match the preferred name

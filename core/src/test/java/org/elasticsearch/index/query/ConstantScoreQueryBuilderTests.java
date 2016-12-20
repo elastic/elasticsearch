@@ -23,8 +23,8 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -129,13 +129,13 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
                 "    \"filter\" : { }" +
                 "  }" +
                 "}";
-        XContentParser parser = XContentFactory.xContent(query).createParser(query);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, query);
         QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
         checkWarningHeaders("query malformed, empty clause found at [1:40]");
 
-        parser = XContentFactory.xContent(query).createParser(query);
+        parser = createParser(JsonXContent.jsonXContent, query);
         QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
         assertThat(ex.getMessage(), equalTo("query malformed, empty clause found at [1:40]"));

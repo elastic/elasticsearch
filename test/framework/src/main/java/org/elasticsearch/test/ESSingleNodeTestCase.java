@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -288,7 +289,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
-        ScriptService scriptService = node().injector().getInstance(ScriptService.class);
         return new TestSearchContext(threadPool, bigArrays, indexService);
     }
 
@@ -322,5 +322,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return actionGet.getStatus();
     }
 
-
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return getInstanceFromNode(NamedXContentRegistry.class);
+    }
 }

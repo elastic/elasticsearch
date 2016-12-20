@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
@@ -59,10 +60,10 @@ public class UpdateRequestTests extends ESTestCase {
     public void testUpdateRequest() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type", "1");
         // simple script
-        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+        request.fromXContent(createParser(XContentFactory.jsonBuilder()
                 .startObject()
                     .field("script", "script1")
-                .endObject().bytes()));
+                .endObject()));
         Script script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -72,9 +73,9 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(params, equalTo(Collections.emptyMap()));
 
         // simple verbose script
-        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder().startObject()
+        request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
                     .startObject("script").field("inline", "script1").endObject()
-                .endObject().bytes()));
+                .endObject()));
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -85,13 +86,13 @@ public class UpdateRequestTests extends ESTestCase {
 
         // script with params
         request = new UpdateRequest("test", "type", "1");
-        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder().startObject()
+        request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
             .startObject("script")
                 .field("inline", "script1")
                 .startObject("params")
                     .field("param1", "value1")
                 .endObject()
-            .endObject().endObject().bytes()));
+            .endObject().endObject()));
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -103,7 +104,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(params.get("param1").toString(), equalTo("value1"));
 
         request = new UpdateRequest("test", "type", "1");
-        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+        request.fromXContent(createParser(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("script")
                         .startObject("params")
@@ -111,7 +112,7 @@ public class UpdateRequestTests extends ESTestCase {
                         .endObject()
                         .field("inline", "script1")
                     .endObject()
-                .endObject().bytes()));
+                .endObject()));
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -124,7 +125,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         // script with params and upsert
         request = new UpdateRequest("test", "type", "1");
-        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder().startObject()
+        request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
             .startObject("script")
                 .startObject("params")
                     .field("param1", "value1")
@@ -136,7 +137,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .startObject("compound")
                     .field("field2", "value2")
                 .endObject()
-            .endObject().endObject().bytes()));
+            .endObject().endObject()));
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -151,7 +152,7 @@ public class UpdateRequestTests extends ESTestCase {
         assertThat(((Map) upsertDoc.get("compound")).get("field2").toString(), equalTo("value2"));
 
         request = new UpdateRequest("test", "type", "1");
-        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder().startObject()
+        request.fromXContent(createParser(XContentFactory.jsonBuilder().startObject()
             .startObject("upsert")
                 .field("field1", "value1")
                 .startObject("compound")
@@ -163,7 +164,7 @@ public class UpdateRequestTests extends ESTestCase {
                     .field("param1", "value1")
                 .endObject()
                 .field("inline", "script1")
-            .endObject().endObject().bytes()));
+            .endObject().endObject()));
         script = request.script();
         assertThat(script, notNullValue());
         assertThat(script.getIdOrCode(), equalTo("script1"));
@@ -179,7 +180,7 @@ public class UpdateRequestTests extends ESTestCase {
 
         // script with doc
         request = new UpdateRequest("test", "type", "1");
-        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+        request.fromXContent(createParser(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("doc")
                         .field("field1", "value1")
@@ -187,7 +188,7 @@ public class UpdateRequestTests extends ESTestCase {
                             .field("field2", "value2")
                         .endObject()
                     .endObject()
-                .endObject().bytes()));
+                .endObject()));
         Map<String, Object> doc = request.doc().sourceAsMap();
         assertThat(doc.get("field1").toString(), equalTo("value1"));
         assertThat(((Map) doc.get("compound")).get("field2").toString(), equalTo("value2"));
@@ -237,54 +238,54 @@ public class UpdateRequestTests extends ESTestCase {
 
     // Related to issue 15338
     public void testFieldsParsing() throws Exception {
-        UpdateRequest request = new UpdateRequest("test", "type1", "1")
-                .fromXContent(XContentHelper.createParser(new BytesArray("{\"doc\": {\"field1\": \"value1\"}, \"fields\": \"_source\"}")));
+        UpdateRequest request = new UpdateRequest("test", "type1", "1").fromXContent(
+                createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"field1\": \"value1\"}, \"fields\": \"_source\"}")));
         assertThat(request.doc().sourceAsMap().get("field1").toString(), equalTo("value1"));
         assertThat(request.fields(), arrayContaining("_source"));
 
-        request = new UpdateRequest("test", "type2", "2").fromXContent(
-                XContentHelper.createParser(new BytesArray("{\"doc\": {\"field2\": \"value2\"}, \"fields\": [\"field1\", \"field2\"]}")));
+        request = new UpdateRequest("test", "type2", "2").fromXContent(createParser(JsonXContent.jsonXContent,
+                new BytesArray("{\"doc\": {\"field2\": \"value2\"}, \"fields\": [\"field1\", \"field2\"]}")));
         assertThat(request.doc().sourceAsMap().get("field2").toString(), equalTo("value2"));
         assertThat(request.fields(), arrayContaining("field1", "field2"));
     }
 
     public void testFetchSourceParsing() throws Exception {
         UpdateRequest request = new UpdateRequest("test", "type1", "1");
-        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+        request.fromXContent(createParser(XContentFactory.jsonBuilder()
                 .startObject()
                     .field("_source", true)
-                .endObject().bytes()));
+                .endObject()));
         assertThat(request.fetchSource(), notNullValue());
         assertThat(request.fetchSource().includes().length, equalTo(0));
         assertThat(request.fetchSource().excludes().length, equalTo(0));
         assertThat(request.fetchSource().fetchSource(), equalTo(true));
 
-        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+        request.fromXContent(createParser(XContentFactory.jsonBuilder()
                 .startObject()
                     .field("_source", false)
-                .endObject().bytes()));
+                .endObject()));
         assertThat(request.fetchSource(), notNullValue());
         assertThat(request.fetchSource().includes().length, equalTo(0));
         assertThat(request.fetchSource().excludes().length, equalTo(0));
         assertThat(request.fetchSource().fetchSource(), equalTo(false));
 
-        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+        request.fromXContent(createParser(XContentFactory.jsonBuilder()
                 .startObject()
                     .field("_source", "path.inner.*")
-                .endObject().bytes()));
+                .endObject()));
         assertThat(request.fetchSource(), notNullValue());
         assertThat(request.fetchSource().fetchSource(), equalTo(true));
         assertThat(request.fetchSource().includes().length, equalTo(1));
         assertThat(request.fetchSource().excludes().length, equalTo(0));
         assertThat(request.fetchSource().includes()[0], equalTo("path.inner.*"));
 
-        request.fromXContent(XContentHelper.createParser(XContentFactory.jsonBuilder()
+        request.fromXContent(createParser(XContentFactory.jsonBuilder()
                 .startObject()
                     .startObject("_source")
                         .field("includes", "path.inner.*")
                         .field("excludes", "another.inner.*")
                     .endObject()
-                .endObject().bytes()));
+                .endObject()));
         assertThat(request.fetchSource(), notNullValue());
         assertThat(request.fetchSource().fetchSource(), equalTo(true));
         assertThat(request.fetchSource().includes().length, equalTo(1));

@@ -56,7 +56,9 @@ public class VariousDocTests extends AttachmentUnitTestCase {
 
     @Before
     public void createMapper() throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils
+                .newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper())
+                .documentMapperParser();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/various-doc/test-mapping.json");
         docMapper = mapperParser.parse("person", new CompressedXContent(mapping));

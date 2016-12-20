@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml;
 
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -34,7 +35,7 @@ public class ObjectPath {
     private final Object object;
 
     public static ObjectPath createFromXContent(XContent xContent, String input) throws IOException {
-        try (XContentParser parser = xContent.createParser(input)) {
+        try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, input)) {
             if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                 return new ObjectPath(parser.listOrderedMap());
             }

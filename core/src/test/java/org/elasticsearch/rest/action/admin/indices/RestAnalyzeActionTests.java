@@ -96,7 +96,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
 
     public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() throws Exception {
         RestAnalyzeAction action = new RestAnalyzeAction(Settings.EMPTY, mock(RestController.class));
-        RestRequest request = new FakeRestRequest.Builder().withContent(new BytesArray("{invalid_json}")).build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray("{invalid_json}")).build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> action.handleRequest(request, null, null));
         assertThat(e.getMessage(), equalTo("Failed to parse request body"));
@@ -178,7 +178,7 @@ public class RestAnalyzeActionTests extends ESTestCase {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest();
 
         BytesReference content = new BytesArray("this is test");
-        FakeRestRequest request = new FakeRestRequest.Builder()
+        FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withContent(content)
             .withMethod(randomFrom(RestRequest.Method.values()))
             .build();

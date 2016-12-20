@@ -49,7 +49,9 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
     @Before
     public void setupMapperParser() throws Exception {
-        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
+        mapperParser = MapperTestUtils
+                .newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper())
+                .documentMapperParser();
 
     }
 
@@ -86,7 +88,8 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
         String bytes = Base64.getEncoder().encodeToString(originalText.getBytes(StandardCharsets.ISO_8859_1));
 
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper());
+        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY,
+                getIndicesModuleWithRegisteredAttachmentMapper());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
 
@@ -152,7 +155,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
         String bytes = Base64.getEncoder().encodeToString(originalText.getBytes(StandardCharsets.ISO_8859_1));
 
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(),
+        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
             Settings.builder().put(AttachmentMapper.INDEX_ATTACHMENT_DETECT_LANGUAGE_SETTING.getKey(), true).build(),
             getIndicesModuleWithRegisteredAttachmentMapper());
 

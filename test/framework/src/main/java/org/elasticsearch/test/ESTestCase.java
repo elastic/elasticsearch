@@ -62,6 +62,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -771,9 +772,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      * recursive shuffling behavior can be made by passing in the names of fields which
      * internally should stay untouched.
      */
-    public static XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
-        BytesReference bytes = builder.bytes();
-        XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes);
+    public XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
+        XContentParser parser = createParser(builder);
         // use ordered maps for reproducibility
         Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), new HashSet<>(Arrays.asList(exceptFieldNames)));
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(builder.contentType());
@@ -869,35 +869,42 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContentBuilder builder) throws IOException {
-        return builder.generator().contentType().xContent().createParser(builder.bytes());
+        return builder.generator().contentType().xContent().createParser(xContentRegistry(), builder.bytes());
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, String data) throws IOException {
-        return xContent.createParser(data);
+        return xContent.createParser(xContentRegistry(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, InputStream data) throws IOException {
-        return xContent.createParser(data);
+        return xContent.createParser(xContentRegistry(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, byte[] data) throws IOException {
-        return xContent.createParser(data);
+        return xContent.createParser(xContentRegistry(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
-        return xContent.createParser(data);
+        return xContent.createParser(xContentRegistry(), data);
+    }
+
+    /**
+     * The {@link NamedXContentRegistry} to use for this test. Subclasses should override and use liberally.
+     */
+    protected NamedXContentRegistry xContentRegistry() {
+        return NamedXContentRegistry.EMPTY;
     }
 
     /** Returns the suite failure marker: internal use only! */

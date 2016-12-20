@@ -240,7 +240,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
-                null, null, null, null, () -> nowInMillis);
+                null, xContentRegistry(), null, null, null, () -> nowInMillis);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .field("date_detection", false)
                 .startObject("properties").startObject("date_field").field("type", "date").field("format", "HH:mm:ss").endObject().endObject()
@@ -267,7 +267,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
-                null, null, null, null, () -> nowInMillis);
+                null, xContentRegistry(), null, null, null, () -> nowInMillis);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .field("date_detection", false)
                 .startObject("properties").startObject("date_field").field("type", "date").field("format", "MMM dd HH:mm:ss").endObject().endObject()
@@ -412,7 +412,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         dateFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         Map<String, Object> dateFieldMapperMap;
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes())) {
             dateFieldMapperMap = parser.map();
         }
         assertThat(dateFieldMapperMap, hasKey("field"));

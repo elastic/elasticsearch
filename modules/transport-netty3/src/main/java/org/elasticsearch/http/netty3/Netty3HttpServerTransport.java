@@ -40,6 +40,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerAdapter;
@@ -192,6 +194,10 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
 
     protected final boolean detailedErrorsEnabled;
     protected final ThreadPool threadPool;
+    /**
+     * The registry used to construct parsers so they support {@link XContentParser#namedObject(Class, String, Object)}.
+     */
+    protected final NamedXContentRegistry xContentRegistry;
 
     protected final boolean tcpNoDelay;
     protected final boolean tcpKeepAlive;
@@ -217,11 +223,13 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
 
     private final Netty3CorsConfig corsConfig;
 
-    public Netty3HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool) {
+    public Netty3HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
+            NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
+        this.xContentRegistry = xContentRegistry;
 
         ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);

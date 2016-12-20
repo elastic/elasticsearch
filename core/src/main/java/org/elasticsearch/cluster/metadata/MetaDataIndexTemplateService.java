@@ -35,6 +35,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -65,18 +66,20 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     private final IndicesService indicesService;
     private final MetaDataCreateIndexService metaDataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService,
                                         MetaDataCreateIndexService metaDataCreateIndexService,
                                         AliasValidator aliasValidator, IndicesService indicesService,
-                                        IndexScopedSettings indexScopedSettings) {
+                                        IndexScopedSettings indexScopedSettings, NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
         this.indicesService = indicesService;
         this.metaDataCreateIndexService = metaDataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
+        this.xContentRegistry = xContentRegistry;
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -165,7 +168,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                     throw new IllegalArgumentException("index_template [" + request.name + "] already exists");
                 }
 
-                validateAndAddTemplate(request, templateBuilder, indicesService);
+                validateAndAddTemplate(request, templateBuilder, indicesService, xContentRegistry);
 
                 for (Alias alias : request.aliases) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
@@ -190,7 +193,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     private static void validateAndAddTemplate(final PutRequest request, IndexTemplateMetaData.Builder templateBuilder,
-            IndicesService indicesService) throws Exception {
+            IndicesService indicesService, NamedXContentRegistry xContentRegistry) throws Exception {
         Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
         try {
@@ -220,7 +223,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 } catch (Exception e) {
                     throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
                 }
-                mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(entry.getValue()));
+                mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
             }
 
             dummyIndexService.mapperService().merge(mappingsForValidation, MergeReason.MAPPING_UPDATE, false);

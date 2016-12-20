@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -216,14 +217,14 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 "    \"parent_type\" : \"blog\"" +
                 "   }" +
                 "}";
-        XContentParser parser = XContentFactory.xContent(query).createParser(query);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, query);
         QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
 
         checkWarningHeaders("query malformed, empty clause found at [3:17]");
 
-        parser = XContentFactory.xContent(query).createParser(query);
+        parser = createParser(JsonXContent.jsonXContent, query);
         QueryParseContext otherContext = createParseContext(parser, ParseFieldMatcher.STRICT);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> otherContext.parseInnerQueryBuilder());
         assertThat(ex.getMessage(), equalTo("query malformed, empty clause found at [3:17]"));

@@ -163,7 +163,7 @@ public class Netty3HttpServerPipeliningTests extends ESTestCase {
 
         public CustomNetty3HttpServerTransport(Settings settings) {
             super(settings, Netty3HttpServerPipeliningTests.this.networkService,
-                Netty3HttpServerPipeliningTests.this.bigArrays, Netty3HttpServerPipeliningTests.this.threadPool
+                Netty3HttpServerPipeliningTests.this.bigArrays, Netty3HttpServerPipeliningTests.this.threadPool, xContentRegistry()
             );
             this.executorService = Executors.newFixedThreadPool(5);
         }

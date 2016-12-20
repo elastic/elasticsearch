@@ -46,7 +46,9 @@ import static org.hamcrest.Matchers.startsWith;
 public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
     public void testSimpleMappings() throws Exception {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils
+                .newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper())
+                .documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping.json");
         DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
@@ -75,7 +77,9 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
      * test for https://github.com/elastic/elasticsearch-mapper-attachments/issues/179
      */
     public void testSimpleMappingsWithAllFields() throws Exception {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils
+                .newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper())
+                .documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping-all-fields.json");
         DocumentMapper docMapper = mapperParser.parse("person", new CompressedXContent(mapping));
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
@@ -121,7 +125,8 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
                 .endObject();
 
         byte[] mapping = BytesReference.toBytes(mappingBuilder.bytes());
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper());
+        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY,
+                getIndicesModuleWithRegisteredAttachmentMapper());
         DocumentMapper docMapper = mapperService.parse("mail", new CompressedXContent(mapping), true);
         // this should not throw an exception
         mapperService.parse("mail", new CompressedXContent(docMapper.mapping().toString()), true);
@@ -141,7 +146,8 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
             .endObject()
             .endObject();
         String mapping = mappingBuilder.string();
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper());
+        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY,
+                getIndicesModuleWithRegisteredAttachmentMapper());
         DocumentMapperParser parser = mapperService.documentMapperParser();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -152,7 +158,8 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
         // before 5.x
         Version oldVersion = VersionUtils.randomVersionBetween(getRandom(), Version.V_2_0_0, Version.V_2_3_5);
         Settings oldIndexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, oldVersion).build();
-        MapperService mapperService2x = MapperTestUtils.newMapperService(createTempDir(), oldIndexSettings, getIndicesModuleWithRegisteredAttachmentMapper());
+        MapperService mapperService2x = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), oldIndexSettings,
+                getIndicesModuleWithRegisteredAttachmentMapper());
         DocumentMapperParser parser2x = mapperService2x.documentMapperParser();
 
         DocumentMapper defaultMapper = parser2x.parse("mail", new CompressedXContent(mapping));

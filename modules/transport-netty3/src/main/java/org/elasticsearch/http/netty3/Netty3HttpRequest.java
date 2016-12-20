@@ -21,15 +21,14 @@ package org.elasticsearch.http.netty3;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.transport.netty3.Netty3Utils;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.transport.netty3.Netty3Utils;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.handler.codec.http.HttpMethod;
 import org.jboss.netty.handler.codec.http.HttpRequest;
 
 import java.net.SocketAddress;
-import java.util.HashMap;
 import java.util.Map;
 
 public class Netty3HttpRequest extends RestRequest {
@@ -38,8 +37,8 @@ public class Netty3HttpRequest extends RestRequest {
     private final Channel channel;
     private final BytesReference content;
 
-    public Netty3HttpRequest(HttpRequest request, Channel channel) {
-        super(request.getUri());
+    public Netty3HttpRequest(NamedXContentRegistry xContentRegistry, HttpRequest request, Channel channel) {
+        super(xContentRegistry, request.getUri());
         this.request = request;
         this.channel = channel;
         if (request.getContent().readable()) {

@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -75,7 +76,8 @@ public final class ScriptMetaData implements MetaData.Custom {
         // 2) wrapped into a 'template' json object or field
         // 3) just as is
         // In order to fetch the actual script in consistent manner this parsing logic is needed:
-        try (XContentParser parser = XContentHelper.createParser(scriptAsBytes);
+        // EMPTY is ok here because we never call namedObject, we're just copying structure.
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, scriptAsBytes);
              XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             parser.nextToken();
             parser.nextToken();

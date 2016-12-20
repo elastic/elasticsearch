@@ -98,7 +98,7 @@ public class CompletionFieldMapper2xTests extends ESSingleNodeTestCase {
         completionFieldMapper.toXContent(builder, null).endObject();
         builder.close();
         Map<String, Object> serializedMap;
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+        try (XContentParser parser = createParser(builder)) {
             serializedMap = parser.map();
         }
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("completion");
@@ -131,7 +131,7 @@ public class CompletionFieldMapper2xTests extends ESSingleNodeTestCase {
         completionFieldMapper.toXContent(builder, null).endObject();
         builder.close();
         Map<String, Object> serializedMap;
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+        try (XContentParser parser = createParser(builder)) {
             serializedMap = parser.map();
         }
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("completion");

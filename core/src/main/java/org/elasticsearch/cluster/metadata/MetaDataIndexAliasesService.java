@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -64,14 +64,17 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
 
     private final MetaDataDeleteIndexService deleteIndexService;
 
+    private final NamedXContentRegistry xContentRegistry;
+
     @Inject
     public MetaDataIndexAliasesService(Settings settings, ClusterService clusterService, IndicesService indicesService,
-            AliasValidator aliasValidator, MetaDataDeleteIndexService deleteIndexService) {
+            AliasValidator aliasValidator, MetaDataDeleteIndexService deleteIndexService, NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.aliasValidator = aliasValidator;
         this.deleteIndexService = deleteIndexService;
+        this.xContentRegistry = xContentRegistry;
     }
 
     public void indicesAliases(final IndicesAliasesClusterStateUpdateRequest request,
@@ -147,7 +150,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                         }
                         // the context is only used for validation so it's fine to pass fake values for the shard id and the current
                         // timestamp
-                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null, () -> 0L));
+                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null, () -> 0L),
+                                xContentRegistry);
                     }
                 };
                 changed |= action.apply(newAliasValidator, metadata, index);

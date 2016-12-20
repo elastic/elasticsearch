@@ -51,7 +51,7 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
     }
 
     public void setupMapperParser(boolean langDetect) throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(),
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
             Settings.builder().put("index.mapping.attachment.detect_language", langDetect).build(),
             getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/language/language-mapping.json");

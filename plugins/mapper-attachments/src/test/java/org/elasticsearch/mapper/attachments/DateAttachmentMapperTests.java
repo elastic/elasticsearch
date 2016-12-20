@@ -39,7 +39,9 @@ public class DateAttachmentMapperTests extends AttachmentUnitTestCase {
 
     @Before
     public void setupMapperParser() throws Exception {
-        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
+        mapperParser = MapperTestUtils
+                .newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper())
+                .documentMapperParser();
     }
 
     public void testSimpleMappings() throws Exception {

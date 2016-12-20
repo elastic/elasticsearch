@@ -39,9 +39,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -124,7 +122,8 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     QueryShardContext shardContext = suggestion.getShardContext();
                     final ExecutableScript executable = collateScript.apply(vars);
                     final BytesReference querySource = (BytesReference) executable.run();
-                    try (XContentParser parser = XContentFactory.xContent(querySource).createParser(querySource)) {
+                    try (XContentParser parser = XContentFactory.xContent(querySource).createParser(shardContext.getXContentRegistry(),
+                            querySource)) {
                         Optional<QueryBuilder> innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();
                         final ParsedQuery parsedQuery = shardContext.toQuery(innerQueryBuilder.orElse(new MatchNoneQueryBuilder()));
                         collateMatch = Lucene.exists(searcher, parsedQuery.query());

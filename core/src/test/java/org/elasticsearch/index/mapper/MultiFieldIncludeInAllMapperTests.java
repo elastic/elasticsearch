@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.core.IsEqual.equalTo;
 
 
 public class MultiFieldIncludeInAllMapperTests extends ESTestCase {
@@ -35,7 +34,7 @@ public class MultiFieldIncludeInAllMapperTests extends ESTestCase {
         XContentBuilder mapping = createMappingWithIncludeInAllInMultiField();
 
         // first check that for newer versions we throw exception if include_in_all is found withing multi field
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY);
+        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY);
         Exception e = expectThrows(MapperParsingException.class, () ->
             mapperService.parse("type", new CompressedXContent(mapping.string()), true));
         assertEquals("include_in_all in multi fields is not allowed. Found the include_in_all in field [c] which is within a multi field.",

@@ -38,7 +38,7 @@ public class WrongAttachmentMapperTests extends AttachmentUnitTestCase {
 
     @Before
     public void setupMapperParser() throws Exception {
-        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY,
+        mapperParser = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), Settings.EMPTY,
             getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
     }

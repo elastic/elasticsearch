@@ -19,6 +19,7 @@
 package org.elasticsearch.test.rest.yaml.parser;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -89,7 +90,8 @@ public class DoSectionParser implements ClientYamlTestFragmentParser<DoSection> 
                             if ("body".equals(paramName)) {
                                 String body = parser.text();
                                 XContentType bodyContentType = XContentFactory.xContentType(body);
-                                XContentParser bodyParser = XContentFactory.xContent(bodyContentType).createParser(body);
+                                XContentParser bodyParser = XContentFactory.xContent(bodyContentType).createParser(
+                                        NamedXContentRegistry.EMPTY, body);
                                 //multiple bodies are supported e.g. in case of bulk provided as a whole string
                                 while(bodyParser.nextToken() != null) {
                                     apiCallSection.addBody(bodyParser.mapOrdered());

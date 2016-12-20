@@ -24,8 +24,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -212,7 +212,7 @@ public class FiltersIT extends ESIntegTestCase {
 
     public void testEmptyFilter() throws Exception {
         String emtpyFilterBody = "{ \"filters\" : [ {} ] }";
-        XContentParser parser = XContentFactory.xContent(emtpyFilterBody).createParser(emtpyFilterBody);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, emtpyFilterBody);
         parser.nextToken();
         QueryParseContext parseContext = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.EMPTY);
         AggregationBuilder filtersAgg = FiltersAggregationBuilder.parse("tag1", parseContext);
@@ -229,7 +229,7 @@ public class FiltersIT extends ESIntegTestCase {
 
     public void testEmptyKeyedFilter() throws Exception {
         String emtpyFilterBody = "{ \"filters\" : {\"foo\" : {} } }";
-        XContentParser parser = XContentFactory.xContent(emtpyFilterBody).createParser(emtpyFilterBody);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, emtpyFilterBody);
         parser.nextToken();
         QueryParseContext parseContext = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.EMPTY);
         AggregationBuilder filtersAgg = FiltersAggregationBuilder.parse("tag1", parseContext);

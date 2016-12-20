@@ -354,7 +354,7 @@ public class LegacyStringMappingTests extends ESSingleNodeTestCase {
         builder.close();
 
         Map<String, Object> fieldMap;
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+        try (XContentParser parser = createParser(builder)) {
             fieldMap = parser.map();
         }
         @SuppressWarnings("unchecked")

@@ -45,7 +45,8 @@ public class MultiFieldCopyToMapperTests extends ESTestCase {
 
         // first check that for newer versions we throw exception if copy_to is found withing multi field
         Version indexVersion = randomFrom(versionsWithAndWithoutExpectedExceptions.v1());
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build());
+        MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
+                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build());
         try {
             mapperService.parse("type", new CompressedXContent(mapping.string()), true);
             fail("Parsing should throw an exception because the mapping contains a copy_to in a multi field");
@@ -55,7 +56,8 @@ public class MultiFieldCopyToMapperTests extends ESTestCase {
 
         // now test that with an older version the parsing just works
         indexVersion = randomFrom(versionsWithAndWithoutExpectedExceptions.v2());
-        mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build());
+        mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(),
+                Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build());
         DocumentMapper documentMapper = mapperService.parse("type", new CompressedXContent(mapping.string()), true);
         assertFalse(documentMapper.mapping().toString().contains("copy_to"));
     }

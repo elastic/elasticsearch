@@ -122,7 +122,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
 
         // Expected JSON is {"_shards":{"total":5,"successful":3,"failed":0}}
-        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("_shards", parser.currentName());
@@ -152,7 +152,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
 
         ReplicationResponse.ShardInfo parsedShardInfo;
-        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {
             // Move to the start object that was manually added when building the object
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsedShardInfo = ReplicationResponse.ShardInfo.fromXContent(parser);
@@ -172,7 +172,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final ReplicationResponse.ShardInfo shardInfo = randomShardInfo();
         final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
 
-        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("_shards", parser.currentName());
@@ -214,7 +214,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
 
         ReplicationResponse.ShardInfo parsedShardInfo;
-        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {
             // Move to the start object that was manually added when building the object
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsedShardInfo = ReplicationResponse.ShardInfo.fromXContent(parser);
@@ -254,7 +254,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final ReplicationResponse.ShardInfo.Failure shardInfoFailure = randomFailure();
         final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfoFailure, xContentType, false);
 
-        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {
             assertFailure(parser, shardInfoFailure);
         }
     }
@@ -266,7 +266,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfoFailure, xContentType, false);
 
         ReplicationResponse.ShardInfo.Failure parsedFailure;
-        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {
             // Move to the first start object
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsedFailure = ReplicationResponse.ShardInfo.Failure.fromXContent(parser);

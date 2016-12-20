@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.Diff;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.allocation.IndexMetaDataUpdater;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -48,6 +50,7 @@ import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -831,9 +834,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         public Builder putMapping(String type, String source) throws IOException {
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-                putMapping(new MappingMetaData(type, parser.mapOrdered()));
-            }
+            putMapping(new MappingMetaData(type, XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
             return this;
         }
 
@@ -1047,11 +1048,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 if (binary) {
                     builder.value(cursor.value.source().compressed());
                 } else {
-                    byte[] data = cursor.value.source().uncompressed();
-                    try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
-                        Map<String, Object> mapping = parser.mapOrdered();
-                        builder.map(mapping);
-                    }
+                    builder.map(XContentHelper.convertToMap(new BytesArray(cursor.value.source().uncompressed()), true).v2());
                 }
             }
             builder.endArray();

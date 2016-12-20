@@ -135,13 +135,15 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
             assertEquals(d.type(), Decision.Type.NO);
             if (noAttrNode.equals(nodeName)) {
-                assertThat(d.toString(), containsString("node does not match [index.routing.allocation.include] filters [foo:\"bar\"]"));
+                assertThat(d.toString(), containsString("node does not match index setting [index.routing.allocation.include] " +
+                                                            "filters [foo:\"bar\"]"));
                 assertNull(storeStatus);
                 assertEquals("the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",
                         explanation.getFinalExplanation());
                 assertEquals(ClusterAllocationExplanation.FinalDecision.NO, finalDecision);
             } else if (barAttrNode.equals(nodeName)) {
-                assertThat(d.toString(), containsString("node does not match [index.routing.allocation.include] filters [foo:\"bar\"]"));
+                assertThat(d.toString(), containsString("node does not match index setting [index.routing.allocation.include] " +
+                                                            "filters [foo:\"bar\"]"));
                 barAttrWeight = weight;
                 assertNull(storeStatus);
                 assertEquals("the shard cannot be assigned because one or more allocation decider returns a 'NO' decision",

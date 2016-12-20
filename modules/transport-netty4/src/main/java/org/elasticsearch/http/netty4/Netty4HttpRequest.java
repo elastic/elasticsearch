@@ -19,19 +19,17 @@
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.handler.codec.http.FullHttpRequest;
-import io.netty.handler.codec.http.HttpRequest;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.transport.netty4.Netty4Utils;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestUtils;
-
 import io.netty.channel.Channel;
+import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpMethod;
 
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.transport.netty4.Netty4Utils;
+
 import java.net.SocketAddress;
-import java.util.HashMap;
 import java.util.Map;
 
 public class Netty4HttpRequest extends RestRequest {
@@ -40,8 +38,8 @@ public class Netty4HttpRequest extends RestRequest {
     private final Channel channel;
     private final BytesReference content;
 
-    Netty4HttpRequest(FullHttpRequest request, Channel channel) {
-        super(request.uri());
+    Netty4HttpRequest(NamedXContentRegistry xContentRegistry, FullHttpRequest request, Channel channel) {
+        super(xContentRegistry, request.uri());
         this.request = request;
         this.channel = channel;
         if (request.content().isReadable()) {

@@ -174,13 +174,13 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         MapperService mapperService = indexService1.mapperService();
         Map<String, Map<String, Object>> mappings = new HashMap<>();
 
-        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping("{}"));
+        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping(xContentRegistry(), "{}"));
         MapperException e = expectThrows(MapperParsingException.class,
             () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
 
         mappings.clear();
-        mappings.put("type1", MapperService.parseMapping("{}"));
+        mappings.put("type1", MapperService.parseMapping(xContentRegistry(), "{}"));
 
         e = expectThrows( MapperParsingException.class,
             () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));

@@ -106,7 +106,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         assertExceptionAsJson(e, false, equalTo(expectedJson));
 
         ElasticsearchException parsed;
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(expectedJson)) {
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), expectedJson)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = ElasticsearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -142,7 +142,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                                                     .endObject();
 
         ElasticsearchException parsed;
-        try (XContentParser parser = xContent.createParser(builder.bytes())) {
+        try (XContentParser parser = createParser(xContent, builder.bytes())) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = ElasticsearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -163,7 +163,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(e).endObject();
 
         ElasticsearchException parsed;
-        try (XContentParser parser = xContent.createParser(builder.bytes())) {
+        try (XContentParser parser = createParser(builder)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = ElasticsearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
@@ -206,7 +206,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(foo).endObject();
 
         ElasticsearchException parsed;
-        try (XContentParser parser = xContent.createParser(builder.bytes())) {
+        try (XContentParser parser = createParser(builder)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             parsed = ElasticsearchException.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

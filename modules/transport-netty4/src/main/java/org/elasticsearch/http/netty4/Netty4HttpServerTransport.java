@@ -62,6 +62,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerAdapter;
@@ -194,6 +195,9 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
     protected final boolean detailedErrorsEnabled;
     protected final ThreadPool threadPool;
+    /**
+     * The registry used to construct parsers so they support {@link XContentParser#namedObject(Class, String, Object)}.
+     */
     protected final NamedXContentRegistry xContentRegistry;
 
     protected final boolean tcpNoDelay;
@@ -538,7 +542,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, detailedErrorsEnabled, threadPool.getThreadContext(), xContentRegistry);
+        return new HttpChannelHandler(this, detailedErrorsEnabled, threadPool.getThreadContext());
     }
 
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
@@ -549,10 +553,9 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         protected HttpChannelHandler(
                 final Netty4HttpServerTransport transport,
                 final boolean detailedErrorsEnabled,
-                final ThreadContext threadContext,
-                final NamedXContentRegistry xContentRegistry) {
+                final ThreadContext threadContext) {
             this.transport = transport;
-            this.requestHandler = new Netty4HttpRequestHandler(transport, detailedErrorsEnabled, threadContext, xContentRegistry);
+            this.requestHandler = new Netty4HttpRequestHandler(transport, detailedErrorsEnabled, threadContext);
         }
 
         @Override

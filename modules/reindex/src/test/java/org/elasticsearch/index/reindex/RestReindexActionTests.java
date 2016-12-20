@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.reindex.RestReindexAction.ReindexParseContext;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
@@ -125,7 +124,7 @@ public class RestReindexActionTests extends ESTestCase {
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             ReindexRequest r = new ReindexRequest(new SearchRequest(), new IndexRequest());
-            SearchRequestParsers searchParsers = new SearchRequestParsers(new IndicesQueriesRegistry(), null, null, null);
+            SearchRequestParsers searchParsers = new SearchRequestParsers(null, null, null);
             RestReindexAction.PARSER.parse(p, r, new ReindexParseContext(searchParsers, ParseFieldMatcher.STRICT));
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] {"source"}, r.getSearchRequest().indices());
@@ -133,7 +132,7 @@ public class RestReindexActionTests extends ESTestCase {
     }
 
     public void testPipelineQueryParameterIsError() throws IOException {
-        SearchRequestParsers parsers = new SearchRequestParsers(new IndicesQueriesRegistry(), null, null, null);
+        SearchRequestParsers parsers = new SearchRequestParsers(null, null, null);
         RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class), parsers, null);
 
         FakeRestRequest.Builder request = new FakeRestRequest.Builder(xContentRegistry());

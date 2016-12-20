@@ -107,7 +107,7 @@ public class MovAvgTests extends BasePipelineAggregationTestCase<MovAvgPipelineA
             "    }" +
             "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, json);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(expected.getName(), parser.currentName());

@@ -51,7 +51,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -82,7 +81,6 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     protected static NamedWriteableRegistry namedWriteableRegistry;
 
-    static IndicesQueriesRegistry indicesQueriesRegistry;
     private static NamedXContentRegistry xContentRegistry;
     private static ScriptService scriptService;
 
@@ -108,13 +106,11 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
-        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
-        indicesQueriesRegistry = null;
         xContentRegistry = null;
     }
 
@@ -150,7 +146,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             String elementName = itemParser.currentName();
             itemParser.nextToken();
 
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+            QueryParseContext context = new QueryParseContext(itemParser, ParseFieldMatcher.STRICT);
             T parsedItem = fromXContent(context, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);
@@ -214,7 +210,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         });
         long nowInMillis = randomPositiveLong();
         return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                xContentRegistry(), indicesQueriesRegistry, null, null, () -> nowInMillis) {
+                xContentRegistry(), null, null, () -> nowInMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);

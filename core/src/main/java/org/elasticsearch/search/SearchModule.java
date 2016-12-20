@@ -85,7 +85,6 @@ import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext;
@@ -269,7 +268,6 @@ public class SearchModule {
     private final boolean transportClient;
     private final Map<String, Highlighter> highlighters;
     private final Map<String, Suggester<?>> suggesters;
-    private final IndicesQueriesRegistry queryParserRegistry = new IndicesQueriesRegistry();
     private final ParseFieldRegistry<Aggregator.Parser> aggregationParserRegistry = new ParseFieldRegistry<>("aggregation");
     private final ParseFieldRegistry<PipelineAggregator.Parser> pipelineAggregationParserRegistry = new ParseFieldRegistry<>(
             "pipline_aggregation");
@@ -304,7 +302,7 @@ public class SearchModule {
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
         registerShapes();
-        searchRequestParsers = new SearchRequestParsers(queryParserRegistry, aggregatorParsers, getSuggesters(), searchExtParserRegistry);
+        searchRequestParsers = new SearchRequestParsers(aggregatorParsers, getSuggesters(), searchExtParserRegistry);
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -317,10 +315,6 @@ public class SearchModule {
 
     public Suggesters getSuggesters() {
         return new Suggesters(suggesters);
-    }
-
-    public IndicesQueriesRegistry getQueryParserRegistry() {
-        return queryParserRegistry;
     }
 
     public SearchRequestParsers getSearchRequestParsers() {
@@ -780,7 +774,6 @@ public class SearchModule {
     }
 
     private void registerQuery(QuerySpec<?> spec) {
-        queryParserRegistry.register(spec.getParser(), spec.getName());
         namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, spec.getName(),
                 (p, c) -> spec.getParser().fromXContent((QueryParseContext) c)));

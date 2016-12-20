@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -51,7 +50,6 @@ public class AggregatorParsingTests extends ESTestCase {
     }
 
     protected AggregatorParsers aggParsers;
-    protected IndicesQueriesRegistry queriesRegistry;
     private NamedXContentRegistry xContentRegistry;
     protected ParseFieldMatcher parseFieldMatcher;
 
@@ -75,7 +73,6 @@ public class AggregatorParsingTests extends ESTestCase {
             String type = randomAsciiOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
-        queriesRegistry = searchModule.getQueryParserRegistry();
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
         parseFieldMatcher = ParseFieldMatcher.STRICT;
     }
@@ -98,7 +95,7 @@ public class AggregatorParsingTests extends ESTestCase {
                 .endObject();
         try {
             XContentParser parser = createParser(source);
-            QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+            QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
             fail();
@@ -135,7 +132,7 @@ public class AggregatorParsingTests extends ESTestCase {
                 .endObject();
         try {
             XContentParser parser = createParser(source);
-            QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+            QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
             fail();
@@ -174,7 +171,7 @@ public class AggregatorParsingTests extends ESTestCase {
                 .endObject();
         try {
             XContentParser parser = createParser(source);
-            QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+            QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
             fail();
@@ -202,7 +199,7 @@ public class AggregatorParsingTests extends ESTestCase {
                 .endObject();
         try {
             XContentParser parser = createParser(source);
-            QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+            QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
             fail();
@@ -231,7 +228,7 @@ public class AggregatorParsingTests extends ESTestCase {
                 .endObject();
         try {
             XContentParser parser = createParser(source);
-            QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+            QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
             fail();
@@ -260,7 +257,7 @@ public class AggregatorParsingTests extends ESTestCase {
                 .endObject();
         try {
             XContentParser parser = createParser(source);
-            QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+            QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
             assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
             aggParsers.parseAggregators(parseContext);
             fail();

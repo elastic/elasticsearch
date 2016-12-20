@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -43,28 +42,19 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 
 public class SortBuilderTests extends ESTestCase {
-
     private static final int NUMBER_OF_RUNS = 20;
 
-    static IndicesQueriesRegistry indicesQueriesRegistry;
     private static NamedXContentRegistry xContentRegistry;
 
     @BeforeClass
     public static void init() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
-        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
-        indicesQueriesRegistry = null;
         xContentRegistry = null;
-    }
-
-    @Override
-    protected NamedXContentRegistry xContentRegistry() {
-        return xContentRegistry;
     }
 
     /**
@@ -241,9 +231,14 @@ public class SortBuilderTests extends ESTestCase {
         assertEquals(new ScoreSortBuilder(), result.get(5));
     }
 
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
+    }
+
     private List<SortBuilder<?>> parseSort(String jsonString) throws IOException {
         XContentParser itemParser = createParser(JsonXContent.jsonXContent, jsonString);
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(itemParser, ParseFieldMatcher.STRICT);
 
         assertEquals(XContentParser.Token.START_OBJECT, itemParser.nextToken());
         assertEquals(XContentParser.Token.FIELD_NAME, itemParser.nextToken());

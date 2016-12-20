@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -43,19 +42,17 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     protected final ScriptService scriptService;
     protected final IndexSettings indexSettings;
     private final NamedXContentRegistry xContentRegistry;
-    protected final IndicesQueriesRegistry indicesQueriesRegistry;
     protected final Client client;
     protected final IndexReader reader;
     protected final LongSupplier nowInMillis;
 
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry, IndicesQueriesRegistry indicesQueriesRegistry, Client client, IndexReader reader,
+            NamedXContentRegistry xContentRegistry, Client client, IndexReader reader,
             LongSupplier nowInMillis) {
         this.mapperService = mapperService;
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
         this.xContentRegistry = xContentRegistry;
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.client = client;
         this.reader = reader;
         this.nowInMillis = nowInMillis;
@@ -107,7 +104,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
      * are configured in the index settings. The default script language will always default to Painless.
      */
     public QueryParseContext newParseContext(XContentParser parser) {
-        return new QueryParseContext(indicesQueriesRegistry, parser, indexSettings.getParseFieldMatcher());
+        return new QueryParseContext(parser, indexSettings.getParseFieldMatcher());
     }
 
     public long nowInMillis() {

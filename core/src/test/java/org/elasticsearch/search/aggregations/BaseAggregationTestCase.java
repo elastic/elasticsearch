@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -65,7 +64,6 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     private NamedWriteableRegistry namedWriteableRegistry;
 
     protected AggregatorParsers aggParsers;
-    protected IndicesQueriesRegistry queriesRegistry;
     private NamedXContentRegistry xContentRegistry;
     protected ParseFieldMatcher parseFieldMatcher;
 
@@ -88,7 +86,6 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
-        queriesRegistry = searchModule.getQueryParserRegistry();
         aggParsers = searchModule.getSearchRequestParsers().aggParsers;
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
@@ -119,7 +116,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
         XContentParser parser = createParser(shuffled);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.name, parser.currentName());

@@ -19,13 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -40,7 +35,6 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.Matchers.equalTo;
 
 public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBoundingBoxQueryBuilder> {
     /** Randomly generate either NaN or one of the two infinity values. */
@@ -118,7 +112,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     public void testExceptionOnMissingTypes() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length == 0);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> super.testToQuery());
+        QueryShardException e = expectThrows(QueryShardException.class, super::testToQuery);
         assertEquals("failed to find geo_point field [mapped_geo_point]", e.getMessage());
     }
 
@@ -412,7 +406,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, GeoExecType.MEMORY, parsed.type());
     }
 
-    public void testFromJsonCoerceFails() throws IOException {
+    public void testFromJsonCoerceIsDeprecated() throws IOException {
         String json =
                 "{\n" +
                 "  \"geo_bounding_box\" : {\n" +
@@ -426,11 +420,12 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+
+        parseQuery(json);
+        assertWarnings("Deprecated field [coerce] used, replaced by [validation_method]");
     }
 
-    public void testFromJsonIgnoreMalformedFails() throws IOException {
+    public void testFromJsonIgnoreMalformedIsDeprecated() throws IOException {
         String json =
                 "{\n" +
                 "  \"geo_bounding_box\" : {\n" +
@@ -444,8 +439,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        parseQuery(json);
+        assertWarnings("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     @Override

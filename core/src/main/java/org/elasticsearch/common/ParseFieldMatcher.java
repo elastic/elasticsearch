@@ -22,38 +22,29 @@ package org.elasticsearch.common;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * Matcher to use in combination with {@link ParseField} while parsing requests. Matches a {@link ParseField}
- * against a field name and throw deprecation exception depending on the current value of the {@link #PARSE_STRICT} setting.
+ * Matcher to use in combination with {@link ParseField} while parsing requests.
+ *
+ * @deprecated This class used to be useful to parse in strict mode and emit errors rather than deprecation warnings. Now that we return
+ * warnings as response headers all the time, it is no longer useful and will soon be removed. The removal is in progress and there is
+ * already no strict mode in fact. Use {@link ParseField} directly.
  */
+@Deprecated
 public class ParseFieldMatcher {
-    public static final String PARSE_STRICT = "index.query.parse.strict";
-    public static final ParseFieldMatcher EMPTY = new ParseFieldMatcher(false);
-    public static final ParseFieldMatcher STRICT = new ParseFieldMatcher(true);
-
-    private final boolean strict;
+    public static final ParseFieldMatcher EMPTY = new ParseFieldMatcher(Settings.EMPTY);
+    public static final ParseFieldMatcher STRICT = new ParseFieldMatcher(Settings.EMPTY);
 
     public ParseFieldMatcher(Settings settings) {
-        this(settings.getAsBoolean(PARSE_STRICT, false));
-    }
-
-    public ParseFieldMatcher(boolean strict) {
-        this.strict = strict;
-    }
-
-    /** Should deprecated settings be rejected? */
-    public boolean isStrict() {
-        return strict;
+        //we don't do anything with the settings argument, this whole class will be soon removed
     }
 
     /**
-     * Matches a {@link ParseField} against a field name, and throws deprecation exception depending on the current
-     * value of the {@link #PARSE_STRICT} setting.
+     * Matches a {@link ParseField} against a field name,
      * @param fieldName the field name found in the request while parsing
      * @param parseField the parse field that we are looking for
      * @throws IllegalArgumentException whenever we are in strict mode and the request contained a deprecated field
      * @return true whenever the parse field that we are looking for was found, false otherwise
      */
     public boolean match(String fieldName, ParseField parseField) {
-        return parseField.match(fieldName, strict);
+        return parseField.match(fieldName);
     }
 }

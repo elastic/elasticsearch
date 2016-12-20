@@ -87,7 +87,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 + "\"params\":{\"template\":\"all\"}"
                 + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
-        Script script = Script.parse(parser, new ParseFieldMatcher(false));
+        Script script = Script.parse(parser, ParseFieldMatcher.EMPTY);
         CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
                 qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());
@@ -103,7 +103,7 @@ public class MustacheScriptEngineTests extends ESTestCase {
                 + "  }"
                 + "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, templateString);
-        Script script = Script.parse(parser, new ParseFieldMatcher(false));
+        Script script = Script.parse(parser, ParseFieldMatcher.EMPTY);
         CompiledScript compiledScript = new CompiledScript(ScriptType.INLINE, null, "mustache",
                 qe.compile(null, script.getIdOrCode(), Collections.emptyMap()));
         ExecutableScript executableScript = qe.executable(compiledScript, script.getParams());

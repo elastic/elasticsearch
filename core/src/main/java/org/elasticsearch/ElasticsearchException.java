@@ -44,7 +44,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_UUID_NA_VALUE;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 
 /**
@@ -357,7 +357,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * instances.
      */
     public static ElasticsearchException fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = ensureFieldName(parser.nextToken(), parser::getTokenLocation);
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
 
         String type = null, reason = null, stack = null;
         ElasticsearchException cause = null;

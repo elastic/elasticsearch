@@ -306,8 +306,10 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             seedNodes.add(masterNode.value);
         }
 
+        final ConnectionProfile connectionProfile =
+            ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, requestDuration, requestDuration);
         final PingingRound pingingRound = new PingingRound(pingingRoundIdGenerator.incrementAndGet(), seedNodes, resultsConsumer,
-            nodes.getLocalNode(), ConnectionProfile.getLightProfileWithTimeout(requestDuration, requestDuration));
+            nodes.getLocalNode(), connectionProfile);
         activePingingRounds.put(pingingRound.id(), pingingRound);
         final AbstractRunnable pingSender = new AbstractRunnable() {
             @Override

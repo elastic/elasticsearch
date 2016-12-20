@@ -36,24 +36,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class ConnectionProfile {
 
     /**
-     * A pre-built light connection profile that shares a single connection across all
-     * types.
+     * Builds a connection profile that is dedicated to a single channel type. Use this
+     * when opening single use connections
      */
-    public static final ConnectionProfile LIGHT_PROFILE = getLightProfileWithTimeout(null, null);
-
-    /**
-     * Builds a light connection profile that shares a single connection across all
-     * types, using the given timeouts
-     */
-    public static ConnectionProfile getLightProfileWithTimeout(@Nullable TimeValue connectTimeout,
+    public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType,
+                                                              @Nullable TimeValue connectTimeout,
                                                                @Nullable TimeValue handshakeTimeout) {
-        return new ConnectionProfile(
-            Collections.singletonList(new ConnectionTypeHandle(0, 1, EnumSet.of(
-                TransportRequestOptions.Type.BULK,
-                TransportRequestOptions.Type.PING,
-                TransportRequestOptions.Type.RECOVERY,
-                TransportRequestOptions.Type.REG,
-                TransportRequestOptions.Type.STATE))), 1, connectTimeout, handshakeTimeout);
+        Builder builder = new Builder();
+        builder.addConnections(1, channelType);
+        final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);
+        otherTypes.remove(channelType);
+        builder.addConnections(0, otherTypes.stream().toArray(TransportRequestOptions.Type[]::new));
+        if (connectTimeout != null) {
+            builder.setConnectTimeout(connectTimeout);
+        }
+        if (handshakeTimeout != null) {
+            builder.setHandshakeTimeout(handshakeTimeout);
+        }
+        return builder.build();
     }
 
     private final List<ConnectionTypeHandle> handles;

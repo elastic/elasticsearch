@@ -63,8 +63,7 @@ public interface Transport extends LifecycleComponent {
     boolean nodeConnected(DiscoveryNode node);
 
     /**
-     * Connects to a node with the given connection profile. Use {@link ConnectionProfile#LIGHT_PROFILE} when just connecting for ping
-     * and then disconnecting. If the node is already connected this method has no effect
+     * Connects to a node with the given connection profile. If the node is already connected this method has no effect
      */
     void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) throws ConnectTransportException;
 

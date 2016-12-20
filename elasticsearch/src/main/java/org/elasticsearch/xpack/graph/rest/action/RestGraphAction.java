@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -38,8 +37,6 @@ import static org.elasticsearch.xpack.graph.action.GraphExploreAction.INSTANCE;
  * @see GraphExploreRequest
  */
 public class RestGraphAction extends XPackRestHandler {
-
-    private IndicesQueriesRegistry indicesQueriesRegistry;
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
     public static final ParseField SIGNIFICANCE_FIELD = new ParseField("use_significance");
     public static final ParseField RETURN_DETAILED_INFO = new ParseField("return_detailed_stats");
@@ -60,10 +57,8 @@ public class RestGraphAction extends XPackRestHandler {
     public static final ParseField TERM_FIELD = new ParseField("term");
 
     @Inject
-    public RestGraphAction(Settings settings, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public RestGraphAction(Settings settings, RestController controller) {
         super(settings);
-
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
 
         // @deprecated Remove in 6.0
         // NOTE: Old versions did not end with "/_explore"; they were just "/explore"
@@ -92,7 +87,7 @@ public class RestGraphAction extends XPackRestHandler {
         Hop currentHop = graphRequest.createNextHop(null);
 
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, parseFieldMatcher);
+            QueryParseContext context = new QueryParseContext(parser, parseFieldMatcher);
 
             XContentParser.Token token = parser.nextToken();
 

@@ -77,12 +77,19 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         assertFalse(cae.getShardAllocationDecision().getMoveDecision().isDecisionTaken());
         XContentBuilder builder = XContentFactory.jsonBuilder();
         cae.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        String explanation;
+        if (shardRoutingState == ShardRoutingState.RELOCATING) {
+            explanation = "the shard is in the process of relocating from node [] to node [], wait until " +
+                              "relocation has completed before re-running the explain API on the shard.";
+        } else {
+            explanation = "the shard is in the process of initializing on node [], " +
+                              "wait until the shard has started before re-running the explain API on it";
+        }
         assertEquals("{\"index\":\"idx\",\"shard\":0,\"primary\":true,\"current_state\":\"" +
                          shardRoutingState.toString().toLowerCase(Locale.ROOT) + "\",\"current_node\":" +
                          "{\"id\":\"" + cae.getCurrentNode().getId() + "\",\"name\":\"" + cae.getCurrentNode().getName() +
                          "\",\"transport_address\":\"" + cae.getCurrentNode().getAddress() +
-                         "\"},\"explanation\":\"cannot explain a shard in the " + shardRoutingState.toString().toLowerCase(Locale.ROOT) +
-                         " state\"}", builder.string());
+                         "\"},\"explanation\":\"" + explanation + "\"}", builder.string());
     }
 
     public void testFindAnyUnassignedShardToExplain() {

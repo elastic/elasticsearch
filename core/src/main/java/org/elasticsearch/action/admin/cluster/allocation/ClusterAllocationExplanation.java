@@ -48,13 +48,16 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
 
     private final ShardRouting shardRouting;
     private final DiscoveryNode currentNode;
+    private final DiscoveryNode relocatingTargetNode;
     private final ClusterInfo clusterInfo;
     private final ShardAllocationDecision shardAllocationDecision;
 
-    public ClusterAllocationExplanation(ShardRouting shardRouting, @Nullable DiscoveryNode currentNode, @Nullable ClusterInfo clusterInfo,
+    public ClusterAllocationExplanation(ShardRouting shardRouting, @Nullable DiscoveryNode currentNode,
+                                        @Nullable DiscoveryNode relocatingTargetNode, @Nullable ClusterInfo clusterInfo,
                                         ShardAllocationDecision shardAllocationDecision) {
         this.shardRouting = shardRouting;
         this.currentNode = currentNode;
+        this.relocatingTargetNode = relocatingTargetNode;
         this.clusterInfo = clusterInfo;
         this.shardAllocationDecision = shardAllocationDecision;
     }
@@ -62,6 +65,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
         this.shardRouting = new ShardRouting(in);
         this.currentNode = in.readOptionalWriteable(DiscoveryNode::new);
+        this.relocatingTargetNode = in.readOptionalWriteable(DiscoveryNode::new);
         this.clusterInfo = in.readOptionalWriteable(ClusterInfo::new);
         this.shardAllocationDecision = new ShardAllocationDecision(in);
     }
@@ -70,16 +74,21 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
         out.writeOptionalWriteable(currentNode);
+        out.writeOptionalWriteable(relocatingTargetNode);
         out.writeOptionalWriteable(clusterInfo);
         shardAllocationDecision.writeTo(out);
     }
 
-    /** Return the shard that the explanation is about */
+    /**
+     * Returns the shard that the explanation is about.
+     */
     public ShardId getShard() {
         return shardRouting.shardId();
     }
 
-    /** Return true if the explained shard is primary, false otherwise */
+    /**
+     * Returns {@code true} if the explained shard is primary, {@code false} otherwise.
+     */
     public boolean isPrimary() {
         return shardRouting.primary();
     }
@@ -91,25 +100,41 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
         return shardRouting.state();
     }
 
-    /** Return the currently assigned node, or null if the shard is unassigned */
+    /**
+     * Returns the currently assigned node, or {@code null} if the shard is unassigned.
+     */
     @Nullable
     public DiscoveryNode getCurrentNode() {
         return currentNode;
     }
 
-    /** Return the unassigned info for the shard or null if the shard is active */
+    /**
+     * Returns the relocating target node, or {@code null} if the shard is not in the {@link ShardRoutingState#RELOCATING} state.
+     */
+    @Nullable
+    public DiscoveryNode getRelocatingTargetNode() {
+        return relocatingTargetNode;
+    }
+
+    /**
+     * Returns the unassigned info for the shard, or {@code null} if the shard is active.
+     */
     @Nullable
     public UnassignedInfo getUnassignedInfo() {
         return shardRouting.unassignedInfo();
     }
 
-    /** Return the cluster disk info for the cluster or null if none available */
+    /**
+     * Returns the cluster disk info for the cluster, or {@code null} if none available.
+     */
     @Nullable
     public ClusterInfo getClusterInfo() {
         return this.clusterInfo;
     }
 
-    /** Return the shard allocation decision for attempting to assign or move the shard. */
+    /** \
+     * Returns the shard allocation decision for attempting to assign or move the shard.
+     */
     public ShardAllocationDecision getShardAllocationDecision() {
         return shardAllocationDecision;
     }
@@ -119,8 +144,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             builder.field("index", shardRouting.getIndexName());
             builder.field("shard", shardRouting.getId());
             builder.field("primary", shardRouting.primary());
-            String shardState = shardRouting.state().toString().toLowerCase(Locale.ROOT);
-            builder.field("current_state", shardState);
+            builder.field("current_state", shardRouting.state().toString().toLowerCase(Locale.ROOT));
             if (shardRouting.unassignedInfo() != null) {
                 unassignedInfoToXContent(shardRouting.unassignedInfo(), builder);
             }
@@ -144,7 +168,17 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             if (shardAllocationDecision.isDecisionTaken()) {
                 shardAllocationDecision.toXContent(builder, params);
             } else {
-                builder.field("explanation", "cannot explain a shard in the " + shardState + " state");
+                String explanation;
+                if (shardRouting.state() == ShardRoutingState.RELOCATING) {
+                    explanation = "the shard is in the process of relocating from node [" + currentNode.getName() + "] " +
+                                  "to node [" + relocatingTargetNode.getName() + "], wait until relocation has completed before " +
+                                  "re-running the explain API on the shard.";
+                } else {
+                    assert shardRouting.state() == ShardRoutingState.INITIALIZING;
+                    explanation = "the shard is in the process of initializing on node [" + currentNode.getName() + "], " +
+                                  "wait until the shard has started before re-running the explain API on it";
+                }
+                builder.field("explanation", explanation);
             }
         }
         builder.endObject(); // end wrapping object

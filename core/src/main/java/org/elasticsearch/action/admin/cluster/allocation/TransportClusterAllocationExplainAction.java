@@ -132,6 +132,7 @@ public class TransportClusterAllocationExplainAction
 
         return new ClusterAllocationExplanation(shardRouting,
             shardRouting.currentNodeId() != null ? allocation.nodes().get(shardRouting.currentNodeId()) : null,
+            shardRouting.relocatingNodeId() != null ? allocation.nodes().get(shardRouting.relocatingNodeId()) : null,
             clusterInfo, shardDecision);
     }
 

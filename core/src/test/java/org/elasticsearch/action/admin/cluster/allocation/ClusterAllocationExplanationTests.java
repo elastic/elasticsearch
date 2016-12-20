@@ -107,6 +107,6 @@ public final class ClusterAllocationExplanationTests extends ESTestCase {
             AllocateUnassignedDecision allocateDecision = AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.DECIDERS_NO, null);
             shardAllocationDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
         }
-        return new ClusterAllocationExplanation(shardRouting, node, null, shardAllocationDecision);
+        return new ClusterAllocationExplanation(shardRouting, node, null, null, shardAllocationDecision);
     }
 }

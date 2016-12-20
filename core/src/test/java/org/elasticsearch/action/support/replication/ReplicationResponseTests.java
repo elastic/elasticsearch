@@ -21,9 +21,8 @@ package org.elasticsearch.action.support.replication;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
@@ -117,95 +116,173 @@ public class ReplicationResponseTests extends ESTestCase {
     }
 
     public void testShardInfoToXContent() throws IOException {
-        ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(5, 3);
+        final XContentType xContentType = randomFrom(XContentType.values());
 
-        final XContent xContent = randomFrom(XContentType.values()).xContent();
-        try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
-            builder.startObject();
-            shardInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
+        final ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(5, 3);
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
 
-            // Expected JSON is {"_shards":{"total":5,"successful":3,"failed":0}}
-            try (XContentParser parser = xContent.createParser(builder.bytes())) {
-                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals("_shards", parser.currentName());
-                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals("total", parser.currentName());
-                assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
-                assertEquals(shardInfo.getTotal(), parser.intValue());
-                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals("successful", parser.currentName());
-                assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
-                assertEquals(shardInfo.getSuccessful(), parser.intValue());
-                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals("failed", parser.currentName());
-                assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
-                assertEquals(shardInfo.getFailed(), parser.intValue());
-                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                assertNull(parser.nextToken());
-            }
+        // Expected JSON is {"_shards":{"total":5,"successful":3,"failed":0}}
+        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("_shards", parser.currentName());
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("total", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(shardInfo.getTotal(), parser.intValue());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("successful", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(shardInfo.getSuccessful(), parser.intValue());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("failed", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(shardInfo.getFailed(), parser.intValue());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
         }
     }
 
-    public void testRandomShardInfoToXContent() throws IOException {
+    public void testShardInfoToAndFromXContent() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        final ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(randomIntBetween(1, 5), randomIntBetween(1, 5));
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
+
+        ReplicationResponse.ShardInfo parsedShardInfo;
+        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+            // Move to the start object that was manually added when building the object
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedShardInfo = ReplicationResponse.ShardInfo.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+        // We can use assertEquals because the shardInfo doesn't have a failure (and exceptions)
+        assertEquals(shardInfo, parsedShardInfo);
+
+        BytesReference parsedShardInfoBytes = XContentHelper.toXContent(parsedShardInfo, xContentType, true);
+        assertEquals(shardInfoBytes, parsedShardInfoBytes);
+    }
+
+    public void testShardInfoWithFailureToXContent() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+
         final ReplicationResponse.ShardInfo shardInfo = randomShardInfo();
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
 
-        final XContent xContent = randomFrom(XContentType.values()).xContent();
-        try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
-            builder.startObject();
-            shardInfo.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
+        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("_shards", parser.currentName());
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("total", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(shardInfo.getTotal(), parser.intValue());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("successful", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(shardInfo.getSuccessful(), parser.intValue());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertEquals("failed", parser.currentName());
+            assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+            assertEquals(shardInfo.getFailed(), parser.intValue());
 
-            try (XContentParser parser = xContent.createParser(builder.bytes())) {
-                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            if (shardInfo.getFailures() != null && shardInfo.getFailures().length > 0) {
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals("_shards", parser.currentName());
-                assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals("total", parser.currentName());
-                assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
-                assertEquals(shardInfo.getTotal(), parser.intValue());
-                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals("successful", parser.currentName());
-                assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
-                assertEquals(shardInfo.getSuccessful(), parser.intValue());
-                assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                assertEquals("failed", parser.currentName());
-                assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
-                assertEquals(shardInfo.getFailed(), parser.intValue());
+                assertEquals("failures", parser.currentName());
+                assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
 
-                if (shardInfo.getFailures() != null && shardInfo.getFailures().length > 0) {
-                    assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
-                    assertEquals("failures", parser.currentName());
-                    assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
-
-                    for (int i = 0; i < shardInfo.getFailures().length; i++) {
-                        assertFailure(parser, shardInfo.getFailures()[i]);
-                    }
-                    assertEquals(XContentParser.Token.END_ARRAY, parser.nextToken());
+                for (int i = 0; i < shardInfo.getFailures().length; i++) {
+                    assertFailure(parser, shardInfo.getFailures()[i]);
                 }
-
-                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
-                assertNull(parser.nextToken());
+                assertEquals(XContentParser.Token.END_ARRAY, parser.nextToken());
             }
+
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+    }
+
+    public void testRandomShardInfoFromXContent() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        final ReplicationResponse.ShardInfo shardInfo = randomShardInfo();
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
+
+        ReplicationResponse.ShardInfo parsedShardInfo;
+        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+            // Move to the start object that was manually added when building the object
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedShardInfo = ReplicationResponse.ShardInfo.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+
+        // We can't use assertEquals to compare the original ShardInfo with the parsed ShardInfo
+        // because it may include random failures with exceptions, and exception types are not
+        // preserved during ToXContent->FromXContent process.
+        assertNotNull(parsedShardInfo);
+        assertEquals(shardInfo.getTotal(), parsedShardInfo.getTotal());
+        assertEquals(shardInfo.getSuccessful(), parsedShardInfo.getSuccessful());
+        assertEquals(shardInfo.getFailed(), parsedShardInfo.getFailed());
+        assertEquals(shardInfo.getFailures().length, parsedShardInfo.getFailures().length);
+
+        for (int i = 0; i < shardInfo.getFailures().length; i++) {
+            ReplicationResponse.ShardInfo.Failure parsedFailure = parsedShardInfo.getFailures()[i];
+            ReplicationResponse.ShardInfo.Failure failure = shardInfo.getFailures()[i];
+
+            assertEquals(failure.index(), parsedFailure.index());
+            assertEquals(failure.shardId(), parsedFailure.shardId());
+            assertEquals(failure.nodeId(), parsedFailure.nodeId());
+            assertEquals(failure.status(), parsedFailure.status());
+            assertEquals(failure.primary(), parsedFailure.primary());
+
+            Throwable cause = failure.getCause();
+            String expectedMessage = "Elasticsearch exception [type=" + ElasticsearchException.getExceptionName(cause)
+                    + ", reason=" + cause.getMessage() + "]";
+            assertEquals(expectedMessage, parsedFailure.getCause().getMessage());
         }
     }
 
     public void testRandomFailureToXContent() throws IOException {
-        ReplicationResponse.ShardInfo.Failure shardInfoFailure = randomFailure();
+        final XContentType xContentType = randomFrom(XContentType.values());
 
-        final XContent xContent = randomFrom(XContentType.values()).xContent();
-        try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
-            shardInfoFailure.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        final ReplicationResponse.ShardInfo.Failure shardInfoFailure = randomFailure();
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfoFailure, xContentType, false);
 
-            try (XContentParser parser = xContent.createParser(builder.bytes())) {
-                assertFailure(parser, shardInfoFailure);
-            }
+        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+            assertFailure(parser, shardInfoFailure);
         }
+    }
+
+    public void testRandomFailureToAndFromXContent() throws IOException {
+        final XContentType xContentType = randomFrom(XContentType.values());
+
+        final ReplicationResponse.ShardInfo.Failure shardInfoFailure = randomFailure();
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfoFailure, xContentType, false);
+
+        ReplicationResponse.ShardInfo.Failure parsedFailure;
+        try (XContentParser parser = xContentType.xContent().createParser(shardInfoBytes)) {
+            // Move to the first start object
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsedFailure = ReplicationResponse.ShardInfo.Failure.fromXContent(parser);
+            assertNull(parser.nextToken());
+        }
+
+        assertEquals(shardInfoFailure.index(), parsedFailure.index());
+        assertEquals(shardInfoFailure.shardId(), parsedFailure.shardId());
+        assertEquals(shardInfoFailure.nodeId(), parsedFailure.nodeId());
+        assertEquals(shardInfoFailure.status(), parsedFailure.status());
+        assertEquals(shardInfoFailure.primary(), parsedFailure.primary());
+
+        Throwable cause = shardInfoFailure.getCause();
+        String expectedMessage = "Elasticsearch exception [type=" + ElasticsearchException.getExceptionName(cause)
+                + ", reason=" + cause.getMessage() + "]";
+        assertEquals(expectedMessage, parsedFailure.getCause().getMessage());
     }
 
     private static void assertFailure(XContentParser parser, ReplicationResponse.ShardInfo.Failure failure) throws IOException {

@@ -166,13 +166,15 @@ public class SecurityTribeIT extends NativeRealmIntegTestCase {
         classpathPlugins.addAll(getMockPlugins());
         tribeNode = new MockNode(merged, classpathPlugins).start();
         tribeClient = getClientWrapper().apply(tribeNode.client());
-        ClusterStateObserver observer = new ClusterStateObserver(tribeNode.injector().getInstance(ClusterService.class),
+        ClusterService tribeClusterService = tribeNode.injector().getInstance(ClusterService.class);
+        ClusterState clusterState = tribeClusterService.state();
+        ClusterStateObserver observer = new ClusterStateObserver(clusterState, tribeClusterService, null,
                 logger, new ThreadContext(settings));
         final int cluster1Nodes = internalCluster().size();
         final int cluster2Nodes = cluster2.size();
         logger.info("waiting for [{}] nodes to be added to the tribe cluster state", cluster1Nodes + cluster2Nodes + 2);
         final Predicate<ClusterState> nodeCountPredicate = state -> state.nodes().getSize() == cluster1Nodes + cluster2Nodes + 3;
-        if (nodeCountPredicate.test(observer.observedState()) == false) {
+        if (nodeCountPredicate.test(clusterState) == false) {
             CountDownLatch latch = new CountDownLatch(1);
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override

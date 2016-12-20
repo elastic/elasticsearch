@@ -119,6 +119,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
             builder.field("index", shardRouting.getIndexName());
             builder.field("shard", shardRouting.getId());
             builder.field("primary", shardRouting.primary());
+            String shardState = shardRouting.state().toString().toLowerCase(Locale.ROOT);
             builder.field("current_state", shardRouting.state().toString().toLowerCase(Locale.ROOT));
             if (shardRouting.unassignedInfo() != null) {
                 unassignedInfoToXContent(shardRouting.unassignedInfo(), builder);
@@ -140,7 +141,11 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
                 }
                 builder.endObject(); // end "cluster_info"
             }
-            shardAllocationDecision.toXContent(builder, params);
+            if (shardAllocationDecision.isDecisionTaken() == false) {
+                builder.field("explanation", "cannot explain a shard in the " + shardState + " state");
+            } else {
+                shardAllocationDecision.toXContent(builder, params);
+            }
         }
         builder.endObject(); // end wrapping object
         return builder;

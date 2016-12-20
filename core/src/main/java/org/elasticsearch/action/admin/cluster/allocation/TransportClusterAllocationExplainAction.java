@@ -132,6 +132,10 @@ public class TransportClusterAllocationExplainAction
                             if (replica.unassigned()) {
                                 foundShard = replica;
                                 break;
+                            } else if (replica.started() && (foundShard.initializing() || foundShard.relocating())) {
+                                // prefer started shards to initializing or relocating shards because started shards
+                                // can be explained
+                                foundShard = replica;
                             }
                         }
                     }
@@ -147,21 +151,26 @@ public class TransportClusterAllocationExplainAction
         logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);
 
         ClusterAllocationExplanation cae = explainShard(shardRouting, allocation,
-            request.includeDiskInfo() ? clusterInfo : null, request.includeYesDecisions());
+            request.includeDiskInfo() ? clusterInfo : null, request.includeYesDecisions(), gatewayAllocator, shardAllocator);
         listener.onResponse(new ClusterAllocationExplainResponse(cae));
     }
 
-    private ClusterAllocationExplanation explainShard(ShardRouting shardRouting, RoutingAllocation allocation,
-                                                      ClusterInfo clusterInfo, boolean includeYesDecisions) {
+    public static ClusterAllocationExplanation explainShard(ShardRouting shardRouting, RoutingAllocation allocation,
+                                                            ClusterInfo clusterInfo, boolean includeYesDecisions,
+                                                            GatewayAllocator gatewayAllocator, ShardsAllocator shardAllocator) {
         allocation.setDebugMode(includeYesDecisions ? DebugMode.ON : DebugMode.EXCLUDE_YES_DECISIONS);
 
         ShardAllocationDecision shardDecision;
-        AllocateUnassignedDecision allocateDecision = shardRouting.unassigned() ?
-            gatewayAllocator.decideUnassignedShardAllocation(shardRouting, allocation) : AllocateUnassignedDecision.NOT_TAKEN;
-        if (allocateDecision.isDecisionTaken() == false) {
-            shardDecision = shardAllocator.decideShardAllocation(shardRouting, allocation);
+        if (shardRouting.initializing() || shardRouting.relocating()) {
+            shardDecision = ShardAllocationDecision.notTaken();
         } else {
-            shardDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
+            AllocateUnassignedDecision allocateDecision = shardRouting.unassigned() ?
+                gatewayAllocator.decideUnassignedShardAllocation(shardRouting, allocation) : AllocateUnassignedDecision.NOT_TAKEN;
+            if (allocateDecision.isDecisionTaken() == false) {
+                shardDecision = shardAllocator.decideShardAllocation(shardRouting, allocation);
+            } else {
+                shardDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
+            }
         }
 
         return new ClusterAllocationExplanation(shardRouting,

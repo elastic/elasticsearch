@@ -32,12 +32,18 @@ import java.io.IOException;
  * the shard is unassigned, {@link #getAllocateDecision()} will return an
  * object containing the decision and its explanation, and {@link #getMoveDecision()}
  * will return an object for which {@link MoveDecision#isDecisionTaken()} returns
- * {@code false}.  If the shard is not in the unassigned state, then {@link #getMoveDecision()}
+ * {@code false}.  If the shard is in the started state, then {@link #getMoveDecision()}
  * will return an object containing the decision to move/rebalance the shard, and
  * {@link #getAllocateDecision()} will return an object for which
- * {@link AllocateUnassignedDecision#isDecisionTaken()} returns {@code false}.
+ * {@link AllocateUnassignedDecision#isDecisionTaken()} returns {@code false}.  If
+ * the shard is neither unassigned nor started (i.e. it is initializing or relocating),
+ * then both {@link #getAllocateDecision()} and {@link #getMoveDecision()} will return
+ * objects whose {@code isDecisionTaken()} method returns {@code false}.
  */
 public final class ShardAllocationDecision implements ToXContent, Writeable {
+    private static final ShardAllocationDecision NOT_TAKEN =
+        new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, MoveDecision.NOT_TAKEN);
+
     private final AllocateUnassignedDecision allocateDecision;
     private final MoveDecision moveDecision;
 
@@ -58,6 +64,19 @@ public final class ShardAllocationDecision implements ToXContent, Writeable {
         moveDecision.writeTo(out);
     }
 
+    public static ShardAllocationDecision notTaken() {
+        return NOT_TAKEN;
+    }
+
+    /**
+     * Returns {@code true} if either an allocation decision or a move decision was taken
+     * for the shard.  If no decision was taken, as in the case of initializing or relocating
+     * shards, then this method returns {@code false}.
+     */
+    public boolean isDecisionTaken() {
+        return allocateDecision.isDecisionTaken() || moveDecision.isDecisionTaken();
+    }
+
     /**
      * Gets the unassigned allocation decision for the shard.  If the shard was not in the unassigned state,
      * the instance of {@link AllocateUnassignedDecision} that is returned will have {@link AllocateUnassignedDecision#isDecisionTaken()}
@@ -68,7 +87,7 @@ public final class ShardAllocationDecision implements ToXContent, Writeable {
     }
 
     /**
-     * Gets the move decision for the shard.  If the shard was in the unassigned state,
+     * Gets the move decision for the shard.  If the shard was not in the started state,
      * the instance of {@link MoveDecision} that is returned will have {@link MoveDecision#isDecisionTaken()}
      * return {@code false}.
      */

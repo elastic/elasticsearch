@@ -337,8 +337,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * explain API only.
          */
         private MoveDecision decideRebalance(final ShardRouting shard) {
-            if (shard.unassigned()) {
-                // in debug mode, we can get a rebalance decision for all shards except unassigned ones
+            if (shard.started() == false) {
+                // we can only rebalance started shards
                 return MoveDecision.NOT_TAKEN;
             }
 

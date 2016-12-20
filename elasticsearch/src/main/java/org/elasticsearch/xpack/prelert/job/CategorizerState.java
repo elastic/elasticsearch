@@ -18,6 +18,10 @@ public class CategorizerState {
      */
     public static final String TYPE = "categorizer_state";
 
+    public static final String categorizerStateDocId(String jobId, int docNum) {
+        return jobId + "_" + docNum;
+    }
+
     private CategorizerState() {
     }
 }

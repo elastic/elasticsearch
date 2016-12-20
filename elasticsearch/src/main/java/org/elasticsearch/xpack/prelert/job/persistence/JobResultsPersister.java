@@ -209,7 +209,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistQuantiles(Quantiles quantiles) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.TYPE.getPreferredName(),
-                Quantiles.QUANTILES_ID);
+                Quantiles.quantilesId(quantiles.getJobId()));
         if (persistable.persist()) {
             // Refresh the index when persisting quantiles so that previously
             // persisted results will be available for searching.  Do this using the
@@ -282,8 +282,7 @@ public class JobResultsPersister extends AbstractComponent {
 
     /**
      * Once all the job data has been written this function will be
-     * called to commit the data if the implementing persister requires
-     * it.
+     * called to commit the writes to the datastore.
      *
      * @return True if successful
      */

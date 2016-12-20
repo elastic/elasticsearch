@@ -857,10 +857,11 @@ public class JobProvider {
     public Optional<Quantiles> getQuantiles(String jobId) {
         String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
         try {
-            LOGGER.trace("ES API CALL: get ID " + Quantiles.QUANTILES_ID +
-                    " type " + Quantiles.TYPE + " from index " + indexName);
+            String quantilesId = Quantiles.quantilesId(jobId);
+
+            LOGGER.trace("ES API CALL: get ID {} type {} from index {}", quantilesId, Quantiles.TYPE.getPreferredName(), indexName);
             GetResponse response = client.prepareGet(
-                    indexName, Quantiles.TYPE.getPreferredName(), Quantiles.QUANTILES_ID).get();
+                    indexName, Quantiles.TYPE.getPreferredName(), quantilesId).get();
             if (!response.isExists()) {
                 LOGGER.info("There are currently no quantiles for job " + jobId);
                 return Optional.empty();
@@ -982,7 +983,7 @@ public class JobProvider {
         // count up until a document is not found.  It's NOT an error to have no categorizer state.
         int docNum = 0;
         while (true) {
-            String docId = Integer.toString(++docNum);
+            String docId = CategorizerState.categorizerStateDocId(jobId, ++docNum);
 
             LOGGER.trace("ES API CALL: get ID {} type {} from index {}", docId, CategorizerState.TYPE, indexName);
 

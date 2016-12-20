@@ -24,7 +24,6 @@ import java.util.Objects;
  * Quantiles Result POJO
  */
 public class Quantiles extends ToXContentToBytes implements Writeable {
-    public static final String QUANTILES_ID = "hierarchical";
 
     /**
      * Field Names
@@ -44,6 +43,10 @@ public class Quantiles extends ToXContentToBytes implements Writeable {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> new Date(p.longValue()), TIMESTAMP, ValueType.LONG);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), QUANTILE_STATE);
+    }
+
+    public static String quantilesId(String jobId) {
+        return jobId + "-" + TYPE.getPreferredName();
     }
 
     private final String jobId;

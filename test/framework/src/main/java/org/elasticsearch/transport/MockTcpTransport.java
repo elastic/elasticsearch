@@ -20,6 +20,7 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.MockServerSocket;
+import org.elasticsearch.MockSocket;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -179,7 +180,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         final MockChannel[] mockChannels = new MockChannel[1];
         final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
         boolean success = false;
-        final Socket socket = new Socket();
+        final MockSocket socket = new MockSocket();
         try {
             Consumer<MockChannel> onClose = (channel) -> {
                 final NodeChannels connected = connectedNodes.get(node);

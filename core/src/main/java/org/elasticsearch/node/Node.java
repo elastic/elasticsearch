@@ -585,6 +585,8 @@ public class Node implements Closeable {
         // start after cluster service so the local disco is known
         discovery.start();
         transportService.acceptIncomingRequests();
+        SearchTransportService searchTransportService = injector.getInstance(SearchTransportService.class);
+        searchTransportService.setupRemoteClusters();
         discovery.startInitialJoin();
         // tribe nodes don't have a master so we shouldn't register an observer         s
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
@@ -618,6 +620,7 @@ public class Node implements Closeable {
                 }
             }
         }
+
 
         if (NetworkModule.HTTP_ENABLED.get(settings)) {
             injector.getInstance(HttpServer.class).start();

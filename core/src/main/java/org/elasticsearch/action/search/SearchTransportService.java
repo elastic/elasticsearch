@@ -24,12 +24,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -53,13 +50,11 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TaskAwareTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -67,10 +62,12 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -99,14 +96,33 @@ public class SearchTransportService extends AbstractComponent {
             Setting.Property.Dynamic);
 
     private final TransportService transportService;
-    private volatile Map<String, List<DiscoveryNode>> remoteClustersSeeds;
+    private volatile Map<String, RemoteClusterConnection> remoteClusters = Collections.emptyMap();
 
     public SearchTransportService(Settings settings, ClusterSettings clusterSettings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
-        setRemoteClustersSeeds(REMOTE_CLUSTERS_SEEDS.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTERS_SEEDS, this::setRemoteClustersSeeds,
+        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTERS_SEEDS, this::setRemoteClusters,
                 SearchTransportService::validateRemoteClustersSeeds);
+    }
+
+    public void setupRemoteClusters() {
+        // nocommit we have to figure out a good way to set-up these connections
+        setRemoteClusters(REMOTE_CLUSTERS_SEEDS.get(settings));
+    }
+
+    private void connect() {
+        int size = remoteClusters.size();
+        CountDownLatch latch = new CountDownLatch(size);
+        for (RemoteClusterConnection connection : remoteClusters.values()) {
+            connection.connectWithSeeds(ActionListener.wrap(x -> latch.countDown(), ex -> {
+                throw new Error("failed to connect to to remote cluster " + connection.getClusterName(), ex);
+            }));
+        }
+        try {
+            latch.await(); // NOCOMMIT timeout?
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static void validateRemoteClustersSeeds(Settings settings) {
@@ -171,34 +187,31 @@ public class SearchTransportService extends AbstractComponent {
         return remoteClustersNodes;
     }
 
-    private void setRemoteClustersSeeds(Settings settings) {
-        remoteClustersSeeds = buildRemoteClustersSeeds(settings);
+    private void setRemoteClusters(Settings settings) {
+        Map<String, List<DiscoveryNode>> seeds = buildRemoteClustersSeeds(settings);
+        Map<String, RemoteClusterConnection> remoteClusters = new HashMap<>();
+        for (Map.Entry<String, List<DiscoveryNode>> entry : seeds.entrySet()) {
+            RemoteClusterConnection remote = this.remoteClusters.get(entry.getKey());
+            if (remote == null) {
+                remote = new RemoteClusterConnection(settings, entry.getKey(), entry.getValue(), transportService);
+                remoteClusters.put(entry.getKey(), remote);
+            } else {
+                remote.updateSeedNodes(entry.getValue());
+            }
+        }
+        if (remoteClusters.isEmpty() == false) {
+            remoteClusters.putAll(this.remoteClusters);
+            this.remoteClusters = Collections.unmodifiableMap(remoteClusters);
+            connect(); //nocommit this sucks as it's executed on the state update thread
+        }
     }
 
     boolean isCrossClusterSearchEnabled() {
-        return remoteClustersSeeds.isEmpty() == false;
+        return remoteClusters.isEmpty() == false;
     }
 
     boolean isRemoteClusterRegistered(String clusterName) {
-        return remoteClustersSeeds.containsKey(clusterName);
-    }
-
-    private DiscoveryNode connectToRemoteCluster(String clusterName) {
-        List<DiscoveryNode> nodes = remoteClustersSeeds.get(clusterName);
-        if (nodes == null) {
-            throw new IllegalArgumentException("no remote cluster configured with name [" + clusterName + "]");
-        }
-        DiscoveryNode remoteNode = nodes.get(Randomness.get().nextInt(nodes.size()));
-        //TODO we just take a random host for now, implement fallback in case of connect failure
-        try {
-            //TODO at the moment the configured cluster names are really just labels. We should validate that all the nodes
-            //belong to the same cluster, also validate the cluster name against the configured label and make sure they match
-            // now go and do a real connection with the updated version of the node
-            connectToRemoteNode(remoteNode);
-            return remoteNode;
-        } catch(ConnectTransportException e) {
-            throw new ConnectTransportException(remoteNode, "unable to connect to remote cluster [" + clusterName + "]", e);
-        }
+        return remoteClusters.containsKey(clusterName);
     }
 
     void connectToRemoteNode(DiscoveryNode remoteNode) {
@@ -212,24 +225,15 @@ public class SearchTransportService extends AbstractComponent {
         final AtomicReference<TransportException> transportException = new AtomicReference<>();
         for (Map.Entry<String, List<String>> entry : remoteIndicesByCluster.entrySet()) {
             final String clusterName = entry.getKey();
-            //TODO we should rather eagerly connect to every configured remote node of all remote clusters
-            final DiscoveryNode node = connectToRemoteCluster(clusterName);
+            RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterName);
+            if (remoteClusterConnection == null) {
+                throw new IllegalArgumentException("no such remote cluster: " + clusterName);
+            }
             final List<String> indices = entry.getValue();
-            //local true so we don't go to the master for each single remote search
-            ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices.toArray(new String[indices.size()]))
-                    .indicesOptions(searchRequest.indicesOptions()).local(true).preference(searchRequest.preference())
-                    .routing(searchRequest.routing());
-
-            transportService.sendRequest(node, ClusterSearchShardsAction.NAME, searchShardsRequest,
-                    new TransportResponseHandler<ClusterSearchShardsResponse>() {
-
+            remoteClusterConnection.fetchSearchShards(searchRequest, indices,
+                    new ActionListener<ClusterSearchShardsResponse>() {
                         @Override
-                        public ClusterSearchShardsResponse newInstance() {
-                            return new ClusterSearchShardsResponse();
-                        }
-
-                        @Override
-                        public void handleResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
+                        public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
                             searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
                             if (responsesCountDown.countDown()) {
                                 TransportException exception = transportException.get();
@@ -242,7 +246,7 @@ public class SearchTransportService extends AbstractComponent {
                         }
 
                         @Override
-                        public void handleException(TransportException e) {
+                        public void onFailure(Exception e) {
                             TransportException exception = new TransportException("unable to communicate with remote cluster [" +
                                     clusterName + "]", e);
                             if (transportException.compareAndSet(null, exception) == false) {
@@ -254,11 +258,6 @@ public class SearchTransportService extends AbstractComponent {
                             if (responsesCountDown.countDown()) {
                                 listener.onFailure(exception);
                             }
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SEARCH;
                         }
                     });
         }

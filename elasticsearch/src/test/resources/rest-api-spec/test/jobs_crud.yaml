@@ -83,6 +83,40 @@
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
           }
+  - do:
+      catch: /The job cannot be created with the Id 'farequote'. The Id is already used./
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "job_id":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+  - do:
+      catch: param
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "job_id":"farequote",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
 
 ---
 "Test delete job that is referred by a scheduler":

@@ -194,10 +194,11 @@ public class JobManager extends AbstractComponent {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                ClusterState cs = updateClusterState(job, request.isOverwrite(), currentState);
                 if (currentState.metaData().index(AnomalyDetectorsIndex.getJobIndexName(job.getIndexName())) != null) {
                     throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_INDEX_ALREADY_EXISTS, job.getIndexName()));
                 }
-                return updateClusterState(job, request.isOverwrite(), currentState);
+                return cs;
             }
 
         });

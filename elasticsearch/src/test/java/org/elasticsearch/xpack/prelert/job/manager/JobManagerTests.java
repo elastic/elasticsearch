@@ -29,8 +29,6 @@ import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.junit.Before;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -167,15 +165,12 @@ public class JobManagerTests extends ESTestCase {
                 .fPut(AnomalyDetectorsIndex.getJobIndexName("my-special-place"), indexMetaData).build();
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-                .metaData(MetaData.builder().indices(indexMap)).build();
+                .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, PrelertMetadata.PROTO).indices(indexMap)).build();
 
-        doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocationOnMock.getArguments()[1];
-                task.execute(cs);
-                return null;
-            }
+        doAnswer(invocationOnMock -> {
+            AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocationOnMock.getArguments()[1];
+            task.execute(cs);
+            return null;
         }).when(clusterService).submitStateUpdateTask(eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
 
         ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class, () -> jobManager.putJob(request,

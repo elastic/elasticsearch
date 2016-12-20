@@ -306,7 +306,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         }
 
         final PingingRound pingingRound = new PingingRound(pingingRoundIdGenerator.incrementAndGet(), seedNodes, resultsConsumer,
-            nodes.getLocalNode());
+            nodes.getLocalNode(), ConnectionProfile.getLightProfileWithTimeout(requestDuration, requestDuration));
         activePingingRounds.put(pingingRound.id(), pingingRound);
         final AbstractRunnable pingSender = new AbstractRunnable() {
             @Override
@@ -350,14 +350,17 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         private final List<DiscoveryNode> seedNodes;
         private final Consumer<PingCollection> pingListener;
         private final DiscoveryNode localNode;
+        private final ConnectionProfile connectionProfile;
 
         private AtomicBoolean closed = new AtomicBoolean(false);
 
-        PingingRound(int id, List<DiscoveryNode> seedNodes, Consumer<PingCollection> resultsConsumer, DiscoveryNode localNode) {
+        PingingRound(int id, List<DiscoveryNode> seedNodes, Consumer<PingCollection> resultsConsumer, DiscoveryNode localNode,
+                     ConnectionProfile connectionProfile) {
             this.id = id;
             this.seedNodes = Collections.unmodifiableList(new ArrayList<>(seedNodes));
             this.pingListener = resultsConsumer;
             this.localNode = localNode;
+            this.connectionProfile = connectionProfile;
             this.pingCollection = new PingCollection();
         }
 
@@ -420,6 +423,10 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                 }
             }
         }
+
+        public ConnectionProfile getConnectionProfile() {
+            return connectionProfile;
+        }
     }
 
 
@@ -477,7 +484,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                 if (connection == null) {
                     logger.trace("[{}] connecting (light) to {}", pingingRound.id(), node);
                     boolean success = false;
-                    connection = transportService.openConnection(node, ConnectionProfile.LIGHT_PROFILE);
+                    connection = transportService.openConnection(node, pingingRound.getConnectionProfile());
                     try {
                         transportService.handshake(connection, timeout.millis());
                         connection = pingingRound.addConnectionIfNeeded(node.getAddress(), connection);

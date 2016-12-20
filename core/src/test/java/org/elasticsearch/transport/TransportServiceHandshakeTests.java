@@ -121,16 +121,6 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
             assertFalse(handleA.transportService.nodeConnected(discoveryNode));
         }
-
-        DiscoveryNode connectedNode =
-            handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout);
-        assertNotNull(connectedNode);
-
-        // the name and version should be updated
-        assertEquals(connectedNode.getName(), "TS_B");
-        assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
-        assertTrue(handleA.transportService.nodeConnected(discoveryNode));
-
     }
 
     public void testMismatchedClusterName() {

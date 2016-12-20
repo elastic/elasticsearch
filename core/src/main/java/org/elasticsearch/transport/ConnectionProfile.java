@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
@@ -38,13 +39,22 @@ public final class ConnectionProfile {
      * A pre-built light connection profile that shares a single connection across all
      * types.
      */
-    public static final ConnectionProfile LIGHT_PROFILE = new ConnectionProfile(
-        Collections.singletonList(new ConnectionTypeHandle(0, 1, EnumSet.of(
-            TransportRequestOptions.Type.BULK,
-            TransportRequestOptions.Type.PING,
-            TransportRequestOptions.Type.RECOVERY,
-            TransportRequestOptions.Type.REG,
-            TransportRequestOptions.Type.STATE))), 1, null, null);
+    public static final ConnectionProfile LIGHT_PROFILE = getLightProfileWithTimeout(null, null);
+
+    /**
+     * Builds a light connection profile that shares a single connection across all
+     * types, using the given timeouts
+     */
+    public static ConnectionProfile getLightProfileWithTimeout(@Nullable TimeValue connectTimeout,
+                                                               @Nullable TimeValue handshakeTimeout) {
+        return new ConnectionProfile(
+            Collections.singletonList(new ConnectionTypeHandle(0, 1, EnumSet.of(
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE))), 1, connectTimeout, handshakeTimeout);
+    }
 
     private final List<ConnectionTypeHandle> handles;
     private final int numConnections;

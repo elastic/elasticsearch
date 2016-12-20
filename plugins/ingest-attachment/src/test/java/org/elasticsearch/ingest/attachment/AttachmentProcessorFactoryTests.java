@@ -52,6 +52,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testConfigureIndexedChars() throws Exception {
@@ -64,6 +65,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         AttachmentProcessor processor = factory.create(null, processorTag, config);
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getIndexedChars(), is(indexedChars));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildTargetField() throws Exception {
@@ -73,6 +75,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_field"));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildFields() throws Exception {
@@ -90,6 +93,7 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         AttachmentProcessor processor = factory.create(null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
+        assertFalse(processor.isIgnoreMissing());
     }
 
     public void testBuildIllegalFieldOption() throws Exception {
@@ -116,5 +120,20 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
         }
+    }
+
+    public void testIgnoreMissing() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("ignore_missing", true);
+
+        String processorTag = randomAsciiOfLength(10);
+
+        AttachmentProcessor processor = factory.create(null, processorTag, config);
+        assertThat(processor.getTag(), equalTo(processorTag));
+        assertThat(processor.getField(), equalTo("_field"));
+        assertThat(processor.getTargetField(), equalTo("attachment"));
+        assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
+        assertTrue(processor.isIgnoreMissing());
     }
 }

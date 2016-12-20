@@ -19,6 +19,7 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.MockServerSocket;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -110,7 +111,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
     @Override
     protected MockChannel bind(final String name, InetSocketAddress address) throws IOException {
-        ServerSocket socket = new ServerSocket();
+        MockServerSocket socket = new MockServerSocket();
         socket.bind(address);
         socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
         ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);

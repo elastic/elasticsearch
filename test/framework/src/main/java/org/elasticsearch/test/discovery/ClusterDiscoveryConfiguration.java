@@ -20,6 +20,7 @@ package org.elasticsearch.test.discovery;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.MockServerSocket;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -136,7 +137,7 @@ public class ClusterDiscoveryConfiguration extends NodeConfigurationSource {
             for (int i = 0; i < unicastHostPorts.length; i++) {
                 boolean foundPortInRange = false;
                 while (tries < InternalTestCluster.PORTS_PER_JVM && !foundPortInRange) {
-                    try (ServerSocket serverSocket = new ServerSocket()) {
+                    try (ServerSocket serverSocket = new MockServerSocket()) {
                         // Set SO_REUSEADDR as we may bind here and not be able to reuse the address immediately without it.
                         serverSocket.setReuseAddress(NetworkUtils.defaultReuseAddress());
                         serverSocket.bind(new InetSocketAddress(IP_ADDR, nextPort));

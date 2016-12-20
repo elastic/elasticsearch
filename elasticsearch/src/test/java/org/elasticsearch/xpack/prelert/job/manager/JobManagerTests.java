@@ -5,21 +5,32 @@
  */
 package org.elasticsearch.xpack.prelert.job.manager;
 
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.prelert.action.PutJobAction;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
+import org.elasticsearch.xpack.prelert.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.junit.Before;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -28,7 +39,10 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.prelert.job.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -133,6 +147,50 @@ public class JobManagerTests extends ESTestCase {
         assertThat(result.results().get(7).getId(), equalTo("7"));
         assertThat(result.results().get(8).getId(), equalTo("8"));
         assertThat(result.results().get(9).getId(), equalTo("9"));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testPutJobFailsIfIndexExists() {
+        JobManager jobManager = createJobManager();
+        Job.Builder jobBuilder = buildJobBuilder("foo");
+        jobBuilder.setIndexName("my-special-place");
+        PutJobAction.Request request = new PutJobAction.Request(jobBuilder.build());
+
+        Index index = mock(Index.class);
+        when(index.getName()).thenReturn(AnomalyDetectorsIndex.getJobIndexName("my-special-place"));
+        IndexMetaData indexMetaData = mock(IndexMetaData.class);
+        when(indexMetaData.getIndex()).thenReturn(index);
+        ImmutableOpenMap<String, AliasMetaData> aliases = ImmutableOpenMap.of();
+        when(indexMetaData.getAliases()).thenReturn(aliases);
+
+        ImmutableOpenMap<String, IndexMetaData> indexMap = ImmutableOpenMap.<String, IndexMetaData>builder()
+                .fPut(AnomalyDetectorsIndex.getJobIndexName("my-special-place"), indexMetaData).build();
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder().indices(indexMap)).build();
+
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                AckedClusterStateUpdateTask<Boolean> task = (AckedClusterStateUpdateTask<Boolean>) invocationOnMock.getArguments()[1];
+                task.execute(cs);
+                return null;
+            }
+        }).when(clusterService).submitStateUpdateTask(eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
+
+        ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class, () -> jobManager.putJob(request,
+                new ActionListener<PutJobAction.Response>() {
+            @Override
+            public void onResponse(PutJobAction.Response response) {
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e.toString());
+            }
+        }));
+
+        assertEquals("Cannot create index 'my-special-place' as it already exists", e.getMessage());
     }
 
     private JobManager createJobManager() {

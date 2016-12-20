@@ -180,6 +180,8 @@ public final class Messages {
     public static final String JOB_CONFIG_TRANSFORM_UNKNOWN_TYPE = "job.config.transform.unknown.type";
     public static final String JOB_CONFIG_UNKNOWN_FUNCTION = "job.config.unknown.function";
 
+    public static final String JOB_INDEX_ALREADY_EXISTS = "job.index.already.exists";
+
     public static final String JOB_DATA_CONCURRENT_USE_CLOSE = "job.data.concurrent.use.close";
     public static final String JOB_DATA_CONCURRENT_USE_FLUSH = "job.data.concurrent.use.flush";
     public static final String JOB_DATA_CONCURRENT_USE_PAUSE = "job.data.concurrent.use.pause";

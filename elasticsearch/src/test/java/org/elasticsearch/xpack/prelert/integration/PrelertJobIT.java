@@ -173,6 +173,63 @@ public class PrelertJobIT extends ESRestTestCase {
         assertThat(responseAsString, containsString("\"count\":1"));
     }
 
+    public void testCreateJobWithIndexNameOption() throws Exception {
+        String jobTemplate = "{\"job_id\":\"%s\",\n" +
+                "  \"analysis_config\" : {\n" +
+                "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\"}]\n" +
+                "    },\n" +
+                "  \"index_name\" : \"%s\"}";
+
+        String jobId = "aliased-job";
+        String indexName = "non-default-index";
+        String jobConfig = String.format(Locale.ROOT, jobTemplate, jobId, indexName);
+
+        Response response = client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors", Collections.emptyMap(),
+                new StringEntity(jobConfig));
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        response = client().performRequest("get", "_aliases");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        String responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"prelertresults-" + indexName + "\":{\"aliases\":{\"prelertresults-" + jobId + "\""));
+
+        response = client().performRequest("get", "_cat/indices");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString(indexName));
+
+        addBucketResult(indexName, "1234", 1);
+        addBucketResult(indexName, "1236", 1);
+        response = client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/results/buckets");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"count\":2"));
+
+        response = client().performRequest("get", "prelertresults-" + indexName + "/result/_search");
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString("\"total\":2"));
+
+        // test that we can't create another job with the same index_name
+        String jobConfigSameIndexName = String.format(Locale.ROOT, jobTemplate, "new-job-id", indexName);
+        expectThrows(ResponseException.class, () -> client().performRequest("put",
+                PrelertPlugin.BASE_PATH + "anomaly_detectors", Collections.emptyMap(), new StringEntity(jobConfigSameIndexName)));
+
+        response = client().performRequest("delete", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        // check index and alias were deleted
+        response = client().performRequest("get", "_aliases");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, not(containsString("prelertresults-" + jobId )));
+
+        response = client().performRequest("get", "_cat/indices");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, not(containsString(indexName)));
+    }
+
     private Response addBucketResult(String jobId, String timestamp, long bucketSpan) throws Exception {
         try {
             client().performRequest("put", "prelertresults-" + jobId, Collections.emptyMap(), new StringEntity(RESULT_MAPPING));

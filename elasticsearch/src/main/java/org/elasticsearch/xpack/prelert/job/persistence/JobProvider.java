@@ -11,10 +11,13 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -192,8 +195,11 @@ public class JobProvider {
             XContentBuilder auditActivityMapping = ElasticsearchMappings.auditActivityMapping();
 
             String jobId = job.getId();
-            LOGGER.trace("ES API CALL: create index {}", job.getId());
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest(AnomalyDetectorsIndex.getJobIndexName(jobId));
+            boolean createIndexAlias = !job.getIndexName().equals(job.getId());
+            String indexName = AnomalyDetectorsIndex.getJobIndexName(job.getIndexName());
+
+            LOGGER.trace("ES API CALL: create index {}", indexName);
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
             Settings.Builder settingsBuilder = prelertIndexSettings();
             createIndexRequest.settings(settingsBuilder);
             createIndexRequest.mapping(Result.TYPE.getPreferredName(), resultsMapping);
@@ -209,17 +215,40 @@ public class JobProvider {
             createIndexRequest.mapping(AuditMessage.TYPE.getPreferredName(), auditMessageMapping);
             createIndexRequest.mapping(AuditActivity.TYPE.getPreferredName(), auditActivityMapping);
 
+
+            if (createIndexAlias) {
+                final ActionListener<Boolean> responseListener = listener;
+                listener = ActionListener.wrap(aBoolean -> {
+                            client.admin().indices().prepareAliases()
+                                    .addAlias(indexName, AnomalyDetectorsIndex.getJobIndexName(jobId))
+                                    .execute(new ActionListener<IndicesAliasesResponse>() {
+                                        @Override
+                                        public void onResponse(IndicesAliasesResponse indicesAliasesResponse) {
+                                            responseListener.onResponse(true);
+                                        }
+
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            responseListener.onFailure(e);
+                                        }
+                                    });
+                        },
+                        listener::onFailure);
+            }
+
+            final ActionListener<Boolean> createdListener = listener;
             client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
                 @Override
                 public void onResponse(CreateIndexResponse createIndexResponse) {
-                    listener.onResponse(true);
+                    createdListener.onResponse(true);
                 }
 
                 @Override
                 public void onFailure(Exception e) {
-                    listener.onFailure(e);
+                    createdListener.onFailure(e);
                 }
             });
+
         } catch (Exception e) {
             listener.onFailure(e);
         }

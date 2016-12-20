@@ -10,6 +10,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -47,6 +49,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -378,6 +381,22 @@ public class MockClientBuilder {
         when(builder.setRefreshPolicy(eq(RefreshPolicy.IMMEDIATE))).thenReturn(builder);
         when(builder.execute()).thenReturn(actionFuture);
         when(actionFuture.actionGet()).thenReturn(response);
+        return this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public MockClientBuilder prepareAlias(String indexName, String alias) {
+        IndicesAliasesRequestBuilder aliasesRequestBuilder = mock(IndicesAliasesRequestBuilder.class);
+        when(aliasesRequestBuilder.addAlias(eq(indexName), eq(alias))).thenReturn(aliasesRequestBuilder);
+        when(indicesAdminClient.prepareAliases()).thenReturn(aliasesRequestBuilder);
+        doAnswer(new Answer<Void>() {
+            @Override
+            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
+                ActionListener<IndicesAliasesResponse> listener = (ActionListener<IndicesAliasesResponse>) invocationOnMock.getArguments()[0];
+                listener.onResponse(mock(IndicesAliasesResponse.class));
+                return null;
+            }
+        }).when(aliasesRequestBuilder).execute(any());
         return this;
     }
 

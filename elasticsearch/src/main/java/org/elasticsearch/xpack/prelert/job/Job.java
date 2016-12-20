@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfigs;
 import org.elasticsearch.xpack.prelert.job.transform.verification.TransformConfigsVerifier;
+import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.prelert.utils.PrelertStrings;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
@@ -47,9 +48,7 @@ import java.util.TreeSet;
 public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent {
 
     public static final Job PROTO =
-            new Job(null, null, null, null, null, 0L, null, null, null, null, null, null, null, null, null, null, null, null);
-
-    public static final long DEFAULT_BUCKETSPAN = 300;
+            new Job(null, null, null, null, null, 0L, null, null, null, null, null, null, null, null, null, null, null, null, null);
 
     public static final String TYPE = "job";
 
@@ -74,6 +73,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     public static final ParseField TIMEOUT = new ParseField("timeout");
     public static final ParseField TRANSFORMS = new ParseField("transforms");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
+    public static final ParseField INDEX_NAME = new ParseField("index_name");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
@@ -124,6 +124,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), CUSTOM_SETTINGS, ValueType.OBJECT);
         PARSER.declareStringOrNull(Builder::setModelSnapshotId, MODEL_SNAPSHOT_ID);
+        PARSER.declareString(Builder::setIndexName, INDEX_NAME);
     }
 
     private final String jobId;
@@ -145,12 +146,13 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
     private final Long resultsRetentionDays;
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
+    private final String indexName;
 
     public Job(String jobId, String description, Date createTime, Date finishedTime, Date lastDataTime, long timeout,
                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits,  DataDescription dataDescription,
                List<TransformConfig> transforms, ModelDebugConfig modelDebugConfig, IgnoreDowntime ignoreDowntime,
                Long renormalizationWindowDays, Long backgroundPersistInterval, Long modelSnapshotRetentionDays, Long resultsRetentionDays,
-               Map<String, Object> customSettings, String modelSnapshotId) {
+               Map<String, Object> customSettings, String modelSnapshotId, String indexName) {
         this.jobId = jobId;
         this.description = description;
         this.createTime = createTime;
@@ -169,6 +171,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         this.resultsRetentionDays = resultsRetentionDays;
         this.customSettings = customSettings;
         this.modelSnapshotId = modelSnapshotId;
+        this.indexName = indexName;
     }
 
     public Job(StreamInput in) throws IOException {
@@ -190,6 +193,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         resultsRetentionDays = in.readOptionalLong();
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
+        indexName = in.readString();
     }
 
     @Override
@@ -204,6 +208,15 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
      */
     public String getId() {
         return jobId;
+    }
+
+    /**
+     * The name of the index storing the job's results and state.
+     * This defaults to {@link #getId()} if a specific index name is not set.
+     * @return The job's index name
+     */
+    public String getIndexName() {
+        return indexName;
     }
 
     /**
@@ -407,6 +420,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         out.writeOptionalLong(resultsRetentionDays);
         out.writeMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
+        out.writeString(indexName);
     }
 
     @Override
@@ -461,9 +475,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         if (customSettings != null) {
             builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
         }
-        if (modelSnapshotId != null){
+        if (modelSnapshotId != null) {
             builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
         }
+        builder.field(INDEX_NAME.getPreferredName(), indexName);
         return builder;
     }
 
@@ -492,7 +507,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 && Objects.equals(this.modelSnapshotRetentionDays, that.modelSnapshotRetentionDays)
                 && Objects.equals(this.resultsRetentionDays, that.resultsRetentionDays)
                 && Objects.equals(this.customSettings, that.customSettings)
-                && Objects.equals(this.modelSnapshotId, that.modelSnapshotId);
+                && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
+                && Objects.equals(this.indexName, that.indexName);
     }
 
     @Override
@@ -500,7 +516,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         return Objects.hash(jobId, description, createTime, finishedTime, lastDataTime, timeout, analysisConfig,
                 analysisLimits, dataDescription, modelDebugConfig, transforms, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, ignoreDowntime, customSettings,
-                modelSnapshotId);
+                modelSnapshotId, indexName);
     }
 
     // Class alreadt extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
@@ -543,6 +559,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         private IgnoreDowntime ignoreDowntime;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
+        private String indexName;
 
         public Builder() {
         }
@@ -659,6 +676,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             this.modelSnapshotId = modelSnapshotId;
         }
 
+        public void setIndexName(String indexName) {
+            this.indexName = indexName;
+        }
+
         public Job build() {
             return build(false);
         }
@@ -720,10 +741,20 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             if (!PrelertStrings.isValidId(id)) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName()));
             }
+
+            if (Strings.isNullOrEmpty(indexName)) {
+                indexName = id;
+            }
+
+            if (!PrelertStrings.isValidId(indexName)) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, INDEX_NAME.getPreferredName()));
+            }
+
             return new Job(
                     id, description, createTime, finishedTime, lastDataTime, timeout, analysisConfig, analysisLimits,
                     dataDescription, transforms, modelDebugConfig, ignoreDowntime, renormalizationWindowDays,
-                    backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId
+                    backgroundPersistInterval, modelSnapshotRetentionDays, resultsRetentionDays, customSettings, modelSnapshotId,
+                    indexName
             );
         }
 

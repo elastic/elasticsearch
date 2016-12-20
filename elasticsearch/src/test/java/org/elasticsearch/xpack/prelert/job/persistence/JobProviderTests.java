@@ -59,6 +59,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -190,6 +192,53 @@ public class JobProviderTests extends ESTestCase {
         });
     }
 
+    public void testCreateJobRelatedIndicies_createsAliasIfIndexNameIsSet() {
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
+        ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
+        clientBuilder.createIndexRequest(AnomalyDetectorsIndex.getJobIndexName("foo"), captor);
+        clientBuilder.prepareAlias(AnomalyDetectorsIndex.getJobIndexName("bar"), AnomalyDetectorsIndex.getJobIndexName("foo"));
+
+        Job.Builder job = buildJobBuilder("foo");
+        job.setIndexName("bar");
+        Client client = clientBuilder.build();
+        JobProvider provider = createProvider(client);
+
+        provider.createJobRelatedIndices(job.build(), new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean aBoolean) {
+                verify(client.admin().indices(), times(1)).prepareAliases();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e.toString());
+            }
+        });
+    }
+
+
+    public void testCreateJobRelatedIndicies_doesntCreateAliasIfIndexNameIsSameAsJobId() {
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME);
+        ArgumentCaptor<CreateIndexRequest> captor = ArgumentCaptor.forClass(CreateIndexRequest.class);
+        clientBuilder.createIndexRequest(AnomalyDetectorsIndex.getJobIndexName("foo"), captor);
+
+        Job.Builder job = buildJobBuilder("foo");
+        job.setIndexName("foo");
+        Client client = clientBuilder.build();
+        JobProvider provider = createProvider(client);
+
+        provider.createJobRelatedIndices(job.build(), new ActionListener<Boolean>() {
+            @Override
+            public void onResponse(Boolean aBoolean) {
+                verify(client.admin().indices(), never()).prepareAliases();
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e.toString());
+            }
+        });
+    }
 
     public void testCreateJob() throws InterruptedException, ExecutionException {
         Job.Builder job = buildJobBuilder("marscapone");

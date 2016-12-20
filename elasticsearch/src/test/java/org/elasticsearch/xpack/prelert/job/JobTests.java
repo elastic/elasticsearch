@@ -425,6 +425,26 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertEquals(errorMessage, e.getMessage());
     }
 
+    public void testBuilder_setsDefaultIndexName() {
+        Job.Builder builder = buildJobBuilder("foo");
+        Job job = builder.build();
+        assertEquals("foo", job.getIndexName());
+    }
+
+    public void testBuilder_setsIndexName() {
+        Job.Builder builder = buildJobBuilder("foo");
+        builder.setIndexName("carol");
+        Job job = builder.build();
+        assertEquals("carol", job.getIndexName());
+    }
+
+    public void testBuilder_withInvalidIndexNameThrows () {
+        Job.Builder builder = buildJobBuilder("foo");
+        builder.setIndexName("_bad^name");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.build());
+        assertEquals(Messages.getMessage(Messages.INVALID_ID, Job.INDEX_NAME.getPreferredName()), e.getMessage());
+    }
+
     public static Job.Builder buildJobBuilder(String id) {
         Job.Builder builder = new Job.Builder(id);
         builder.setCreateTime(new Date());
@@ -510,6 +530,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setModelSnapshotId(randomAsciiOfLength(10));
+        }
+        if (randomBoolean()) {
+            builder.setIndexName(randomValidJobId());
         }
         return builder.build();
     }

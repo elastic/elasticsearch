@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.RandomizedContext;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -58,7 +59,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,10 +72,11 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
 
-    protected void startNode(Random random) {
+    protected void startNode(long seed) throws Exception {
         assert NODE == null;
-        NODE = newNode(random);
-        // we must wait for the node to actually be up and running. otherwise the node might have started, elected itself master but might not yet have removed the
+        NODE = RandomizedContext.current().runWithPrivateRandomness(seed, this::newNode);
+        // we must wait for the node to actually be up and running. otherwise the node might have started,
+        // elected itself master but might not yet have removed the
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(clusterHealthResponse.isTimedOut());
@@ -96,12 +97,12 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        //this random instance has to be created here to ensure tests repeatability
-        Random random = new Random(random().nextLong());
+        //the seed has to be created regardless of whether it will be used or not, for repeatability
+        long seed = random().nextLong();
         // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
         // only the cluster name. This allows us to have overridden properties for plugins and the version to use.
         if (NODE == null) {
-            startNode(random);
+            startNode(seed);
         }
     }
 
@@ -116,10 +117,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(),
                 metaData.transientSettings().getAsMap().size(), equalTo(0));
         if (resetNodeAfterTest()) {
-            //this random instance has to be created here to ensure tests repeatability
             assert NODE != null;
             stopNode();
-            startNode(new Random(random().nextLong()));
+            //the seed can be created within this if as it will either be executed before every test method or will never be.
+            startNode(random().nextLong());
         }
     }
 
@@ -159,10 +160,10 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-    private Node newNode(Random random) {
+    private Node newNode() {
         final Path tempDir = createTempDir();
         Settings settings = Settings.builder()
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random.nextLong()))
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random().nextLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
             // TODO: use a consistent data path for custom paths
@@ -176,7 +177,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
             .put(Node.NODE_DATA_SETTING.getKey(), true)
-            .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random.nextLong())
+            .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random().nextLong())
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
@@ -259,7 +260,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
         ClusterHealthResponse health = client().admin().cluster()
-                .health(Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)).actionGet();
+                .health(Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID)
+                        .waitForNoRelocatingShards(true)).actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
         IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);
@@ -279,7 +281,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected SearchContext createSearchContext(IndexService indexService) {
         BigArrays bigArrays = indexService.getBigArrays();
         ThreadPool threadPool = indexService.getThreadPool();
-        ScriptService scriptService = node().injector().getInstance(ScriptService.class);
         return new TestSearchContext(threadPool, bigArrays, indexService);
     }
 
@@ -302,7 +303,8 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
         ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)).actionGet();
+                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID)
+                        .waitForNoRelocatingShards(true)).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState(),
                 client().admin().cluster().preparePendingClusterTasks().get());

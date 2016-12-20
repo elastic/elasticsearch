@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -65,6 +66,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
 
     protected AggregatorParsers aggParsers;
     protected IndicesQueriesRegistry queriesRegistry;
+    private NamedXContentRegistry xContentRegistry;
     protected ParseFieldMatcher parseFieldMatcher;
 
     protected abstract AB createTestAggregatorBuilder();
@@ -85,6 +87,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
         queriesRegistry = searchModule.getQueryParserRegistry();
         aggParsers = searchModule.getSearchRequestParsers().aggParsers;
         //create some random type with some default field, those types will stick around for all of the subclasses
@@ -94,6 +97,11 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
             currentTypes[i] = type;
         }
         parseFieldMatcher = ParseFieldMatcher.STRICT;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 
     /**

@@ -24,6 +24,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -40,10 +41,12 @@ import static java.util.Collections.emptyList;
 public class QueryParseContextTests extends ESTestCase {
 
     private static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static NamedXContentRegistry xContentRegistry;
 
     @BeforeClass
     public static void init() {
         indicesQueriesRegistry = new SearchModule(Settings.EMPTY, false, emptyList()).getQueryParserRegistry();
+        xContentRegistry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents());
     }
 
     private ThreadContext threadContext;
@@ -58,6 +61,11 @@ public class QueryParseContextTests extends ESTestCase {
     public void teardown() throws IOException {
         DeprecationLogger.removeThreadContext(this.threadContext);
         this.threadContext.close();
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 
     public void testParseTopLevelBuilder() throws IOException {

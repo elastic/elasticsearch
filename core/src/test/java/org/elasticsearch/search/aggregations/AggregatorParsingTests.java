@@ -22,16 +22,17 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Random;
@@ -51,6 +52,7 @@ public class AggregatorParsingTests extends ESTestCase {
 
     protected AggregatorParsers aggParsers;
     protected IndicesQueriesRegistry queriesRegistry;
+    private NamedXContentRegistry xContentRegistry;
     protected ParseFieldMatcher parseFieldMatcher;
 
     /**
@@ -74,6 +76,7 @@ public class AggregatorParsingTests extends ESTestCase {
             currentTypes[i] = type;
         }
         queriesRegistry = searchModule.getQueryParserRegistry();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
         parseFieldMatcher = ParseFieldMatcher.STRICT;
     }
 
@@ -264,5 +267,10 @@ public class AggregatorParsingTests extends ESTestCase {
         } catch (ParsingException e) {
             // All Good
         }
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 }

@@ -23,6 +23,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException;
+import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
@@ -105,7 +107,14 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(), "[" + queryName + "] query malformed, no start_object after query name");
         }
-        QueryBuilder result = indicesQueriesRegistry.lookup(queryName, parseFieldMatcher, parser.getTokenLocation()).fromXContent(this);
+        QueryBuilder result;
+        try {
+            result = parser.namedObject(QueryBuilder.class, queryName, this);
+        } catch (UnknownNamedObjectException e) {
+            // Preserve the error message from 5.0 until we have a compellingly better message so we don't break BWC.
+            throw new ParsingException(new XContentLocation(e.getLineNumber(), e.getColumnNumber()),
+                    "no [query] registered for [" + e.getName() + "]", e);
+        }
         //end_object of the specific query (e.g. match, multi_match etc.) element
         if (parser.currentToken() != XContentParser.Token.END_OBJECT) {
             throw new ParsingException(parser.getTokenLocation(),

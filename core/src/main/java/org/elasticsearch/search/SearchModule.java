@@ -442,11 +442,12 @@ public class SearchModule {
         if (false == transportClient) {
             aggregationParserRegistry.register(spec.getParser(), spec.getName());
         }
-        namedWriteables.add(new Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedWriteables.add(
+                new NamedWriteableRegistry.Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.getResultReaders().entrySet()) {
             String writeableName = t.getKey();
             Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
-            namedWriteables.add(new Entry(InternalAggregation.class, writeableName, internalReader));
+            namedWriteables.add(new NamedWriteableRegistry.Entry(InternalAggregation.class, writeableName, internalReader));
         }
     }
 
@@ -535,10 +536,13 @@ public class SearchModule {
         if (false == transportClient) {
             pipelineAggregationParserRegistry.register(spec.getParser(), spec.getName());
         }
-        namedWriteables.add(new Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
-        namedWriteables.add(new Entry(PipelineAggregator.class, spec.getName().getPreferredName(), spec.getAggregatorReader()));
+        namedWriteables.add(
+                new NamedWriteableRegistry.Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedWriteables.add(
+                new NamedWriteableRegistry.Entry(PipelineAggregator.class, spec.getName().getPreferredName(), spec.getAggregatorReader()));
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> resultReader : spec.getResultReaders().entrySet()) {
-            namedWriteables.add(new Entry(InternalAggregation.class, resultReader.getKey(), resultReader.getValue()));
+            namedWriteables
+                    .add(new NamedWriteableRegistry.Entry(InternalAggregation.class, resultReader.getKey(), resultReader.getValue()));
         }
     }
 
@@ -549,14 +553,14 @@ public class SearchModule {
     }
 
     private void registerRescorers() {
-        namedWriteables.add(new Entry(RescoreBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RescoreBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new));
     }
 
     private void registerSorts() {
-        namedWriteables.add(new Entry(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new));
-        namedWriteables.add(new Entry(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new));
-        namedWriteables.add(new Entry(SortBuilder.class, ScriptSortBuilder.NAME, ScriptSortBuilder::new));
-        namedWriteables.add(new Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScriptSortBuilder.NAME, ScriptSortBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new));
     }
 
     private <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {
@@ -568,9 +572,9 @@ public class SearchModule {
     }
 
     public static void registerSmoothingModels(List<Entry> namedWriteables) {
-        namedWriteables.add(new Entry(SmoothingModel.class, Laplace.NAME, Laplace::new));
-        namedWriteables.add(new Entry(SmoothingModel.class, LinearInterpolation.NAME, LinearInterpolation::new));
-        namedWriteables.add(new Entry(SmoothingModel.class, StupidBackoff.NAME, StupidBackoff::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SmoothingModel.class, Laplace.NAME, Laplace::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SmoothingModel.class, LinearInterpolation.NAME, LinearInterpolation::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SmoothingModel.class, StupidBackoff.NAME, StupidBackoff::new));
     }
 
     private Map<String, Suggester<?>> setupSuggesters(List<SearchPlugin> plugins) {
@@ -581,7 +585,7 @@ public class SearchModule {
             @Override
             public void register(String name, Suggester<?> t) {
                 super.register(name, t);
-                namedWriteables.add(new Entry(SuggestionBuilder.class, name, t));
+                namedWriteables.add(new NamedWriteableRegistry.Entry(SuggestionBuilder.class, name, t));
             }
         };
         suggesters.register("phrase", PhraseSuggester.INSTANCE);
@@ -619,7 +623,7 @@ public class SearchModule {
 
         //weight doesn't have its own parser, so every function supports it out of the box.
         //Can be a single function too when not associated to any other function, which is why it needs to be registered manually here.
-        namedWriteables.add(new Entry(ScoreFunctionBuilder.class, WeightBuilder.NAME, WeightBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(ScoreFunctionBuilder.class, WeightBuilder.NAME, WeightBuilder::new));
 
         registerFromPlugin(plugins, SearchPlugin::getScoreFunctions, this::registerScoreFunction);
     }
@@ -646,7 +650,7 @@ public class SearchModule {
      * Register a new ValueFormat.
      */
     private void registerValueFormat(String name, Writeable.Reader<? extends DocValueFormat> reader) {
-        namedWriteables.add(new Entry(DocValueFormat.class, name, reader));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, name, reader));
     }
 
     private void registerSignificanceHeuristics(List<SearchPlugin> plugins) {
@@ -662,7 +666,8 @@ public class SearchModule {
 
     private void registerSignificanceHeuristic(SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser> heuristic) {
         significanceHeuristicParserRegistry.register(heuristic.getParser(), heuristic.getName());
-        namedWriteables.add(new Entry(SignificanceHeuristic.class, heuristic.getName().getPreferredName(), heuristic.getReader()));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SignificanceHeuristic.class, heuristic.getName().getPreferredName(),
+                heuristic.getReader()));
     }
 
     private void registerMovingAverageModels(List<SearchPlugin> plugins) {
@@ -677,7 +682,8 @@ public class SearchModule {
 
     private void registerMovingAverageModel(SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser> movAvgModel) {
         movingAverageModelParserRegistry.register(movAvgModel.getParser(), movAvgModel.getName());
-        namedWriteables.add(new Entry(MovAvgModel.class, movAvgModel.getName().getPreferredName(), movAvgModel.getReader()));
+        namedWriteables.add(
+                new NamedWriteableRegistry.Entry(MovAvgModel.class, movAvgModel.getName().getPreferredName(), movAvgModel.getReader()));
     }
 
     private void registerFetchSubPhases(List<SearchPlugin> plugins) {
@@ -700,7 +706,7 @@ public class SearchModule {
 
     private void registerSearchExt(SearchExtSpec<?> spec) {
         searchExtParserRegistry.register(spec.getParser(), spec.getName());
-        namedWriteables.add(new Entry(SearchExtBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SearchExtBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
     private void registerFetchSubPhase(FetchSubPhase subPhase) {
@@ -775,7 +781,9 @@ public class SearchModule {
 
     private void registerQuery(QuerySpec<?> spec) {
         queryParserRegistry.register(spec.getParser(), spec.getName());
-        namedWriteables.add(new Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, spec.getName(),
+                (p, c) -> spec.getParser().fromXContent((QueryParseContext) c)));
     }
 
     public FetchPhase getFetchPhase() {

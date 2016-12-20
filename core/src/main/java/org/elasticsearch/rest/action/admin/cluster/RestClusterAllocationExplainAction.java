@@ -70,7 +70,7 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
         try {
             req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
             req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
-            final boolean humanReadable = request.paramAsBoolean("human", true);
+            final boolean humanReadable = request.paramAsBoolean("human", false);
             return channel ->
                     client.admin().cluster().allocationExplain(req, new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
                 @Override

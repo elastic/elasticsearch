@@ -718,7 +718,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                     id = this.id;
                 } else {
                     // Base64 UUIDs are not necessarily valid job IDs
-                    id = "auto-" + UUIDs.base64UUID().toLowerCase(Locale.ROOT).replaceAll("/\\+=", "_");
+                    id = "auto-" + UUIDs.base64UUID().toLowerCase(Locale.ROOT).replaceAll("[/+=-]", "_");
                     if (id.endsWith("_")) {
                         // Job IDs cannot end with underscores
                         id = id.substring(0, id.length() - 1) + "z";
@@ -739,7 +739,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
             }
             if (!PrelertStrings.isValidId(id)) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName()));
+                throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
             }
 
             if (Strings.isNullOrEmpty(indexName)) {

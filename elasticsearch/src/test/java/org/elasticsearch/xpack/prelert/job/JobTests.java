@@ -242,9 +242,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     public void testCheckValidId_ProhibitedChars() {
         String invalidChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()+?\"'~±/\\[]{},<>=";
         Job.Builder builder = buildJobBuilder("foo");
-        String errorMessage = Messages.getMessage(Messages.INVALID_ID, Job.ID.getPreferredName());
         for (char c : invalidChars.toCharArray()) {
             builder.setId(Character.toString(c));
+            String errorMessage = Messages.getMessage(Messages.INVALID_ID, Job.ID.getPreferredName(), Character.toString(c));
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
             assertEquals(errorMessage, e.getMessage());
         }
@@ -252,14 +252,14 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
 
     public void testCheckValidId_startsWithUnderscore() {
         Job.Builder builder = buildJobBuilder("_foo");
-        String errorMessage = Messages.getMessage(Messages.INVALID_ID, Job.ID.getPreferredName());
+        String errorMessage = Messages.getMessage(Messages.INVALID_ID, Job.ID.getPreferredName(), "_foo");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertEquals(errorMessage, e.getMessage());
     }
 
     public void testCheckValidId_endsWithUnderscore() {
         Job.Builder builder = buildJobBuilder("foo_");
-        String errorMessage = Messages.getMessage(Messages.INVALID_ID, Job.ID.getPreferredName());
+        String errorMessage = Messages.getMessage(Messages.INVALID_ID, Job.ID.getPreferredName(), "foo_");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertEquals(errorMessage, e.getMessage());
     }

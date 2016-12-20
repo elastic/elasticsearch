@@ -64,13 +64,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -431,28 +431,28 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
 
         pingRequest.pingResponse = createPingResponse(discoNodes);
 
-        HashSet<DiscoveryNode> nodesToPingSet = new HashSet<>();
-        for (PingResponse temporalResponse : temporalResponses) {
-            // Only send pings to nodes that have the same cluster name.
-            if (clusterName.equals(temporalResponse.clusterName())) {
-                nodesToPingSet.add(temporalResponse.node());
-            }
-        }
+        Set<DiscoveryNode> nodesFromResponses = temporalResponses.stream().map(pingResponse -> {
+            assert clusterName.equals(pingResponse.clusterName()) :
+                "got a ping request from a different cluster. expected " + clusterName + " got " + pingResponse.clusterName();
+            return pingResponse.node();
+        }).collect(Collectors.toSet());
 
-        // sort the nodes by likelihood of being an active master
-        List<DiscoveryNode> sortedNodesToPing = ElectMasterService.sortByMasterLikelihood(nodesToPingSet);
-        final List<DiscoveryNode> nodesToPing =
-            // add the configured hosts first
-            Stream.concat(pingingRound.getSeedNodes().stream(), sortedNodesToPing.stream())
-                // resolve what we can via the latest cluster state
-                .map(node -> {
-                    DiscoveryNode foundNode = discoNodes.findByAddress(node.getAddress());
-                    if (foundNode == null) {
-                        return node;
-                    } else {
-                        return foundNode;
-                    }
-                }).collect(Collectors.toList());
+        // dedup by address
+        final Map<TransportAddress, DiscoveryNode> uniqueNodesByAddress =
+            Stream.concat(pingingRound.getSeedNodes().stream(), nodesFromResponses.stream())
+                .collect(Collectors.toMap(DiscoveryNode::getAddress, n -> n, (n1, n2) -> n1));
+
+
+        // resolve what we can via the latest cluster state
+        final Set<DiscoveryNode> nodesToPing = uniqueNodesByAddress.values().stream()
+            .map(node -> {
+                DiscoveryNode foundNode = discoNodes.findByAddress(node.getAddress());
+                if (foundNode == null) {
+                    return node;
+                } else {
+                    return foundNode;
+                }
+            }).collect(Collectors.toSet());
 
         nodesToPing.forEach(node -> sendPingRequestToNode(node, timeout, pingingRound, pingRequest));
     }
@@ -566,6 +566,8 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
     }
 
     private UnicastPingResponse handlePingRequest(final UnicastPingRequest request) {
+        assert clusterName.equals(request.pingResponse.clusterName()) :
+            "got a ping request from a different cluster. expected " + clusterName + " got " + request.pingResponse.clusterName();
         temporalResponses.add(request.pingResponse);
         // add to any ongoing pinging
         activePingingRounds.values().forEach(p -> p.addPingResponseToCollection(request.pingResponse));

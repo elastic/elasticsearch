@@ -50,6 +50,7 @@ import org.elasticsearch.transport.MockTcpTransport;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportConnectionListener;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
@@ -89,7 +90,6 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -161,18 +161,17 @@ public class UnicastZenPingTests extends ESTestCase {
         NetworkHandle handleC = startServices(settingsMismatch, threadPool, "UZP_C", Version.CURRENT, supplier);
         closeables.push(handleC.transportService);
         final Version versionD;
-        if (rarely()) {
-            // this will prevent responses from coming back during the transport level handshake. it
-            // should still work but causes timeouts and slows down the test
-            Version previousVersion = VersionUtils.getPreviousVersion(Version.CURRENT.minimumCompatibilityVersion());
-            versionD = VersionUtils.randomVersionBetween(random(), previousVersion.minimumCompatibilityVersion(), previousVersion);
+        if (randomBoolean()) {
+            versionD = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
         } else {
             versionD = Version.CURRENT;
         }
+        logger.info("UZP_D version set to [{}]", versionD);
         NetworkHandle handleD = startServices(settingsMismatch, threadPool, "UZP_D", versionD, supplier);
         closeables.push(handleD.transportService);
 
         final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+        final ClusterState stateMismatch = ClusterState.builder(new ClusterName("mismatch")).version(randomPositiveLong()).build();
 
         Settings hostsSettings = Settings.builder()
             .putArray("discovery.zen.ping.unicast.hosts",
@@ -227,7 +226,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
             @Override
             public ClusterState clusterState() {
-                return state;
+                return stateMismatch;
             }
         });
         closeables.push(zenPingC);
@@ -242,7 +241,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
             @Override
             public ClusterState clusterState() {
-                return state;
+                return stateMismatch;
             }
         });
         closeables.push(zenPingD);
@@ -253,7 +252,9 @@ public class UnicastZenPingTests extends ESTestCase {
         ZenPing.PingResponse ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_B"));
         assertThat(ping.getClusterStateVersion(), equalTo(state.version()));
-        assertCountersMoreThan(handleA, handleB, handleC, handleD);
+        assertPingCount(handleA, handleB, 3);
+        assertPingCount(handleA, handleC, 0); // mismatch, shouldn't ping
+        assertPingCount(handleA, handleD, 0); // mismatch, shouldn't ping
 
         // ping again, this time from B,
         logger.info("ping from UZP_B");
@@ -262,17 +263,23 @@ public class UnicastZenPingTests extends ESTestCase {
         ping = pingResponses.iterator().next();
         assertThat(ping.node().getId(), equalTo("UZP_A"));
         assertThat(ping.getClusterStateVersion(), equalTo(ElectMasterService.MasterCandidate.UNRECOVERED_CLUSTER_VERSION));
-        assertCountersMoreThan(handleB, handleA, handleC, handleD);
+        assertPingCount(handleB, handleA, 3);
+        assertPingCount(handleB, handleC, 0); // mismatch, shouldn't ping
+        assertPingCount(handleB, handleD, 0); // mismatch, shouldn't ping
 
         logger.info("ping from UZP_C");
         pingResponses = zenPingC.pingAndWait().toList();
-        assertThat(pingResponses.size(), equalTo(0));
-        assertCountersMoreThan(handleC, handleA, handleB, handleD);
+        assertThat(pingResponses.size(), equalTo(1));
+        assertPingCount(handleC, handleA, 0);
+        assertPingCount(handleC, handleB, 0);
+        assertPingCount(handleC, handleD, 3);
 
         logger.info("ping from UZP_D");
         pingResponses = zenPingD.pingAndWait().toList();
-        assertThat(pingResponses.size(), equalTo(0));
-        assertCountersMoreThan(handleD, handleA, handleB, handleC);
+        assertThat(pingResponses.size(), equalTo(1));
+        assertPingCount(handleD, handleA, 0);
+        assertPingCount(handleD, handleB, 0);
+        assertPingCount(handleD, handleC, 3);
     }
 
     public void testUnknownHostNotCached() throws ExecutionException, InterruptedException {
@@ -375,7 +382,8 @@ public class UnicastZenPingTests extends ESTestCase {
             ZenPing.PingResponse ping = pingResponses.iterator().next();
             assertThat(ping.node().getId(), equalTo("UZP_C"));
             assertThat(ping.getClusterStateVersion(), equalTo(state.version()));
-            assertCountersMoreThan(handleA, handleC);
+            assertPingCount(handleA, handleB, 0);
+            assertPingCount(handleA, handleC, 3);
             assertNull(handleA.counters.get(handleB.address));
         }
 
@@ -393,11 +401,13 @@ public class UnicastZenPingTests extends ESTestCase {
 
         // now we should see pings to UZP_B; this establishes that host resolutions are not cached
         {
+            handleA.counters.clear();
             final Collection<ZenPing.PingResponse> secondPingResponses = zenPingA.pingAndWait().toList();
             assertThat(secondPingResponses.size(), equalTo(2));
             final Set<String> ids = new HashSet<>(secondPingResponses.stream().map(p -> p.node().getId()).collect(Collectors.toList()));
             assertThat(ids, equalTo(new HashSet<>(Arrays.asList("UZP_B", "UZP_C"))));
-            assertCountersMoreThan(moreThan, handleA, handleB, handleC);
+            assertPingCount(handleA, handleB, 3);
+            assertPingCount(handleA, handleC, 3);
         }
     }
 
@@ -415,7 +425,6 @@ public class UnicastZenPingTests extends ESTestCase {
         final TransportService transportService =
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         closeables.push(transportService);
-        final AtomicInteger idGenerator = new AtomicInteger();
         final int limitPortCounts = randomIntBetween(1, 10);
         final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
             executorService,
@@ -459,7 +468,6 @@ public class UnicastZenPingTests extends ESTestCase {
         final TransportService transportService =
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         closeables.push(transportService);
-        final AtomicInteger idGenerator = new AtomicInteger();
 
         final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
             executorService,
@@ -510,7 +518,6 @@ public class UnicastZenPingTests extends ESTestCase {
         final TransportService transportService =
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         closeables.push(transportService);
-        final AtomicInteger idGenerator = new AtomicInteger();
         final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 3));
         try {
             final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
@@ -627,7 +634,6 @@ public class UnicastZenPingTests extends ESTestCase {
         final TransportService transportService =
             new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         closeables.push(transportService);
-        final AtomicInteger idGenerator = new AtomicInteger();
         final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
             executorService,
             logger,
@@ -642,28 +648,13 @@ public class UnicastZenPingTests extends ESTestCase {
         verify(logger).warn(eq("failed to resolve host [127.0.0.1:9300:9300]"), Matchers.any(ExecutionException.class));
     }
 
-    // assert that we tried to ping each of the configured nodes at least once
-    private void assertCountersMoreThan(final NetworkHandle that, final NetworkHandle... handles) {
-        final HashMap<TransportAddress, Integer> moreThan = new HashMap<>();
-        for (final NetworkHandle handle : handles) {
-            assert handle != that;
-            moreThan.put(handle.address, 0);
-        }
-        assertCountersMoreThan(moreThan, that, handles);
-    }
-
-    private void assertCountersMoreThan(
-        final Map<TransportAddress, Integer> moreThan,
-        final NetworkHandle that,
-        final NetworkHandle... handles) {
-        for (final NetworkHandle handle : handles) {
-            assert handle != that;
-            final AtomicInteger counter = that.counters.get(handle.address);
-            assertNotNull("handle for [" + handle.node.getName() + "] has no 'that' counter", counter);
-            final Integer expectedMoreThan = moreThan.get(handle.address);
-            assertNotNull("handle for [" + handle.node.getName() + "] has no 'expected' counter", counter);
-            assertThat(counter.get(), greaterThan(expectedMoreThan));
-        }
+    private void assertPingCount(final NetworkHandle fromNode, final NetworkHandle toNode, int expectedCount) {
+        final AtomicInteger counter = fromNode.counters.getOrDefault(toNode.address, new AtomicInteger());
+        final String onNodeName = fromNode.node.getName();
+        assertNotNull("handle for [" + onNodeName + "] has no 'expected' counter", counter);
+        final String forNodeName = toNode.node.getName();
+        assertThat("node [" + onNodeName + "] ping count to [" + forNodeName + "] is unexpected",
+            counter.get(), equalTo(expectedCount));
     }
 
     private NetworkHandle startServices(
@@ -683,28 +674,22 @@ public class UnicastZenPingTests extends ESTestCase {
         final Version version,
         final BiFunction<Settings, Version, Transport> supplier,
         final Set<Role> nodeRoles) {
-        final Transport transport = supplier.apply(settings, version);
-        final TransportService transportService =
-            new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        final Settings nodeSettings = Settings.builder().put(settings)
+            .put("node.name", nodeId)
+            .put(TransportService.TRACE_LOG_INCLUDE_SETTING.getKey(), "internal:discovery/zen/unicast")
+            .build();
+        final Transport transport = supplier.apply(nodeSettings, version);
+        final MockTransportService transportService =
+            new MockTransportService(nodeSettings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
         transportService.start();
         transportService.acceptIncomingRequests();
         final ConcurrentMap<TransportAddress, AtomicInteger> counters = ConcurrentCollections.newConcurrentMap();
-        transportService.addConnectionListener(new TransportConnectionListener() {
-
+        transportService.addTracer(new MockTransportService.Tracer() {
             @Override
-            public void onNodeConnected(DiscoveryNode node) {
-            }
-
-            @Override
-            public void onConnectionOpened(DiscoveryNode node) {
+            public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
                 counters.computeIfAbsent(node.getAddress(), k -> new AtomicInteger());
                 counters.get(node.getAddress()).incrementAndGet();
             }
-
-            @Override
-            public void onNodeDisconnected(DiscoveryNode node) {
-            }
-
         });
         final DiscoveryNode node =
             new DiscoveryNode(nodeId, nodeId, transportService.boundAddress().publishAddress(), emptyMap(), nodeRoles, version);
@@ -729,7 +714,6 @@ public class UnicastZenPingTests extends ESTestCase {
             this.node = discoveryNode;
             this.counters = counters;
         }
-
     }
 
     private static class TestUnicastZenPing extends UnicastZenPing {
@@ -821,7 +805,7 @@ public class UnicastZenPingTests extends ESTestCase {
 
         @Override
         protected TransportResponseHandler<UnicastPingResponse> getPingResponseHandler(PingingRound pingingRound, DiscoveryNode node) {
-            markTaskAsStarted("ping node");
+            markTaskAsStarted("ping [" + node + "]");
             TransportResponseHandler<UnicastPingResponse> original = super.getPingResponseHandler(pingingRound, node);
             return new TransportResponseHandler<UnicastPingResponse>() {
                 @Override
@@ -832,13 +816,13 @@ public class UnicastZenPingTests extends ESTestCase {
                 @Override
                 public void handleResponse(UnicastPingResponse response) {
                     original.handleResponse(response);
-                    markTaskAsCompleted("ping node");
+                    markTaskAsCompleted("ping [" + node + "]");
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
                     original.handleException(exp);
-                    markTaskAsCompleted("ping node (error)");
+                    markTaskAsCompleted("ping [" + node + "] (error)");
                 }
 
                 @Override

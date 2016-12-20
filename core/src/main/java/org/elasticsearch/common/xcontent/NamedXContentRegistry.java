@@ -97,16 +97,6 @@ public class NamedXContentRegistry {
         }
     }
 
-    private static class Category {
-        final String name;
-        final Map<String, Entry> entries;
-
-        public Category(String name, Map<String, Entry> entries) {
-            this.name = name;
-            this.entries = entries;
-        }
-    }
-
     private final Map<Class<?>, Map<String, Entry>> registry;
 
     public NamedXContentRegistry(List<Entry> entries) {

@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
 import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStateMonitoringDoc;
@@ -63,6 +64,7 @@ public class LocalExporterTests extends MonitoringIntegTestCase {
         wipeMonitoringIndices();
     }
 
+    @TestLogging("org.elasticsearch.xpack.monitoring.exporter.local:TRACE")
     public void testSimpleExport() throws Exception {
         internalCluster().startNode(Settings.builder()
                 .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)

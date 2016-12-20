@@ -20,7 +20,6 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,7 +32,6 @@ import org.elasticsearch.search.internal.InternalSearchHit.Fields;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Locale;
 import java.util.Objects;
 
 public class SearchSortValues implements ToXContent, Writeable {
@@ -141,11 +139,7 @@ public class SearchSortValues implements ToXContent, Writeable {
     }
 
     public static SearchSortValues fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
-        if (parser.currentName().equals(Fields.SORT) == false) {
-            String message = "Failed to parse object: expecting field with name [%s] but found [%s]";
-            throw new ParsingException(parser.getTokenLocation(), String.format(Locale.ROOT, message, Fields.SORT, parser.currentName()));
-        }
+        XContentParserUtils.ensureFieldName(parser, parser.currentToken(), Fields.SORT);
         XContentParser.Token token = parser.nextToken();
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
         return new SearchSortValues(parser.list().toArray());

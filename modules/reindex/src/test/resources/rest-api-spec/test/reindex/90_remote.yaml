@@ -302,7 +302,7 @@
 
   - do:
       # sometimes IIS is listening on port 0. In that case we fail in other ways and this test isn't useful.
-      catch: /Connection refused|IIS Windows Server/
+      catch: /connect_exception|IIS Windows Server/
       reindex:
         body:
           source:

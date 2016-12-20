@@ -18,13 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import java.io.IOException;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -43,6 +36,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
@@ -55,10 +49,16 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.discovery.TestZenDiscovery;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTcpTransportPlugin;
-import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Before;
 import org.junit.BeforeClass;
+
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Random;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -72,62 +72,55 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
 
-    private void reset() throws IOException {
-        assert NODE != null;
-        stopNode();
-        startNode();
-    }
-
-    protected void startNode() {
+    protected void startNode(Random random) {
         assert NODE == null;
-        NODE = newNode();
+        NODE = newNode(random);
         // we must wait for the node to actually be up and running. otherwise the node might have started, elected itself master but might not yet have removed the
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(clusterHealthResponse.isTimedOut());
         client().admin().indices()
-            .preparePutTemplate("random_index_template")
+            .preparePutTemplate("one_shard_index_template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)).get();
     }
 
-    protected static void stopNode() throws IOException {
+    private static void stopNode() throws IOException {
         Node node = NODE;
         NODE = null;
         IOUtils.close(node);
     }
 
-    private void cleanup(boolean resetNode) throws IOException {
-        assertAcked(client().admin().indices().prepareDelete("*").get());
-        if (resetNode) {
-            reset();
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        //this random instance has to be created here to ensure tests repeatability
+        Random random = new Random(random().nextLong());
+        // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
+        // only the cluster name. This allows us to have overridden properties for plugins and the version to use.
+        if (NODE == null) {
+            startNode(random);
         }
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
+        super.tearDown();
+        assertAcked(client().admin().indices().prepareDelete("*").get());
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
                 metaData.persistentSettings().getAsMap().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(),
                 metaData.transientSettings().getAsMap().size(), equalTo(0));
-    }
-
-    @Before
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
-        // only the cluster name. This allows us to have overridden properties for plugins and the version to use.
-        if (NODE == null) {
-            startNode();
+        if (resetNodeAfterTest()) {
+            //this random instance has to be created here to ensure tests repeatability
+            assert NODE != null;
+            stopNode();
+            startNode(new Random(random().nextLong()));
         }
-    }
-
-    @After
-    @Override
-    public void tearDown() throws Exception {
-        logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
-        super.tearDown();
-        cleanup(resetNodeAfterTest());
     }
 
     @BeforeClass
@@ -149,7 +142,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return false;
     }
 
-
     /** The plugin classes that should be added to the node. */
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Collections.emptyList();
@@ -167,16 +159,16 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return Settings.EMPTY;
     }
 
-    private Node newNode() {
+    private Node newNode(Random random) {
         final Path tempDir = createTempDir();
         Settings settings = Settings.builder()
-            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", randomLong()))
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), InternalTestCluster.clusterName("single-node-cluster", random.nextLong()))
             .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
             .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
             // TODO: use a consistent data path for custom paths
             // This needs to tie into the ESIntegTestCase#indexSettings() method
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
-            .put("node.name", nodeName())
+            .put("node.name", "node_s_0")
             .put("script.inline", "true")
             .put("script.stored", "true")
             .put(ScriptService.SCRIPT_MAX_COMPILATIONS_PER_MINUTE.getKey(), 1000)
@@ -184,6 +176,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .put(NetworkModule.HTTP_ENABLED.getKey(), false)
             .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
             .put(Node.NODE_DATA_SETTING.getKey(), true)
+            .put(NodeEnvironment.NODE_ID_SEED_SETTING.getKey(), random.nextLong())
             .put(nodeSettings()) // allow test cases to provide their own settings or override these
             .build();
         Collection<Class<? extends Plugin>> plugins = getPlugins();
@@ -209,13 +202,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      */
     public Client client() {
         return NODE.client();
-    }
-
-    /**
-     * Returns the single test nodes name.
-     */
-    public String nodeName() {
-        return "node_s_0";
     }
 
     /**

@@ -1031,24 +1031,28 @@ public class PercolatorIT extends ESIntegTestCase {
         refresh();
 
         boolean onlyCount = randomBoolean();
-        PercolateResponse response = preparePercolate(client())
-                .setIndices(INDEX_NAME).setDocumentType("my-type")
-                .setOnlyCount(onlyCount)
-                .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setSize((int) totalQueries)
-                .execute().actionGet();
+        PercolateRequestBuilder builder = preparePercolate(client())
+            .setIndices(INDEX_NAME).setDocumentType("my-type")
+            .setOnlyCount(onlyCount)
+            .setPercolateDoc(docBuilder().setDoc("field", "value"));
+        if (!onlyCount) {
+            builder.setSize((int) totalQueries);
+        }
+        PercolateResponse response = builder.execute().actionGet();
         assertMatchCount(response, totalQueries);
         if (!onlyCount) {
             assertThat(response.getMatches().length, equalTo((int) totalQueries));
         }
 
         int size = randomIntBetween(0, (int) totalQueries - 1);
-        response = preparePercolate(client())
-                .setIndices(INDEX_NAME).setDocumentType("my-type")
-                .setOnlyCount(onlyCount)
-                .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                .setSize(size)
-                .execute().actionGet();
+        builder = preparePercolate(client())
+            .setIndices(INDEX_NAME).setDocumentType("my-type")
+            .setOnlyCount(onlyCount)
+            .setPercolateDoc(docBuilder().setDoc("field", "value"));
+        if (!onlyCount) {
+            builder.setSize(size);
+        }
+        response = builder.execute().actionGet();
         assertMatchCount(response, totalQueries);
         if (!onlyCount) {
             assertThat(response.getMatches().length, equalTo(size));
@@ -1060,13 +1064,15 @@ public class PercolatorIT extends ESIntegTestCase {
         int runs = randomIntBetween(3, 16);
         for (int i = 0; i < runs; i++) {
             onlyCount = randomBoolean();
-            response = preparePercolate(client())
+            builder = preparePercolate(client())
                     .setIndices(INDEX_NAME).setDocumentType("my-type")
                     .setOnlyCount(onlyCount)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateQuery(termQuery("level", 1 + randomInt(numLevels - 1)))
-                    .setSize((int) numQueriesPerLevel)
-                    .execute().actionGet();
+                    .setPercolateQuery(termQuery("level", 1 + randomInt(numLevels - 1)));
+            if (!onlyCount) {
+                builder.setSize((int) numQueriesPerLevel);
+            }
+            response = builder.execute().actionGet();
             assertMatchCount(response, numQueriesPerLevel);
             if (!onlyCount) {
                 assertThat(response.getMatches().length, equalTo((int) numQueriesPerLevel));
@@ -1075,13 +1081,15 @@ public class PercolatorIT extends ESIntegTestCase {
 
         for (int i = 0; i < runs; i++) {
             onlyCount = randomBoolean();
-            response = preparePercolate(client())
+            builder = preparePercolate(client())
                     .setIndices(INDEX_NAME).setDocumentType("my-type")
                     .setOnlyCount(onlyCount)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateQuery(termQuery("level", 1 + randomInt(numLevels - 1)))
-                    .setSize((int) numQueriesPerLevel)
-                    .execute().actionGet();
+                    .setPercolateQuery(termQuery("level", 1 + randomInt(numLevels - 1)));
+            if (!onlyCount) {
+                builder.setSize((int) numQueriesPerLevel);
+            }
+            response = builder.execute().actionGet();
             assertMatchCount(response, numQueriesPerLevel);
             if (!onlyCount) {
                 assertThat(response.getMatches().length, equalTo((int) numQueriesPerLevel));
@@ -1091,13 +1099,15 @@ public class PercolatorIT extends ESIntegTestCase {
         for (int i = 0; i < runs; i++) {
             onlyCount = randomBoolean();
             size = randomIntBetween(0, (int) numQueriesPerLevel - 1);
-            response = preparePercolate(client())
+            builder = preparePercolate(client())
                     .setIndices(INDEX_NAME).setDocumentType("my-type")
                     .setOnlyCount(onlyCount)
-                    .setSize(size)
                     .setPercolateDoc(docBuilder().setDoc("field", "value"))
-                    .setPercolateQuery(termQuery("level", 1 + randomInt(numLevels - 1)))
-                    .execute().actionGet();
+                    .setPercolateQuery(termQuery("level", 1 + randomInt(numLevels - 1)));
+            if (!onlyCount) {
+                builder.setSize(size);
+            }
+            response = builder.execute().actionGet();
             assertMatchCount(response, numQueriesPerLevel);
             if (!onlyCount) {
                 assertThat(response.getMatches().length, equalTo(size));
@@ -1726,7 +1736,7 @@ public class PercolatorIT extends ESIntegTestCase {
                 .setPercolateDoc(docBuilder().setDoc(doc))
                 .get();
         assertMatchCount(response, 3L);
-        response = preparePercolate(client()).setScore(randomBoolean()).setSortByScore(randomBoolean()).setOnlyCount(randomBoolean()).setSize(10).setPercolateQuery(QueryBuilders.termQuery("text", "foo"))
+        response = preparePercolate(client()).setScore(randomBoolean()).setSortByScore(randomBoolean()).setOnlyCount(randomBoolean()).setPercolateQuery(QueryBuilders.termQuery("text", "foo"))
                 .setIndices(INDEX_NAME).setDocumentType("doc")
                 .setPercolateDoc(docBuilder().setDoc(doc))
                 .get();

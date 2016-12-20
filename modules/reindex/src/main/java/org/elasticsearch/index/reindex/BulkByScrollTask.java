@@ -45,7 +45,6 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueNanos;
  * Task storing information about a currently running BulkByScroll request.
  */
 public abstract class BulkByScrollTask extends CancellableTask {
-
     public BulkByScrollTask(long id, String type, String action, String description, TaskId parentTaskId) {
         super(id, type, action, description, parentTaskId);
     }

@@ -25,15 +25,14 @@ import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 /**
  * Encapsulates a pipeline's id and configuration as a blob
@@ -55,7 +54,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
     }
 
-    public static BiFunction<XContentParser, ParseFieldMatcherSupplier, PipelineConfiguration> getParser() {
+    public static ContextParser<ParseFieldMatcherSupplier, PipelineConfiguration> getParser() {
         return (p, c) -> PARSER.apply(p ,c).build();
     }
     private static class Builder {

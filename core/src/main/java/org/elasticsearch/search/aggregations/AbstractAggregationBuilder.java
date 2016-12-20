@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -122,12 +122,12 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     }
 
     @Override
-    public final AggregatorFactory<?> build(AggregationContext context, AggregatorFactory<?> parent) throws IOException {
+    public final AggregatorFactory<?> build(SearchContext context, AggregatorFactory<?> parent) throws IOException {
         AggregatorFactory<?> factory = doBuild(context, parent, factoriesBuilder);
         return factory;
     }
 
-    protected abstract AggregatorFactory<?> doBuild(AggregationContext context, AggregatorFactory<?> parent,
+    protected abstract AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subfactoriesBuilder) throws IOException;
 
     @Override

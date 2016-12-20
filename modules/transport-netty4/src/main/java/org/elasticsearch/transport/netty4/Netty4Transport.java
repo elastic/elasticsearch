@@ -46,7 +46,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
@@ -143,7 +142,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
     protected volatile Bootstrap bootstrap;
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
 
-    @Inject
     public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("netty", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
@@ -342,10 +340,9 @@ public class Netty4Transport extends TcpTransport<Channel> {
     @Override
     protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) {
         final Channel[] channels = new Channel[profile.getNumConnections()];
-        final NodeChannels nodeChannels = new NodeChannels(channels, profile);
+        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile);
         boolean success = false;
         try {
-            final int numConnections = channels.length;
             final TimeValue connectTimeout;
             final Bootstrap bootstrap;
             final TimeValue defaultConnectTimeout = defaultConnectionProfile.getConnectTimeout();
@@ -357,9 +354,9 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 connectTimeout = defaultConnectTimeout;
                 bootstrap = this.bootstrap;
             }
-            final ArrayList<ChannelFuture> connections = new ArrayList<>(numConnections);
+            final ArrayList<ChannelFuture> connections = new ArrayList<>(channels.length);
             final InetSocketAddress address = node.getAddress().address();
-            for (int i = 0; i < numConnections; i++) {
+            for (int i = 0; i < channels.length; i++) {
                 connections.add(bootstrap.connect(address));
             }
             final Iterator<ChannelFuture> iterator = connections.iterator();
@@ -374,6 +371,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
                     channels[i] = future.channel();
                     channels[i].closeFuture().addListener(new ChannelCloseListener(node));
                 }
+                assert iterator.hasNext() == false : "not all created connection have been consumed";
             } catch (final RuntimeException e) {
                 for (final ChannelFuture future : Collections.unmodifiableList(connections)) {
                     FutureUtils.cancel(future);
@@ -387,7 +385,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 }
                 throw e;
             }
-            onAfterChannelsConnected(nodeChannels);
             success = true;
         } finally {
             if (success == false) {
@@ -401,14 +398,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
         return nodeChannels;
     }
 
-    /**
-     * Allows for logic to be executed after a connection has been made on all channels. While this method is being executed, the node is
-     * not listed as being connected to.
-     * @param nodeChannels the {@link NodeChannels} that have been connected
-     */
-    protected void onAfterChannelsConnected(NodeChannels nodeChannels) {
-    }
-
     private class ChannelCloseListener implements ChannelFutureListener {
 
         private final DiscoveryNode node;
@@ -419,6 +408,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         public void operationComplete(final ChannelFuture future) throws Exception {
+            onChannelClosed(future.channel());
             NodeChannels nodeChannels = connectedNodes.get(node);
             if (nodeChannels != null && nodeChannels.hasChannel(future.channel())) {
                 threadPool.generic().execute(() -> disconnectFromNode(node, future.channel(), "channel closed event"));

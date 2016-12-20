@@ -22,8 +22,8 @@ package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoDistance;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -35,12 +35,12 @@ import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
-import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceParser.Range;
+import org.elasticsearch.search.aggregations.bucket.range.geodistance.GeoDistanceAggregationBuilder.Range;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,7 +57,7 @@ public class GeoDistanceRangeAggregatorFactory
     private final boolean keyed;
 
     public GeoDistanceRangeAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource.GeoPoint> config, GeoPoint origin,
-            Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed, AggregationContext context,
+            Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed, SearchContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         super(name, type, config, context, parent, subFactoriesBuilder, metaData);
         this.origin = origin;

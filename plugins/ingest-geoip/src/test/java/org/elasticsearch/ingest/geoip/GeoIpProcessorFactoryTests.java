@@ -20,6 +20,8 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.maxmind.db.NoCache;
+import com.maxmind.db.NodeCache;
 import com.maxmind.geoip2.DatabaseReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Randomness;
@@ -57,7 +59,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
                 geoIpConfigDir.resolve("GeoLite2-City.mmdb.gz"));
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb.gz")),
                 geoIpConfigDir.resolve("GeoLite2-Country.mmdb.gz"));
-        databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir);
+
+        NodeCache cache = randomFrom(NoCache.getInstance(), new GeoIpCache(randomPositiveLong()));
+        databaseReaders = IngestGeoIpPlugin.loadDatabaseReaders(geoIpConfigDir, cache);
     }
 
     @AfterClass

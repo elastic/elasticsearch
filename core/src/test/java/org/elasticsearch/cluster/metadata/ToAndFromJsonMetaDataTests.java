@@ -21,8 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -149,7 +148,7 @@ public class ToAndFromJsonMetaDataTests extends ESTestCase {
         String metaDataSource = MetaData.Builder.toXContent(metaData);
 //        System.out.println("ToJson: " + metaDataSource);
 
-        MetaData parsedMetaData = MetaData.Builder.fromXContent(XContentFactory.xContent(XContentType.JSON).createParser(metaDataSource));
+        MetaData parsedMetaData = MetaData.Builder.fromXContent(createParser(JsonXContent.jsonXContent, metaDataSource));
 
         IndexMetaData indexMetaData = parsedMetaData.index("test1");
         assertThat(indexMetaData.primaryTerm(0), equalTo(1L));

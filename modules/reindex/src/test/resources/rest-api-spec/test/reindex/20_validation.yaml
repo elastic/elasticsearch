@@ -245,6 +245,34 @@
             index: dest
 
 ---
+"broken socket timeout in remote fails":
+  - do:
+      catch: /number_format_exception/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://okremote:9200
+              socket_timeout: borked
+            index: test
+          dest:
+            index: dest
+
+---
+"broken connect timeout in remote fails":
+  - do:
+      catch: /number_format_exception/
+      reindex:
+        body:
+          source:
+            remote:
+              host: http://okremote:9200
+              connect_timeout: borked
+            index: test
+          dest:
+            index: dest
+
+---
 "junk in slices fails":
   - do:
       catch: /Failed to parse int parameter \[slices\] with value \[junk\]/

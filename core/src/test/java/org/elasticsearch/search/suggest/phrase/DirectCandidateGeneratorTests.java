@@ -23,11 +23,12 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
@@ -111,7 +112,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
                 builder.prettyPrint();
             }
             generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
+            XContentParser parser = createParser(shuffleXContent(builder));
             QueryParseContext context = new QueryParseContext(mockRegistry, parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.fromXContent(context);
@@ -149,9 +150,13 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
                 "Required [field]");
 
         // test two fieldnames
-        directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
-        assertIllegalXContent(directGenerator, ParsingException.class,
+        if (XContent.isStrictDuplicateDetectionEnabled()) {
+            logger.info("Skipping test as it uses a custom duplicate check that is obsolete when strict duplicate checks are enabled.");
+        } else {
+            directGenerator = "{ \"field\" : \"f1\", \"field\" : \"f2\" }";
+            assertIllegalXContent(directGenerator, ParsingException.class,
                 "[direct_generator] failed to parse field [field]");
+        }
 
         // test unknown field
         directGenerator = "{ \"unknown_param\" : \"f1\" }";
@@ -169,9 +174,9 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
                 "[direct_generator] size doesn't support values of type: START_ARRAY");
     }
 
-    private static void assertIllegalXContent(String directGenerator, Class<? extends Exception> exceptionClass, String exceptionMsg)
+    private void assertIllegalXContent(String directGenerator, Class<? extends Exception> exceptionClass, String exceptionMsg)
             throws IOException {
-        XContentParser parser = XContentFactory.xContent(directGenerator).createParser(directGenerator);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, directGenerator);
         QueryParseContext context = new QueryParseContext(mockRegistry, parser, ParseFieldMatcher.STRICT);
         Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
         assertEquals(exceptionMsg, e.getMessage());

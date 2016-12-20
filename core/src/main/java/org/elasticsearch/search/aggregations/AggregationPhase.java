@@ -28,7 +28,6 @@ import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
@@ -51,9 +50,6 @@ public class AggregationPhase implements SearchPhase {
     @Override
     public void preProcess(SearchContext context) {
         if (context.aggregations() != null) {
-            AggregationContext aggregationContext = new AggregationContext(context);
-            context.aggregations().aggregationContext(aggregationContext);
-
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;
             try {

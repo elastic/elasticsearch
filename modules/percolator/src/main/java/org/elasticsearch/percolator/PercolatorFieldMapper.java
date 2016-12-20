@@ -345,8 +345,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     private static QueryBuilder parseQueryBuilder(QueryParseContext context, XContentLocation location) {
         try {
-            return context.parseInnerQueryBuilder()
-                    .orElseThrow(() -> new ParsingException(location, "Failed to parse inner query, was empty"));
+            return context.parseInnerQueryBuilder();
         } catch (IOException e) {
             throw new ParsingException(location, "Failed to parse", e);
         }

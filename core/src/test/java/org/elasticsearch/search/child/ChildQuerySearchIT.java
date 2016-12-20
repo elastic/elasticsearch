@@ -111,14 +111,9 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     }
 
     public void testSelfReferentialIsForbidden() {
-        try {
-            prepareCreate("test").addMapping("type", "_parent", "type=type").get();
-            fail("self referential should be forbidden");
-        } catch (Exception e) {
-            Throwable cause = e.getCause();
-            assertThat(cause, instanceOf(IllegalArgumentException.class));
-            assertThat(cause.getMessage(), equalTo("The [_parent.type] option can't point to the same type"));
-        }
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            prepareCreate("test").addMapping("type", "_parent", "type=type").get());
+        assertThat(e.getMessage(), equalTo("The [_parent.type] option can't point to the same type"));
     }
 
     public void testMultiLevelChild() throws Exception {

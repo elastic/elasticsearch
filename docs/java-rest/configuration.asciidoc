@@ -16,8 +16,8 @@ The interface has one method that receives an instance of
 https://hc.apache.org/httpcomponents-client-ga/httpclient/apidocs/org/apache/http/client/config/RequestConfig.Builder.html[`org.apache.http.client.config.RequestConfig.Builder`]
  as an argument and has the same return type. The request config builder can
 be modified and then returned. In the following example we increase the
-connect timeout (defaults to 1 second) and the socket timeout (defaults to 10
-seconds). Also we adjust the max retry timeout accordingly (defaults to 10
+connect timeout (defaults to 1 second) and the socket timeout (defaults to 30
+seconds). Also we adjust the max retry timeout accordingly (defaults to 30
 seconds too).
 
 [source,java]
@@ -27,10 +27,10 @@ RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
             @Override
             public RequestConfig.Builder customizeRequestConfig(RequestConfig.Builder requestConfigBuilder) {
                 return requestConfigBuilder.setConnectTimeout(5000)
-                        .setSocketTimeout(30000);
+                        .setSocketTimeout(60000);
             }
         })
-        .setMaxRetryTimeoutMillis(30000)
+        .setMaxRetryTimeoutMillis(60000)
         .build();
 --------------------------------------------------
 

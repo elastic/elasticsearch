@@ -26,7 +26,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -128,7 +127,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             xContentBuilder.endObject();
 
             XContentBuilder shuffled = shuffleXContent(xContentBuilder, shuffleProtectedFields());
-            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
+            XContentParser parser = createParser(shuffled);
             QueryParseContext context = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
             // we need to skip the start object and the name, those will be parsed by outer SuggestBuilder
             parser.nextToken();
@@ -191,8 +190,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 (Writeable.Reader<SB>) namedWriteableRegistry.getReader(SuggestionBuilder.class, original.getWriteableName()));
     }
 
-    protected static QueryParseContext newParseContext(final String xcontent) throws IOException {
-        XContentParser parser = XContentFactory.xContent(xcontent).createParser(xcontent);
+    protected static QueryParseContext newParseContext(XContentParser parser) throws IOException {
         final QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
         return parseContext;
     }

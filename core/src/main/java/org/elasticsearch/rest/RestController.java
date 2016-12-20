@@ -19,27 +19,26 @@
 
 package org.elasticsearch.rest;
 
+import java.io.IOException;
+import java.util.Objects;
+import java.util.Set;
+import java.util.function.UnaryOperator;
+
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
-
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class RestController extends AbstractLifecycleComponent {
+public class RestController extends AbstractComponent {
     private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> putHandlers = new PathTrie<>(RestUtils.REST_DECODER);
@@ -47,43 +46,18 @@ public class RestController extends AbstractLifecycleComponent {
     private final PathTrie<RestHandler> headHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> optionsHandlers = new PathTrie<>(RestUtils.REST_DECODER);
 
-    private final RestHandlerFilter handlerFilter = new RestHandlerFilter();
+    private final UnaryOperator<RestHandler> handlerWrapper;
 
     /** Rest headers that are copied to internal requests made during a rest request. */
     private final Set<String> headersToCopy;
 
-    // non volatile since the assumption is that pre processors are registered on startup
-    private RestFilter[] filters = new RestFilter[0];
-
-    public RestController(Settings settings, Set<String> headersToCopy) {
+    public RestController(Settings settings, Set<String> headersToCopy, UnaryOperator<RestHandler> handlerWrapper) {
         super(settings);
         this.headersToCopy = headersToCopy;
-    }
-
-    @Override
-    protected void doStart() {
-    }
-
-    @Override
-    protected void doStop() {
-    }
-
-    @Override
-    protected void doClose() {
-        for (RestFilter filter : filters) {
-            filter.close();
+        if (handlerWrapper == null) {
+            handlerWrapper = h -> h; // passthrough if no wrapper set
         }
-    }
-
-    /**
-     * Registers a pre processor to be executed before the rest request is actually handled.
-     */
-    public synchronized void registerFilter(RestFilter preProcessor) {
-        RestFilter[] copy = new RestFilter[filters.length + 1];
-        System.arraycopy(filters, 0, copy, 0, filters.length);
-        copy[filters.length] = preProcessor;
-        Arrays.sort(copy, (o1, o2) -> Integer.compare(o1.order(), o2.order()));
-        filters = copy;
+        this.handlerWrapper = handlerWrapper;
     }
 
     /**
@@ -155,25 +129,6 @@ public class RestController extends AbstractLifecycleComponent {
     }
 
     /**
-     * Returns a filter chain (if needed) to execute. If this method returns null, simply execute
-     * as usual.
-     */
-    @Nullable
-    public RestFilterChain filterChainOrNull(RestFilter executionFilter) {
-        if (filters.length == 0) {
-            return null;
-        }
-        return new ControllerFilterChain(executionFilter);
-    }
-
-    /**
-     * Returns a filter chain with the final filter being the provided filter.
-     */
-    public RestFilterChain filterChain(RestFilter executionFilter) {
-        return new ControllerFilterChain(executionFilter);
-    }
-
-    /**
      * @param request The current request. Must not be null.
      * @return true iff the circuit breaker limit must be enforced for processing this request.
      */
@@ -193,21 +148,21 @@ public class RestController extends AbstractLifecycleComponent {
                     threadContext.putHeader(key, httpHeader);
                 }
             }
-            if (filters.length == 0) {
-                executeHandler(request, channel, client);
-            } else {
-                ControllerFilterChain filterChain = new ControllerFilterChain(handlerFilter);
-                filterChain.continueProcessing(request, channel, client);
-            }
-        }
-    }
 
-    public void sendErrorResponse(RestRequest request, RestChannel channel, Exception e) {
-        try {
-            channel.sendResponse(new BytesRestResponse(channel, e));
-        } catch (Exception inner) {
-            inner.addSuppressed(e);
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to send failure response for uri [{}]", request.uri()), inner);
+            final RestHandler handler = getHandler(request);
+
+            if (handler == null) {
+                if (request.method() == RestRequest.Method.OPTIONS) {
+                    // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
+                    channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                } else {
+                    final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
+                    channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
+                }
+            } else {
+                final RestHandler wrappedHandler = Objects.requireNonNull(handlerWrapper.apply(handler));
+                wrappedHandler.handleRequest(request, channel, client);
+            }
         }
     }
 
@@ -232,21 +187,6 @@ public class RestController extends AbstractLifecycleComponent {
         }
 
         return true;
-    }
-
-    void executeHandler(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        final RestHandler handler = getHandler(request);
-        if (handler != null) {
-            handler.handleRequest(request, channel, client);
-        } else {
-            if (request.method() == RestRequest.Method.OPTIONS) {
-                // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)
-                channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
-            } else {
-                final String msg = "No handler found for uri [" + request.uri() + "] and method [" + request.method() + "]";
-                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, msg));
-            }
-        }
     }
 
     private RestHandler getHandler(RestRequest request) {
@@ -282,45 +222,5 @@ public class RestController extends AbstractLifecycleComponent {
         // so we can handle things like:
         // my_index/my_type/http%3A%2F%2Fwww.google.com
         return request.rawPath();
-    }
-
-    class ControllerFilterChain implements RestFilterChain {
-
-        private final RestFilter executionFilter;
-
-        private final AtomicInteger index = new AtomicInteger();
-
-        ControllerFilterChain(RestFilter executionFilter) {
-            this.executionFilter = executionFilter;
-        }
-
-        @Override
-        public void continueProcessing(RestRequest request, RestChannel channel, NodeClient client) {
-            try {
-                int loc = index.getAndIncrement();
-                if (loc > filters.length) {
-                    throw new IllegalStateException("filter continueProcessing was called more than expected");
-                } else if (loc == filters.length) {
-                    executionFilter.process(request, channel, client, this);
-                } else {
-                    RestFilter preProcessor = filters[loc];
-                    preProcessor.process(request, channel, client, this);
-                }
-            } catch (Exception e) {
-                try {
-                    channel.sendResponse(new BytesRestResponse(channel, e));
-                } catch (IOException e1) {
-                    logger.error((Supplier<?>) () -> new ParameterizedMessage("Failed to send failure response for uri [{}]", request.uri()), e1);
-                }
-            }
-        }
-    }
-
-    class RestHandlerFilter extends RestFilter {
-
-        @Override
-        public void process(RestRequest request, RestChannel channel, NodeClient client, RestFilterChain filterChain) throws Exception {
-            executeHandler(request, channel, client);
-        }
     }
 }

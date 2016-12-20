@@ -35,6 +35,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -97,7 +98,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
         threadPool = null;
     }
 
-    public void testConnectToNodeLight() {
+    public void testConnectToNodeLight() throws IOException {
         Settings settings = Settings.builder().put("cluster.name", "test").build();
 
         NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
@@ -112,14 +113,24 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptyMap(),
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
+        try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode, ConnectionProfile.LIGHT_PROFILE)){
+            DiscoveryNode connectedNode = handleA.transportService.handshake(connection, timeout);
+            assertNotNull(connectedNode);
+            // the name and version should be updated
+            assertEquals(connectedNode.getName(), "TS_B");
+            assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
+            assertFalse(handleA.transportService.nodeConnected(discoveryNode));
+        }
+
         DiscoveryNode connectedNode =
-                handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout);
+            handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout);
         assertNotNull(connectedNode);
 
         // the name and version should be updated
         assertEquals(connectedNode.getName(), "TS_B");
         assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
         assertTrue(handleA.transportService.nodeConnected(discoveryNode));
+
     }
 
     public void testMismatchedClusterName() {
@@ -132,8 +143,12 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptyMap(),
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> handleA.transportService.connectToNodeAndHandshake(
-                discoveryNode, timeout));
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
+            try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
+                ConnectionProfile.LIGHT_PROFILE)) {
+                handleA.transportService.handshake(connection, timeout);
+            }
+        });
         assertThat(ex.getMessage(), containsString("handshake failed, mismatched cluster name [Cluster [b]]"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
 }
@@ -149,33 +164,14 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptyMap(),
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> handleA.transportService.connectToNodeAndHandshake(
-            discoveryNode, timeout));
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
+            try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
+                ConnectionProfile.LIGHT_PROFILE)) {
+                handleA.transportService.handshake(connection, timeout);
+            }
+        });
         assertThat(ex.getMessage(), containsString("handshake failed, incompatible version"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
-    }
-
-    public void testIgnoreMismatchedClusterName() {
-        Settings settings = Settings.builder().put("cluster.name", "a").build();
-
-        NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
-        NetworkHandle handleB =
-                startServices(
-                        "TS_B",
-                        Settings.builder().put("cluster.name", "b").build(),
-                        VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT)
-                );
-        DiscoveryNode discoveryNode = new DiscoveryNode(
-            "",
-            handleB.discoveryNode.getAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT.minimumCompatibilityVersion());
-        DiscoveryNode connectedNode = handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout, false);
-        assertNotNull(connectedNode);
-        assertEquals(connectedNode.getName(), "TS_B");
-        assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
-        assertTrue(handleA.transportService.nodeConnected(discoveryNode));
     }
 
     private static class NetworkHandle {

@@ -37,6 +37,7 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -80,9 +81,8 @@ public class RestUpdateAction extends BaseRestHandler {
         updateRequest.versionType(VersionType.fromString(request.param("version_type"), updateRequest.versionType()));
 
 
-        // see if we have it in the body
-        if (request.hasContent()) {
-            updateRequest.fromXContent(request.content());
+        request.applyContentParser(parser -> {
+            updateRequest.fromXContent(parser);
             IndexRequest upsertRequest = updateRequest.upsertRequest();
             if (upsertRequest != null) {
                 upsertRequest.routing(request.param("routing"));
@@ -97,9 +97,16 @@ public class RestUpdateAction extends BaseRestHandler {
                 doc.version(RestActions.parseVersion(request));
                 doc.versionType(VersionType.fromString(request.param("version_type"), doc.versionType()));
             }
-        }
+        });
 
         return channel ->
-            client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing())));
+            client.update(updateRequest, new RestStatusToXContentListener<>(channel, r -> {
+                try {
+                    return r.getLocation(updateRequest.routing());
+                } catch (URISyntaxException ex) {
+                    logger.warn("Location string is not a valid URI.", ex);
+                    return null;
+                }
+            }));
     }
 }

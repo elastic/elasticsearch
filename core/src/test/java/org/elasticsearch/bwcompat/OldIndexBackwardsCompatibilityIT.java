@@ -38,6 +38,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -55,13 +56,14 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.OldIndexUtils;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -129,24 +131,23 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void setupCluster() throws Exception {
-        InternalTestCluster.Async<List<String>> replicas = internalCluster().startNodesAsync(1); // for replicas
+        List<String> replicas = internalCluster().startNodes(1); // for replicas
 
         Path baseTempDir = createTempDir();
         // start single data path node
         Settings.Builder nodeSettings = Settings.builder()
                 .put(Environment.PATH_DATA_SETTING.getKey(), baseTempDir.resolve("single-path").toAbsolutePath())
                 .put(Node.NODE_MASTER_SETTING.getKey(), false); // workaround for dangling index loading issue when node is master
-        InternalTestCluster.Async<String> singleDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
+        singleDataPathNodeName = internalCluster().startNode(nodeSettings);
 
         // start multi data path node
         nodeSettings = Settings.builder()
                 .put(Environment.PATH_DATA_SETTING.getKey(), baseTempDir.resolve("multi-path1").toAbsolutePath() + "," + baseTempDir
                         .resolve("multi-path2").toAbsolutePath())
                 .put(Node.NODE_MASTER_SETTING.getKey(), false); // workaround for dangling index loading issue when node is master
-        InternalTestCluster.Async<String> multiDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
+        multiDataPathNodeName = internalCluster().startNode(nodeSettings);
 
         // find single data path dir
-        singleDataPathNodeName = singleDataPathNode.get();
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, singleDataPathNodeName).nodeDataPaths();
         assertEquals(1, nodePaths.length);
         singleDataPath = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);
@@ -155,7 +156,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         logger.info("--> Single data path: {}", singleDataPath);
 
         // find multi data path dirs
-        multiDataPathNodeName = multiDataPathNode.get();
         nodePaths = internalCluster().getInstance(NodeEnvironment.class, multiDataPathNodeName).nodeDataPaths();
         assertEquals(2, nodePaths.length);
         multiDataPath = new Path[]{nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER),
@@ -165,8 +165,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         Files.createDirectories(multiDataPath[0]);
         Files.createDirectories(multiDataPath[1]);
         logger.info("--> Multi data paths: {}, {}", multiDataPath[0], multiDataPath[1]);
-
-        replicas.get(); // wait for replicas
     }
 
     void upgradeIndexFolder() throws Exception {
@@ -245,9 +243,9 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertRealtimeGetWorks(indexName);
         assertNewReplicasWork(indexName);
         assertUpgradeWorks(client(), indexName, version);
-        assertDeleteByQueryWorked(indexName, version);
         assertPositionIncrementGapDefaults(indexName, version);
         assertAliasWithBadName(indexName, version);
+        assertStoredBinaryFields(indexName, version);
         unloadIndex(indexName);
     }
 
@@ -414,17 +412,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         // TODO: do something with the replicas! query? index?
     }
 
-    // #10067: create-bwc-index.py deleted any doc with long_sort:[10-20]
-    void assertDeleteByQueryWorked(String indexName, Version version) throws Exception {
-        if (version.onOrAfter(Version.V_2_0_0_beta1)) {
-            // TODO: remove this once #10262 is fixed
-            return;
-        }
-        // these documents are supposed to be deleted by a delete by query operation in the translog
-        SearchRequestBuilder searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.queryStringQuery("long_sort:[10 TO 20]"));
-        assertEquals(0, searchReq.get().getHits().getTotalHits());
-    }
-
     void assertPositionIncrementGapDefaults(String indexName, Version version) throws Exception {
         client().prepareIndex(indexName, "doc", "position_gap_test").setSource("string", Arrays.asList("one", "two three"))
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
@@ -476,6 +463,25 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         // We can remove the alias.
         assertAcked(client().admin().indices().prepareAliases().removeAlias(indexName, aliasName).get());
         assertFalse(client().admin().indices().prepareAliasesExist(aliasName).get().exists());
+    }
+
+    /**
+     * Make sure we can load stored binary fields.
+     */
+    void assertStoredBinaryFields(String indexName, Version version) throws Exception {
+        SearchRequestBuilder builder = client().prepareSearch(indexName);
+        builder.setQuery(QueryBuilders.matchAllQuery());
+        builder.setSize(100);
+        builder.addStoredField("binary");
+        SearchHits hits = builder.get().getHits();
+        assertEquals(100, hits.hits().length);
+        for(SearchHit hit : hits) {
+            SearchHitField field = hit.field("binary");
+            assertNotNull(field);
+            Object value = field.value();
+            assertTrue(value instanceof BytesArray);
+            assertEquals(16, ((BytesArray) value).length());
+        }
     }
 
     private Path getNodeDir(String indexFile) throws IOException {

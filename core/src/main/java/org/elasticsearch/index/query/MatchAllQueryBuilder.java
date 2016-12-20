@@ -64,9 +64,9 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
         declareStandardFields(PARSER);
     }
 
-    public static Optional<MatchAllQueryBuilder> fromXContent(QueryParseContext context) {
+    public static MatchAllQueryBuilder fromXContent(QueryParseContext context) {
         try {
-            return Optional.of(PARSER.apply(context.parser(), context));
+            return PARSER.apply(context.parser(), context);
         } catch (IllegalArgumentException e) {
             throw new ParsingException(context.parser().getTokenLocation(), e.getMessage(), e);
         }

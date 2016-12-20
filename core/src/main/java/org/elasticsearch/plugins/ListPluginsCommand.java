@@ -20,7 +20,7 @@
 package org.elasticsearch.plugins;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -38,15 +38,14 @@ import java.util.Map;
 /**
  * A command for the plugin cli to list plugins installed in elasticsearch.
  */
-class ListPluginsCommand extends SettingCommand {
+class ListPluginsCommand extends EnvironmentAwareCommand {
 
     ListPluginsCommand() {
         super("Lists installed elasticsearch plugins");
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-        final Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         if (Files.exists(env.pluginsFile()) == false) {
             throw new IOException("Plugins directory missing: " + env.pluginsFile());
         }

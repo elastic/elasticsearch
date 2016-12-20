@@ -32,6 +32,7 @@ import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
+import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -39,7 +40,6 @@ import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.InternalClusterInfoService;
-import org.elasticsearch.cluster.MasterNodeChangePredicate;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -117,7 +117,6 @@ import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchExtRegistry;
@@ -322,7 +321,7 @@ public class Node implements Closeable {
             final NetworkService networkService = new NetworkService(settings,
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
-            clusterService.add(scriptModule.getScriptService());
+            clusterService.addListener(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
             final TribeService tribeService = new TribeService(settings, clusterService, nodeId,
                 s -> newTribeClientNode(s, classpathPlugins));
@@ -344,9 +343,8 @@ public class Node implements Closeable {
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
             SearchModule searchModule = new SearchModule(settings, false, pluginsService.filterPlugins(SearchPlugin.class));
-            ActionModule actionModule = new ActionModule(DiscoveryNode.isIngestNode(settings), false, settings,
-                clusterModule.getIndexNameExpressionResolver(), settingsModule.getClusterSettings(),
-                pluginsService.filterPlugins(ActionPlugin.class));
+            ActionModule actionModule = new ActionModule(false, settings, clusterModule.getIndexNameExpressionResolver(),
+                settingsModule.getClusterSettings(), threadPool, pluginsService.filterPlugins(ActionPlugin.class));
             modules.add(actionModule);
             modules.add(new GatewayModule());
             modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class)));
@@ -459,7 +457,6 @@ public class Node implements Closeable {
                 .map(injector::getInstance).collect(Collectors.toList()));
             resourcesToClose.addAll(pluginLifecycleComponents);
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-
             client.initialize(injector.getInstance(new Key<Map<GenericAction, TransportAction>>() {}));
 
             logger.info("initialized");
@@ -547,7 +544,6 @@ public class Node implements Closeable {
         injector.getInstance(RoutingService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(MonitorService.class).start();
-        injector.getInstance(RestController.class).start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
 
@@ -572,8 +568,8 @@ public class Node implements Closeable {
         TransportService transportService = injector.getInstance(TransportService.class);
         transportService.getTaskManager().setTaskResultsService(injector.getInstance(TaskResultsService.class));
         transportService.start();
-
-        validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress());
+        validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress(), pluginsService.filterPlugins(Plugin.class).stream()
+            .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
         DiscoveryNode localNode = DiscoveryNode.createLocal(settings,
             transportService.boundAddress().publishAddress(), injector.getInstance(NodeEnvironment.class).nodeId());
@@ -582,7 +578,7 @@ public class Node implements Closeable {
         // playing nice with the life cycle interfaces
         clusterService.setLocalNode(localNode);
         transportService.setLocalNode(localNode);
-        clusterService.add(transportService.getTaskManager());
+        clusterService.addStateApplier(transportService.getTaskManager());
 
         clusterService.start();
 
@@ -595,7 +591,7 @@ public class Node implements Closeable {
         if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, thread.getThreadContext());
-            if (observer.observedState().getClusterState().nodes().getMasterNodeId() == null) {
+            if (observer.observedState().nodes().getMasterNodeId() == null) {
                 logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
                 final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -613,7 +609,7 @@ public class Node implements Closeable {
                             initialStateTimeout);
                         latch.countDown();
                     }
-                }, MasterNodeChangePredicate.INSTANCE, initialStateTimeout);
+                }, state -> state.nodes().getMasterNodeId() != null, initialStateTimeout);
 
                 try {
                     latch.await();
@@ -671,7 +667,6 @@ public class Node implements Closeable {
         injector.getInstance(MonitorService.class).stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
-        injector.getInstance(RestController.class).stop();
         injector.getInstance(TransportService.class).stop();
 
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
@@ -732,8 +727,6 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(GatewayService.class));
         toClose.add(() -> stopWatch.stop().start("search"));
         toClose.add(injector.getInstance(SearchService.class));
-        toClose.add(() -> stopWatch.stop().start("rest"));
-        toClose.add(injector.getInstance(RestController.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
 
@@ -797,7 +790,7 @@ public class Node implements Closeable {
     @SuppressWarnings("unused")
     protected void validateNodeBeforeAcceptingRequests(
         final Settings settings,
-        final BoundTransportAddress boundTransportAddress) throws NodeValidationException {
+        final BoundTransportAddress boundTransportAddress, List<BootstrapCheck> bootstrapChecks) throws NodeValidationException {
     }
 
     /** Writes a file to the logs dir containing the ports for the given transport type */

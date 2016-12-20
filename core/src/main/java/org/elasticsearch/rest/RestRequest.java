@@ -19,14 +19,20 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 
+import java.io.IOException;
 import java.net.SocketAddress;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -222,4 +228,79 @@ public abstract class RestRequest implements ToXContent.Params {
         return params;
     }
 
+    /**
+     * A parser for the contents of this request if there is a body, otherwise throws an {@link ElasticsearchParseException}. Use
+     * {@link #applyContentParser(CheckedConsumer)} if you want to gracefully handle when the request doesn't have any contents. Use
+     * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
+     */
+    public final XContentParser contentParser() throws IOException {
+        BytesReference content = content();
+        if (content.length() == 0) {
+            throw new ElasticsearchParseException("Body required");
+        }
+        return XContentFactory.xContent(content).createParser(content);
+    }
+
+    /**
+     * If there is any content then call {@code applyParser} with the parser, otherwise do nothing.
+     */
+    public final void applyContentParser(CheckedConsumer<XContentParser, IOException> applyParser) throws IOException {
+        if (hasContent()) {
+            try (XContentParser parser = contentParser()) {
+                applyParser.accept(parser);
+            }
+        }
+    }
+
+    /**
+     * Does this request have content or a {@code source} parameter? Use this instead of {@link #hasContent()} if this
+     * {@linkplain RestHandler} treats the {@code source} parameter like the body content.
+     */
+    public final boolean hasContentOrSourceParam() {
+        return hasContent() || hasParam("source");
+    }
+
+    /**
+     * A parser for the contents of this request if it has contents, otherwise a parser for the {@code source} parameter if there is one,
+     * otherwise throws an {@link ElasticsearchParseException}. Use {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} instead
+     * if you need to handle the absence request content gracefully.
+     */
+    public final XContentParser contentOrSourceParamParser() throws IOException {
+        BytesReference content = contentOrSourceParam();
+        if (content.length() == 0) {
+            throw new ElasticsearchParseException("Body required");
+        }
+        return XContentFactory.xContent(content).createParser(content);
+    }
+
+    /**
+     * Call a consumer with the parser for the contents of this request if it has contents, otherwise with a parser for the {@code source}
+     * parameter if there is one, otherwise with {@code null}. Use {@link #contentOrSourceParamParser()} if you should throw an exception
+     * back to the user when there isn't request content.
+     */
+    public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
+        BytesReference content = contentOrSourceParam();
+        if (content.length() > 0) {
+            try (XContentParser parser = XContentFactory.xContent(content).createParser(content)) {
+                withParser.accept(parser);
+            }
+        } else {
+            withParser.accept(null);
+        }
+    }
+
+    /**
+     * Get the content of the request or the contents of the {@code source} param. Prefer {@link #contentOrSourceParamParser()} or
+     * {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
+     */
+    public final BytesReference contentOrSourceParam() {
+        if (hasContent()) {
+            return content();
+        }
+        String source = param("source");
+        if (source != null) {
+            return new BytesArray(source);
+        }
+        return BytesArray.EMPTY;
+    }
 }

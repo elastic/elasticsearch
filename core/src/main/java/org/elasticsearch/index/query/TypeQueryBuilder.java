@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     public static final String NAME = "type";
@@ -81,7 +80,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
         builder.endObject();
     }
 
-    public static Optional<TypeQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static TypeQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         BytesRef type = null;
 
@@ -114,9 +113,9 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
             throw new ParsingException(parser.getTokenLocation(),
                     "[" + TypeQueryBuilder.NAME + "] filter needs to be provided with a value for the type");
         }
-        return Optional.of(new TypeQueryBuilder(type)
+        return new TypeQueryBuilder(type)
                 .boost(boost)
-                .queryName(queryName));
+                .queryName(queryName);
     }
 
 

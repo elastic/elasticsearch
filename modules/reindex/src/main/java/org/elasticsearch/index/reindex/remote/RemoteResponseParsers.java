@@ -188,7 +188,7 @@ final class RemoteResponseParsers {
                 return new Response(timedOut, failures, totalHits, hits, scroll);
             });
     static {
-        RESPONSE_PARSER.declareObject(optionalConstructorArg(), ThrowableBuilder.PARSER, new ParseField("error"));
+        RESPONSE_PARSER.declareObject(optionalConstructorArg(), ThrowableBuilder.PARSER::apply, new ParseField("error"));
         RESPONSE_PARSER.declareBoolean(optionalConstructorArg(), new ParseField("timed_out"));
         RESPONSE_PARSER.declareString(optionalConstructorArg(), new ParseField("_scroll_id"));
         RESPONSE_PARSER.declareObject(optionalConstructorArg(), HITS_PARSER, new ParseField("hits"));
@@ -205,7 +205,7 @@ final class RemoteResponseParsers {
             PARSER = parser.andThen(ThrowableBuilder::build);
             parser.declareString(ThrowableBuilder::setType, new ParseField("type"));
             parser.declareString(ThrowableBuilder::setReason, new ParseField("reason"));
-            parser.declareObject(ThrowableBuilder::setCausedBy, PARSER, new ParseField("caused_by"));
+            parser.declareObject(ThrowableBuilder::setCausedBy, PARSER::apply, new ParseField("caused_by"));
 
             // So we can give a nice error for parsing exceptions
             parser.declareInt(ThrowableBuilder::setLine, new ParseField("line"));

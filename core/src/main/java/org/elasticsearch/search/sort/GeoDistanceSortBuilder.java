@@ -62,7 +62,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A geo distance based sorting on a geo point like field.
@@ -75,10 +74,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private static final ParseField UNIT_FIELD = new ParseField("unit");
     private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
-            .withAllDeprecated("use validation_method instead");
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
-            .withAllDeprecated("use validation_method instead");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed").withAllDeprecated("validation_method");
+    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize").withAllDeprecated("validation_method");
     private static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
 
     private final String fieldName;
@@ -408,7 +405,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         SortOrder order = SortOrder.ASC;
         SortMode sortMode = null;
-        Optional<QueryBuilder> nestedFilter = Optional.empty();
+        QueryBuilder nestedFilter = null;
         String nestedPath = null;
 
         boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
@@ -493,7 +490,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         if (sortMode != null) {
             result.sortMode(sortMode);
         }
-        nestedFilter.ifPresent(result::setNestedFilter);
+        if (nestedFilter != null) {
+            result.setNestedFilter(nestedFilter);
+        }
         result.setNestedPath(nestedPath);
         if (validation == null) {
             // looks like either validation was left unset or we are parsing old validation json

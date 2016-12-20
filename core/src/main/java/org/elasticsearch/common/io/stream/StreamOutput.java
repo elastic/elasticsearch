@@ -368,7 +368,7 @@ public abstract class StreamOutput extends OutputStream {
         if (b == null) {
             writeByte(TWO);
         } else {
-            writeByte(b ? ONE : ZERO);
+            writeBoolean(b);
         }
     }
 
@@ -467,16 +467,32 @@ public abstract class StreamOutput extends OutputStream {
      * @param keyWriter The key writer
      * @param valueWriter The value writer
      */
-    public <K, V> void writeMapOfLists(final Map<K, List<V>> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+    public final <K, V> void writeMapOfLists(final Map<K, List<V>> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
             throws IOException {
-        writeVInt(map.size());
-
-        for (final Map.Entry<K, List<V>> entry : map.entrySet()) {
-            keyWriter.write(this, entry.getKey());
-            writeVInt(entry.getValue().size());
-            for (final V value : entry.getValue()) {
+        writeMap(map, keyWriter, (stream, list) -> {
+            writeVInt(list.size());
+            for (final V value : list) {
                 valueWriter.write(this, value);
             }
+        });
+    }
+
+    /**
+     * Write a {@link Map} of {@code K}-type keys to {@code V}-type.
+     * <pre><code>
+     * Map&lt;String, String&gt; map = ...;
+     * out.writeMap(map, StreamOutput::writeString, StreamOutput::writeString);
+     * </code></pre>
+     *
+     * @param keyWriter The key writer
+     * @param valueWriter The value writer
+     */
+    public final <K, V> void writeMap(final Map<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
+        throws IOException {
+        writeVInt(map.size());
+        for (final Map.Entry<K, V> entry : map.entrySet()) {
+            keyWriter.write(this, entry.getKey());
+            valueWriter.write(this, entry.getValue());
         }
     }
 

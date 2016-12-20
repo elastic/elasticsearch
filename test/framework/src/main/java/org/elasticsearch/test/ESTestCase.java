@@ -29,6 +29,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -56,11 +57,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -98,6 +102,7 @@ import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -126,6 +131,8 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -170,6 +177,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     protected final Logger logger = Loggers.getLogger(getClass());
+    private ThreadContext threadContext;
 
     // -----------------------------------------------------------------
     // Suite and test case setup/cleanup.
@@ -248,14 +256,60 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Before
     public final void before()  {
         logger.info("[{}]: before test", getTestName());
+        if (enableWarningsCheck()) {
+            this.threadContext = new ThreadContext(Settings.EMPTY);
+            DeprecationLogger.setThreadContext(threadContext);
+        }
+    }
+
+    /**
+     * Whether or not we check after each test whether it has left warnings behind. That happens if any deprecated feature or syntax
+     * was used by the test and the test didn't assert on it using {@link #assertWarnings(String...)}.
+     */
+    protected boolean enableWarningsCheck() {
+        return true;
     }
 
     @After
     public final void after() throws Exception {
         checkStaticState();
+        if (enableWarningsCheck()) {
+            ensureNoWarnings();
+        }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
         logger.info("[{}]: after test", getTestName());
+    }
+
+    private void ensureNoWarnings() throws IOException {
+        //Check that there are no unaccounted warning headers. These should be checked with {@link #checkWarningHeaders(String...)} in the
+        //appropriate test
+        try {
+            final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
+            assertNull("unexpected warning headers", warnings);
+        } finally {
+            DeprecationLogger.removeThreadContext(this.threadContext);
+            this.threadContext.close();
+        }
+    }
+
+    protected final void assertWarnings(String... expectedWarnings) throws IOException {
+        if (enableWarningsCheck() == false) {
+            throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
+        }
+        try {
+            final List<String> actualWarnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
+            assertThat(actualWarnings, hasSize(expectedWarnings.length));
+            for (String msg : expectedWarnings) {
+                assertThat(actualWarnings, hasItem(equalTo(msg)));
+            }
+        } finally {
+            // "clear" current warning headers by setting a new ThreadContext
+            DeprecationLogger.removeThreadContext(this.threadContext);
+            this.threadContext.close();
+            this.threadContext = new ThreadContext(Settings.EMPTY);
+            DeprecationLogger.setThreadContext(this.threadContext);
+        }
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();
@@ -876,6 +930,41 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         sb.append("]");
         assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(XContentBuilder builder) throws IOException {
+        return builder.generator().contentType().xContent().createParser(builder.bytes());
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(XContent xContent, String data) throws IOException {
+        return xContent.createParser(data);
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(XContent xContent, InputStream data) throws IOException {
+        return xContent.createParser(data);
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(XContent xContent, byte[] data) throws IOException {
+        return xContent.createParser(data);
+    }
+
+    /**
+     * Create a new {@link XContentParser}.
+     */
+    protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
+        return xContent.createParser(data);
     }
 
     /** Returns the suite failure marker: internal use only! */

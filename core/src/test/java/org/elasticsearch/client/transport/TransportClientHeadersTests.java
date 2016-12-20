@@ -41,6 +41,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTransportClient;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -149,12 +150,14 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         public AsyncSender interceptSender(AsyncSender sender) {
             return new AsyncSender() {
                 @Override
-                public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
-                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+                                                                      TransportRequest request,
+                                                                      TransportRequestOptions options,
+                                                                      TransportResponseHandler<T> handler) {
                     if (TransportLivenessAction.NAME.equals(action)) {
                         assertHeaders(threadPool);
                         ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(
-                            new LivenessResponse(new ClusterName("cluster1"), node));
+                            new LivenessResponse(new ClusterName("cluster1"), connection.getNode()));
                         return;
                     }
                     if (ClusterStateAction.NAME.equals(action)) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -109,7 +108,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder();
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -144,7 +143,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
             return new SourceFieldMapper(indexSettings);
         }
     }

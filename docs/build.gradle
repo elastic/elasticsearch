@@ -28,7 +28,6 @@ buildRestTests.expectedUnconvertedCandidates = [
   'reference/aggregations/bucket/daterange-aggregation.asciidoc',
   'reference/aggregations/bucket/diversified-sampler-aggregation.asciidoc',
   'reference/aggregations/bucket/filter-aggregation.asciidoc',
-  'reference/aggregations/bucket/filters-aggregation.asciidoc',
   'reference/aggregations/bucket/geodistance-aggregation.asciidoc',
   'reference/aggregations/bucket/geohashgrid-aggregation.asciidoc',
   'reference/aggregations/bucket/global-aggregation.asciidoc',
@@ -369,3 +368,18 @@ buildRestTests.setups['range_index'] = '''
       body: |
         {"index":{"_id": 1}}
         {"expected_attendees": {"gte": 10, "lte": 20}, "time_frame": {"gte": "2015-10-31 12:00:00", "lte": "2015-11-01"}}'''
+
+// Used by index boost doc
+buildRestTests.setups['index_boost'] = '''
+  - do:
+      indices.create:
+          index:  index1
+  - do:
+      indices.create:
+          index:  index2
+
+  - do:
+      indices.put_alias:
+        index: index1
+        name: alias1
+'''

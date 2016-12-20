@@ -20,6 +20,7 @@
 package org.elasticsearch.action.delete;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -39,7 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -125,11 +125,14 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
     protected WritePrimaryResult shardOperationOnPrimary(DeleteRequest request, IndexShard primary) throws Exception {
         final Engine.DeleteResult result = executeDeleteRequestOnPrimary(request, primary);
         final DeleteResponse response;
+        final DeleteRequest replicaRequest;
         if (result.hasFailure() == false) {
             // update the request with the version so it will go to the replicas
             request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
             request.version(result.getVersion());
+            request.setSeqNo(result.getSeqNo());
             assert request.versionType().validateVersionForWrites(request.version());
+            replicaRequest = request;
             response = new DeleteResponse(
                 primary.shardId(),
                 request.type(),
@@ -139,8 +142,9 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
                 result.isFound());
         } else {
             response = null;
+            replicaRequest = null;
         }
-        return new WritePrimaryResult(request, response, result.getTranslogLocation(), result.getFailure(), primary);
+        return new WritePrimaryResult(replicaRequest, response, result.getTranslogLocation(), result.getFailure(), primary);
     }
 
     @Override
@@ -156,8 +160,8 @@ public class TransportDeleteAction extends TransportWriteAction<DeleteRequest, D
     }
 
     public static Engine.DeleteResult executeDeleteRequestOnReplica(DeleteRequest request, IndexShard replica) {
-        final Engine.Delete delete =
-            replica.prepareDeleteOnReplica(request.type(), request.id(), request.seqNo(), request.version(), request.versionType());
+        final Engine.Delete delete = replica.prepareDeleteOnReplica(request.type(), request.id(),
+                request.getSeqNo(), request.primaryTerm(), request.version(), request.versionType());
         return replica.delete(delete);
     }
 

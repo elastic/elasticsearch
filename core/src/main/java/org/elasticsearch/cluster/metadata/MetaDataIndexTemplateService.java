@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -40,6 +39,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -52,6 +52,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
  * Service responsible for submitting index templates updates
@@ -221,11 +223,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(entry.getValue()));
             }
 
-            dummyIndexService.mapperService().merge(mappingsForValidation, false);
+            dummyIndexService.mapperService().merge(mappingsForValidation, MergeReason.MAPPING_UPDATE, false);
 
         } finally {
             if (createdIndex != null) {
-                indicesService.removeIndex(createdIndex, " created for parsing template mapping");
+                indicesService.removeIndex(createdIndex, NO_LONGER_ASSIGNED, " created for parsing template mapping");
             }
         }
     }

@@ -21,7 +21,6 @@ package org.elasticsearch.common.logging;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
@@ -42,7 +41,7 @@ public class DeprecationLogger {
      *
      * https://tools.ietf.org/html/rfc7234#section-5.5
      */
-    public static final String DEPRECATION_HEADER = "Warning";
+    public static final String WARNING_HEADER = "Warning";
 
     /**
      * This is set once by the {@code Node} constructor, but it uses {@link CopyOnWriteArraySet} to ensure that tests can run in parallel.
@@ -128,7 +127,7 @@ public class DeprecationLogger {
 
             while (iterator.hasNext()) {
                 try {
-                    iterator.next().addResponseHeader(DEPRECATION_HEADER, formattedMessage);
+                    iterator.next().addResponseHeader(WARNING_HEADER, formattedMessage);
                 } catch (IllegalStateException e) {
                     // ignored; it should be removed shortly
                 }

@@ -40,7 +40,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Filter results of a query to include only those within a specific distance to some
@@ -67,10 +66,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
-            .withAllDeprecated("use validation_method instead");
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
-            .withAllDeprecated("use validation_method instead");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed").withAllDeprecated("validation_method");
+    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize").withAllDeprecated("validation_method");
     @Deprecated
     private static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox")
             .withAllDeprecated("no replacement: `optimize_bbox` is no longer supported due to recent improvements");
@@ -310,7 +307,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         builder.endObject();
     }
 
-    public static Optional<GeoDistanceQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static GeoDistanceQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
         XContentParser.Token token;
@@ -425,7 +422,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         qb.boost(boost);
         qb.queryName(queryName);
         qb.ignoreUnmapped(ignoreUnmapped);
-        return Optional.of(qb);
+        return qb;
     }
 
     @Override

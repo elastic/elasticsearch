@@ -68,16 +68,6 @@ public class TransportShardRefreshAction
     }
 
     @Override
-    protected ClusterBlockLevel globalBlockLevel() {
-        return ClusterBlockLevel.METADATA_WRITE;
-    }
-
-    @Override
-    protected ClusterBlockLevel indexBlockLevel() {
-        return ClusterBlockLevel.METADATA_WRITE;
-    }
-
-    @Override
     protected boolean shouldExecuteReplication(Settings settings) {
         return true;
     }

@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApiParser;
-
-import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -74,6 +73,8 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     }
 
     public void testDuplicateParts() throws Exception {
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
         parseAndExpectFailure("{\n" +
                 "  \"ping\": {" +
                 "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
@@ -106,6 +107,8 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     }
 
     public void testDuplicateParams() throws Exception {
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
         parseAndExpectFailure("{\n" +
                 "  \"ping\": {" +
                 "    \"documentation\": \"http://www.elasticsearch.org/guide/\"," +
@@ -144,7 +147,7 @@ public class ClientYamlSuiteRestApiParserFailingTests extends ESTestCase {
     }
 
     private void parseAndExpectFailure(String brokenJson, String expectedErrorMessage) throws Exception {
-        XContentParser parser = JsonXContent.jsonXContent.createParser(brokenJson);
+        XContentParser parser = createParser(YamlXContent.yamlXContent, brokenJson);
         ClientYamlSuiteRestApiParser restApiParser = new ClientYamlSuiteRestApiParser();
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> restApiParser.parse("location", parser));

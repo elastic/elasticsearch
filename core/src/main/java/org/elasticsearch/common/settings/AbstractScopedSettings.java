@@ -239,11 +239,9 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public final void validate(Settings settings) {
         List<RuntimeException> exceptions = new ArrayList<>();
-        // we want them sorted for deterministic error messages
-        SortedMap<String, String> sortedSettings = new TreeMap<>(settings.getAsMap());
-        for (Map.Entry<String, String> entry : sortedSettings.entrySet()) {
+        for (String key : settings.getAsMap().keySet()) { // settings iterate in deterministic fashion
             try {
-                validate(entry.getKey(), settings);
+                validate(key, settings);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
             }

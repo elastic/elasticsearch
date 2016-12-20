@@ -31,9 +31,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -128,7 +128,7 @@ public class HighlightBuilderTests extends ESTestCase {
             highlightBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
 
-            XContentParser parser = XContentHelper.createParser(shuffled.bytes());
+            XContentParser parser = createParser(shuffled);
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
             parser.nextToken();
             HighlightBuilder secondHighlightBuilder;
@@ -168,8 +168,8 @@ public class HighlightBuilderTests extends ESTestCase {
         }
     }
 
-    private static <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+    private <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
         return expectThrows(exceptionClass, () -> HighlightBuilder.fromXContent(context));
     }
@@ -266,7 +266,7 @@ public class HighlightBuilderTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null, null, null, System::currentTimeMillis) {
+                null, null, System::currentTimeMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -378,7 +378,7 @@ public class HighlightBuilderTests extends ESTestCase {
         String highlightElement = "{\n" +
                 "    \"tags_schema\" : \"styled\"\n" +
                 "}\n";
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
@@ -390,7 +390,7 @@ public class HighlightBuilderTests extends ESTestCase {
         highlightElement = "{\n" +
                 "    \"tags_schema\" : \"default\"\n" +
                 "}\n";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
         context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);
@@ -411,21 +411,21 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testParsingEmptyStructure() throws IOException {
         String highlightElement = "{ }";
-        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { } }";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
         context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { \"foo\" : { } } }";
-        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+        parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
         context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);

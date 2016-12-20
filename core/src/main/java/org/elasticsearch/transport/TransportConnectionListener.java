@@ -23,7 +23,18 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 
 public interface TransportConnectionListener {
 
-    void onNodeConnected(DiscoveryNode node);
+    /**
+     * Called once a node connection is opened and registered.
+     */
+    default void onNodeConnected(DiscoveryNode node) {}
 
-    void onNodeDisconnected(DiscoveryNode node);
+    /**
+     * Called once a node connection is closed and unregistered.
+     */
+    default void onNodeDisconnected(DiscoveryNode node) {}
+
+    /**
+     * Called once a node connection is opened.
+     */
+    default void onConnectionOpened(DiscoveryNode node) {}
 }

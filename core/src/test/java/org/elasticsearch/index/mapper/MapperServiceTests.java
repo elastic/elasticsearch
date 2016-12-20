@@ -19,16 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.function.Function;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -39,8 +29,17 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
+
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -50,7 +49,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         String index = "test-index";
         String type = ".test-type";
         String field = "field";
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
             client().admin().indices().prepareCreate(index)
                     .addMapping(type, field, "type=text")
                     .execute().actionGet();
@@ -63,7 +62,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         String field = "field";
         String type = new String(new char[256]).replace("\0", "a");
 
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> {
+        MapperException e = expectThrows(MapperException.class, () -> {
             client().admin().indices().prepareCreate(index)
                     .addMapping(type, field, "type=text")
                     .execute().actionGet();
@@ -161,14 +160,14 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] in index [test1] has been exceeded"));
     }
 
-    public void testUnmappedFieldType() {
+    public void testUnmappedFieldType() throws IOException {
         MapperService mapperService = createIndex("index").mapperService();
         assertThat(mapperService.unmappedFieldType("keyword"), instanceOf(KeywordFieldType.class));
         assertThat(mapperService.unmappedFieldType("long"), instanceOf(NumberFieldType.class));
         // back compat
         assertThat(mapperService.unmappedFieldType("string"), instanceOf(KeywordFieldType.class));
+        assertWarnings("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
     }
-
 
     public void testMergeWithMap() throws Throwable {
         IndexService indexService1 = createIndex("index1");
@@ -177,14 +176,69 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
 
         mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping("{}"));
         MapperException e = expectThrows(MapperParsingException.class,
-            () -> mapperService.merge(mappings, false));
+            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
 
         mappings.clear();
         mappings.put("type1", MapperService.parseMapping("{}"));
 
         e = expectThrows( MapperParsingException.class,
-            () -> mapperService.merge(mappings, false));
+            () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [type1]: "));
+    }
+
+    public void testOtherDocumentMappersOnlyUpdatedWhenChangingFieldType() throws IOException {
+        IndexService indexService = createIndex("test");
+
+        CompressedXContent simpleMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .endObject()
+            .endObject().endObject().bytes());
+
+        indexService.mapperService().merge("type1", simpleMapping, MergeReason.MAPPING_UPDATE, true);
+        DocumentMapper documentMapper = indexService.mapperService().documentMapper("type1");
+
+        indexService.mapperService().merge("type2", simpleMapping, MergeReason.MAPPING_UPDATE, true);
+        assertSame(indexService.mapperService().documentMapper("type1"), documentMapper);
+
+        CompressedXContent normsDisabledMapping = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+            .startObject("properties")
+            .startObject("field")
+            .field("type", "text")
+            .field("norms", false)
+            .endObject()
+            .endObject().endObject().bytes());
+
+        indexService.mapperService().merge("type3", normsDisabledMapping, MergeReason.MAPPING_UPDATE, true);
+        assertNotSame(indexService.mapperService().documentMapper("type1"), documentMapper);
+    }
+
+    public void testAllEnabled() throws Exception {
+        IndexService indexService = createIndex("test");
+        assertFalse(indexService.mapperService().allEnabled());
+
+        CompressedXContent enabledAll = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+                .startObject("_all")
+                    .field("enabled", true)
+                .endObject().endObject().bytes());
+
+        CompressedXContent disabledAll = new CompressedXContent(XContentFactory.jsonBuilder().startObject()
+                .startObject("_all")
+                    .field("enabled", false)
+                .endObject().endObject().bytes());
+
+        indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
+                MergeReason.MAPPING_UPDATE, random().nextBoolean());
+        assertFalse(indexService.mapperService().allEnabled()); // _default_ does not count
+
+        indexService.mapperService().merge("some_type", enabledAll,
+                MergeReason.MAPPING_UPDATE, random().nextBoolean());
+        assertTrue(indexService.mapperService().allEnabled());
+
+        indexService.mapperService().merge("other_type", disabledAll,
+                MergeReason.MAPPING_UPDATE, random().nextBoolean());
+        assertTrue(indexService.mapperService().allEnabled()); // this returns true if any of the types has _all enabled
     }
 }

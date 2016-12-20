@@ -25,12 +25,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
@@ -138,7 +136,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             }
             testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentBuilder shuffled = shuffleXContent(builder);
-            XContentParser itemParser = XContentHelper.createParser(shuffled.bytes());
+            XContentParser itemParser = createParser(shuffled);
             itemParser.nextToken();
 
             /*
@@ -212,7 +210,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
         });
         long nowInMillis = randomPositiveLong();
         return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
-                indicesQueriesRegistry, null, null, null, () -> nowInMillis) {
+                indicesQueriesRegistry, null, null, () -> nowInMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return provideMappedFieldType(name);
@@ -251,7 +249,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
     @SuppressWarnings("unchecked")
     private T copy(T original) throws IOException {
-        return copyWriteable(original, namedWriteableRegistry,
-                (Writeable.Reader<T>) namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
+        /* The cast below is required to make Java 9 happy. Java 8 infers the T in copyWriterable to be the same as AbstractSortTestCase's
+         * T but Java 9 infers it to be SortBuilder. */
+        return (T) copyWriteable(original, namedWriteableRegistry,
+                namedWriteableRegistry.getReader(SortBuilder.class, original.getWriteableName()));
     }
 }

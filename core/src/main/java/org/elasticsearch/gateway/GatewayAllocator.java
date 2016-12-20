@@ -22,8 +22,6 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingService;
@@ -79,24 +77,21 @@ public class GatewayAllocator extends AbstractComponent {
 
     public void setReallocation(final ClusterService clusterService, final RoutingService routingService) {
         this.routingService = routingService;
-        clusterService.add(new ClusterStateListener() {
-            @Override
-            public void clusterChanged(ClusterChangedEvent event) {
-                boolean cleanCache = false;
-                DiscoveryNode localNode = event.state().nodes().getLocalNode();
-                if (localNode != null) {
-                    if (localNode.isMasterNode() && event.localNodeMaster() == false) {
-                        cleanCache = true;
-                    }
-                } else {
+        clusterService.addStateApplier(event -> {
+            boolean cleanCache = false;
+            DiscoveryNode localNode = event.state().nodes().getLocalNode();
+            if (localNode != null) {
+                if (localNode.isMasterNode() && event.localNodeMaster() == false) {
                     cleanCache = true;
                 }
-                if (cleanCache) {
-                    Releasables.close(asyncFetchStarted.values());
-                    asyncFetchStarted.clear();
-                    Releasables.close(asyncFetchStore.values());
-                    asyncFetchStore.clear();
-                }
+            } else {
+                cleanCache = true;
+            }
+            if (cleanCache) {
+                Releasables.close(asyncFetchStarted.values());
+                asyncFetchStarted.clear();
+                Releasables.close(asyncFetchStore.values());
+                asyncFetchStore.clear();
             }
         });
     }
@@ -203,6 +198,11 @@ public class GatewayAllocator extends AbstractComponent {
                 shardStores.processAllocation(allocation);
             }
             return shardStores;
+        }
+
+        @Override
+        protected boolean hasInitiatedFetching(ShardRouting shard) {
+            return asyncFetchStore.get(shard.shardId()) != null;
         }
     }
 }

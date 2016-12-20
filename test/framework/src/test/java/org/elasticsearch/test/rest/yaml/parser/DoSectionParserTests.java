@@ -18,12 +18,9 @@
  */
 package org.elasticsearch.test.rest.yaml.parser;
 
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.parser.DoSectionParser;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParseContext;
 import org.elasticsearch.test.rest.yaml.section.ApiCallSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.hamcrest.MatcherAssert;
@@ -38,9 +35,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DoSectionParserTests extends AbstractParserTestCase {
+public class DoSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseDoSectionNoBody() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "get:\n" +
                 "    index:    test_index\n" +
                 "    type:    test_type\n" +
@@ -61,7 +58,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionNoParamsNoBody() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "cluster.node_info: {}"
         );
 
@@ -77,7 +74,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
 
     public void testParseDoSectionWithJsonBody() throws Exception {
         String body = "{ \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }";
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "index:\n" +
                 "    index:  test_1\n" +
                 "    type:   test\n" +
@@ -107,7 +104,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
                 "{ \"index\": { \"_index\":\"test_index2\", \"_type\":\"test_type2\", \"_id\":\"test_id2\" } }\n",
                 "{ \"f1\":\"v2\", \"f2\":47 }\n"
         };
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "bulk:\n" +
                 "    refresh: true\n" +
                 "    body: |\n" +
@@ -130,11 +127,14 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionWithJsonMultipleBodiesRepeatedProperty() throws Exception {
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
+
         String[] bodies = new String[] {
                 "{ \"index\": { \"_index\":\"test_index\", \"_type\":\"test_type\", \"_id\":\"test_id\" } }",
                 "{ \"f1\":\"v1\", \"f2\":42 }",
         };
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "bulk:\n" +
                 "    refresh: true\n" +
                 "    body: \n" +
@@ -159,7 +159,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionWithYamlBody() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "search:\n" +
                 "    body:\n" +
                 "        \"_source\": [ include.field1, include.field2 ]\n" +
@@ -180,7 +180,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionWithYamlMultipleBodies() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "bulk:\n" +
                 "    refresh: true\n" +
                 "    body:\n" +
@@ -220,7 +220,10 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionWithYamlMultipleBodiesRepeatedProperty() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
+
+        parser = createParser(YamlXContent.yamlXContent,
                 "bulk:\n" +
                 "    refresh: true\n" +
                 "    body:\n" +
@@ -253,7 +256,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionWithYamlBodyMultiGet() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "mget:\n" +
                 "    body:\n" +
                 "        docs:\n" +
@@ -278,7 +281,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionWithBodyStringified() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "index:\n" +
                 "    index:  test_1\n" +
                 "    type:   test\n" +
@@ -303,7 +306,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionWithBodiesStringifiedAndNot() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "index:\n" +
                 "    body:\n" +
                 "        - \"{ \\\"_source\\\": true, \\\"query\\\": { \\\"match_all\\\": {} } }\"\n" +
@@ -326,7 +329,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionWithCatch() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "catch: missing\n" +
                 "indices.get_warmer:\n" +
                 "    index: test_index\n" +
@@ -344,7 +347,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionWithHeaders() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "headers:\n" +
                 "    Authorization: \"thing one\"\n" +
                 "    Content-Type: \"application/json\"\n" +
@@ -367,7 +370,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionWithoutClientCallSection() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "catch: missing\n"
         );
 
@@ -381,7 +384,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionMultivaluedField() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "indices.get_field_mapping:\n" +
                 "        index: test_index\n" +
                 "        type: test_type\n" +
@@ -403,7 +406,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
     }
 
     public void testParseDoSectionExpectedWarnings() throws Exception {
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "indices.get_field_mapping:\n" +
                 "        index: test_index\n" +
                 "        type: test_type\n" +
@@ -427,7 +430,7 @@ public class DoSectionParserTests extends AbstractParserTestCase {
                 "some test warning they are typically pretty long",
                 "some other test warning somtimes they have [in] them")));
 
-        parser = YamlXContent.yamlXContent.createParser(
+        parser = createParser(YamlXContent.yamlXContent,
                 "indices.get_field_mapping:\n" +
                 "        index: test_index\n" +
                 "warnings:\n" +
@@ -442,9 +445,9 @@ public class DoSectionParserTests extends AbstractParserTestCase {
 
     }
 
-    private static void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {
+    private void assertJsonEquals(Map<String, Object> actual, String expected) throws IOException {
         Map<String,Object> expectedMap;
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(expected)) {
+        try (XContentParser parser = createParser(YamlXContent.yamlXContent, expected)) {
             expectedMap = parser.mapOrdered();
         }
         MatcherAssert.assertThat(actual, equalTo(expectedMap));

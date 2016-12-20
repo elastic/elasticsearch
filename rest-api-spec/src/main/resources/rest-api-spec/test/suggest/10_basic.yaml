@@ -13,12 +13,14 @@ setup:
 "Basic tests for suggest API":
 
   - do:
-      suggest:
+      search:
         body:
-          test_suggestion:
-            text: "The Amsterdma meetpu"
-            term:
-              field: body
+          suggest:
+            test_suggestion:
+              text: "The Amsterdma meetpu"
+              term:
+                field: body
 
-  - match: {test_suggestion.1.options.0.text: amsterdam}
-  - match: {test_suggestion.2.options.0.text: meetup}
+  - match: {suggest.test_suggestion.1.options.0.text: amsterdam}
+  - match: {suggest.test_suggestion.2.options.0.text: meetup}
+

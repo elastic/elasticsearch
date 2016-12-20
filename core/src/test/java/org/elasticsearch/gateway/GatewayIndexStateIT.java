@@ -58,6 +58,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -94,7 +95,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
     public void testSimpleOpenClose() throws Exception {
         logger.info("--> starting 2 nodes");
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNodes(2);
 
         logger.info("--> creating test index");
         createIndex("test");
@@ -237,7 +238,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 2 nodes");
-        internalCluster().startNodesAsync(2).get();
+        internalCluster().startNodes(2);
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
@@ -277,7 +278,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
     public void testDanglingIndices() throws Exception {
         logger.info("--> starting two nodes");
 
-        final String node_1 = internalCluster().startNodesAsync(2).get().get(0);
+        final String node_1 = internalCluster().startNodes(2).get(0);
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefreshPolicy(IMMEDIATE).get();
@@ -331,7 +332,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         if (randomBoolean()) {
             // test with a regular index
             logger.info("--> starting a cluster with " + numNodes + " nodes");
-            nodes = internalCluster().startNodesAsync(numNodes).get();
+            nodes = internalCluster().startNodes(numNodes);
             logger.info("--> create an index");
             createIndex(indexName);
         } else {
@@ -344,7 +345,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
                                                   .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), dataPath.toString())
                                                   .put("index.store.fs.fs_lock", randomFrom("native", "simple"))
                                                   .build();
-            nodes = internalCluster().startNodesAsync(numNodes, nodeSettings).get();
+            nodes = internalCluster().startNodes(numNodes, nodeSettings);
             logger.info("--> create a shadow replica index");
             createShadowReplicaIndex(indexName, dataPath, numNodes - 1);
         }
@@ -491,7 +492,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());
         assertNotNull(ex.getCause());
         assertEquals(MapperParsingException.class, ex.getCause().getClass());
-        assertEquals(ex.getCause().getMessage(), "analyzer [test] not found for field [field1]");
+        assertThat(ex.getCause().getMessage(), containsString("analyzer [test] not found for field [field1]"));
     }
 
     public void testArchiveBrokenClusterSettings() throws Exception {

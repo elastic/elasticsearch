@@ -45,8 +45,8 @@ public class JsonXContent implements XContent {
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
     }
-
     private static final JsonFactory jsonFactory;
+
     public static final JsonXContent jsonXContent;
 
     static {
@@ -56,6 +56,7 @@ public class JsonXContent implements XContent {
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
+        jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, XContent.isStrictDuplicateDetectionEnabled());
         jsonXContent = new JsonXContent();
     }
 

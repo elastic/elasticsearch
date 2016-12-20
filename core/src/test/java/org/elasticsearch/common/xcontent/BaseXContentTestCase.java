@@ -21,6 +21,8 @@ package org.elasticsearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonGenerationException;
 import com.fasterxml.jackson.core.JsonGenerator;
+
+import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -65,6 +67,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public abstract class BaseXContentTestCase extends ESTestCase {
 
@@ -268,7 +271,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final byte[] randomBytes = randomBytes();
         BytesReference bytes = builder().startObject().field("binary", randomBytes).endObject().bytes();
 
-        XContentParser parser = xcontentType().xContent().createParser(bytes);
+        XContentParser parser = createParser(xcontentType().xContent(), bytes);
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "binary");
@@ -284,7 +287,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final byte[] randomBytes = randomBytes();
         BytesReference bytes = builder().startObject().field("binary").value(randomBytes).endObject().bytes();
 
-        XContentParser parser = xcontentType().xContent().createParser(bytes);
+        XContentParser parser = createParser(xcontentType().xContent(), bytes);
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "binary");
@@ -309,7 +312,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
         builder.endObject();
 
-        XContentParser parser = xcontentType().xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "bin");
@@ -331,7 +334,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         }
         builder.endObject();
 
-        XContentParser parser = xcontentType().xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "utf8");
@@ -349,7 +352,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         final BytesReference random = new BytesArray(randomBytes());
         XContentBuilder builder = builder().startObject().field("text", new Text(random)).endObject();
 
-        XContentParser parser = xcontentType().xContent().createParser(builder.bytes());
+        XContentParser parser = createParser(xcontentType().xContent(), builder.bytes());
         assertSame(parser.nextToken(), Token.START_OBJECT);
         assertSame(parser.nextToken(), Token.FIELD_NAME);
         assertEquals(parser.currentName(), "text");
@@ -982,6 +985,22 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder().map(map0));
         assertThat(e.getMessage(), containsString("Object has already been built and is self-referencing itself"));
     }
+
+    public void testChecksForDuplicates() throws Exception {
+        assumeTrue("Test only makes sense if XContent parser has strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
+
+        BytesReference bytes = builder()
+                .startObject()
+                    .field("key", 1)
+                    .field("key", 2)
+                .endObject()
+            .bytes();
+
+        JsonParseException pex = expectThrows(JsonParseException.class, () -> createParser(xcontentType().xContent(), bytes).map());
+        assertThat(pex.getMessage(), startsWith("Duplicate field 'key'"));
+    }
+
 
     private static void expectUnclosedException(ThrowingRunnable runnable) {
         IllegalStateException e = expectThrows(IllegalStateException.class, runnable);

@@ -71,7 +71,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                                          IndexScopedSettings indexScopedSettings, IndicesService indicesService) {
         super(settings);
         this.clusterService = clusterService;
-        this.clusterService.add(this);
+        this.clusterService.addListener(this);
         this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;

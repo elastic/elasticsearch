@@ -37,7 +37,6 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -136,8 +135,8 @@ public class RestIndicesStatsAction extends BaseRestHandler {
                     request.paramAsStringArray("fielddata_fields", request.paramAsStringArray("fields", Strings.EMPTY_ARRAY)));
         }
 
-        if (indicesStatsRequest.segments() && request.hasParam("include_segment_file_sizes")) {
-            indicesStatsRequest.includeSegmentFileSizes(true);
+        if (indicesStatsRequest.segments()) {
+            indicesStatsRequest.includeSegmentFileSizes(request.paramAsBoolean("include_segment_file_sizes", false));
         }
 
         return channel -> client.admin().indices().stats(indicesStatsRequest, new RestBuilderListener<IndicesStatsResponse>(channel) {

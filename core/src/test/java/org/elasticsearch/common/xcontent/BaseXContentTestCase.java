@@ -1015,7 +1015,7 @@ public abstract class BaseXContentTestCase extends ESTestCase {
         assertEquals(test1, p.namedObject(Object.class, "test1", null));
         assertEquals(test2, p.namedObject(Object.class, "test2", null));
         assertEquals(test2, p.namedObject(Object.class, "deprecated", null));
-        // TODO when https://github.com/elastic/elasticsearch/pull/22130 is in check the warning
+        assertWarnings("Deprecated field [deprecated] used, expected [test2] instead");
         {
             p.nextToken();
             assertEquals("test", p.namedObject(Object.class, "str", null));

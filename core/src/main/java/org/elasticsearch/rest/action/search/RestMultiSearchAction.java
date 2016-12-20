@@ -82,7 +82,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
     public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex,
                                                   SearchRequestParsers searchRequestParsers,
                                                   ParseFieldMatcher parseFieldMatcher) throws IOException {
-
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
@@ -107,7 +106,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
      * Parses a multi-line {@link RestRequest} body, instanciating a {@link SearchRequest} for each line and applying the given consumer.
      */
     public static void parseMultiLineRequest(RestRequest request, IndicesOptions indicesOptions, boolean allowExplicitIndex,
-                                             BiConsumer<SearchRequest, XContentParser> consumer) throws IOException {
+            BiConsumer<SearchRequest, XContentParser> consumer) throws IOException {
 
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
@@ -153,7 +152,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
             // now parse the action
             if (nextMarker - from > 0) {
-                try (XContentParser parser = xContent.createParser(data.slice(from, nextMarker - from))) {
+                try (XContentParser parser = xContent.createParser(request.getXContentRegistry(), data.slice(from, nextMarker - from))) {
                     Map<String, Object> source = parser.map();
                     for (Map.Entry<String, Object> entry : source.entrySet()) {
                         Object value = entry.getValue();
@@ -187,7 +186,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
                 break;
             }
             BytesReference bytes = data.slice(from, nextMarker - from);
-            try (XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes)) {
+            try (XContentParser parser = XContentFactory.xContent(bytes).createParser(request.getXContentRegistry(), bytes)) {
                 consumer.accept(searchRequest, parser);
             }
             // move pointers

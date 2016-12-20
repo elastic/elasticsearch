@@ -120,7 +120,8 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     QueryShardContext shardContext = suggestion.getShardContext();
                     final ExecutableScript executable = collateScript.apply(vars);
                     final BytesReference querySource = (BytesReference) executable.run();
-                    try (XContentParser parser = XContentFactory.xContent(querySource).createParser(querySource)) {
+                    try (XContentParser parser = XContentFactory.xContent(querySource).createParser(shardContext.getXContentRegistry(),
+                            querySource)) {
                         QueryBuilder innerQueryBuilder = shardContext.newParseContext(parser).parseInnerQueryBuilder();
                         final ParsedQuery parsedQuery = shardContext.toQuery(innerQueryBuilder);
                         collateMatch = Lucene.exists(searcher, parsedQuery.query());

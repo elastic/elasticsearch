@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -108,8 +109,8 @@ public class SearchModuleTests extends ModuleTestCase {
                         GaussDecayFunctionBuilder.PARSER));
             }
         };
-        expectThrows(IllegalArgumentException.class,
-                () -> new SearchModule(Settings.EMPTY, false, singletonList(registersDupeScoreFunction)));
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, singletonList(registersDupeScoreFunction));
+        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(searchModule.getNamedXContents()));
 
         SearchPlugin registersDupeSignificanceHeuristic = new SearchPlugin() {
             @Override

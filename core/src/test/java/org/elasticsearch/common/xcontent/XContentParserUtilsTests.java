@@ -28,7 +28,6 @@ import java.io.IOException;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class XContentParserUtilsTests extends ESTestCase {
-
     public void testEnsureExpectedToken() throws IOException {
         final XContentParser.Token randomToken = randomFrom(XContentParser.Token.values());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{}")) {

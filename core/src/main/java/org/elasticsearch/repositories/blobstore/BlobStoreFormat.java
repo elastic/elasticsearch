@@ -23,6 +23,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -109,10 +110,10 @@ public abstract class BlobStoreFormat<T extends ToXContent> {
     }
 
     protected T read(BytesReference bytes) throws IOException {
-        try (XContentParser parser = XContentHelper.createParser(bytes)) {
+        // EMPTY is safe here because no reader calls namedObject
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, bytes)) {
             T obj = reader.fromXContent(parser, parseFieldMatcher);
             return obj;
-
         }
     }
 

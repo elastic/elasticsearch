@@ -23,6 +23,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
@@ -41,17 +42,19 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     protected final MapperService mapperService;
     protected final ScriptService scriptService;
     protected final IndexSettings indexSettings;
+    private final NamedXContentRegistry xContentRegistry;
     protected final IndicesQueriesRegistry indicesQueriesRegistry;
     protected final Client client;
     protected final IndexReader reader;
     protected final LongSupplier nowInMillis;
 
     public QueryRewriteContext(IndexSettings indexSettings, MapperService mapperService, ScriptService scriptService,
-                               IndicesQueriesRegistry indicesQueriesRegistry, Client client, IndexReader reader,
-                               LongSupplier nowInMillis) {
+            NamedXContentRegistry xContentRegistry, IndicesQueriesRegistry indicesQueriesRegistry, Client client, IndexReader reader,
+            LongSupplier nowInMillis) {
         this.mapperService = mapperService;
         this.scriptService = scriptService;
         this.indexSettings = indexSettings;
+        this.xContentRegistry = xContentRegistry;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.client = client;
         this.reader = reader;
@@ -90,6 +93,13 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
     @Override
     public ParseFieldMatcher getParseFieldMatcher() {
         return this.indexSettings.getParseFieldMatcher();
+    }
+
+    /**
+     * The registry used to build new {@link XContentParser}s. Contains registered named parsers needed to parse the query.
+     */
+    public NamedXContentRegistry getXContentRegistry() {
+        return xContentRegistry;
     }
 
     /**

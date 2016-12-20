@@ -47,8 +47,8 @@ public abstract class AbstractBaseReindexRestHandler<
     private final ClusterService clusterService;
     private final A action;
 
-    protected AbstractBaseReindexRestHandler(Settings settings, SearchRequestParsers searchRequestParsers,
-                                             ClusterService clusterService, A action) {
+    protected AbstractBaseReindexRestHandler(Settings settings, SearchRequestParsers searchRequestParsers, ClusterService clusterService,
+            A action) {
         super(settings);
         this.searchRequestParsers = searchRequestParsers;
         this.clusterService = clusterService;

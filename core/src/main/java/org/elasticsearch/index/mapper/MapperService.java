@@ -383,7 +383,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             MapperUtils.collect(newMapper.mapping().root(), objectMappers, fieldMappers);
             checkFieldUniqueness(newMapper.type(), objectMappers, fieldMappers, fullPathObjectMappers, fieldTypes);
             checkObjectsCompatibility(objectMappers, updateAllTypes, fullPathObjectMappers);
-        checkPartitionedIndexConstraints(newMapper);
+            checkPartitionedIndexConstraints(newMapper);
 
             // update lookup data-structures
             // this will in particular make sure that the merged fields are compatible with other types

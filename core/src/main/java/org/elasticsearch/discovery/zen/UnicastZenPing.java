@@ -311,8 +311,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         final AbstractRunnable pingSender = new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                if (e instanceof AlreadyClosedException) {
-                } else {
+                if (e instanceof AlreadyClosedException == false) {
                     logger.warn("unexpected error while pinging", e);
                 }
             }
@@ -373,34 +372,32 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         }
 
         public List<DiscoveryNode> getSeedNodes() {
-            checkIfClosed();
+            ensureOpen();
             return seedNodes;
         }
 
         public synchronized Connection getConnection(TransportAddress address) {
-            checkIfClosed();
+            ensureOpen();
             return tempConnections.get(address);
         }
 
-        private void checkIfClosed() {
+        private void ensureOpen() {
             if (isClosed()) {
                 throw new AlreadyClosedException("pinging round [" + id + "] is finished");
             }
         }
 
-        public synchronized Connection addConnectionIfNeeded(TransportAddress address, Connection newConnection) {
+        public synchronized void addConnection(TransportAddress address, Connection newConnection) {
             final Connection existing = getConnection(address);
             if (existing == null) {
                 tempConnections.put(address, newConnection);
-                return newConnection;
             } else {
-                IOUtils.closeWhileHandlingException(newConnection);
-                return existing;
+                throw new IllegalArgumentException("connection to [" + address + "] already exists");
             }
         }
 
         public void addPingResponseToCollection(PingResponse pingResponse) {
-            if (pingResponse.node().equals(localNode) == false) {
+            if (localNode.equals(pingResponse.node()) == false) {
                 pingCollection.addPing(pingResponse);
             }
         }
@@ -447,7 +444,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         // dedup by address
         final Map<TransportAddress, DiscoveryNode> uniqueNodesByAddress =
             Stream.concat(pingingRound.getSeedNodes().stream(), nodesFromResponses.stream())
-                .collect(Collectors.toMap(DiscoveryNode::getAddress, n -> n, (n1, n2) -> n1));
+                .collect(Collectors.toMap(DiscoveryNode::getAddress, node -> node, (n1, n2) -> n1));
 
 
         // resolve what we can via the latest cluster state
@@ -475,19 +472,19 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                         // concurrency can still cause disconnects
                         connection = transportService.getConnection(node);
                     } catch (NodeNotConnectedException e) {
-                        // meh
+                        logger.trace("[{}] node [{}] just disconnected, will create a temp connection", pingingRound.id(), node);
                     }
                 } else {
                     connection = pingingRound.getConnection(node.getAddress());
                 }
 
                 if (connection == null) {
-                    logger.trace("[{}] connecting (light) to {}", pingingRound.id(), node);
+                    logger.trace("[{}] temporarily connecting to {}", pingingRound.id(), node);
                     boolean success = false;
                     connection = transportService.openConnection(node, pingingRound.getConnectionProfile());
                     try {
                         transportService.handshake(connection, timeout.millis());
-                        connection = pingingRound.addConnectionIfNeeded(node.getAddress(), connection);
+                        pingingRound.addConnection(node.getAddress(), connection);
                         success = true;
                     } finally {
                         if (success == false) {
@@ -553,10 +550,12 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             @Override
             public void handleResponse(UnicastPingResponse response) {
                 logger.trace("[{}] received response from {}: {}", pingingRound.id(), node, Arrays.toString(response.pingResponses));
-                if (pingingRound.isClosed() == false) {
-                    Arrays.asList(response.pingResponses).forEach(pingingRound::addPingResponseToCollection);
+                if (pingingRound.isClosed()) {
+                    if (logger.isTraceEnabled()) {
+                        logger.trace("[{}] skipping received response from {}. already closed", pingingRound.id(), node);
+                    }
                 } else {
-                    logger.trace("[{}] skipping received response from {}. already closed", pingingRound.id(), node);
+                    Arrays.asList(response.pingResponses).forEach(pingingRound::addPingResponseToCollection);
                 }
             }
 

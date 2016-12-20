@@ -26,10 +26,6 @@ import org.gradle.api.tasks.Input
 class ClustersTask extends DefaultTask {
     List<ClusterTask> clusterTasks = new ArrayList<>()
 
-    ClustersTask() {
-        description = "create a list of cluster"
-    }
-
     @Input
     public void cluster(Closure closure) {
         ClusterTask clusterTask = project.tasks.create('cluster'+ clusterTasks.size(), ClusterTask.class)

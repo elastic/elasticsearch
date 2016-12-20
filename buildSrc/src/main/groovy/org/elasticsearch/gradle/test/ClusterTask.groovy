@@ -29,7 +29,6 @@ class ClusterTask extends DefaultTask {
     List<NodeInfo> nodes
 
     ClusterTask() {
-        description = "create a cluster"
         clusterConfiguration = new ClusterConfiguration(project)
         project.gradle.projectsEvaluated {
             nodes = ClusterFormationTasks.setup(project, this, clusterConfiguration)

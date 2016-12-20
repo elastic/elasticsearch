@@ -32,12 +32,12 @@ public class MultiClusterTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.pluginManager.apply(StandaloneTestBasePlugin)
+        project.pluginManager.apply(RestTestPlugin)
         ClustersTask clustersTask = project.tasks.create('clusters', ClustersTask.class)
-        RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
+        RestIntegTestTask integTest = (RestIntegTestTask) project.tasks.getByName('integTest')
         integTest.cluster.distribution = 'zip' // rest tests should run with the real zip
         integTest.dependsOn(clustersTask)
-        clustersTask.mustRunAfter(project.precommit)
+        // finalized tasks are available after cluster task has been configured
         project.gradle.projectsEvaluated {
             integTest.finalizedBy(clustersTask.finalizedTasks)
         }

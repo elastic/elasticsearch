@@ -87,15 +87,6 @@ public class PrelertMetadata implements MetaData.Custom {
         return schedulers.get(schedulerId);
     }
 
-    public Optional<Scheduler> getSchedulerByJobId(String jobId) {
-        return schedulers.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
-    }
-
-    public Optional<SchedulerStatus> getSchedulerStatusByJobId(String jobId) {
-        Optional<Scheduler> scheduler = getSchedulerByJobId(jobId);
-        return Optional.ofNullable(scheduler.isPresent() ? scheduler.get().getStatus() : null);
-    }
-
     @Override
     public String type() {
         return TYPE;

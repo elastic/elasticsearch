@@ -89,7 +89,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
 
             PrelertMetadata prelertMetadata = client().admin().cluster().prepareState().all().get()
                     .getState().metaData().custom(PrelertMetadata.TYPE);
-            assertThat(prelertMetadata.getSchedulerStatusByJobId(job.getId()).get(), equalTo(SchedulerStatus.STOPPED));
+            assertThat(prelertMetadata.getScheduler(schedulerConfig.getId()).get().getStatus(), equalTo(SchedulerStatus.STOPPED));
         });
     }
 
@@ -143,7 +143,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         assertBusy(() -> {
             PrelertMetadata prelertMetadata = client().admin().cluster().prepareState().all().get()
                     .getState().metaData().custom(PrelertMetadata.TYPE);
-            assertThat(prelertMetadata.getSchedulerStatusByJobId(job.getId()).get(), equalTo(SchedulerStatus.STOPPED));
+            assertThat(prelertMetadata.getScheduler(schedulerConfig.getId()).get().getStatus(), equalTo(SchedulerStatus.STOPPED));
         });
         assertThat(errorHolder.get(), nullValue());
     }
@@ -220,10 +220,10 @@ public class ScheduledJobsIT extends ESIntegTestCase {
                         client.execute(StopSchedulerAction.INSTANCE, new StopSchedulerAction.Request(schedulerId)).get();
                 assertTrue(response.isAcknowledged());
                 assertBusy(() -> {
-                    GetJobsStatsAction.Response r = null;
+                    GetSchedulersStatsAction.Response r = null;
                     try {
-                        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
-                        r = client.execute(GetJobsStatsAction.INSTANCE, request).get();
+                        GetSchedulersStatsAction.Request request = new GetSchedulersStatsAction.Request(jobId);
+                        r = client.execute(GetSchedulersStatsAction.INSTANCE, request).get();
                     } catch (Exception e) {
                         fail();
                     }

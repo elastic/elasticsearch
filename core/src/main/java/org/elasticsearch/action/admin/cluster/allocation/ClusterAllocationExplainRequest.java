@@ -46,22 +46,28 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
         PARSER.declareString(ClusterAllocationExplainRequest::setIndex, new ParseField("index"));
         PARSER.declareInt(ClusterAllocationExplainRequest::setShard, new ParseField("shard"));
         PARSER.declareBoolean(ClusterAllocationExplainRequest::setPrimary, new ParseField("primary"));
-        PARSER.declareString(ClusterAllocationExplainRequest::setCurrentNodeId, new ParseField("currentNodeId"));
+        PARSER.declareString(ClusterAllocationExplainRequest::setCurrentNode, new ParseField("current_node"));
     }
 
+    @Nullable
     private String index;
+    @Nullable
     private Integer shard;
+    @Nullable
     private Boolean primary;
     @Nullable
-    private String currentNodeId;
+    private String currentNode;
     private boolean includeYesDecisions = false;
     private boolean includeDiskInfo = false;
 
+    /**
+     * Create a new allocation explain request to explain any unassigned shard in the cluster.
+     */
     public ClusterAllocationExplainRequest() {
         this.index = null;
         this.shard = null;
         this.primary = null;
-        this.currentNodeId = null;
+        this.currentNode = null;
     }
 
     /**
@@ -71,11 +77,11 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
      *
      * Package private for testing.
      */
-    ClusterAllocationExplainRequest(String index, int shard, boolean primary, @Nullable String currentNodeId) {
+    ClusterAllocationExplainRequest(String index, int shard, boolean primary, @Nullable String currentNode) {
         this.index = index;
         this.shard = shard;
         this.primary = primary;
-        this.currentNodeId = currentNodeId;
+        this.currentNode = currentNode;
     }
 
     @Override
@@ -90,8 +96,6 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
             }
             if (this.primary == null) {
                 validationException = addValidationError("primary must be specified", validationException);
-            } else if (this.primary && this.currentNodeId != null) {
-                validationException = addValidationError("currentNodeId can only be specified for a replica shard", validationException);
             }
         }
         return validationException;
@@ -113,7 +117,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     }
 
     /**
-     * Returns the index name of the shard to explain.
+     * Returns the index name of the shard to explain, or {@code null} to use any unassigned shard (see {@link #useAnyUnassignedShard()}).
      */
     @Nullable
     public String getIndex() {
@@ -129,7 +133,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
     }
 
     /**
-     * Returns the shard id of the shard to explain.
+     * Returns the shard id of the shard to explain, or {@code null} to use any unassigned shard (see {@link #useAnyUnassignedShard()}).
      */
     @Nullable
     public Integer getShard() {
@@ -147,7 +151,8 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
 
     /**
      * Returns {@code true} if explaining the primary shard for the shard id (see {@link #getShard()}),
-     * returns {@code false} if explaining a replica shard copy for the shard id.
+     * {@code false} if explaining a replica shard copy for the shard id, or {@code null} to use any
+     * unassigned shard (see {@link #useAnyUnassignedShard()}).
      */
     @Nullable
     public Boolean isPrimary() {
@@ -156,20 +161,20 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
 
     /**
      * Requests the explain API to explain an already assigned replica shard currently allocated to
-     * the given node id.  This setting only applies to requests where {@link #isPrimary()} is {@code false}.
+     * the given node.  This setting only applies to requests where {@link #isPrimary()} is {@code false}.
      */
-    public ClusterAllocationExplainRequest setCurrentNodeId(String currentNodeId) {
-        this.currentNodeId = currentNodeId;
+    public ClusterAllocationExplainRequest setCurrentNode(String currentNodeId) {
+        this.currentNode = currentNodeId;
         return this;
     }
 
     /**
-     * Returns the node id of the node holding the replica shard to be explained.  Returns {@code null} if
-     * any replica shard can be explained.  This setting only applies to requests where {@link #isPrimary()} is {@code false}.
+     * Returns the node holding the replica shard to be explained.  Returns {@code null} if any replica shard
+     * can be explained.  This setting only applies to requests where {@link #isPrimary()} is {@code false}.
      */
     @Nullable
-    public String getCurrentNodeId() {
-        return currentNodeId;
+    public String getCurrentNode() {
+        return currentNode;
     }
 
     /**
@@ -210,8 +215,8 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
             sb.append("index=").append(index);
             sb.append(",shard=").append(shard);
             sb.append(",primary?=").append(primary);
-            if (currentNodeId != null) {
-                sb.append(",nodeId=").append(currentNodeId);
+            if (currentNode != null) {
+                sb.append(",currentNode=").append(currentNode);
             }
         }
         sb.append(",includeYesDecisions?=").append(includeYesDecisions);
@@ -233,7 +238,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
         this.index = in.readOptionalString();
         this.shard = in.readOptionalVInt();
         this.primary = in.readOptionalBoolean();
-        this.currentNodeId = in.readOptionalString();
+        this.currentNode = in.readOptionalString();
         this.includeYesDecisions = in.readBoolean();
         this.includeDiskInfo = in.readBoolean();
     }
@@ -244,7 +249,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
         out.writeOptionalString(index);
         out.writeOptionalVInt(shard);
         out.writeOptionalBoolean(primary);
-        out.writeOptionalString(currentNodeId);
+        out.writeOptionalString(currentNode);
         out.writeBoolean(includeYesDecisions);
         out.writeBoolean(includeDiskInfo);
     }

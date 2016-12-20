@@ -1022,7 +1022,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             .setIndex("idx").setShard(0).setPrimary(primary)
             .setIncludeYesDecisions(includeYesDecisions)
             .setIncludeDiskInfo(includeDiskInfo)
-            .setCurrentNodeId(nodeId)
+            .setCurrentNode(nodeId)
             .get().getExplanation();
         if (logger.isDebugEnabled()) {
             XContentBuilder builder = JsonXContent.contentBuilder();

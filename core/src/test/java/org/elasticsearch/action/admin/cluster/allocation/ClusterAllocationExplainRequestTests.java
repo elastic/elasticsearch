@@ -40,7 +40,7 @@ public class ClusterAllocationExplainRequestTests extends ESTestCase {
         assertEquals(request.isPrimary(), actual.isPrimary());
         assertEquals(request.includeYesDecisions(), actual.includeYesDecisions());
         assertEquals(request.includeDiskInfo(), actual.includeDiskInfo());
-        assertEquals(request.getCurrentNodeId(), actual.getCurrentNodeId());
+        assertEquals(request.getCurrentNode(), actual.getCurrentNode());
     }
 
 }

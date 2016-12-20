@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
@@ -96,12 +97,55 @@ public class TransportClusterAllocationExplainAction
         final RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, state,
                 clusterInfo, System.nanoTime(), false);
 
+        ShardRouting shardRouting;
+        try {
+            shardRouting = findShardToExplain(request, allocation);
+        } catch (ElasticsearchException | IllegalArgumentException e) {
+            listener.onFailure(e);
+            return;
+        }
+        logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);
+
+        ClusterAllocationExplanation cae = explainShard(shardRouting, allocation,
+            request.includeDiskInfo() ? clusterInfo : null, request.includeYesDecisions(), gatewayAllocator, shardAllocator);
+        listener.onResponse(new ClusterAllocationExplainResponse(cae));
+    }
+
+    // public for testing
+    public static ClusterAllocationExplanation explainShard(ShardRouting shardRouting, RoutingAllocation allocation,
+                                                            ClusterInfo clusterInfo, boolean includeYesDecisions,
+                                                            GatewayAllocator gatewayAllocator, ShardsAllocator shardAllocator) {
+        allocation.setDebugMode(includeYesDecisions ? DebugMode.ON : DebugMode.EXCLUDE_YES_DECISIONS);
+
+        ShardAllocationDecision shardDecision;
+        if (shardRouting.initializing() || shardRouting.relocating()) {
+            shardDecision = ShardAllocationDecision.NOT_TAKEN;
+        } else {
+            AllocateUnassignedDecision allocateDecision = shardRouting.unassigned() ?
+                gatewayAllocator.decideUnassignedShardAllocation(shardRouting, allocation) : AllocateUnassignedDecision.NOT_TAKEN;
+            if (allocateDecision.isDecisionTaken() == false) {
+                shardDecision = shardAllocator.decideShardAllocation(shardRouting, allocation);
+            } else {
+                shardDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
+            }
+        }
+
+        return new ClusterAllocationExplanation(shardRouting,
+            shardRouting.currentNodeId() != null ? allocation.nodes().get(shardRouting.currentNodeId()) : null,
+            clusterInfo, shardDecision);
+    }
+
+    // public for testing
+    public static ShardRouting findShardToExplain(ClusterAllocationExplainRequest request, RoutingAllocation allocation) {
         ShardRouting foundShard = null;
         if (request.useAnyUnassignedShard()) {
             // If we can use any shard, just pick the first unassigned one (if there are any)
-            RoutingNodes.UnassignedShards.UnassignedIterator ui = routingNodes.unassigned().iterator();
+            RoutingNodes.UnassignedShards.UnassignedIterator ui = allocation.routingNodes().unassigned().iterator();
             if (ui.hasNext()) {
                 foundShard = ui.next();
+            }
+            if (foundShard == null) {
+                throw new ElasticsearchException("unable to find any unassigned shards to explain [{}]", request);
             }
         } else {
             String index = request.getIndex();
@@ -109,21 +153,31 @@ public class TransportClusterAllocationExplainAction
             if (request.isPrimary()) {
                 // If we're looking for the primary shard, there's only one copy, so pick it directly
                 foundShard = allocation.routingTable().shardRoutingTable(index, shard).primaryShard();
+                if (request.getCurrentNode() != null) {
+                    DiscoveryNode primaryNode = allocation.nodes().resolveNode(request.getCurrentNode());
+                    // the primary is assigned to a node other than the node specified in the request
+                    if (primaryNode.getId().equals(foundShard.currentNodeId()) == false) {
+                        throw new ElasticsearchException("unable to find primary shard assigned to node [{}]", request.getCurrentNode());
+                    }
+                }
             } else {
                 // If looking for a replica, go through all the replica shards
                 List<ShardRouting> replicaShardRoutings = allocation.routingTable().shardRoutingTable(index, shard).replicaShards();
-                if (replicaShardRoutings.size() > 0) {
-                    final String replicaNodeId = request.getCurrentNodeId();
-                    if (replicaNodeId != null) {
-                        // the request is to explain a replica shard already assigned on a particular node,
-                        // so find that shard copy
-                        for (ShardRouting replica : replicaShardRoutings) {
-                            if (replicaNodeId.equals(replica.currentNodeId())) {
-                                foundShard = replica;
-                                break;
-                            }
+                if (request.getCurrentNode() != null) {
+                    // the request is to explain a replica shard already assigned on a particular node,
+                    // so find that shard copy
+                    DiscoveryNode replicaNode = allocation.nodes().resolveNode(request.getCurrentNode());
+                    for (ShardRouting replica : replicaShardRoutings) {
+                        if (replicaNode.getId().equals(replica.currentNodeId())) {
+                            foundShard = replica;
+                            break;
                         }
-                    } else {
+                    }
+                    if (foundShard == null) {
+                        throw new ElasticsearchException("unable to find a replica shard assigned to node [{}]", request.getCurrentNode());
+                    }
+                } else {
+                    if (replicaShardRoutings.size() > 0) {
                         // Pick the first replica at the very least
                         foundShard = replicaShardRoutings.get(0);
                         for (ShardRouting replica : replicaShardRoutings) {
@@ -144,37 +198,8 @@ public class TransportClusterAllocationExplainAction
         }
 
         if (foundShard == null) {
-            listener.onFailure(new ElasticsearchException("unable to find any shards to explain [{}] in the routing table", request));
-            return;
+            throw new ElasticsearchException("unable to find any shards to explain [{}] in the routing table", request);
         }
-        final ShardRouting shardRouting = foundShard;
-        logger.debug("explaining the allocation for [{}], found shard [{}]", request, shardRouting);
-
-        ClusterAllocationExplanation cae = explainShard(shardRouting, allocation,
-            request.includeDiskInfo() ? clusterInfo : null, request.includeYesDecisions(), gatewayAllocator, shardAllocator);
-        listener.onResponse(new ClusterAllocationExplainResponse(cae));
-    }
-
-    public static ClusterAllocationExplanation explainShard(ShardRouting shardRouting, RoutingAllocation allocation,
-                                                            ClusterInfo clusterInfo, boolean includeYesDecisions,
-                                                            GatewayAllocator gatewayAllocator, ShardsAllocator shardAllocator) {
-        allocation.setDebugMode(includeYesDecisions ? DebugMode.ON : DebugMode.EXCLUDE_YES_DECISIONS);
-
-        ShardAllocationDecision shardDecision;
-        if (shardRouting.initializing() || shardRouting.relocating()) {
-            shardDecision = ShardAllocationDecision.notTaken();
-        } else {
-            AllocateUnassignedDecision allocateDecision = shardRouting.unassigned() ?
-                gatewayAllocator.decideUnassignedShardAllocation(shardRouting, allocation) : AllocateUnassignedDecision.NOT_TAKEN;
-            if (allocateDecision.isDecisionTaken() == false) {
-                shardDecision = shardAllocator.decideShardAllocation(shardRouting, allocation);
-            } else {
-                shardDecision = new ShardAllocationDecision(allocateDecision, MoveDecision.NOT_TAKEN);
-            }
-        }
-
-        return new ClusterAllocationExplanation(shardRouting,
-            shardRouting.currentNodeId() != null ? allocation.nodes().get(shardRouting.currentNodeId()) : null,
-            clusterInfo, shardDecision);
+        return foundShard;
     }
 }

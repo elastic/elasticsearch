@@ -66,11 +66,11 @@ public class ClusterAllocationExplainRequestBuilder
 
     /**
      * Requests the explain API to explain an already assigned replica shard currently allocated to
-     * the given node id.  This setting only applies to requests where {@link #setPrimary(boolean)}
+     * the given node.  This setting only applies to requests where {@link #setPrimary(boolean)}
      * is {@code false}.
      */
-    public ClusterAllocationExplainRequestBuilder setCurrentNodeId(String currentNodeId) {
-        request.setCurrentNodeId(currentNodeId);
+    public ClusterAllocationExplainRequestBuilder setCurrentNode(String currentNode) {
+        request.setCurrentNode(currentNode);
         return this;
     }
 

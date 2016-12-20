@@ -41,7 +41,7 @@ import java.io.IOException;
  * objects whose {@code isDecisionTaken()} method returns {@code false}.
  */
 public final class ShardAllocationDecision implements ToXContent, Writeable {
-    private static final ShardAllocationDecision NOT_TAKEN =
+    public static final ShardAllocationDecision NOT_TAKEN =
         new ShardAllocationDecision(AllocateUnassignedDecision.NOT_TAKEN, MoveDecision.NOT_TAKEN);
 
     private final AllocateUnassignedDecision allocateDecision;
@@ -62,10 +62,6 @@ public final class ShardAllocationDecision implements ToXContent, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         allocateDecision.writeTo(out);
         moveDecision.writeTo(out);
-    }
-
-    public static ShardAllocationDecision notTaken() {
-        return NOT_TAKEN;
     }
 
     /**

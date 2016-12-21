@@ -106,4 +106,115 @@ NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines
       using this processor in a dedicated ingest node.
       
-NOTE: To process an array of attachments the {ref}/foreach-processor.html[foreach processor] is required.
+[[ingest-attachment-with-arrays]]
+==== Using the Attachment Processor with arrays
+
+To use the attachment processor within an array of attachments the
+{ref}/foreach-processor.html[foreach processor] is required. This
+enables the attachment processor to be run on the individual elements
+of the array.
+
+For example, given the following source:
+
+[source,js]
+--------------------------------------------------
+{
+  "attachments" : [
+    {
+      "filename" : "ipsum.txt",
+      "data" : "dGhpcyBpcwpqdXN0IHNvbWUgdGV4dAo="
+    },
+    {
+      "filename" : "test.txt",
+      "data" : "VGhpcyBpcyBhIHRlc3QK"
+    }
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+In this case, we want to process the data field in each element
+of the attachments field and insert
+the properties into the document so the following `foreach`
+processor is used:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/attachment
+{
+  "description" : "Extract attachment information from arrays",
+  "processors" : [
+    {
+      "foreach": {
+        "field": "attachments",
+        "processor": {
+          "attachment": {
+            "target_field": "_ingest._value.attachment",
+            "field": "_ingest._value.data"
+          }
+        }
+      }
+    }
+  ]
+}
+PUT my_index/my_type/my_id?pipeline=attachment
+{
+  "attachments" : [
+    {
+      "filename" : "ipsum.txt",
+      "data" : "dGhpcyBpcwpqdXN0IHNvbWUgdGV4dAo="
+    },
+    {
+      "filename" : "test.txt",
+      "data" : "VGhpcyBpcyBhIHRlc3QK"
+    }
+  ]
+}
+GET my_index/my_type/my_id
+--------------------------------------------------
+// CONSOLE
+
+Returns this:
+[source,js]
+--------------------------------------------------
+{
+  "_index" : "my_index",
+  "_type" : "my_type",
+  "_id" : "my_id",
+  "_version" : 1,
+  "found" : true,
+  "_source" : {
+    "attachments" : [
+      {
+        "filename" : "ipsum.txt",
+        "data" : "dGhpcyBpcwpqdXN0IHNvbWUgdGV4dAo=",
+        "attachment" : {
+          "content_type" : "text/plain; charset=ISO-8859-1",
+          "language" : "en",
+          "content" : "this is\njust some text",
+          "content_length" : 24
+        }
+      },
+      {
+        "filename" : "test.txt",
+        "data" : "VGhpcyBpcyBhIHRlc3QK",
+        "attachment" : {
+          "content_type" : "text/plain; charset=ISO-8859-1",
+          "language" : "en",
+          "content" : "This is a test",
+          "content_length" : 16
+        }
+      }
+    ]
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE
+
+
+Note that the `target_field` needs to be set, otherwise the
+default value is used which is a top level field `attachment`. The
+properties on this top level field will contain the value of the
+first attachment only. However, by specifying the
+`target_field` on to a value on `_ingest._value` it will correctly
+associate the properties with the correct attachment.

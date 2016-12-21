@@ -33,7 +33,9 @@ import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -79,19 +81,42 @@ public class RecoveriesCollection {
      * Resets the recovery and performs a recovery restart on the currently recovering index shard
      *
      * @see IndexShard#performRecoveryRestart()
+     * @return newly created RecoveryTarget
      */
-    public void resetRecovery(long id, ShardId shardId) throws IOException {
-        try (RecoveryRef ref = getRecoverySafe(id, shardId)) {
-            // instead of adding complicated state to RecoveryTarget we just flip the
-            // target instance when we reset a recovery, that way we have only one cleanup
-            // path on the RecoveryTarget and are always within the bounds of ref-counting
-            // which is important since we verify files are on disk etc. after we have written them etc.
-            RecoveryTarget status = ref.status();
-            RecoveryTarget resetRecovery = status.resetRecovery();
-            if (onGoingRecoveries.replace(id, status, resetRecovery) == false) {
-                resetRecovery.cancel("replace failed"); // this is important otherwise we leak a reference to the store
-                throw new IllegalStateException("failed to replace recovery target");
+    public RecoveryTarget resetRecovery(final RecoveryRef recoveryRef, TimeValue retryCleanupTimeout,
+                                        StartRecoveryRequest currentRequest) {
+        long id = recoveryRef.status().recoveryId();
+        ShardId shardId = recoveryRef.status().shardId();
+
+        RecoveryTarget oldRecoveryTarget = null;
+        RecoveryTarget newRecoveryTarget = null;
+
+        try {
+            synchronized (onGoingRecoveries) {
+                // swap recovery targets in a synchronized block to ensure that the newly added recovery target is picked up by
+                // cancelRecoveriesForShard whenever the old recovery target is picked up
+                oldRecoveryTarget = onGoingRecoveries.remove(id);
+                if (oldRecoveryTarget == null) {
+                    return null;
+                }
+                assert recoveryRef.status() == oldRecoveryTarget : "recovery target not the one we were expecting";
+                assert oldRecoveryTarget.shardId().equals(shardId) :
+                    "shard id mismatch, expected " + shardId + " but was " + oldRecoveryTarget.shardId();
+
+                newRecoveryTarget = oldRecoveryTarget.retryCopy();
+                RecoveryTarget existingTarget = onGoingRecoveries.putIfAbsent(newRecoveryTarget.recoveryId(), newRecoveryTarget);
+                assert existingTarget == null : "found two RecoveryTarget instances with the same id";
             }
+
+            recoveryRef.close(); // close the reference held by RecoveryRunner
+            oldRecoveryTarget.resetRecovery(retryCleanupTimeout); // Closes the current recovery target
+
+            logger.trace("{} restarted recovery from {}, id [{}]", shardId, oldRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId());
+            return newRecoveryTarget;
+        } catch (Exception e) {
+            // fail shard to be safe
+            oldRecoveryTarget.notifyListener(new RecoveryFailedException(currentRequest, "failed to retry recovery", e), true);
+            return null;
         }
     }
 
@@ -143,7 +168,8 @@ public class RecoveriesCollection {
     public void failRecovery(long id, RecoveryFailedException e, boolean sendShardFailure) {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         if (removed != null) {
-            logger.trace("{} failing recovery from {}, id [{}]. Send shard failure: [{}]", removed.shardId(), removed.sourceNode(), removed.recoveryId(), sendShardFailure);
+            logger.trace("{} failing recovery from {}, id [{}]. Send shard failure: [{}]", removed.shardId(), removed.sourceNode(),
+                removed.recoveryId(), sendShardFailure);
             removed.fail(e, sendShardFailure);
         }
     }
@@ -171,10 +197,21 @@ public class RecoveriesCollection {
      */
     public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
         boolean cancelled = false;
-        for (RecoveryTarget status : onGoingRecoveries.values()) {
-            if (status.shardId().equals(shardId)) {
-                cancelled |= cancelRecovery(status.recoveryId(), reason);
+        List<RecoveryTarget> matchedRecoveries = new ArrayList<>();
+        synchronized (onGoingRecoveries) {
+            for (Iterator<RecoveryTarget> it = onGoingRecoveries.values().iterator(); it.hasNext(); ) {
+                RecoveryTarget status = it.next();
+                if (status.shardId().equals(shardId)) {
+                    matchedRecoveries.add(status);
+                    it.remove();
+                }
             }
+        }
+        for (RecoveryTarget removed : matchedRecoveries) {
+            logger.trace("{} canceled recovery from {}, id [{}] (reason [{}])",
+                removed.shardId(), removed.sourceNode(), removed.recoveryId(), reason);
+            removed.cancel(reason);
+            cancelled = true;
         }
         return cancelled;
     }

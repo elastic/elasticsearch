@@ -48,6 +48,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryRef;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -139,30 +140,30 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
     }
 
-    protected void retryRecovery(final RecoveryTarget recoveryTarget, final Throwable reason, TimeValue retryAfter, final
-    StartRecoveryRequest currentRequest) {
+    protected void retryRecovery(final RecoveryRef recoveryRef, final Throwable reason, TimeValue retryAfter,
+                                 TimeValue retryCleanupTimeout, final StartRecoveryRequest currentRequest) {
         logger.trace(
             (Supplier<?>) () -> new ParameterizedMessage(
-                "will retry recovery with id [{}] in [{}]", recoveryTarget.recoveryId(), retryAfter), reason);
-        retryRecovery(recoveryTarget, retryAfter, currentRequest);
+                "will retry recovery with id [{}] in [{}]", recoveryRef.status().recoveryId(), retryAfter), reason);
+        retryRecovery(recoveryRef, retryAfter, retryCleanupTimeout, currentRequest);
     }
 
-    protected void retryRecovery(final RecoveryTarget recoveryTarget, final String reason, TimeValue retryAfter, final
-    StartRecoveryRequest currentRequest) {
-        logger.trace("will retry recovery with id [{}] in [{}] (reason [{}])", recoveryTarget.recoveryId(), retryAfter, reason);
-        retryRecovery(recoveryTarget, retryAfter, currentRequest);
+    protected void retryRecovery(final RecoveryRef recoveryRef, final String reason, TimeValue retryAfter,
+                                 TimeValue retryCleanupTimeout, final StartRecoveryRequest currentRequest) {
+        logger.trace("will retry recovery with id [{}] in [{}] (reason [{}])", recoveryRef.status().recoveryId(), retryAfter, reason);
+        retryRecovery(recoveryRef, retryAfter, retryCleanupTimeout, currentRequest);
     }
 
-    private void retryRecovery(final RecoveryTarget recoveryTarget, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
-        try {
-            onGoingRecoveries.resetRecovery(recoveryTarget.recoveryId(), recoveryTarget.shardId());
-        } catch (Exception e) {
-            onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(currentRequest, e), true);
+    private void retryRecovery(final RecoveryRef recoveryRef, TimeValue retryAfter, TimeValue retryCleanupTimeout,
+                               final StartRecoveryRequest currentRequest) {
+        RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryRef, retryCleanupTimeout, currentRequest);
+        if (newTarget != null) {
+            threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.recoveryId()));
         }
-        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryTarget.recoveryId()));
     }
 
-    private void doRecovery(final RecoveryTarget recoveryTarget) {
+    private void doRecovery(final RecoveryRef recoveryRef) {
+        RecoveryTarget recoveryTarget = recoveryRef.status();
         assert recoveryTarget.sourceNode() != null : "can't do a recovery without a source node";
 
         logger.trace("collecting local files for {}", recoveryTarget);
@@ -265,19 +266,22 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             if (cause instanceof IllegalIndexShardStateException || cause instanceof IndexNotFoundException || cause instanceof
                     ShardNotFoundException) {
                 // if the target is not ready yet, retry
-                retryRecovery(recoveryTarget, "remote shard not ready", recoverySettings.retryDelayStateSync(), request);
+                retryRecovery(recoveryRef, "remote shard not ready", recoverySettings.retryDelayStateSync(),
+                    recoverySettings.retryCleanupTimeout(), request);
                 return;
             }
 
             if (cause instanceof DelayRecoveryException) {
-                retryRecovery(recoveryTarget, cause, recoverySettings.retryDelayStateSync(), request);
+                retryRecovery(recoveryRef, cause, recoverySettings.retryDelayStateSync(),
+                    recoverySettings.retryCleanupTimeout(), request);
                 return;
             }
 
             if (cause instanceof ConnectTransportException) {
                 logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", recoveryTarget.shardId(), recoverySettings
                         .retryDelayNetwork(), cause.getMessage());
-                retryRecovery(recoveryTarget, cause.getMessage(), recoverySettings.retryDelayNetwork(), request);
+                retryRecovery(recoveryRef, cause.getMessage(), recoverySettings.retryDelayNetwork(),
+                    recoverySettings.retryCleanupTimeout(), request);
                 return;
             }
 
@@ -300,7 +304,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
                 recoveryRef.status().prepareForTranslogOperations(request.totalTranslogOps(), request.getMaxUnsafeAutoIdTimestamp());
             }
@@ -312,7 +316,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef =
+            try (RecoveryRef recoveryRef =
                      onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 recoveryRef.status().finalizeRecovery(request.globalCheckpoint());
             }
@@ -324,7 +328,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryWaitForClusterStateRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
                 recoveryRef.status().ensureClusterStateVersion(request.clusterStateVersion());
             }
@@ -336,7 +340,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(final RecoveryTranslogOperationsRequest request, final TransportChannel channel) throws IOException {
-            try (RecoveriesCollection.RecoveryRef recoveryRef =
+            try (RecoveryRef recoveryRef =
                          onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId())) {
                 final ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, threadPool.getThreadContext());
                 final RecoveryTarget recoveryTarget = recoveryRef.status();
@@ -443,7 +447,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
                 recoveryRef.status().receiveFileInfo(request.phase1FileNames, request.phase1FileSizes, request.phase1ExistingFileNames,
                         request.phase1ExistingFileSizes, request.totalTranslogOps);
@@ -456,7 +460,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
                 recoveryRef.status().cleanFiles(request.totalTranslogOps(), request.sourceMetaSnapshot());
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -471,7 +475,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel) throws Exception {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
                 final RecoveryTarget status = recoveryRef.status();
                 final RecoveryState.Index indexState = status.state().getIndex();
@@ -509,7 +513,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void onFailure(Exception e) {
-            try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
+            try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
                 if (recoveryRef != null) {
                     logger.error(
                         (Supplier<?>) () -> new ParameterizedMessage(
@@ -528,13 +532,13 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         @Override
         public void doRun() {
-            RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId);
+            RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId);
             if (recoveryRef == null) {
                 logger.trace("not running recovery with id [{}] - can't find it (probably finished)", recoveryId);
                 return;
             }
             try {
-                doRecovery(recoveryRef.status());
+                doRecovery(recoveryRef);
             } finally {
                 recoveryRef.close();
             }

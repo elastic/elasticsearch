@@ -1067,7 +1067,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
     private XContentParser getParser(ClusterAllocationExplanation explanation) throws IOException {
         XContentBuilder builder = JsonXContent.contentBuilder();
-        return JsonXContent.jsonXContent.createParser(explanation.toXContent(builder, ToXContent.EMPTY_PARAMS).string());
+        return createParser(explanation.toXContent(builder, ToXContent.EMPTY_PARAMS));
     }
 
     private void verifyShardInfo(XContentParser parser, boolean primary, boolean includeDiskInfo, ShardRoutingState state)

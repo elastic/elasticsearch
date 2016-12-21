@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -43,6 +44,11 @@ public class QueryParseContextTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         xContentRegistry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents());
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        xContentRegistry = null;
     }
 
     private ThreadContext threadContext;

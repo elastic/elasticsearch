@@ -460,7 +460,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
         // dedup by address
         final Map<TransportAddress, DiscoveryNode> uniqueNodesByAddress =
             Stream.concat(pingingRound.getSeedNodes().stream(), nodesFromResponses.stream())
-                .collect(Collectors.toMap(DiscoveryNode::getAddress, node -> node, (n1, n2) -> n1));
+                .collect(Collectors.toMap(DiscoveryNode::getAddress, Function.identity(), (n1, n2) -> n1));
 
 
         // resolve what we can via the latest cluster state
@@ -558,7 +558,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                         logger.trace("[{}] skipping received response from {}. already closed", pingingRound.id(), node);
                     }
                 } else {
-                    Arrays.asList(response.pingResponses).forEach(pingingRound::addPingResponseToCollection);
+                    Stream.of(response.pingResponses).forEach(pingingRound::addPingResponseToCollection);
                 }
             }
 

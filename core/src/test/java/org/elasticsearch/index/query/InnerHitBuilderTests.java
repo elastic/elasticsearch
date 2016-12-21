@@ -22,13 +22,13 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchModule;
@@ -62,19 +62,24 @@ public class InnerHitBuilderTests extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static NamedXContentRegistry xContentRegistry;
 
     @BeforeClass
     public static void init() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
-        indicesQueriesRegistry = null;
+        xContentRegistry = null;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 
     public void testSerialization() throws Exception {
@@ -98,7 +103,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             }
 
             XContentParser parser = createParser(shuffled);
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+            QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
             InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(context);
             assertThat(innerHit, not(sameInstance(secondInnerHits)));
             assertThat(innerHit, equalTo(secondInnerHits));

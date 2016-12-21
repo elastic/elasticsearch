@@ -240,7 +240,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
-                null, xContentRegistry(), null, null, null, () -> nowInMillis);
+                null, xContentRegistry(), null, null, () -> nowInMillis);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .field("date_detection", false)
                 .startObject("properties").startObject("date_field").field("type", "date").field("format", "HH:mm:ss").endObject().endObject()
@@ -267,7 +267,7 @@ public class LegacyDateFieldMapperTests extends ESSingleNodeTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
-                null, xContentRegistry(), null, null, null, () -> nowInMillis);
+                null, xContentRegistry(), null, null, () -> nowInMillis);
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .field("date_detection", false)
                 .startObject("properties").startObject("date_field").field("type", "date").field("format", "MMM dd HH:mm:ss").endObject().endObject()

@@ -65,7 +65,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.ScriptEngineRegistry;
 import org.elasticsearch.script.ScriptService;
@@ -111,7 +110,6 @@ public class IndexModuleTests extends ESTestCase {
     private CircuitBreakerService circuitBreakerService;
     private BigArrays bigArrays;
     private ScriptService scriptService;
-    private IndicesQueriesRegistry indicesQueriesRegistry;
     private ClusterService clusterService;
 
     @Override
@@ -131,7 +129,6 @@ public class IndexModuleTests extends ESTestCase {
         ScriptSettings scriptSettings = new ScriptSettings(scriptEngineRegistry, scriptContextRegistry);
         scriptService = new ScriptService(settings, environment, new ResourceWatcherService(settings, threadPool), scriptEngineRegistry,
                 scriptContextRegistry, scriptSettings);
-        indicesQueriesRegistry = new IndicesQueriesRegistry();
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         nodeEnvironment = new NodeEnvironment(settings, environment);
         mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
@@ -146,7 +143,7 @@ public class IndexModuleTests extends ESTestCase {
 
     private IndexService newIndexService(IndexModule module) throws IOException {
         return module.newIndexService(nodeEnvironment, xContentRegistry(), deleter, circuitBreakerService, bigArrays, threadPool,
-                scriptService, indicesQueriesRegistry, clusterService, null, indicesQueryCache, mapperRegistry,
+                scriptService, clusterService, null, indicesQueryCache, mapperRegistry,
                 new IndicesFieldDataCache(settings, listener));
     }
 

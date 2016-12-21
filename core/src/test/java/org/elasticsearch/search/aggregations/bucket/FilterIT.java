@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -128,7 +127,7 @@ public class FilterIT extends ESIntegTestCase {
     public void testEmptyFilter() throws Exception {
         String emtpyFilterBody = "{ }";
         XContentParser parser = createParser(JsonXContent.jsonXContent, emtpyFilterBody);
-        QueryParseContext parseContext = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext parseContext = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
         AggregationBuilder filterAgg = FilterAggregationBuilder.parse("tag1", parseContext);
 
         SearchResponse response = client().prepareSearch("idx").addAggregation(filterAgg).execute().actionGet();

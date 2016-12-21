@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude.OrdinalsFilter;
@@ -43,9 +42,7 @@ import java.util.Collections;
 import java.util.TreeSet;
 
 public class IncludeExcludeTests extends ESTestCase {
-    
     private final ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.STRICT;
-    private final IndicesQueriesRegistry queriesRegistry = new IndicesQueriesRegistry();    
 
     public void testEmptyTermsWithOrds() throws IOException {
         IncludeExclude inexcl = new IncludeExclude(
@@ -237,7 +234,7 @@ public class IncludeExcludeTests extends ESTestCase {
         assertEquals(field.getPreferredName(), parser.currentName());
         token = parser.nextToken();
 
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
         if (field.getPreferredName().equalsIgnoreCase("include")) {
             return IncludeExclude.parseInclude(parser, parseContext);
         } else if (field.getPreferredName().equalsIgnoreCase("exclude")) {
@@ -277,7 +274,7 @@ public class IncludeExcludeTests extends ESTestCase {
         builder.endObject();
 
         XContentParser parser = createParser(builder);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
         XContentParser.Token token = parser.nextToken();
         assertEquals(token, XContentParser.Token.START_OBJECT);
 

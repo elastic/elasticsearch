@@ -70,7 +70,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     private void assertParseSearchSource(SearchSourceBuilder testBuilder, XContentParser parser, ParseFieldMatcher pfm)
             throws IOException {
-        QueryParseContext parseContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, pfm);
+        QueryParseContext parseContext = new QueryParseContext(parser, pfm);
         if (randomBoolean()) {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to
                                 // test the embedded case
@@ -83,7 +83,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private QueryParseContext createParseContext(XContentParser parser) {
-        return new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);
+        return new QueryParseContext(parser, ParseFieldMatcher.STRICT);
     }
 
     public void testSerialization() throws IOException {

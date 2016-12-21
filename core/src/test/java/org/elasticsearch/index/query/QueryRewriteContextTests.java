@@ -23,10 +23,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptSettings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
@@ -34,6 +34,10 @@ import org.elasticsearch.test.ESTestCase;
 import static java.util.Collections.emptyList;
 
 public class QueryRewriteContextTests extends ESTestCase {
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents());
+    }
 
     public void testNewParseContextWithLegacyScriptLanguage() throws Exception {
         String defaultLegacyScriptLanguage = randomAsciiOfLength(4);
@@ -43,11 +47,10 @@ public class QueryRewriteContextTests extends ESTestCase {
                 .put("index.number_of_replicas", 1)
         );
         final long nowInMills = randomPositiveLong();
-        IndicesQueriesRegistry indicesQueriesRegistry = new SearchModule(Settings.EMPTY, false, emptyList()).getQueryParserRegistry();
         IndexSettings indexSettings = new IndexSettings(indexMetadata.build(),
                 Settings.builder().put(ScriptSettings.LEGACY_SCRIPT_SETTING, defaultLegacyScriptLanguage).build());
         QueryRewriteContext queryRewriteContext = new QueryRewriteContext(indexSettings, null, null, xContentRegistry(),
-                indicesQueriesRegistry, null, null, () -> nowInMills);
+                null, null, () -> nowInMills);
 
         // verify that the default script language in the query parse context is equal to defaultLegacyScriptLanguage variable:
         QueryParseContext queryParseContext = queryRewriteContext

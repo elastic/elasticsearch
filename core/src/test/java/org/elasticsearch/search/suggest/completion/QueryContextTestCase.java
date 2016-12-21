@@ -20,13 +20,11 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -52,7 +50,7 @@ public abstract class QueryContextTestCase<QC extends ToXContent> extends ESTest
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentParser parser = createParser(builder);
             parser.nextToken();
-            QC fromXContext = fromXContent(new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT));
+            QC fromXContext = fromXContent(new QueryParseContext(parser, ParseFieldMatcher.STRICT));
             assertEquals(toXContent, fromXContext);
             assertEquals(toXContent.hashCode(), fromXContext.hashCode());
         }

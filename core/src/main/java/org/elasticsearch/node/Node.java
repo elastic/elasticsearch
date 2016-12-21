@@ -95,7 +95,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -380,7 +379,7 @@ public class Node implements Closeable {
                     ).flatMap(Function.identity()).collect(toList()));
             final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment);
             final IndicesService indicesService = new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry,
-                settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(), searchModule.getQueryParserRegistry(),
+                settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(),
                 clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                 threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptModule.getScriptService(),
                 clusterService, client, metaStateService);
@@ -418,7 +417,6 @@ public class Node implements Closeable {
             final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService,
                 networkService, clusterService, pluginsService.filterPlugins(DiscoveryPlugin.class));
             modules.add(b -> {
-                    b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());
                     b.bind(SearchRequestParsers.class).toInstance(searchModule.getSearchRequestParsers());
                     b.bind(SearchExtRegistry.class).toInstance(searchModule.getSearchExtRegistry());
                     b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);

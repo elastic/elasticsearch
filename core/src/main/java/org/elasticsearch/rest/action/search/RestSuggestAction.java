@@ -72,7 +72,7 @@ public class RestSuggestAction extends BaseRestHandler {
                 Strings.splitStringByCommaToArray(request.param("index")), new SearchSourceBuilder());
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            final QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
+            final QueryParseContext context = new QueryParseContext(parser, parseFieldMatcher);
             searchRequest.source().suggest(SuggestBuilder.fromXContent(context, searchRequestParsers.suggesters));
         }
         searchRequest.routing(request.param("routing"));

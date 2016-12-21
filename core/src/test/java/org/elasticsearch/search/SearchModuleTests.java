@@ -19,19 +19,15 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
@@ -69,13 +65,17 @@ import org.elasticsearch.search.suggest.term.TermSuggester;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
 public class SearchModuleTests extends ModuleTestCase {
@@ -106,8 +106,8 @@ public class SearchModuleTests extends ModuleTestCase {
                         GaussDecayFunctionBuilder.PARSER));
             }
         };
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, singletonList(registersDupeScoreFunction));
-        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(searchModule.getNamedXContents()));
+        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(
+                new SearchModule(Settings.EMPTY, false, singletonList(registersDupeScoreFunction)).getNamedXContents()));
 
         SearchPlugin registersDupeSignificanceHeuristic = new SearchPlugin() {
             @Override
@@ -141,8 +141,8 @@ public class SearchModuleTests extends ModuleTestCase {
                 return singletonList(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeQuery)));
+        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(
+                new SearchModule(Settings.EMPTY, false, singletonList(registersDupeQuery)).getNamedXContents()));
 
         SearchPlugin registersDupeAggregation = new SearchPlugin() {
             public List<AggregationSpec> getAggregations() {
@@ -197,23 +197,22 @@ public class SearchModuleTests extends ModuleTestCase {
     }
 
     public void testRegisteredQueries() throws IOException {
-        SearchModule module = new SearchModule(Settings.EMPTY, false, emptyList());
         List<String> allSupportedQueries = new ArrayList<>();
         Collections.addAll(allSupportedQueries, NON_DEPRECATED_QUERIES);
         Collections.addAll(allSupportedQueries, DEPRECATED_QUERIES);
-        String[] supportedQueries = allSupportedQueries.toArray(new String[allSupportedQueries.size()]);
-        assertThat(module.getQueryParserRegistry().getNames(), containsInAnyOrder(supportedQueries));
+        SearchModule module = new SearchModule(Settings.EMPTY, false, emptyList());
 
-        IndicesQueriesRegistry indicesQueriesRegistry = module.getQueryParserRegistry();
-        XContentParser dummyParser = createParser(JsonXContent.jsonXContent, new BytesArray("{}"));
-        for (String queryName : supportedQueries) {
-            indicesQueriesRegistry.lookup(queryName, ParseFieldMatcher.EMPTY, dummyParser.getTokenLocation());
-        }
-        assertWarnings("Deprecated field [fuzzy_match] used, expected [match] instead",
-                "Deprecated field [geo_bbox] used, expected [geo_bounding_box] instead",
-                "Deprecated field [in] used, expected [terms] instead",
-                "Deprecated field [match_fuzzy] used, expected [match] instead",
-                "Deprecated field [mlt] used, expected [more_like_this] instead");
+        Set<String> registeredNonDeprecated = module.getNamedXContents().stream()
+                .filter(e -> e.categoryClass.equals(Optional.class))
+                .map(e -> e.name.getPreferredName())
+                .collect(toSet());
+        Set<String> registeredAll = module.getNamedXContents().stream()
+                .filter(e -> e.categoryClass.equals(Optional.class))
+                .flatMap(e -> Arrays.stream(e.name.getAllNamesIncludedDeprecated()))
+                .collect(toSet());
+
+        assertThat(registeredNonDeprecated, containsInAnyOrder(NON_DEPRECATED_QUERIES));
+        assertThat(registeredAll, containsInAnyOrder(allSupportedQueries.toArray(new String[0])));
     }
 
     public void testRegisterAggregation() {

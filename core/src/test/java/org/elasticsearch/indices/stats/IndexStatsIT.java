@@ -21,16 +21,20 @@ package org.elasticsearch.indices.stats;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -54,14 +58,27 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Random;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
@@ -1066,6 +1083,105 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(response.getTotal().queryCache.getMissCount(), greaterThan(0L));
         assertThat(response.getTotal().queryCache.getCacheSize(), equalTo(0L));
         assertThat(response.getTotal().queryCache.getMemorySizeInBytes(), equalTo(0L));
+    }
+
+    public void testConcurrentIndexingAndStatsRequests() throws BrokenBarrierException, InterruptedException, ExecutionException {
+        final AtomicInteger idGenerator = new AtomicInteger();
+        final int numberOfThreads = Runtime.getRuntime().availableProcessors();
+        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads + 4 * numberOfThreads);
+        final AtomicBoolean stop = new AtomicBoolean();
+        final List<Thread> threads = new ArrayList<>(numberOfThreads + numberOfThreads);
+        final AtomicReference<List<ShardOperationFailedException>> shardFailures = new AtomicReference<>(new CopyOnWriteArrayList<>());
+        final AtomicReference<List<Exception>> executionFailures = new AtomicReference<>(new CopyOnWriteArrayList<>());
+
+        // increasing the number of shards increases the number of chances any one stats request will hit a race
+        final CreateIndexRequest createIndexRequest =
+            new CreateIndexRequest("test", Settings.builder().put("index.number_of_shards", 10).build());
+        client().admin().indices().create(createIndexRequest).get();
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    fail(e.toString());
+                }
+                while (!stop.get()) {
+                    final String id = Integer.toString(idGenerator.incrementAndGet());
+                    final IndexResponse response =
+                        client()
+                            .prepareIndex("test", "type", id)
+                            .setSource("{}")
+                            .get();
+                    assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                }
+            });
+            thread.setName("indexing-" + i);
+            threads.add(thread);
+            thread.start();
+        }
+
+        final AtomicBoolean failed = new AtomicBoolean();
+
+        for (int i = 0; i < 4 * numberOfThreads; i++) {
+            final Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                } catch (BrokenBarrierException | InterruptedException e) {
+                    fail(e.toString());
+                }
+                final IndicesStatsRequest request = new IndicesStatsRequest();
+                request.all();
+                request.indices(new String[0]);
+                while (!stop.get()) {
+                    try {
+                        final IndicesStatsResponse response = client().admin().indices().stats(request).get();
+                        if (response.getFailedShards() > 0) {
+                            failed.set(true);
+                            shardFailures.get().addAll(Arrays.asList(response.getShardFailures()));
+                        }
+                    } catch (ExecutionException | InterruptedException e) {
+                        failed.set(true);
+                        executionFailures.get().add(e);
+                    }
+                }
+            });
+            thread.setName("stats-" + i);
+            threads.add(thread);
+            thread.start();
+        }
+
+        barrier.await();
+
+        // start a timer thread, we will wait up to fifteen seconds for a failure to occur
+        final CountDownLatch latch = new CountDownLatch(1);
+        final Thread timer = new Thread(() -> {
+            try {
+                latch.await(15, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                failed.set(true);
+                executionFailures.get().add(e);
+            } finally {
+                stop.set(true);
+            }
+        });
+        timer.start();
+
+        // busy spin watching for failures, if any occur, just kill the test
+        while (!stop.get()) {
+            if (failed.get()) {
+                stop.set(true);
+            }
+        }
+
+        for (final Thread thread : threads) {
+            thread.join();
+        }
+        latch.countDown();
+        timer.join();
+
+        assertThat(shardFailures.get(), emptyCollectionOf(ShardOperationFailedException.class));
+        assertThat(executionFailures.get(), emptyCollectionOf(Exception.class));
     }
 
 }

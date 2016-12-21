@@ -1314,16 +1314,6 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Returns the engines current document statistics
-     */
-    public DocsStats getDocStats() {
-        try (Engine.Searcher searcher = acquireSearcher("doc_stats")) {
-            IndexReader reader = searcher.reader();
-            return new DocsStats(reader.numDocs(), reader.numDeletedDocs());
-        }
-    }
-
-    /**
      * Called for each new opened engine searcher to warm new segments
      *
      * @see EngineConfig#getWarmer()

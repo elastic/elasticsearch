@@ -28,6 +28,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -215,7 +216,11 @@ public abstract class StreamOutput extends OutputStream {
      * Negative numbers are not supported.
      */
     public void writeVLong(long i) throws IOException {
-        assert i >= 0;
+        if (Assertions.ENABLED) {
+            if (i < 0) {
+                throw new IllegalStateException(Long.toString(i));
+            }
+        }
         while ((i & ~0x7F) != 0) {
             writeByte((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;

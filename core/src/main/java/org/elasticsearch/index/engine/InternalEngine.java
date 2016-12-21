@@ -1593,14 +1593,6 @@ public class InternalEngine extends Engine {
         return seqNoService;
     }
 
-    @Override
-    public DocsStats getDocStats() {
-        final int numDocs = indexWriter.numDocs();
-        final int maxDoc = indexWriter.maxDoc();
-        return new DocsStats(numDocs, maxDoc-numDocs);
-    }
-
-
     /**
      * Returns the number of times a version was looked up either from the index.
      * Note this is only available if assertions are enabled

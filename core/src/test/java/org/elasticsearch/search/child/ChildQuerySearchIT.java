@@ -94,7 +94,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -822,7 +821,8 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(
                 hasChildQuery("child", matchQuery("c_field", "foo"), ScoreMode.None)
                     .innerHit(new InnerHitBuilder().setHighlightBuilder(
-                        new HighlightBuilder().field(new Field("c_field").highlightQuery(QueryBuilders.matchQuery("c_field", "bar"))))))
+                        new HighlightBuilder().field(new Field("c_field")
+                                .highlightQuery(QueryBuilders.matchQuery("c_field", "bar")))), false))
                 .get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1L));

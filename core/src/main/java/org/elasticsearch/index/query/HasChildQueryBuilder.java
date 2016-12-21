@@ -146,8 +146,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         return innerHitBuilder;
     }
 
-    public HasChildQueryBuilder innerHit(InnerHitBuilder innerHit) {
-        this.innerHitBuilder = new InnerHitBuilder(Objects.requireNonNull(innerHit), query, type);
+    public HasChildQueryBuilder innerHit(InnerHitBuilder innerHit, boolean ignoreUnmapped) {
+        this.innerHitBuilder = new InnerHitBuilder(Objects.requireNonNull(innerHit), query, type, ignoreUnmapped);
         return this;
     }
 
@@ -275,13 +275,13 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
 
         HasChildQueryBuilder hasChildQueryBuilder = new HasChildQueryBuilder(childType, iqb.get(), scoreMode);
-        if (innerHitBuilder != null) {
-            hasChildQueryBuilder.innerHit(innerHitBuilder);
-        }
         hasChildQueryBuilder.minMaxChildren(minChildren, maxChildren);
         hasChildQueryBuilder.queryName(queryName);
         hasChildQueryBuilder.boost(boost);
         hasChildQueryBuilder.ignoreUnmapped(ignoreUnmapped);
+        if (innerHitBuilder != null) {
+            hasChildQueryBuilder.innerHit(innerHitBuilder, ignoreUnmapped);
+        }
         return Optional.of(hasChildQueryBuilder);
     }
 
@@ -325,7 +325,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             context.setTypes(previousTypes);
         }
 
-        DocumentMapper childDocMapper = context.getMapperService().documentMapper(type);
+        DocumentMapper childDocMapper = context.documentMapper(type);
         if (childDocMapper == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();

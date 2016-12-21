@@ -28,7 +28,7 @@ import org.junit.After;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Superclass for tests of subclasses of {@link ClientYamlTestFragmentParser}.
+ * Superclass for tests that parse parts of the test suite.
  */
 public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTestCase {
     protected XContentParser parser;

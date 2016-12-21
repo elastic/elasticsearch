@@ -34,7 +34,7 @@ public class SetupSection {
     public static SetupSection parseIfNext(XContentParser parser) throws IOException {
         ParserUtils.advanceToFieldName(parser);
 
-        if ("teardown".equals(parser.currentName())) {
+        if ("setup".equals(parser.currentName())) {
             parser.nextToken();
             SetupSection section = parse(parser);
             parser.nextToken();

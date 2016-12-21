@@ -34,7 +34,7 @@ public interface ExecutableSection {
     /**
      * {@link NamedXContentRegistry} needed in the {@link XContentParser} before calling {@link ExecutableSection#parse(XContentParser)}.
      */
-    final NamedXContentRegistry XCONTENT_REGISTRY = new NamedXContentRegistry(Arrays.asList(
+    NamedXContentRegistry XCONTENT_REGISTRY = new NamedXContentRegistry(Arrays.asList(
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("do"), DoSection::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("set"), SetSection::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("match"), MatchAssertion::parse),
@@ -46,7 +46,7 @@ public interface ExecutableSection {
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("lte"), LessThanOrEqualToAssertion::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("length"), LengthAssertion::parse)));
 
-    public static ExecutableSection parse(XContentParser parser) throws IOException {
+    static ExecutableSection parse(XContentParser parser) throws IOException {
         ParserUtils.advanceToFieldName(parser);
         String section = parser.currentName();
         XContentLocation location = parser.getTokenLocation();

@@ -84,7 +84,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
         assertThat(restTestSuite, notNullValue());
-        assertThat(restTestSuite.getName(), equalTo("suite"));
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
         assertThat(restTestSuite.getSetupSection(), notNullValue());
         if (includeSetup) {
             assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(false));
@@ -187,7 +187,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
         assertThat(restTestSuite, notNullValue());
-        assertThat(restTestSuite.getName(), equalTo("suite"));
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
 
         assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));
 
@@ -299,7 +299,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
         assertThat(restTestSuite, notNullValue());
-        assertThat(restTestSuite.getName(), equalTo("suite"));
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
 
         assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));
 

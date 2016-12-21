@@ -28,11 +28,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.WriteResponse;
-import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
-import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -109,10 +105,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected WritePrimaryResult<BulkShardRequest, BulkShardResponse> shardOperationOnPrimary(
+    public WritePrimaryResult<BulkShardRequest, BulkShardResponse> shardOperationOnPrimary(
             BulkShardRequest request, IndexShard primary) throws Exception {
         final IndexMetaData metaData = primary.indexSettings().getIndexMetaData();
 
+        logger.info("TTRACE: in bulk shardOperationPrimary for [{}]", request);
         long[] preVersions = new long[request.items().length];
         VersionType[] preVersionTypes = new VersionType[request.items().length];
         Translog.Location location = null;
@@ -367,7 +364,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
-    protected WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+    public WriteReplicaResult<BulkShardRequest> shardOperationOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+        logger.info("TTRACE: in bulk shardOperationReplica for [{}]", request);
         Translog.Location location = null;
         for (int i = 0; i < request.items().length; i++) {
             BulkItemRequest item = request.items()[i];
@@ -423,42 +421,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         assert next != null : "next operation can't be null";
         assert current == null || current.compareTo(next) < 0 : "translog locations are not increasing";
         return next;
-    }
-
-    public <Request extends ReplicatedWriteRequest<Request>, Response extends ReplicationResponse & WriteResponse>
-    WritePrimaryResult<Request, Response> executeSingleItemBulkRequestOnPrimary(
-            Request request, IndexShard primary) throws Exception {
-        BulkItemRequest[] itemRequests = new BulkItemRequest[1];
-        WriteRequest.RefreshPolicy refreshPolicy = request.getRefreshPolicy();
-        request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
-        itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest) request));
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(request.shardId(), refreshPolicy, itemRequests);
-        WritePrimaryResult<BulkShardRequest, BulkShardResponse> result = shardOperationOnPrimary(bulkShardRequest, primary);
-        BulkShardResponse bulkShardResponse = result.finalResponseIfSuccessful;
-        assert bulkShardResponse.getResponses().length == 1: "expected only one bulk shard response";
-        BulkItemResponse itemResponse = bulkShardResponse.getResponses()[0];
-        final Response response;
-        final Exception failure;
-        if (itemResponse.isFailed()) {
-            failure = itemResponse.getFailure().getCause();
-            response = null;
-        } else {
-            response = (Response) itemResponse.getResponse();
-            failure = null;
-        }
-        return new WritePrimaryResult<>(request, response, result.location, failure, primary, logger);
-    }
-
-    public <ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>>
-    WriteReplicaResult<ReplicaRequest> executeSingleItemBulkRequestOnReplica(
-            ReplicaRequest request, IndexShard replica) throws Exception {
-        BulkItemRequest[] itemRequests = new BulkItemRequest[1];
-        WriteRequest.RefreshPolicy refreshPolicy = request.getRefreshPolicy();
-        request.setRefreshPolicy(WriteRequest.RefreshPolicy.NONE);
-        itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest) request));
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(request.shardId(), refreshPolicy, itemRequests);
-        WriteReplicaResult<BulkShardRequest> result = shardOperationOnReplica(bulkShardRequest, replica);
-        return new WriteReplicaResult<>(request, result.location, null, replica, logger);
     }
 
     /**

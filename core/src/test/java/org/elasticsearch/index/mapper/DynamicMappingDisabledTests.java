@@ -20,11 +20,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -61,7 +62,7 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
     private static ThreadPool THREAD_POOL;
     private ClusterService clusterService;
     private TransportService transportService;
-    private TransportIndexAction transportIndexAction;
+    private TransportBulkAction transportBulkAction;
 
     @BeforeClass
     public static void createThreadPool() {
@@ -89,11 +90,8 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
         UpdateHelper updateHelper = new UpdateHelper(settings, null);
         TransportShardBulkAction shardBulkAction = new TransportShardBulkAction(settings, transportService, clusterService,
                 indicesService, THREAD_POOL, shardStateAction, null, updateHelper, actionFilters, indexNameExpressionResolver);
-        TransportBulkAction bulkAction = new TransportBulkAction(settings, THREAD_POOL, transportService, clusterService,
+        transportBulkAction = new TransportBulkAction(settings, THREAD_POOL, transportService, clusterService,
                 null, shardBulkAction, null, actionFilters, indexNameExpressionResolver, autoCreateIndex, System::currentTimeMillis);
-        transportIndexAction = new TransportIndexAction(settings, transportService, clusterService,
-                indicesService, THREAD_POOL, shardStateAction, actionFilters, indexNameExpressionResolver,
-                bulkAction, shardBulkAction);
     }
 
     @After
@@ -115,19 +113,23 @@ public class DynamicMappingDisabledTests extends ESSingleNodeTestCase {
 
         IndexRequest request = new IndexRequest("index", "type", "1");
         request.source("foo", 3);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(request);
         final AtomicBoolean onFailureCalled = new AtomicBoolean();
 
-        transportIndexAction.execute(request, new ActionListener<IndexResponse>() {
+        transportBulkAction.execute(bulkRequest, new ActionListener<BulkResponse>() {
             @Override
-            public void onResponse(IndexResponse indexResponse) {
-                fail("Indexing request should have failed");
+            public void onResponse(BulkResponse bulkResponse) {
+                BulkItemResponse itemResponse = bulkResponse.getItems()[0];
+                assertTrue(itemResponse.isFailed());
+                assertThat(itemResponse.getFailure().getCause(), instanceOf(IndexNotFoundException.class));
+                assertEquals(itemResponse.getFailure().getCause().getMessage(), "no such index");
+                onFailureCalled.set(true);
             }
 
             @Override
             public void onFailure(Exception e) {
-                onFailureCalled.set(true);
-                assertThat(e, instanceOf(IndexNotFoundException.class));
-                assertEquals(e.getMessage(), "no such index");
+                fail("unexpected failure in bulk action, expected failed bulk item");
             }
         });
 

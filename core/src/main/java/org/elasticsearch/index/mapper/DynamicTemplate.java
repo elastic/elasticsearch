@@ -155,7 +155,7 @@ public class DynamicTemplate implements ToXContent {
                     return v;
                 }
             }
-            throw new IllegalArgumentException("No xcontent type matched on [" + value + "], possible values are "
+            throw new IllegalArgumentException("No field type matched on [" + value + "], possible values are "
                     + Arrays.toString(values()));
         }
 
@@ -208,12 +208,8 @@ public class DynamicTemplate implements ToXContent {
             try {
                 xcontentFieldType = XContentFieldType.fromString(matchMappingType);
             } catch (IllegalArgumentException e) {
-                // TODO: do this in 6.0
-                /*if (indexVersionCreated.onOrAfter(Version.V_6_0_0)) {
-                    throw e;
-                }*/
-
-                DEPRECATION_LOGGER.deprecated("Ignoring unrecognized match_mapping_type: [" + matchMappingType + "]");
+                DEPRECATION_LOGGER.deprecated("match_mapping_type [" + matchMappingType + "] is invalid and will be ignored: "
+                        + e.getMessage());
                 // this template is on an unknown type so it will never match anything
                 // null indicates that the template should be ignored
                 return null;

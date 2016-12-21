@@ -56,8 +56,8 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("mapping", Collections.singletonMap("store", true));
         // if a wrong match type is specified, we ignore the template
         assertNull(DynamicTemplate.parse("my_template", templateDef, Version.V_5_0_0_alpha5));
-        //TODO clarify this deprecation warning
-        assertWarnings("Ignoring unrecognized match_mapping_type: [short]");
+        assertWarnings("match_mapping_type [short] is invalid and will be ignored: No field type matched on [short], " +
+                "possible values are [object, string, long, double, boolean, date, binary]");
     }
 
     public void testMatchAllTemplate() {

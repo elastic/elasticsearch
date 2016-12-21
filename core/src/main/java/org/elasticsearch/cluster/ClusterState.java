@@ -22,7 +22,7 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -107,6 +107,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         // register non plugin custom parts
         registerPrototype(SnapshotsInProgress.TYPE, SnapshotsInProgress.PROTO);
         registerPrototype(RestoreInProgress.TYPE, RestoreInProgress.PROTO);
+        registerPrototype(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.PROTO);
     }
 
     public static <T extends Custom> T lookupPrototype(String type) {
@@ -715,8 +716,18 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         routingTable.writeTo(out);
         nodes.writeTo(out);
         blocks.writeTo(out);
-        out.writeVInt(customs.size());
+        boolean omitSnapshotDeletions = false;
+        if (out.getVersion().before(Version.V_5_2_0_UNRELEASED)
+                && customs.containsKey(SnapshotDeletionsInProgress.TYPE)) {
+            // before the stated version, there were no SnapshotDeletionsInProgress, so
+            // don't transfer over the wire protocol
+            omitSnapshotDeletions = true;
+        }
+        out.writeVInt(omitSnapshotDeletions ? customs.size() - 1 : customs.size());
         for (ObjectObjectCursor<String, Custom> cursor : customs) {
+            if (omitSnapshotDeletions && cursor.key.equals(SnapshotDeletionsInProgress.TYPE)) {
+                continue;
+            }
             out.writeString(cursor.key);
             cursor.value.writeTo(out);
         }

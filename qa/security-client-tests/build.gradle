@@ -14,6 +14,7 @@ task copyXPackPluginProps(type: Copy) {
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
 integTest {
+  systemProperty 'tests.security.manager', 'false'
   cluster {
     plugin ':x-pack:elasticsearch'
     setupCommand 'setupDummyUser',

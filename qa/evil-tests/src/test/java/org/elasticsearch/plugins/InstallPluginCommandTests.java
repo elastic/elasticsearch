@@ -60,19 +60,17 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 @LuceneTestCase.SuppressFileSystems("*")
@@ -671,6 +669,18 @@ public class InstallPluginCommandTests extends ESTestCase {
         terminal.setVerbosity(Terminal.Verbosity.SILENT);
         installPlugin(terminal, false);
         assertThat(terminal.getOutput(), not(containsString("100%")));
+    }
+
+    public void testPluginAlreadyInstalled() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPlugin("fake", pluginDir);
+        installPlugin(pluginZip, env.v1());
+        final UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1(), randomBoolean()));
+        assertThat(
+            e.getMessage(),
+            equalTo("plugin directory [" + env.v2().pluginsFile().resolve("fake") + "] already exists; " +
+                "if you need to update the plugin, uninstall it first using command 'remove fake'"));
     }
 
     private void installPlugin(MockTerminal terminal, boolean isBatch) throws Exception {

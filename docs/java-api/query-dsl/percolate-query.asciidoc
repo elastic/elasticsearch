@@ -1,3 +1,10 @@
+[[java-query-percolate-query]]
+==== Percolate Query
+
+See:
+ * {ref}/query-dsl-percolate-query.html[Percolate Query]
+
+
 [source,java]
 --------------------------------------------------
 Settings settings = Settings.builder().put("cluster.name", "elasticsearch").build();

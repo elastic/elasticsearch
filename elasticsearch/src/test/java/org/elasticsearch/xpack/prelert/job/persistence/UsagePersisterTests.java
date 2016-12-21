@@ -54,7 +54,7 @@ public class UsagePersisterTests extends ESTestCase {
         verify(updateRequestBuilder, times(2)).setRetryOnConflict(ElasticsearchScripts.UPDATE_JOB_RETRY_COUNT);
         verify(updateRequestBuilder, times(2)).get();
 
-        assertEquals(Arrays.asList("prelert-usage", "prelertresults-job1"), indexCaptor.getAllValues());
+        assertEquals(Arrays.asList("prelert-usage", AnomalyDetectorsIndex.jobResultsIndexName("job1")), indexCaptor.getAllValues());
         assertEquals(2, idCaptor.getAllValues().size());
         String id = idCaptor.getValue();
         assertEquals(id, idCaptor.getAllValues().get(0));
@@ -62,7 +62,7 @@ public class UsagePersisterTests extends ESTestCase {
         String timestamp = id.substring("usage-".length());
 
         assertEquals("prelert-usage", indexCaptor.getAllValues().get(0));
-        assertEquals("prelertresults-job1", indexCaptor.getAllValues().get(1));
+        assertEquals(AnomalyDetectorsIndex.jobResultsIndexName("job1"), indexCaptor.getAllValues().get(1));
 
         Script script = updateScriptCaptor.getValue();
         assertEquals("ctx._source.inputBytes += params.bytes;ctx._source.inputFieldCount += params.fieldCount;ctx._source.inputRecordCount"

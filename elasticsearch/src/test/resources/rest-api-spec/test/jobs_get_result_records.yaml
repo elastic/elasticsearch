@@ -1,7 +1,7 @@
 setup:
   - do:
       indices.create:
-        index:  prelertresults-farequote
+        index:  .ml-anomalies-farequote
         body:
           mappings:
             record:
@@ -29,7 +29,7 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-farequote
+        index:  .ml-anomalies-farequote
         type:   result
         id:     farequote_1464739200000_1_1
         body:
@@ -44,7 +44,7 @@ setup:
 
   - do:
         index:
-          index:  prelertresults-farequote
+          index:  .ml-anomalies-farequote
           type:   result
           id:     farequote_1464825600000_1_2
           body:
@@ -59,7 +59,7 @@ setup:
 
   - do:
       indices.refresh:
-        index: prelertresults-farequote
+        index: .ml-anomalies-farequote
 
 ---
 "Test result records api":

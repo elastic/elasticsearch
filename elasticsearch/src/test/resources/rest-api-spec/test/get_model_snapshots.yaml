@@ -1,7 +1,7 @@
 setup:
   - do:
       indices.create:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         body:
           mappings:
             model_snapshot:
@@ -13,21 +13,21 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   model_snapshot
         id:     "1"
         body:   { "job_id": "foo", "timestamp": "2016-06-02T00:00:00Z", "restore_priority": "1" }
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   model_snapshot
         id:     "2"
         body:   { "job_id": "foo", "timestamp": "2016-06-01T00:00:00Z", "restore_priority": "2" }
 
   - do:
       indices.refresh:
-        index: prelertresults-foo
+        index: .ml-anomalies-foo
 
 ---
 "Test get model snapshots API with no params":

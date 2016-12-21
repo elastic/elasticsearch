@@ -1,26 +1,26 @@
 setup:
   - do:
       index:
-        index:  prelertresults-farequote
+        index:  .ml-anomalies-farequote
         type:   category_definition
         id:     1
         body:   { "job_id": "farequote", "category_id": 1 }
   - do:
       index:
-        index:  prelertresults-farequote
+        index:  .ml-anomalies-farequote
         type:   category_definition
         id:     2
         body:   { "job_id": "farequote", "category_id": 2 }
   - do:
       index:
-        index:  prelertresults-unrelated
+        index:  .ml-anomalies-unrelated
         type:   category_definition
         id:     3
         body:   { "job_id": "unrelated", "category_id": 1 }
 
   - do:
       indices.refresh:
-        index: prelertresults-farequote
+        index: .ml-anomalies-farequote
 
 ---
 "Test result categories api":

@@ -1,7 +1,7 @@
 setup:
   - do:
       indices.create:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         body:
           mappings:
             model_snapshot:
@@ -13,7 +13,7 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   model_snapshot
         id:     "1"
         body: >
@@ -26,7 +26,7 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   model_snapshot
         id:     "2"
         body: >
@@ -40,7 +40,7 @@ setup:
 
   - do:
       indices.refresh:
-        index: prelertresults-foo
+        index: .ml-anomalies-foo
 
 ---
 "Test without description":
@@ -78,7 +78,7 @@ setup:
 
   - do:
       indices.refresh:
-        index: prelertresults-foo
+        index: .ml-anomalies-foo
 
   - do:
       xpack.prelert.get_model_snapshots:

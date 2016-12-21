@@ -52,7 +52,7 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-job-stats-test
+        index:  .ml-anomalies-job-stats-test
         type:   result
         id:     model_size_stats
         body:   {

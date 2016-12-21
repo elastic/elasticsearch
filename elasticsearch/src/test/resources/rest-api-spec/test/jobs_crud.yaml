@@ -20,7 +20,7 @@
 
   - do:
       indices.get:
-        index: "prelertresults-farequote"
+        index: ".ml-anomalies-farequote"
 
   - do:
       indices.get:
@@ -39,7 +39,7 @@
 
   - do:
       indices.exists:
-        index: "prelertresults-farequote"
+        index: ".ml-anomalies-farequote"
   - is_false: ''
 
 ---

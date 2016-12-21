@@ -1,7 +1,7 @@
 setup:
   - do:
       indices.create:
-        index:  prelertresults-farequote
+        index:  .ml-anomalies-farequote
         body:
           mappings:
             results:
@@ -15,21 +15,21 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-farequote
+        index:  .ml-anomalies-farequote
         type:   result
         id:     "farequote_1464739200000_1"
         body:   { "job_id": "farequote", "result_type": "bucket", "timestamp": "2016-06-01T00:00:00Z", "bucket_span":1 }
 
   - do:
       index:
-        index:  prelertresults-farequote
+        index:  .ml-anomalies-farequote
         type:   result
         id:     "farequote_1464739200000_2"
         body:   { "job_id": "farequote", "result_type": "bucket", "timestamp": "2016-08-01T00:00:00Z", "bucket_span":1 }
 
   - do:
       indices.refresh:
-        index: prelertresults-farequote
+        index: .ml-anomalies-farequote
 
 ---
 "Test result buckets api with time range":

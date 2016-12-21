@@ -56,7 +56,7 @@ setup:
 
   - do:
     get:
-      index: prelertresults-farequote
+      index: .ml-anomalies-farequote
       type: data_counts
       id: farequote-data-counts
 

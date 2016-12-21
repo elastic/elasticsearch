@@ -26,7 +26,7 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   model_snapshot
         id:     "foo1"
         body: >
@@ -63,7 +63,7 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   model_snapshot
         id:     "foo2"
         body: >
@@ -83,7 +83,7 @@ setup:
 
   - do:
       indices.refresh:
-        index: prelertresults-foo
+        index: .ml-anomalies-foo
 
 ---
 "Test delete snapshot missing snapshotId":
@@ -121,7 +121,7 @@ setup:
 
   - do:
       indices.refresh:
-        index: prelertresults-foo
+        index: .ml-anomalies-foo
 
   - do:
       indices.refresh:

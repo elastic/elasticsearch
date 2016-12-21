@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.prelert.job.persistence;
  * Methods for handling index naming related functions
  */
 public final class AnomalyDetectorsIndex {
-    private static final String RESULTS_INDEX_PREFIX = "prelertresults-";
+    private static final String RESULTS_INDEX_PREFIX = ".ml-anomalies-";
     private static final String STATE_INDEX_NAME = ".ml-state";
 
     private AnomalyDetectorsIndex() {

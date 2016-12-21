@@ -26,7 +26,7 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   model_snapshot
         id:     "1"
         body: >
@@ -42,7 +42,7 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   model_snapshot
         id:     "2"
         body: >
@@ -58,42 +58,42 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   result
         id:     "foo_1464825600000_1"
         body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-06-02T00:00:00Z", "bucket_span":1 }
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   result
         id:     "foo_1464782400000_1"
         body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-06-01T12:00:00Z", "bucket_span":1 }
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   result
         id:     "foo_1462060800000_1"
         body:   { "job_id": "foo", "result_type": "bucket", "timestamp": "2016-05-01T00:00:00Z", "bucket_span":1 }
 
   - do:
        index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   result
         id:     "foo_1464825600000_1_1"
         body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-06-02T00:00:00Z", "bucket_span":1, "sequence_num":1 }
 
   - do:
        index:
-         index:  prelertresults-foo
+         index:  .ml-anomalies-foo
          type:   result
          id:     "foo_1462060800000_1_2"
          body:   { "job_id": "foo", "result_type": "record", "timestamp": "2016-05-01T00:00:00Z", "bucket_span":1, "sequence_num":2 }
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   result
         id:     "foo_1464825600000_1_3"
         body:   {
@@ -109,7 +109,7 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-foo
+        index:  .ml-anomalies-foo
         type:   result
         id:     "foo_1462060800000_1_4"
         body:
@@ -126,7 +126,7 @@ setup:
 
   - do:
       indices.refresh:
-        index: prelertresults-foo
+        index: .ml-anomalies-foo
 
   - do:
       indices.refresh:
@@ -258,7 +258,7 @@ setup:
 
   - do:
       indices.refresh:
-        index: prelertresults-foo
+        index: .ml-anomalies-foo
 
   - do:
       xpack.prelert.get_buckets:

@@ -30,7 +30,7 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 public class ElasticsearchBatchedDocumentsIteratorTests extends ESTestCase {
-    private static final String INDEX_NAME = "prelertresults-foo";
+    private static final String INDEX_NAME = ".ml-anomalies-foo";
     private static final String SCROLL_ID = "someScrollId";
 
     private Client client;

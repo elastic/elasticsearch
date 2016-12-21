@@ -80,7 +80,10 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
 
         @Override
         public Aggregator subAggregator(String name) {
-            throw new UnsupportedOperationException();
+            if(aggregators.get(0) != null) {
+                return aggregators.get(0).subAggregator(name);
+            }
+            return null;
         }
 
         @Override

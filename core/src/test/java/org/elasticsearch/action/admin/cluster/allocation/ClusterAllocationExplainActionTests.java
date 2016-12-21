@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.allocation;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -48,7 +47,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
 
     private static final AllocationDeciders NOOP_DECIDERS = new AllocationDeciders(Settings.EMPTY, Collections.emptyList());
 
-    public void testShardInitializingOrRelocatingExplanation() throws Exception {
+    public void testInitializingOrRelocatingShardExplanation() throws Exception {
         ShardRoutingState shardRoutingState = randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.RELOCATING);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), shardRoutingState);
         ShardRouting shard = clusterState.getRoutingTable().index("idx").shard(0).primaryShard();
@@ -80,10 +79,10 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         String explanation;
         if (shardRoutingState == ShardRoutingState.RELOCATING) {
             explanation = "the shard is in the process of relocating from node [] to node [], wait until " +
-                              "relocation has completed before re-running the explain API on the shard.";
+                              "relocation has completed";
         } else {
             explanation = "the shard is in the process of initializing on node [], " +
-                              "wait until the shard has started before re-running the explain API on it";
+                              "wait until initialization has completed";
         }
         assertEquals("{\"index\":\"idx\",\"shard\":0,\"primary\":true,\"current_state\":\"" +
                          shardRoutingState.toString().toLowerCase(Locale.ROOT) + "\",\"current_node\":" +
@@ -109,7 +108,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
         final ClusterState allStartedClusterState = ClusterStateCreationUtils.state("idx", randomBoolean(),
             ShardRoutingState.STARTED, ShardRoutingState.STARTED);
         final ClusterAllocationExplainRequest anyUnassignedShardsRequest = new ClusterAllocationExplainRequest();
-        expectThrows(ElasticsearchException.class, () ->
+        expectThrows(IllegalStateException.class, () ->
             findShardToExplain(anyUnassignedShardsRequest, routingAllocation(allStartedClusterState)));
     }
 
@@ -162,7 +161,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             }
         }
         final ClusterAllocationExplainRequest failingRequest = new ClusterAllocationExplainRequest("idx", 0, primary, explainNode);
-        expectThrows(ElasticsearchException.class, () -> findShardToExplain(failingRequest, allocation));
+        expectThrows(IllegalStateException.class, () -> findShardToExplain(failingRequest, allocation));
     }
 
     private static RoutingAllocation routingAllocation(ClusterState clusterState) {

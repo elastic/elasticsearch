@@ -48,16 +48,16 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
 
     private final ShardRouting shardRouting;
     private final DiscoveryNode currentNode;
-    private final DiscoveryNode relocatingTargetNode;
+    private final DiscoveryNode relocationTargetNode;
     private final ClusterInfo clusterInfo;
     private final ShardAllocationDecision shardAllocationDecision;
 
     public ClusterAllocationExplanation(ShardRouting shardRouting, @Nullable DiscoveryNode currentNode,
-                                        @Nullable DiscoveryNode relocatingTargetNode, @Nullable ClusterInfo clusterInfo,
+                                        @Nullable DiscoveryNode relocationTargetNode, @Nullable ClusterInfo clusterInfo,
                                         ShardAllocationDecision shardAllocationDecision) {
         this.shardRouting = shardRouting;
         this.currentNode = currentNode;
-        this.relocatingTargetNode = relocatingTargetNode;
+        this.relocationTargetNode = relocationTargetNode;
         this.clusterInfo = clusterInfo;
         this.shardAllocationDecision = shardAllocationDecision;
     }
@@ -65,7 +65,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     public ClusterAllocationExplanation(StreamInput in) throws IOException {
         this.shardRouting = new ShardRouting(in);
         this.currentNode = in.readOptionalWriteable(DiscoveryNode::new);
-        this.relocatingTargetNode = in.readOptionalWriteable(DiscoveryNode::new);
+        this.relocationTargetNode = in.readOptionalWriteable(DiscoveryNode::new);
         this.clusterInfo = in.readOptionalWriteable(ClusterInfo::new);
         this.shardAllocationDecision = new ShardAllocationDecision(in);
     }
@@ -74,7 +74,7 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
         out.writeOptionalWriteable(currentNode);
-        out.writeOptionalWriteable(relocatingTargetNode);
+        out.writeOptionalWriteable(relocationTargetNode);
         out.writeOptionalWriteable(clusterInfo);
         shardAllocationDecision.writeTo(out);
     }
@@ -112,8 +112,8 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
      * Returns the relocating target node, or {@code null} if the shard is not in the {@link ShardRoutingState#RELOCATING} state.
      */
     @Nullable
-    public DiscoveryNode getRelocatingTargetNode() {
-        return relocatingTargetNode;
+    public DiscoveryNode getRelocationTargetNode() {
+        return relocationTargetNode;
     }
 
     /**
@@ -171,12 +171,11 @@ public final class ClusterAllocationExplanation implements ToXContent, Writeable
                 String explanation;
                 if (shardRouting.state() == ShardRoutingState.RELOCATING) {
                     explanation = "the shard is in the process of relocating from node [" + currentNode.getName() + "] " +
-                                  "to node [" + relocatingTargetNode.getName() + "], wait until relocation has completed before " +
-                                  "re-running the explain API on the shard.";
+                                  "to node [" + relocationTargetNode.getName() + "], wait until relocation has completed";
                 } else {
                     assert shardRouting.state() == ShardRoutingState.INITIALIZING;
                     explanation = "the shard is in the process of initializing on node [" + currentNode.getName() + "], " +
-                                  "wait until the shard has started before re-running the explain API on it";
+                                  "wait until initialization has completed";
                 }
                 builder.field("explanation", explanation);
             }

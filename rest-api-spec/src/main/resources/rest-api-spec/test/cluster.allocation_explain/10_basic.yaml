@@ -20,7 +20,7 @@
       cluster.allocation_explain:
         body: { "index": "test", "shard": 0, "primary": true }
 
-  - match: { current_shard_state: "started" }
+  - match: { current_state: "started" }
   - is_true: current_node.id
   - match: { index: "test" }
   - match: { shard: 0 }
@@ -45,7 +45,7 @@
       cluster.allocation_explain:
         include_disk_info: true
 
-  - match: { current_shard_state: "unassigned" }
+  - match: { current_state: "unassigned" }
   - match: { unassigned_info.reason: "INDEX_CREATED" }
   - is_true: unassigned_info.at
   - match: { index: "test" }

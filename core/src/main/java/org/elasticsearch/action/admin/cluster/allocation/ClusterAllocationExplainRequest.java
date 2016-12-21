@@ -105,7 +105,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
      * Returns {@code true} iff the first unassigned shard is to be used
      */
     public boolean useAnyUnassignedShard() {
-        return this.index == null && this.shard == null && this.primary == null;
+        return this.index == null && this.shard == null && this.primary == null && this.currentNode == null;
     }
 
     /**
@@ -161,7 +161,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
 
     /**
      * Requests the explain API to explain an already assigned replica shard currently allocated to
-     * the given node.  This setting only applies to requests where {@link #isPrimary()} is {@code false}.
+     * the given node.
      */
     public ClusterAllocationExplainRequest setCurrentNode(String currentNodeId) {
         this.currentNode = currentNodeId;
@@ -170,7 +170,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
 
     /**
      * Returns the node holding the replica shard to be explained.  Returns {@code null} if any replica shard
-     * can be explained.  This setting only applies to requests where {@link #isPrimary()} is {@code false}.
+     * can be explained.
      */
     @Nullable
     public String getCurrentNode() {

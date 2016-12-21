@@ -106,18 +106,20 @@ public final class TransportActionProxy {
     /**
      * Registers a proxy request handler that allows to forward requests for the given action to another node.
      */
-    public static String registerProxyAction(TransportService service, String action, Supplier<TransportResponse> responseSupplier) {
+    public static void registerProxyAction(TransportService service, String action, Supplier<TransportResponse> responseSupplier) {
         RequestHandlerRegistry requestHandler = service.getRequestHandler(action);
-        String proxyAction = "internal:transport/proxy/" + action;
-        service.registerRequestHandler(proxyAction, () -> new ProxyRequest(requestHandler::newRequest), ThreadPool.Names.SAME, true, false
-            , new ProxyRequestHandler<>(service, action, responseSupplier));
-        return proxyAction;
+        service.registerRequestHandler(getProxyAction(action), () -> new ProxyRequest(requestHandler::newRequest), ThreadPool.Names.SAME,
+            true, false, new ProxyRequestHandler<>(service, action, responseSupplier));
     }
 
-    //nocommit javadocs
-    public static void sendProxyRequest(TransportService service, DiscoveryNode proxyNode, DiscoveryNode targetNode, String action,
-                                 TransportRequest request, TransportResponseHandler handler) {
-        String proxyAction = "internal:transport/proxy/" + action;
-        service.sendRequest(proxyNode, proxyAction, new ProxyRequest(request, targetNode), handler);
+    /**
+     * Returns the corresponding proxy action for the given action
+     */
+    public static String getProxyAction(String action) {
+        return "internal:transport/proxy/" + action;
+    }
+
+    public static TransportRequest wrapRequest(DiscoveryNode node, TransportRequest request) {
+        return new ProxyRequest<>(request, node);
     }
 }

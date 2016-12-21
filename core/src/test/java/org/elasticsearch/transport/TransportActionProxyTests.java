@@ -119,8 +119,8 @@ public class TransportActionProxyTests extends ESTestCase {
         TransportActionProxy.registerProxyAction(serviceC, "/test", SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);
-        TransportActionProxy.sendProxyRequest(serviceA, nodeB, nodeC, "/test", new SimpleTestRequest("TS_A"),
-            new TransportResponseHandler<SimpleTestResponse>() {
+        serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("/test"), TransportActionProxy.wrapRequest(nodeC,
+            new SimpleTestRequest("TS_A")), new TransportResponseHandler<SimpleTestResponse>() {
                 @Override
                 public SimpleTestResponse newInstance() {
                     return new SimpleTestResponse();
@@ -179,8 +179,8 @@ public class TransportActionProxyTests extends ESTestCase {
         TransportActionProxy.registerProxyAction(serviceC, "/test", SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);
-        TransportActionProxy.sendProxyRequest(serviceA, nodeB, nodeC, "/test", new SimpleTestRequest("TS_A"),
-            new TransportResponseHandler<SimpleTestResponse>() {
+        serviceA.sendRequest(nodeB, TransportActionProxy.getProxyAction("/test"), TransportActionProxy.wrapRequest(nodeC,
+            new SimpleTestRequest("TS_A")), new TransportResponseHandler<SimpleTestResponse>() {
                 @Override
                 public SimpleTestResponse newInstance() {
                     return new SimpleTestResponse();

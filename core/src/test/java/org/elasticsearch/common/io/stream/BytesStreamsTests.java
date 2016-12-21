@@ -792,23 +792,12 @@ public class BytesStreamsTests extends ESTestCase {
             BytesStreamOutput output = new BytesStreamOutput();
             output.writeVLongNoCheck(value);
             StreamInput input = output.bytes().streamInput();
-            assertEquals(value, input.readVLongNoCheck());
-        }
-        {
-            BytesStreamOutput output = new BytesStreamOutput();
-            output.writeVLongNoCheck(value);
-            StreamInput input = output.bytes().streamInput();
-            if (value >= 0) {
-                assertEquals(value, input.readVLong());
-            } else {
-                AssertionError e = expectThrows(AssertionError.class, () -> input.readVLong());
-                assertEquals("Prefer readLong or readZLong for negative numbers [" + value + "]", e.getMessage());
-            }
+            assertEquals(value, input.readVLong());
         }
         if (value < 0) {
             BytesStreamOutput output = new BytesStreamOutput();
-            AssertionError e = expectThrows(AssertionError.class, () -> output.writeVLong(value));
-            assertEquals("Prefer writeLong or writeZLong for negative numbers [" + value + "]", e.getMessage());
+            Exception e = expectThrows(IllegalStateException.class, () -> output.writeVLong(value));
+            assertEquals("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + value + "]", e.getMessage());
         }
     }
 }

@@ -215,7 +215,9 @@ public abstract class StreamOutput extends OutputStream {
      * negative numbers.
      */
     public void writeVLong(long i) throws IOException {
-        assert i >= 0 : "Prefer writeLong or writeZLong for negative numbers [" + i + "]";
+        if (i < 0) {
+            throw new IllegalStateException("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + i + "]");
+        }
         writeVLongNoCheck(i);
     }
 

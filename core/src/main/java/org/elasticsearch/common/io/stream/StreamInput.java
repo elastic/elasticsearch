@@ -215,20 +215,9 @@ public abstract class StreamInput extends InputStream {
 
     /**
      * Reads a long stored in variable-length format. Reads between one and nine bytes. Smaller values take fewer bytes. Negative numbers
-     * are encoded in ten bytes and trip an assertion (if called while testing) so prefer {@link #readLong()} or {@link #readZLong()} for
-     * negative numbers.
+     * are encoded in ten bytes so prefer {@link #readLong()} or {@link #readZLong()} for negative numbers.
      */
     public long readVLong() throws IOException {
-        long l = readVLongNoCheck();
-        assert l >= 0: "Prefer readLong or readZLong for negative numbers [" + l + "]";
-        return l;
-    }
-
-    /**
-     * Reads a long stored in variable-length format without asserting that it isn't negative. Package private for testing. Use
-     * {@link #readVLong()}.
-     */
-    long readVLongNoCheck() throws IOException {
         byte b = readByte();
         long i = b & 0x7FL;
         if ((b & 0x80) == 0) {

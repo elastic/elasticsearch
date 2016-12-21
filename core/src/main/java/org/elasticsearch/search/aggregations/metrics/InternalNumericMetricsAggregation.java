@@ -106,22 +106,13 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(format, innerHashCode());
-    }
-
-    // norelease: make this abstract when all InternalAggregations implement this method
-    protected int innerHashCode() {
-        return System.identityHashCode(this);
+        return Objects.hash(format, super.hashCode());
     }
 
     @Override
     protected boolean doEquals(Object obj) {
         InternalNumericMetricsAggregation other = (InternalNumericMetricsAggregation) obj;
-        return Objects.equals(format, other.format) && innerEquals(other);
-    }
-
-    // norelease: make this abstract when all InternalAggregations implement this method
-    protected boolean innerEquals(InternalNumericMetricsAggregation obj) {
-        return this == obj;
+        return super.equals(obj) && 
+                Objects.equals(format, other.format);
     }
 }

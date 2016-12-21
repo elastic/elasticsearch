@@ -53,7 +53,7 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
 
     private void assertParsedInstance(XContentType xContentType, BytesReference instanceAsBytes, T expectedInstance)
             throws IOException {
-        XContentParser parser = XContentFactory.xContent(xContentType).createParser(instanceAsBytes);
+        XContentParser parser = createParser(XContentFactory.xContent(xContentType), instanceAsBytes);
         T newInstance = parseInstance(parser);
         assertNotSame(newInstance, expectedInstance);
         assertEquals(expectedInstance, newInstance);

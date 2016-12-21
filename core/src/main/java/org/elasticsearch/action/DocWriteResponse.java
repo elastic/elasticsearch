@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
@@ -34,6 +35,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Locale;
 
 /**
@@ -185,8 +188,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     /**
      * Gets the location of the written document as a string suitable for a {@code Location} header.
      * @param routing any routing used in the request. If null the location doesn't include routing information.
+     *
      */
-    public String getLocation(@Nullable String routing) {
+    public String getLocation(@Nullable String routing) throws URISyntaxException {
         // Absolute path for the location of the document. This should be allowed as of HTTP/1.1:
         // https://tools.ietf.org/html/rfc7231#section-7.1.2
         String index = getIndex();
@@ -204,7 +208,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         if (routing != null) {
             location.append(routingStart).append(routing);
         }
-        return location.toString();
+
+        URI uri = new URI(location.toString());
+        return uri.toASCIIString();
     }
 
     @Override
@@ -214,7 +220,11 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         type = in.readString();
         id = in.readString();
         version = in.readZLong();
-        seqNo = in.readZLong();
+        if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            seqNo = in.readZLong();
+        } else {
+            seqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
         forcedRefresh = in.readBoolean();
         result = Result.readFrom(in);
     }
@@ -226,7 +236,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         out.writeString(type);
         out.writeString(id);
         out.writeZLong(version);
-        out.writeZLong(seqNo);
+        if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            out.writeZLong(seqNo);
+        }
         out.writeBoolean(forcedRefresh);
         result.writeTo(out);
     }

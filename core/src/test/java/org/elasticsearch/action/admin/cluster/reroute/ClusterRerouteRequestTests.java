@@ -179,7 +179,7 @@ public class ClusterRerouteRequestTests extends ESTestCase {
         return RestClusterRerouteAction.createRequest(restRequest, allocationCommandRegistry, ParseFieldMatcher.STRICT);
     }
 
-    private static RestRequest toRestRequest(ClusterRerouteRequest original) throws IOException {
+    private RestRequest toRestRequest(ClusterRerouteRequest original) throws IOException {
         Map<String, String> params = new HashMap<>();
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         boolean hasBody = false;
@@ -209,7 +209,7 @@ public class ClusterRerouteRequestTests extends ESTestCase {
         }
         builder.endObject();
 
-        FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder();
+        FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
         requestBuilder.withParams(params);
         if (hasBody) {
             requestBuilder.withContent(builder.bytes());

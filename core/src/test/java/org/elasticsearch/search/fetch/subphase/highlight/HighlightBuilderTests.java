@@ -265,8 +265,8 @@ public class HighlightBuilderTests extends ESTestCase {
         Index index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, indicesQueriesRegistry,
-                null, null, System::currentTimeMillis) {
+        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
+                indicesQueriesRegistry, null, null, System::currentTimeMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);

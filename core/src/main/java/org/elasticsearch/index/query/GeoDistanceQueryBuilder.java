@@ -66,10 +66,8 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
-            .withAllDeprecated("use validation_method instead");
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
-            .withAllDeprecated("use validation_method instead");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed").withAllDeprecated("validation_method");
+    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize").withAllDeprecated("validation_method");
     @Deprecated
     private static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox")
             .withAllDeprecated("no replacement: `optimize_bbox` is no longer supported due to recent improvements");

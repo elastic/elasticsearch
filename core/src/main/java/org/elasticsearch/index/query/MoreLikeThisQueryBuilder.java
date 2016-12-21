@@ -52,10 +52,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -421,11 +421,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 if (contentType == builder.contentType()) {
                     builder.rawField(Field.DOC.getPreferredName(), this.doc);
                 } else {
-                    try (XContentParser parser = XContentFactory.xContent(contentType).createParser(this.doc)) {
-                        parser.nextToken();
-                        builder.field(Field.DOC.getPreferredName());
-                        builder.copyCurrentStructure(parser);
-                    }
+                    builder.rawField(Field.DOC.getPreferredName(), doc);
                 }
             }
             if (this.fields != null) {

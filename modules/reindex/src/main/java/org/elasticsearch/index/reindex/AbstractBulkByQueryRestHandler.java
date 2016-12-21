@@ -44,8 +44,8 @@ public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
         A extends GenericAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers,
-                                             ClusterService clusterService, A action) {
+    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers, ClusterService clusterService,
+            A action) {
         super(settings, searchRequestParsers, clusterService, action);
     }
 
@@ -109,7 +109,7 @@ public abstract class AbstractBulkByQueryRestHandler<
             }
 
             try (XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType())) {
-                return parser.contentType().xContent().createParser(builder.map(body).bytes());
+                return parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.map(body).bytes());
             }
         } finally {
             parser.close();

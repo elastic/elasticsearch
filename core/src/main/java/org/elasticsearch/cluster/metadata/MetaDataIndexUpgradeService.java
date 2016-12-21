@@ -27,6 +27,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -50,12 +51,15 @@ import java.util.Set;
  */
 public class MetaDataIndexUpgradeService extends AbstractComponent {
 
+    private final NamedXContentRegistry xContentRegistry;
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
 
     @Inject
-    public MetaDataIndexUpgradeService(Settings settings, MapperRegistry mapperRegistry, IndexScopedSettings indexScopedSettings) {
+    public MetaDataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
+            IndexScopedSettings indexScopedSettings) {
         super(settings);
+        this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
     }
@@ -146,11 +150,9 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                 }
             };
             try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(indexSettings, fakeDefault, fakeDefault, fakeDefault, analyzerMap)) {
-                MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, similarityService, mapperRegistry, () -> null);
-                for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
-                    MappingMetaData mappingMetaData = cursor.value;
-                    mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), MapperService.MergeReason.MAPPING_RECOVERY, false);
-                }
+                MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
+                        mapperRegistry, () -> null);
+                mapperService.merge(indexMetaData, MapperService.MergeReason.MAPPING_RECOVERY, false);
             }
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message

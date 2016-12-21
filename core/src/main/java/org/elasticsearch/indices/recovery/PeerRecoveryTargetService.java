@@ -397,21 +397,21 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     }
 
     private void waitForClusterState(long clusterStateVersion) {
-        ClusterStateObserver observer = new ClusterStateObserver(clusterService, TimeValue.timeValueMinutes(5), logger,
+        final ClusterState clusterState = clusterService.state();
+        ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, TimeValue.timeValueMinutes(5), logger,
             threadPool.getThreadContext());
-        final ClusterState clusterState = observer.observedState();
         if (clusterState.getVersion() >= clusterStateVersion) {
             logger.trace("node has cluster state with version higher than {} (current: {})", clusterStateVersion,
                 clusterState.getVersion());
             return;
         } else {
             logger.trace("waiting for cluster state version {} (current: {})", clusterStateVersion, clusterState.getVersion());
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            final PlainActionFuture<Long> future = new PlainActionFuture<>();
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
 
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    future.onResponse(null);
+                    future.onResponse(state.getVersion());
                 }
 
                 @Override
@@ -425,15 +425,14 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 }
             }, newState -> newState.getVersion() >= clusterStateVersion);
             try {
-                future.get();
-                logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion,
-                    observer.observedState().getVersion());
+                long currentVersion = future.get();
+                logger.trace("successfully waited for cluster state with version {} (current: {})", clusterStateVersion, currentVersion);
             } catch (Exception e) {
                 logger.debug(
                     (Supplier<?>) () -> new ParameterizedMessage(
                         "failed waiting for cluster state with version {} (current: {})",
                         clusterStateVersion,
-                        observer.observedState().getVersion()),
+                        clusterService.state().getVersion()),
                     e);
                 throw ExceptionsHelper.convertToRuntime(e);
             }

@@ -74,6 +74,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
@@ -158,6 +159,8 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static java.util.stream.Collectors.toList;
 
 /**
  * A node represent a node within a cluster (<tt>cluster.name</tt>). The {@link #client()} can be used
@@ -362,8 +365,13 @@ public class Node implements Closeable {
                     .flatMap(p -> p.getNamedWriteables().stream()))
                 .flatMap(Function.identity()).collect(Collectors.toList());
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+            NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
+                    searchModule.getNamedXContents().stream(),
+                    pluginsService.filterPlugins(Plugin.class).stream()
+                            .flatMap(p -> p.getNamedXContent().stream())
+                    ).flatMap(Function.identity()).collect(toList()));
             final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment);
-            final IndicesService indicesService = new IndicesService(settings, pluginsService, nodeEnvironment,
+            final IndicesService indicesService = new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry,
                 settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(), searchModule.getQueryParserRegistry(),
                 clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                 threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptModule.getScriptService(),
@@ -371,14 +379,15 @@ public class Node implements Closeable {
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class).stream()
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
-                                                 scriptModule.getScriptService(), searchModule.getSearchRequestParsers()).stream())
+                                                 scriptModule.getScriptService(), searchModule.getSearchRequestParsers(),
+                                                 xContentRegistry).stream())
                 .collect(Collectors.toList());
             Collection<UnaryOperator<Map<String, MetaData.Custom>>> customMetaDataUpgraders =
                 pluginsService.filterPlugins(Plugin.class).stream()
                 .map(Plugin::getCustomMetaDataUpgrader)
                 .collect(Collectors.toList());
-            final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
-                bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
+            final NetworkModule networkModule = new NetworkModule(settings, false, pluginsService.filterPlugins(NetworkPlugin.class),
+                    threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService);
             final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = newTransportService(settings, transport, threadPool,
@@ -404,6 +413,7 @@ public class Node implements Closeable {
                     b.bind(IndicesQueriesRegistry.class).toInstance(searchModule.getQueryParserRegistry());
                     b.bind(SearchRequestParsers.class).toInstance(searchModule.getSearchRequestParsers());
                     b.bind(SearchExtRegistry.class).toInstance(searchModule.getSearchExtRegistry());
+                    b.bind(NamedXContentRegistry.class).toInstance(xContentRegistry);
                     b.bind(PluginsService.class).toInstance(pluginsService);
                     b.bind(Client.class).toInstance(client);
                     b.bind(NodeClient.class).toInstance(client);
@@ -432,7 +442,7 @@ public class Node implements Closeable {
                     b.bind(AllocationCommandRegistry.class).toInstance(NetworkModule.getAllocationCommandRegistry());
                     b.bind(UpdateHelper.class).toInstance(new UpdateHelper(settings, scriptModule.getScriptService()));
                     b.bind(MetaDataIndexUpgradeService.class).toInstance(new MetaDataIndexUpgradeService(settings,
-                        indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
+                        xContentRegistry, indicesModule.getMapperRegistry(), settingsModule.getIndexScopedSettings()));
                     b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
                     b.bind(Discovery.class).toInstance(discoveryModule.getDiscovery());
                     {
@@ -589,8 +599,9 @@ public class Node implements Closeable {
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
         if (initialStateTimeout.millis() > 0) {
             final ThreadPool thread = injector.getInstance(ThreadPool.class);
-            ClusterStateObserver observer = new ClusterStateObserver(clusterService, null, logger, thread.getThreadContext());
-            if (observer.observedState().nodes().getMasterNodeId() == null) {
+            ClusterState clusterState = clusterService.state();
+            ClusterStateObserver observer = new ClusterStateObserver(clusterState, clusterService, null, logger, thread.getThreadContext());
+            if (clusterState.nodes().getMasterNodeId() == null) {
                 logger.debug("waiting to join the cluster. timeout [{}]", initialStateTimeout);
                 final CountDownLatch latch = new CountDownLatch(1);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {

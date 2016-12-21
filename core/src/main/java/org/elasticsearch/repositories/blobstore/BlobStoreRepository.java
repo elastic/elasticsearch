@@ -68,6 +68,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -625,7 +626,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             try (InputStream blob = snapshotsBlobContainer.readBlob(snapshotsIndexBlobName)) {
                 BytesStreamOutput out = new BytesStreamOutput();
                 Streams.copy(blob, out);
-                try (XContentParser parser = XContentHelper.createParser(out.bytes())) {
+                // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
+                try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes())) {
                     repositoryData = RepositoryData.fromXContent(parser);
                 }
             }

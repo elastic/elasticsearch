@@ -59,6 +59,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
@@ -67,6 +68,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
@@ -112,12 +114,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final Environment env;
     private final IndexScopedSettings indexScopedSettings;
     private final ActiveShardsObserver activeShardsObserver;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService,
                                       AliasValidator aliasValidator, Environment env,
-                                      IndexScopedSettings indexScopedSettings, ThreadPool threadPool) {
+                                      IndexScopedSettings indexScopedSettings, ThreadPool threadPool,
+                                      NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -126,6 +130,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.env = env;
         this.indexScopedSettings = indexScopedSettings;
         this.activeShardsObserver = new ActiveShardsObserver(settings, clusterService, threadPool);
+        this.xContentRegistry = xContentRegistry;
     }
 
     /**
@@ -247,7 +252,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             List<String> templateNames = new ArrayList<>();
 
                             for (Map.Entry<String, String> entry : request.mappings().entrySet()) {
-                                mappings.put(entry.getKey(), MapperService.parseMapping(entry.getValue()));
+                                mappings.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
                             }
 
                             for (Map.Entry<String, Custom> entry : request.customs().entrySet()) {
@@ -259,9 +264,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                 templateNames.add(template.getName());
                                 for (ObjectObjectCursor<String, CompressedXContent> cursor : template.mappings()) {
                                     if (mappings.containsKey(cursor.key)) {
-                                        XContentHelper.mergeDefaults(mappings.get(cursor.key), MapperService.parseMapping(cursor.value.string()));
+                                        XContentHelper.mergeDefaults(mappings.get(cursor.key),
+                                                MapperService.parseMapping(xContentRegistry, cursor.value.string()));
                                     } else {
-                                        mappings.put(cursor.key, MapperService.parseMapping(cursor.value.string()));
+                                        mappings.put(cursor.key, MapperService.parseMapping(xContentRegistry, cursor.value.string()));
                                     }
                                 }
                                 // handle custom
@@ -356,10 +362,10 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             // now add the mappings
                             MapperService mapperService = indexService.mapperService();
                             try {
-                                mapperService.merge(mappings, request.updateAllTypes());
-                            } catch (MapperParsingException mpe) {
+                                mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, request.updateAllTypes());
+                            } catch (Exception e) {
                                 removalExtraInfo = "failed on parsing default mapping/mappings on index creation";
-                                throw mpe;
+                                throw e;
                             }
 
                             // the context is only used for validation so it's fine to pass fake values for the shard id and the current
@@ -367,12 +373,13 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             final QueryShardContext queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L);
                             for (Alias alias : request.aliases()) {
                                 if (Strings.hasLength(alias.filter())) {
-                                    aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext);
+                                    aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
                                 }
                             }
                             for (AliasMetaData aliasMetaData : templatesAliases.values()) {
                                 if (aliasMetaData.filter() != null) {
-                                    aliasValidator.validateAliasFilter(aliasMetaData.alias(), aliasMetaData.filter().uncompressed(), queryShardContext);
+                                    aliasValidator.validateAliasFilter(aliasMetaData.alias(), aliasMetaData.filter().uncompressed(),
+                                            queryShardContext, xContentRegistry);
                                 }
                             }
 

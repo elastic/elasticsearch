@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
@@ -88,6 +89,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -337,6 +339,13 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public static void beforeClass() throws Exception {
         SUITE_SEED = randomLong();
         initializeSuiteScope();
+    }
+
+    @Override
+    protected final boolean enableWarningsCheck() {
+        //In an integ test it doesn't make sense to keep track of warnings: if the cluster is external the warnings are in another jvm,
+        //if the cluster is internal the deprecation logger is shared across all nodes
+        return false;
     }
 
     protected final void beforeInternal() throws Exception {
@@ -2104,6 +2113,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             builder.put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath());
         }
         return builder.build();
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return internalCluster().getInstance(NamedXContentRegistry.class);
     }
 
     /**

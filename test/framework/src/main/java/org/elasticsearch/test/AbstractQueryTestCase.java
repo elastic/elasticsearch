@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -47,13 +48,12 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -117,15 +117,16 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
@@ -156,11 +157,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static String[] currentTypes;
     private static String[] randomTypes;
 
-    /**
-     * used to check warning headers of the deprecation logger
-     */
-    private ThreadContext threadContext;
-
     protected static Index getIndex() {
         return index;
     }
@@ -187,7 +183,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING.getKey(), false)
                 .build();
         indexSettings = Settings.builder()
-                .put(ParseFieldMatcher.PARSE_STRICT, true)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, indexVersionCreated).build();
 
         index = new Index(randomAsciiOfLengthBetween(1, 10), "_na_");
@@ -214,20 +209,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             serviceHolder = new ServiceHolder(nodeSettings, indexSettings, getPlugins(), this);
         }
         serviceHolder.clientInvocationHandler.delegate = this;
-        this.threadContext = new ThreadContext(Settings.EMPTY);
-        DeprecationLogger.setThreadContext(threadContext);
-    }
-
-    /**
-     * Check that there are no unaccounted warning headers. These should be checked with {@link #checkWarningHeaders(String...)} in the
-     * appropriate test
-     */
-    @After
-    public void teardown() throws IOException {
-        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-        assertNull("unexpected warning headers", warnings);
-        DeprecationLogger.removeThreadContext(this.threadContext);
-        this.threadContext.close();
     }
 
     private static SearchContext getSearchContext(String[] types, QueryShardContext context) {
@@ -247,7 +228,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     @After
-    public void afterTest() {
+    public void afterTest() throws IOException {
         serviceHolder.clientInvocationHandler.delegate = null;
     }
 
@@ -421,7 +402,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 BytesStreamOutput out = new BytesStreamOutput();
                 try (
                         XContentGenerator generator = XContentType.JSON.xContent().createGenerator(out);
-                        XContentParser parser = JsonXContent.jsonXContent.createParser(query);
+                        XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, query);
                 ) {
                     int objectIndex = -1;
                     Deque<String> levels = new LinkedList<>();
@@ -1026,21 +1007,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return query;
     }
 
-    protected void checkWarningHeaders(String... messages) {
-        final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.DEPRECATION_HEADER);
-        assertThat(warnings, hasSize(messages.length));
-        for (String msg : messages) {
-            assertThat(warnings, hasItem(equalTo(msg)));
-        }
-        // "clear" current warning headers by setting a new ThreadContext
-        DeprecationLogger.removeThreadContext(this.threadContext);
-        try {
-            this.threadContext.close();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        this.threadContext = new ThreadContext(Settings.EMPTY);
-        DeprecationLogger.setThreadContext(this.threadContext);
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return serviceHolder.xContentRegistry;
     }
 
     private static class ServiceHolder implements Closeable {
@@ -1049,6 +1018,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         private final IndexFieldDataService indexFieldDataService;
         private final SearchModule searchModule;
         private final NamedWriteableRegistry namedWriteableRegistry;
+        private final NamedXContentRegistry xContentRegistry;
         private final ClientInvocationHandler clientInvocationHandler = new ClientInvocationHandler();
         private final IndexSettings idxSettings;
         private final SimilarityService similarityService;
@@ -1077,7 +1047,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(indicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
-            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
+            namedWriteableRegistry = new NamedWriteableRegistry(entries);
+            xContentRegistry = new NamedXContentRegistry(Stream.of(
+                    searchModule.getNamedXContents().stream()
+                    ).flatMap(Function.identity()).collect(toList()));
             IndexScopedSettings indexScopedSettings = settingsModule.getIndexScopedSettings();
             idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, indexScopedSettings);
             AnalysisModule analysisModule = new AnalysisModule(new Environment(nodeSettings), emptyList());
@@ -1085,7 +1058,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             scriptService = scriptModule.getScriptService();
             similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-            mapperService = new MapperService(idxSettings, indexAnalyzers, similarityService, mapperRegistry, this::createShardContext);
+            mapperService = new MapperService(idxSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
+                    this::createShardContext);
             IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
             });
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache,
@@ -1124,7 +1098,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                         MapperService.MergeReason.MAPPING_UPDATE, false);
             }
             testCase.initializeAdditionalMappings(mapperService);
-            this.namedWriteableRegistry = namedWriteableRegistry;
         }
 
         @Override
@@ -1133,7 +1106,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
         QueryShardContext createShardContext() {
             return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                    scriptService, indicesQueriesRegistry, this.client, null, () -> nowInMillis);
+                    scriptService, xContentRegistry, indicesQueriesRegistry, this.client, null, () -> nowInMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

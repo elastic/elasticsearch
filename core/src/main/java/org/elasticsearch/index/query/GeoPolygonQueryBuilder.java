@@ -49,10 +49,8 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
      */
     public static final boolean DEFAULT_IGNORE_UNMAPPED = false;
 
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
-            .withAllDeprecated("use validation_method instead");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
-            .withAllDeprecated("use validation_method instead");
+    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize").withAllDeprecated("validation_method");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed").withAllDeprecated("validation_method");
     private static final ParseField VALIDATION_METHOD = new ParseField("validation_method");
     private static final ParseField POINTS_FIELD = new ParseField("points");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");

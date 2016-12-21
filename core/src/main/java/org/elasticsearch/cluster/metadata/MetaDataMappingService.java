@@ -43,6 +43,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 
@@ -146,10 +147,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 // we need to create the index here, and add the current mapping to it, so we can merge
                 indexService = indicesService.createIndex(indexMetaData, Collections.emptyList(), shardId -> {});
                 removeIndex = true;
-                for (ObjectCursor<MappingMetaData> metaData : indexMetaData.getMappings().values()) {
-                    // don't apply the default mapping, it has been applied when the mapping was created
-                    indexService.mapperService().merge(metaData.value.type(), metaData.value.source(), MapperService.MergeReason.MAPPING_RECOVERY, true);
-                }
+                indexService.mapperService().merge(indexMetaData, MergeReason.MAPPING_RECOVERY, true);
             }
 
             IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
@@ -226,10 +224,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 MapperService mapperService = indicesService.createIndexMapperService(indexMetaData);
                                 indexMapperServices.put(index, mapperService);
                                 // add mappings for all types, we need them for cross-type validation
-                                for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                    mapperService.merge(mapping.value.type(), mapping.value.source(),
-                                        MapperService.MergeReason.MAPPING_RECOVERY, request.updateAllTypes());
-                                }
+                                mapperService.merge(indexMetaData, MergeReason.MAPPING_RECOVERY, request.updateAllTypes());
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
@@ -313,7 +308,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 if (existingMapper != null) {
                     existingSource = existingMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource, MapperService.MergeReason.MAPPING_UPDATE, request.updateAllTypes());
+                DocumentMapper mergedMapper = mapperService.merge(mappingType, mappingUpdateSource, MergeReason.MAPPING_UPDATE, request.updateAllTypes());
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
                 if (existingSource != null) {

@@ -268,6 +268,7 @@ class ClusterFormationTasks {
     static Task configureWriteConfigTask(String name, Project project, Task setup, NodeInfo node, NodeInfo seedNode) {
         Map esConfig = [
                 'cluster.name'                 : node.clusterName,
+                'node.name'                    : "node-" + node.nodeNum,
                 'pidfile'                      : node.pidFile,
                 'path.repo'                    : "${node.sharedDir}/repo",
                 'path.shared_data'             : "${node.sharedDir}/",

@@ -57,7 +57,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
@@ -197,16 +196,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         builder.field(DOCUMENT_TYPE_FIELD.getPreferredName(), documentType);
         builder.field(QUERY_FIELD.getPreferredName(), field);
         if (document != null) {
-            XContentType contentType = XContentFactory.xContentType(document);
-            if (contentType == builder.contentType()) {
-                builder.rawField(DOCUMENT_FIELD.getPreferredName(), document);
-            } else {
-                try (XContentParser parser = XContentFactory.xContent(contentType).createParser(document)) {
-                    parser.nextToken();
-                    builder.field(DOCUMENT_FIELD.getPreferredName());
-                    builder.copyCurrentStructure(parser);
-                }
-            }
+            builder.rawField(DOCUMENT_FIELD.getPreferredName(), document);
         }
         if (indexedDocumentIndex != null || indexedDocumentType != null || indexedDocumentId != null) {
             if (indexedDocumentIndex != null) {
@@ -486,7 +476,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     BytesRef qbSource = binaryDocValues.get(docId);
                     if (qbSource.length > 0) {
                         XContent xContent = PercolatorFieldMapper.QUERY_BUILDER_CONTENT_TYPE.xContent();
-                        try (XContentParser sourceParser = xContent.createParser(qbSource.bytes, qbSource.offset, qbSource.length)) {
+                        try (XContentParser sourceParser = xContent.createParser(context.getXContentRegistry(), qbSource.bytes,
+                                qbSource.offset, qbSource.length)) {
                             return parseQuery(context, mapUnmappedFieldsAsString, sourceParser);
                         }
                     } else {
@@ -509,7 +500,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
                     throw new IllegalStateException("No source found for document with docid [" + docId + "]");
                 }
 
-                try (XContentParser sourceParser = XContentHelper.createParser(visitor.source)) {
+                try (XContentParser sourceParser = XContentHelper.createParser(context.getXContentRegistry(), visitor.source)) {
                     String currentFieldName = null;
                     XContentParser.Token token = sourceParser.nextToken(); // move the START_OBJECT
                     if (token != XContentParser.Token.START_OBJECT) {

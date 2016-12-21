@@ -33,6 +33,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -98,10 +99,10 @@ public class QueryShardContext extends QueryRewriteContext {
     private boolean isFilter;
 
     public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
-                             IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService,
-                             ScriptService scriptService, final IndicesQueriesRegistry indicesQueriesRegistry, Client client,
-                             IndexReader reader, LongSupplier nowInMillis) {
-        super(indexSettings, mapperService, scriptService, indicesQueriesRegistry, client, reader, nowInMillis);
+            IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService,
+            ScriptService scriptService, NamedXContentRegistry xContentRegistry, IndicesQueriesRegistry indicesQueriesRegistry,
+            Client client, IndexReader reader, LongSupplier nowInMillis) {
+        super(indexSettings, mapperService, scriptService, xContentRegistry, indicesQueriesRegistry, client, reader, nowInMillis);
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
@@ -116,7 +117,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
-                source.similarityService, source.scriptService, source.indicesQueriesRegistry, source.client,
+                source.similarityService, source.scriptService, source.getXContentRegistry(), source.indicesQueriesRegistry, source.client,
                 source.reader, source.nowInMillis);
         this.types = source.getTypes();
     }

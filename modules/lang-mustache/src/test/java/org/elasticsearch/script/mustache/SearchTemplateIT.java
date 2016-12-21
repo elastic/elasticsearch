@@ -294,6 +294,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 1);
+        assertWarnings("[template] query is deprecated, use search template api instead");
     }
 
     // Relates to #10397
@@ -306,39 +307,36 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .get();
         client().admin().indices().prepareRefresh().get();
 
-        int iterations = randomIntBetween(2, 11);
-        for (int i = 1; i < iterations; i++) {
-            assertAcked(client().admin().cluster().preparePutStoredScript()
-                    .setScriptLang(MustacheScriptEngineService.NAME)
-                    .setId("git01")
-                    .setSource(new BytesArray("{\"template\":{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
-                            "\"type\": \"ooophrase_prefix\"}}}}}")));
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setId("git01")
+                .setSource(new BytesArray("{\"template\":{\"query\": {\"match_phrase_prefix\": " +
+                        "{\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
+                        "\"unsupported\": \"unsupported\"}}}}}")));
 
-            GetStoredScriptResponse getResponse = client().admin().cluster()
-                    .prepareGetStoredScript(MustacheScriptEngineService.NAME, "git01").get();
-            assertNotNull(getResponse.getStoredScript());
+        GetStoredScriptResponse getResponse = client().admin().cluster()
+                .prepareGetStoredScript(MustacheScriptEngineService.NAME, "git01").get();
+        assertNotNull(getResponse.getStoredScript());
 
-            Map<String, Object> templateParams = new HashMap<>();
-            templateParams.put("P_Keyword1", "dev");
+        Map<String, Object> templateParams = new HashMap<>();
+        templateParams.put("P_Keyword1", "dev");
 
-            ParsingException e = expectThrows(ParsingException.class, () -> new SearchTemplateRequestBuilder(client())
-                    .setRequest(new SearchRequest("testindex").types("test"))
-                    .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
-                    .get());
-            assertThat(e.getMessage(), containsString("[match] query does not support type ooophrase_prefix"));
+        ParsingException e = expectThrows(ParsingException.class, () -> new SearchTemplateRequestBuilder(client())
+                .setRequest(new SearchRequest("testindex").types("test"))
+                .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
+                .get());
+        assertThat(e.getMessage(), containsString("[match_phrase_prefix] query does not support [unsupported]"));
 
-            assertAcked(client().admin().cluster().preparePutStoredScript()
-                    .setScriptLang(MustacheScriptEngineService.NAME)
-                    .setId("git01")
-                    .setSource(new BytesArray("{\"query\": {\"match\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"," +
-                            "\"type\": \"phrase_prefix\"}}}}")));
+        assertAcked(client().admin().cluster().preparePutStoredScript()
+                .setScriptLang(MustacheScriptEngineService.NAME)
+                .setId("git01")
+                .setSource(new BytesArray("{\"query\": {\"match_phrase_prefix\": {\"searchtext\": {\"query\": \"{{P_Keyword1}}\"}}}}")));
 
-            SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
-                    .setRequest(new SearchRequest("testindex").types("test"))
-                    .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
-                    .get();
-            assertHitCount(searchResponse.getResponse(), 1);
-        }
+        SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
+                .setRequest(new SearchRequest("testindex").types("test"))
+                .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
+                .get();
+        assertHitCount(searchResponse.getResponse(), 1);
     }
 
     public void testIndexedTemplateWithArray() throws Exception {

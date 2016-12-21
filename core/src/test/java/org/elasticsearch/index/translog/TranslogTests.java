@@ -318,12 +318,10 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
-            assertThat(
-                stats.getTranslogSizeInBytes(),
-                equalTo(165L + StreamOutput.lengthVLong(seqNo) + StreamOutput.lengthVLong(primaryTerm)));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(181L));
         }
 
-        final long expectedSizeInBytes = 208L + StreamOutput.lengthVLong(seqNo) + StreamOutput.lengthVLong(primaryTerm);
+        final long expectedSizeInBytes = 224L;
         translog.prepareCommit();
         {
             final TranslogStats stats = stats();
@@ -357,6 +355,24 @@ public class TranslogTests extends ESTestCase {
             assertThat(stats.estimatedNumberOfOperations(), equalTo(0L));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
         }
+    }
+
+    public void testTotalTests() {
+        final TranslogStats total = new TranslogStats();
+        final int n = randomIntBetween(0, 16);
+        final List<TranslogStats> statsList = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            final TranslogStats stats = new TranslogStats(randomIntBetween(1, 4096), randomIntBetween(1, 1 << 20));
+            statsList.add(stats);
+            total.add(stats);
+        }
+
+        assertThat(
+            total.estimatedNumberOfOperations(),
+            equalTo(statsList.stream().mapToLong(TranslogStats::estimatedNumberOfOperations).sum()));
+        assertThat(
+            total.getTranslogSizeInBytes(),
+            equalTo(statsList.stream().mapToLong(TranslogStats::getTranslogSizeInBytes).sum()));
     }
 
     public void testNegativeNumberOfOperations() {

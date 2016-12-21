@@ -1172,7 +1172,7 @@ public abstract class Engine implements Closeable {
 
         @Override
         public int estimatedSizeInBytes() {
-            return 2 * reason.length() + StreamOutput.lengthVLong(seqNo()) + StreamOutput.lengthVLong(primaryTerm());
+            return 2 * reason.length() + 2 * Long.BYTES;
         }
 
     }

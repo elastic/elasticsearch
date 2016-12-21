@@ -223,11 +223,6 @@ public abstract class StreamOutput extends OutputStream {
         writeByte((byte) i);
     }
 
-    public static int lengthVLong(long i) {
-        assert i >= 0;
-        return 1 + (int) Math.floor(Math.log(i) / Math.log(2)) / 7;
-    }
-
     /**
      * Writes a long in a variable-length format. Writes between one and ten bytes.
      * Values are remapped by sliding the sign bit into the lsb and then encoded as an unsigned number
@@ -333,7 +328,7 @@ public abstract class StreamOutput extends OutputStream {
             // make sure any possible char can fit into the buffer in any possible iteration
             // we need at most 3 bytes so we flush the buffer once we have less than 3 bytes
             // left before we start another iteration
-            if (offset > buffer.length-3) {
+            if (offset > buffer.length - 3) {
                 writeBytes(buffer, offset);
                 offset = 0;
             }

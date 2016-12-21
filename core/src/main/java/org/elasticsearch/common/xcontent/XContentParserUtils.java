@@ -57,6 +57,14 @@ public final class XContentParserUtils {
     }
 
     /**
+     * @throws ParsingException with a "unknown token found" reason
+     */
+    public static void throwUnknownToken(XContentParser.Token token, XContentLocation location) {
+        String message = "Failed to parse object: unexpected token [%s] found";
+        throw new ParsingException(location, String.format(Locale.ROOT, message, token));
+    }
+
+    /**
      * Makes sure that provided token is of the expected type
      *
      * @throws ParsingException if the token is not equal to the expected type

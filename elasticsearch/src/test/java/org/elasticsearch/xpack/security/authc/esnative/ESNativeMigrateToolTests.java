@@ -58,8 +58,6 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         return internalCluster().getInstances(Environment.class).iterator().next();
     }
 
-    //TODO dm: fix me
-    @AwaitsFix(bugUrl = "We need to fix BWC first")
     public void testRetrieveUsers() throws Exception {
         final Environment nodeEnvironment = nodeEnvironment();
         String home = Environment.PATH_HOME_SETTING.get(nodeEnvironment.settings());
@@ -100,8 +98,6 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         }
     }
 
-    //TODO dm: fix me
-    @AwaitsFix(bugUrl = "We need to fix BWC first")
     public void testRetrieveRoles() throws Exception {
         final Environment nodeEnvironment = nodeEnvironment();
         String home = Environment.PATH_HOME_SETTING.get(nodeEnvironment.settings());

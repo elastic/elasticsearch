@@ -214,11 +214,21 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Reads a long stored in variable-length format.  Reads between one and
-     * nine bytes.  Smaller values take fewer bytes.  Negative numbers are not
-     * supported.
+     * Reads a long stored in variable-length format. Reads between one and nine bytes. Smaller values take fewer bytes. Negative numbers
+     * are encoded in ten bytes and trip an assertion (if called while testing) so prefer {@link #readLong()} or {@link #readZLong()} for
+     * negative numbers.
      */
     public long readVLong() throws IOException {
+        long l = readVLongNoCheck();
+        assert l >= 0: "Prefer readLong or readZLong for negative numbers [" + l + "]";
+        return l;
+    }
+
+    /**
+     * Reads a long stored in variable-length format without asserting that it isn't negative. Package private for testing. Use
+     * {@link #readVLong()}.
+     */
+    long readVLongNoCheck() throws IOException {
         byte b = readByte();
         long i = b & 0x7FL;
         if ((b & 0x80) == 0) {
@@ -260,8 +270,16 @@ public abstract class StreamInput extends InputStream {
             return i;
         }
         b = readByte();
-        assert (b & 0x80) == 0;
-        return i | ((b & 0x7FL) << 56);
+        i |= ((b & 0x7FL) << 56);
+        if ((b & 0x80) == 0) {
+            return i;
+        }
+        b = readByte();
+        if (b != 0 && b != 1) {
+            throw new IOException("Invalid vlong (" + Integer.toHexString(b) + " << 63) | " + Long.toHexString(i));
+        }
+        i |= (b & 0x7FL) << 63;
+        return i;
     }
 
     public long readZLong() throws IOException {

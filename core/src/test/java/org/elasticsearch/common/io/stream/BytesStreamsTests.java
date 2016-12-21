@@ -21,7 +21,6 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -776,6 +775,40 @@ public class BytesStreamsTests extends ESTestCase {
                 NegativeArraySizeException exception = expectThrows(NegativeArraySizeException.class, () -> streamInput.readIntArray());
                 assertEquals("array size must be positive but was: -2147483648", exception.getMessage());
             }
+        }
+    }
+
+    public void testVInt() throws IOException {
+        final int value = randomInt();
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.writeVInt(value);
+        StreamInput input = output.bytes().streamInput();
+        assertEquals(value, input.readVInt());
+    }
+
+    public void testVLong() throws IOException {
+        final long value = randomLong();
+        {
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.writeVLongNoCheck(value);
+            StreamInput input = output.bytes().streamInput();
+            assertEquals(value, input.readVLongNoCheck());
+        }
+        {
+            BytesStreamOutput output = new BytesStreamOutput();
+            output.writeVLongNoCheck(value);
+            StreamInput input = output.bytes().streamInput();
+            if (value >= 0) {
+                assertEquals(value, input.readVLong());
+            } else {
+                AssertionError e = expectThrows(AssertionError.class, () -> input.readVLong());
+                assertEquals("Prefer readLong or readZLong for negative numbers [" + value + "]", e.getMessage());
+            }
+        }
+        if (value < 0) {
+            BytesStreamOutput output = new BytesStreamOutput();
+            AssertionError e = expectThrows(AssertionError.class, () -> output.writeVLong(value));
+            assertEquals("Prefer writeLong or writeZLong for negative numbers [" + value + "]", e.getMessage());
         }
     }
 }

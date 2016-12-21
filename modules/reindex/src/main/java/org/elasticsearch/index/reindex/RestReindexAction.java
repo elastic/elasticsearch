@@ -233,7 +233,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         }
 
         QueryParseContext queryParseContext(XContentParser parser) {
-            return new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
+            return new QueryParseContext(parser, parseFieldMatcher);
         }
 
         @Override

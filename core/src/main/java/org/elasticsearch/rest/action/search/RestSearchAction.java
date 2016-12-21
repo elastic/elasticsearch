@@ -92,7 +92,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
-            QueryParseContext context = new QueryParseContext(searchRequestParsers.queryParsers, requestContentParser, parseFieldMatcher);
+            QueryParseContext context = new QueryParseContext(requestContentParser, parseFieldMatcher);
             searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
                     searchRequestParsers.searchExtParsers);
         }

@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 import org.elasticsearch.test.ESTestCase;
 
@@ -42,12 +41,8 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
-public class DirectCandidateGeneratorTests extends ESTestCase{
-
-    private static final IndicesQueriesRegistry mockRegistry = new IndicesQueriesRegistry();
+public class DirectCandidateGeneratorTests extends ESTestCase {
     private static final int NUMBER_OF_RUNS = 20;
-
-
 
     /**
      * Test serialization and deserialization of the generator
@@ -113,7 +108,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
             }
             generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentParser parser = createParser(shuffleXContent(builder));
-            QueryParseContext context = new QueryParseContext(mockRegistry, parser, ParseFieldMatcher.STRICT);
+            QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
             DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.fromXContent(context);
             assertNotSame(generator, secondGenerator);
@@ -177,7 +172,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase{
     private void assertIllegalXContent(String directGenerator, Class<? extends Exception> exceptionClass, String exceptionMsg)
             throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, directGenerator);
-        QueryParseContext context = new QueryParseContext(mockRegistry, parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
         Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
         assertEquals(exceptionMsg, e.getMessage());
     }

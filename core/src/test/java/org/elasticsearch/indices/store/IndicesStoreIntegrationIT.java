@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -45,7 +44,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
+import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -56,8 +55,6 @@ import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -480,17 +477,12 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         @Override
         public void receivedRequest(long requestId, String action) {
-            if (action.equals(IndicesStore.ACTION_SHARD_EXISTS)) {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILES_INFO)) {
+                logger.info("received: {}, relocation starts", action);
+                beginRelocationLatch.countDown();
+            } else if (action.equals(IndicesStore.ACTION_SHARD_EXISTS)) {
                 receivedShardExistsRequestLatch.countDown();
                 logger.info("received: {}, relocation done", action);
-            }
-        }
-
-        @Override
-        public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
-            if (action.equals(PeerRecoverySourceService.Actions.START_RECOVERY)) {
-                logger.info("sent: {}, relocation starts", action);
-                beginRelocationLatch.countDown();
             }
         }
     }

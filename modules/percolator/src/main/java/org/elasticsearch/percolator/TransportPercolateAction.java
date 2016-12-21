@@ -45,7 +45,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchExtRegistry;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -107,7 +106,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
     private void innerDoExecute(PercolateRequest request, BytesReference docSource, ActionListener<PercolateResponse> listener) {
         SearchRequest searchRequest;
         try {
-            searchRequest = createSearchRequest(request, docSource, searchRequestParsers.queryParsers,
+            searchRequest = createSearchRequest(request, docSource,
                 searchRequestParsers.aggParsers, searchRequestParsers.searchExtParsers, xContentRegistry, parseFieldMatcher);
         } catch (IOException e) {
             listener.onFailure(e);
@@ -131,7 +130,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
     }
 
     public static SearchRequest createSearchRequest(PercolateRequest percolateRequest, BytesReference documentSource,
-                                                    IndicesQueriesRegistry queryRegistry, AggregatorParsers aggParsers,
+                                                    AggregatorParsers aggParsers,
                                                     SearchExtRegistry searchExtRegistry, NamedXContentRegistry xContentRegistry,
                                                     ParseFieldMatcher parseFieldMatcher)
             throws IOException {
@@ -214,7 +213,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
                 new PercolateQueryBuilder("query", percolateRequest.documentType(), documentSource);
         if (querySource != null) {
             try (XContentParser parser = XContentHelper.createParser(xContentRegistry, querySource)) {
-                QueryParseContext queryParseContext = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
+                QueryParseContext queryParseContext = new QueryParseContext(parser, parseFieldMatcher);
                 BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery();
                 boolQueryBuilder.must(queryParseContext.parseInnerQueryBuilder());
                 boolQueryBuilder.filter(percolateQueryBuilder);
@@ -232,7 +231,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         BytesReference source = searchSource.bytes();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContentRegistry, source)) {
-            QueryParseContext context = new QueryParseContext(queryRegistry, parser, parseFieldMatcher);
+            QueryParseContext context = new QueryParseContext(parser, parseFieldMatcher);
             searchSourceBuilder.parseXContent(context, aggParsers, null, searchExtRegistry);
             searchRequest.source(searchSourceBuilder);
             return searchRequest;

@@ -113,7 +113,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptyMap(),
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
-        try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode, ConnectionProfile.LIGHT_PROFILE)){
+        try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode, MockTcpTransport.LIGHT_PROFILE)){
             DiscoveryNode connectedNode = handleA.transportService.handshake(connection, timeout);
             assertNotNull(connectedNode);
             // the name and version should be updated
@@ -121,16 +121,6 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
             assertFalse(handleA.transportService.nodeConnected(discoveryNode));
         }
-
-        DiscoveryNode connectedNode =
-            handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout);
-        assertNotNull(connectedNode);
-
-        // the name and version should be updated
-        assertEquals(connectedNode.getName(), "TS_B");
-        assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
-        assertTrue(handleA.transportService.nodeConnected(discoveryNode));
-
     }
 
     public void testMismatchedClusterName() {
@@ -145,7 +135,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             Version.CURRENT.minimumCompatibilityVersion());
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
-                ConnectionProfile.LIGHT_PROFILE)) {
+                MockTcpTransport.LIGHT_PROFILE)) {
                 handleA.transportService.handshake(connection, timeout);
             }
         });
@@ -166,7 +156,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             Version.CURRENT.minimumCompatibilityVersion());
         IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
             try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
-                ConnectionProfile.LIGHT_PROFILE)) {
+                MockTcpTransport.LIGHT_PROFILE)) {
                 handleA.transportService.handshake(connection, timeout);
             }
         });

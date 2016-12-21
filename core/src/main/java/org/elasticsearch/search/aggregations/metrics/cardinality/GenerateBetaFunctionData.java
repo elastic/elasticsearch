@@ -31,11 +31,13 @@ import java.util.Random;
 import java.util.Set;
 
 public class GenerateBetaFunctionData {
+    private static final org.elasticsearch.common.hash.MurmurHash3.Hash128 hash = new org.elasticsearch.common.hash.MurmurHash3.Hash128();
+
     public static void main(String[] args) throws Exception {
         Random r = new Random();
-        boolean compareWithCalculated = false;
+        boolean compareWithCalculated = true;
         int precision = 14;
-        int numTestRuns = 100;
+        int numTestRuns = compareWithCalculated ? 1 : 100;
         // int maxCardinality = 10000000;
         // int initialCardinality = 100;
         // int initialStep = 10;
@@ -53,6 +55,10 @@ public class GenerateBetaFunctionData {
 
                     for (int i = 1; i <= maxCardinality; ++i) {
                         long h = BitMixer.mix64(r.nextLong());
+                        // long val = r.nextLong();
+                        // byte[] valBytes = String.valueOf(val).getBytes();
+                        // long h = MurmurHash3.hash128(valBytes, 0,
+                        // valBytes.length, 0, hash).h1;
                         hllb.collect(0, h);
                         distinct.add(h);
 

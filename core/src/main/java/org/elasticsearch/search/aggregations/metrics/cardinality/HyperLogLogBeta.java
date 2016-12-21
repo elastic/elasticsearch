@@ -194,7 +194,7 @@ public final class HyperLogLogBeta implements Releasable {
             }
         }
         double e1 = (alphaM * (m - z)) / (calculateBeta(p, z) + inverseSum);
-        long h = Math.round(e1);
+        long h = (long) e1;
         return h;
     }
 

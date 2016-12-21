@@ -124,14 +124,36 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ftInt = new NumberFieldMapper.NumberFieldType(NumberType.INTEGER);
         ftInt.setName("field");
         ftInt.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(IntPoint.newRangeQuery("field", -3, -2), ftInt.rangeQuery(-3.5, -2.5, true, true, null));
-        assertEquals(IntPoint.newRangeQuery("field", -3, -2), ftInt.rangeQuery(-3.5, -2.5, false, false, null));
+        assertEquals(IntPoint.newRangeQuery("field", -3, -3), ftInt.rangeQuery(-3.5, -2.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", -3, -3), ftInt.rangeQuery(-3.5, -2.5, false, false, null));
+        assertEquals(IntPoint.newRangeQuery("field", 0, 0), ftInt.rangeQuery(-0.5, 0.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 0, 0), ftInt.rangeQuery(-0.5, 0.5, false, false, null));
+        assertEquals(IntPoint.newRangeQuery("field", 1, 2), ftInt.rangeQuery(0.5, 2.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 1, 2), ftInt.rangeQuery(0.5, 2.5, false, false, null));
+        assertEquals(IntPoint.newRangeQuery("field", 0, 2), ftInt.rangeQuery(-0.5, 2.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 0, 2), ftInt.rangeQuery(-0.5, 2.5, false, false, null));
+
+        assertEquals(IntPoint.newRangeQuery("field", -2, 0), ftInt.rangeQuery(-2.5, 0.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", -2, 0), ftInt.rangeQuery(-2.5, 0.5, false, false, null));
+        assertEquals(IntPoint.newRangeQuery("field", -2, -1), ftInt.rangeQuery(-2.5, -0.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", -2, -1), ftInt.rangeQuery(-2.5, -0.5, false, false, null));
 
         MappedFieldType ftLong = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
         ftLong.setName("field");
         ftLong.setIndexOptions(IndexOptions.DOCS);
-        assertEquals(LongPoint.newRangeQuery("field", -3, -2), ftLong.rangeQuery(-3.5, -2.5, true, true, null));
-        assertEquals(LongPoint.newRangeQuery("field", -3, -2), ftLong.rangeQuery(-3.5, -2.5, false, false, null));
+        assertEquals(LongPoint.newRangeQuery("field", -3, -3), ftLong.rangeQuery(-3.5, -2.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", -3, -3), ftLong.rangeQuery(-3.5, -2.5, false, false, null));
+        assertEquals(LongPoint.newRangeQuery("field", 0, 0), ftLong.rangeQuery(-0.5, 0.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", 0, 0), ftLong.rangeQuery(-0.5, 0.5, false, false, null));
+        assertEquals(LongPoint.newRangeQuery("field", 1, 2), ftLong.rangeQuery(0.5, 2.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", 1, 2), ftLong.rangeQuery(0.5, 2.5, false, false, null));
+        assertEquals(LongPoint.newRangeQuery("field", 0, 2), ftLong.rangeQuery(-0.5, 2.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", 0, 2), ftLong.rangeQuery(-0.5, 2.5, false, false, null));
+
+        assertEquals(LongPoint.newRangeQuery("field", -2, 0), ftLong.rangeQuery(-2.5, 0.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", -2, 0), ftLong.rangeQuery(-2.5, 0.5, false, false, null));
+        assertEquals(LongPoint.newRangeQuery("field", -2, -1), ftLong.rangeQuery(-2.5, -0.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", -2, -1), ftLong.rangeQuery(-2.5, -0.5, false, false, null));
     }
 
     public void testByteRangeQueryWithDecimalParts() {

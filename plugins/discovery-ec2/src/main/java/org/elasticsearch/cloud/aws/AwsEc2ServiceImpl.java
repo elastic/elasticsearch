@@ -178,6 +178,9 @@ public class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Servic
                 case "eu-west-1":
                     endpoint = "ec2.eu-west-1.amazonaws.com";
                     break;
+                case "eu-west-2":
+                    endpoint = "ec2.eu-west-2.amazonaws.com";
+                    break;
                 case "eu-central":
                 case "eu-central-1":
                     endpoint = "ec2.eu-central-1.amazonaws.com";

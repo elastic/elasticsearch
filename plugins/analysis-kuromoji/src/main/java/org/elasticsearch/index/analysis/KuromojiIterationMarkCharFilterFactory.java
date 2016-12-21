@@ -20,6 +20,7 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.ja.JapaneseIterationMarkCharFilter;
+import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -33,8 +34,10 @@ public class KuromojiIterationMarkCharFilterFactory extends AbstractCharFilterFa
 
     public KuromojiIterationMarkCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
-        normalizeKanji = settings.getAsBoolean("normalize_kanji", JapaneseIterationMarkCharFilter.NORMALIZE_KANJI_DEFAULT);
-        normalizeKana = settings.getAsBoolean("normalize_kana", JapaneseIterationMarkCharFilter.NORMALIZE_KANA_DEFAULT);
+        normalizeKanji = SettingMigrationUtils.getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "normalize_kanji",
+            JapaneseIterationMarkCharFilter.NORMALIZE_KANJI_DEFAULT);
+        normalizeKana = SettingMigrationUtils.getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "normalize_kana",
+            JapaneseIterationMarkCharFilter.NORMALIZE_KANA_DEFAULT);
     }
 
     @Override

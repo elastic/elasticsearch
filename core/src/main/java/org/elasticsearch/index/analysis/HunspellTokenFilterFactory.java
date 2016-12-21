@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.hunspell.HunspellStemFilter;
+import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.HunspellService;
@@ -33,7 +34,7 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean dedup;
     private final boolean longestOnly;
 
-    public HunspellTokenFilterFactory(IndexSettings indexSettings, String name,  Settings settings, HunspellService hunspellService)  {
+    public HunspellTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings, HunspellService hunspellService) {
         super(indexSettings, name, settings);
 
         String locale = settings.get("locale", settings.get("language", settings.get("lang", null)));
@@ -46,8 +47,10 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Unknown hunspell dictionary for locale [%s]", locale));
         }
 
-        dedup = settings.getAsBoolean("dedup", true);
-        longestOnly = settings.getAsBoolean("longest_only", false);
+        dedup = SettingMigrationUtils
+            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "dedup", true);
+        longestOnly = SettingMigrationUtils
+            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "longest_only", false);
     }
 
     @Override

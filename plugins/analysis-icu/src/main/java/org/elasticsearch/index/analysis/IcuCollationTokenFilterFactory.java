@@ -25,6 +25,7 @@ import java.nio.file.Files;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -131,7 +132,8 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             }
         }
 
-        Boolean caseLevel = settings.getAsBoolean("caseLevel", null);
+        Boolean caseLevel = SettingMigrationUtils
+            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "caseLevel", null);
         if (caseLevel != null) {
             rbc.setCaseLevel(caseLevel);
         }
@@ -147,7 +149,8 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             }
         }
 
-        Boolean numeric = settings.getAsBoolean("numeric", null);
+        Boolean numeric = SettingMigrationUtils
+            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "numeric", null);
         if (numeric != null) {
             rbc.setNumericCollation(numeric);
         }
@@ -157,7 +160,8 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
             rbc.setVariableTop(variableTop);
         }
 
-        Boolean hiraganaQuaternaryMode = settings.getAsBoolean("hiraganaQuaternaryMode", null);
+        Boolean hiraganaQuaternaryMode = SettingMigrationUtils
+            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "hiraganaQuaternaryMode", null);
         if (hiraganaQuaternaryMode != null) {
             rbc.setHiraganaQuaternary(hiraganaQuaternaryMode);
         }

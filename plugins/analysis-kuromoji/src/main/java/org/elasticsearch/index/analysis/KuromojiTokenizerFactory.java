@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer.Mode;
 import org.apache.lucene.analysis.ja.dict.UserDictionary;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -48,7 +49,8 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
         super(indexSettings, name, settings);
         mode = getMode(settings);
         userDictionary = getUserDictionary(env, settings);
-        discartPunctuation = settings.getAsBoolean("discard_punctuation", true);
+        discartPunctuation = SettingMigrationUtils
+            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "discard_punctuation", true);
         nBestCost = settings.getAsInt(NBEST_COST, -1);
         nBestExamples = settings.get(NBEST_EXAMPLES);
     }

@@ -38,6 +38,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.phonetic.BeiderMorseFilter;
 import org.apache.lucene.analysis.phonetic.DoubleMetaphoneFilter;
 import org.apache.lucene.analysis.phonetic.PhoneticFilter;
+import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -60,7 +61,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
         this.nametype = null;
         this.ruletype = null;
         this.maxcodelength = 0;
-        this.replace = settings.getAsBoolean("replace", true);
+        this.replace = SettingMigrationUtils
+            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "replace", true);
         // weird, encoder is null at last step in SimplePhoneticAnalysisTests, so we set it to metaphone as default
         String encodername = settings.get("encoder", "metaphone");
         if ("metaphone".equalsIgnoreCase(encodername)) {

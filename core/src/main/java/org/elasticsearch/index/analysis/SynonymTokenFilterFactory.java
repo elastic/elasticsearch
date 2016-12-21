@@ -29,6 +29,7 @@ import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
 import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -61,8 +62,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException("synonym requires either `synonyms` or `synonyms_path` to be configured");
         }
 
-        this.ignoreCase = settings.getAsBoolean("ignore_case", false);
-        boolean expand = settings.getAsBoolean("expand", true);
+        this.ignoreCase = SettingMigrationUtils
+            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "ignore_case", false);
+        boolean expand = SettingMigrationUtils
+            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "expand", true);
 
         String tokenizerName = settings.get("tokenizer", "whitespace");
         AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory =

@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.pattern.PatternCaptureGroupTokenFilter;
+import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -45,7 +46,8 @@ public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFa
             patterns[i] = Pattern.compile(regexes[i]);
         }
 
-        preserveOriginal = settings.getAsBoolean(PRESERVE_ORIG_KEY, true);
+        preserveOriginal = SettingMigrationUtils
+            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, PRESERVE_ORIG_KEY, true);
     }
 
     @Override

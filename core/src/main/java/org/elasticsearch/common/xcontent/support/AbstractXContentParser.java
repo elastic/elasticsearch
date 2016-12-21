@@ -93,6 +93,29 @@ public abstract class AbstractXContentParser implements XContentParser {
         return doBooleanValue();
     }
 
+    @Override
+    @SuppressWarnings("deprecated")
+    public boolean isBooleanValueLenient() throws IOException {
+        switch (currentToken()) {
+            case VALUE_BOOLEAN:
+                return true;
+            case VALUE_STRING:
+                return Booleans.isBooleanLenient(textCharacters(), textOffset(), textLength());
+            default:
+                return false;
+        }
+    }
+
+    @Override
+    @SuppressWarnings("deprecated")
+    public boolean booleanValueLenient() throws IOException {
+        Token token = currentToken();
+        if (token == Token.VALUE_STRING) {
+            return Booleans.parseBooleanLenient(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+        }
+        return doBooleanValue();
+    }
+
     protected abstract boolean doBooleanValue() throws IOException;
 
     @Override

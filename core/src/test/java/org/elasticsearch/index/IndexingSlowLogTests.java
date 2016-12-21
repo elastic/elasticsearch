@@ -88,7 +88,7 @@ public class IndexingSlowLogTests extends ESTestCase {
             settings.updateIndexMetaData(newIndexMeta("index", Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING.getKey(), "NOT A BOOLEAN").build()));
             fail();
         } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Failed to parse value [NOT A BOOLEAN] as boolean (only 'true' and 'false' are allowed)");
+            assertEquals(ex.getMessage(), "Failed to parse value [NOT A BOOLEAN] as only [true] or [false] are allowed.");
         }
         assertTrue(log.isReformat());
     }

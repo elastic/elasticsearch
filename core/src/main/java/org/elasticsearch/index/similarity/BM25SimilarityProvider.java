@@ -21,6 +21,9 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -42,7 +45,9 @@ public class BM25SimilarityProvider extends AbstractSimilarityProvider {
         super(name);
         float k1 = settings.getAsFloat("k1", 1.2f);
         float b = settings.getAsFloat("b", 0.75f);
-        boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
+        Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        boolean discountOverlaps = SettingMigrationUtils
+            .getAsBoolean(indexVersion, settings, "discount_overlaps", true);
 
         this.similarity = new BM25Similarity(k1, b);
         this.similarity.setDiscountOverlaps(discountOverlaps);

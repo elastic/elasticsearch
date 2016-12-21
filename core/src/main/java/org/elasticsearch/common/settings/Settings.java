@@ -295,6 +295,20 @@ public final class Settings implements ToXContent {
         return Booleans.parseBoolean(get(setting), defaultValue);
     }
 
+    // TODO #22298: Delete this method.
+    /**
+     * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
+     * returns the default value provided.
+     *
+     * @deprecated Only used to provide automatic upgrades for pre 6.0 indices. Do not call this method directly but
+     * use {@link SettingMigrationUtils} instead.
+     *
+     */
+    @Deprecated
+    public Boolean getAsBooleanLenient(String setting, Boolean defaultValue) {
+        return Booleans.parseBooleanLenient(get(setting), defaultValue);
+    }
+
     /**
      * Returns the setting value (as time) associated with the setting key. If it does not exists,
      * returns the default value provided.

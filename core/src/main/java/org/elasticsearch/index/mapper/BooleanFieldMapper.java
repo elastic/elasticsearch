@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
@@ -231,7 +232,13 @@ public class BooleanFieldMapper extends FieldMapper {
                     value = fieldType().nullValue();
                 }
             } else {
-                value = context.parser().booleanValue();
+                //TODO dm: Test me
+                if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                    value = context.parser().booleanValue();
+                } else {
+                    // auto-upgrade old booleans
+                    value = context.parser().booleanValueLenient();
+                }
             }
         }
 

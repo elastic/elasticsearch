@@ -21,6 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
+import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -31,7 +32,8 @@ public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public UniqueTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.onlyOnSamePosition = settings.getAsBoolean("only_on_same_position", false);
+        this.onlyOnSamePosition = SettingMigrationUtils
+            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "only_on_same_position", false);
     }
 
     @Override

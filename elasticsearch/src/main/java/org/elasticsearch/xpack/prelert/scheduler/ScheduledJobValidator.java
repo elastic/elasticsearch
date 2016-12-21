@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.scheduler;
 
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
 import org.elasticsearch.xpack.prelert.job.Job;
@@ -24,8 +25,7 @@ public final class ScheduledJobValidator {
         if (analysisConfig.getLatency() != null && analysisConfig.getLatency() > 0) {
             throw new IllegalArgumentException(Messages.getMessage(Messages.SCHEDULER_DOES_NOT_SUPPORT_JOB_WITH_LATENCY));
         }
-        if (schedulerConfig.getAggregations() != null
-                && !SchedulerConfig.DOC_COUNT.equals(analysisConfig.getSummaryCountFieldName())) {
+        if (schedulerConfig.hasAggregations() && !SchedulerConfig.DOC_COUNT.equals(analysisConfig.getSummaryCountFieldName())) {
             throw new IllegalArgumentException(
                     Messages.getMessage(Messages.SCHEDULER_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD, SchedulerConfig.DOC_COUNT));
         }

@@ -489,7 +489,9 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         builder.setAnalysisConfig(analysisConfig);
         builder.setAnalysisLimits(new AnalysisLimits(randomPositiveLong(), randomPositiveLong()));
         if (randomBoolean()) {
-            builder.setDataDescription(new DataDescription.Builder());
+            DataDescription.Builder dataDescription = new DataDescription.Builder();
+            dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));
+            builder.setDataDescription(dataDescription);
         }
         String[] outputs;
         TransformType[] transformTypes ;

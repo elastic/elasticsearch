@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.prelert.scheduler;
 
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
 import org.elasticsearch.xpack.prelert.job.DataDescription;
@@ -141,32 +141,7 @@ public class ScheduledJobValidatorTests extends ESTestCase {
 
     private static SchedulerConfig.Builder createValidSchedulerConfigWithAggs() throws IOException {
         SchedulerConfig.Builder schedulerConfig = createValidSchedulerConfig();
-        String aggStr =
-                "{" +
-                        "\"buckets\" : {" +
-                        "\"histogram\" : {" +
-                        "\"field\" : \"time\"," +
-                        "\"interval\" : 3600000" +
-                        "}," +
-                        "\"aggs\" : {" +
-                        "\"byField\" : {" +
-                        "\"terms\" : {" +
-                        "\"field\" : \"airline\"," +
-                        "\"size\" : 0" +
-                        "}," +
-                        "\"aggs\" : {" +
-                        "\"stats\" : {" +
-                        "\"stats\" : {" +
-                        "\"field\" : \"responsetime\"" +
-                        "}" +
-                        "}" +
-                        "}" +
-                        "}" +
-                        "}" +
-                        "}   " +
-                        "}";
-        XContentParser parser = XContentFactory.xContent(aggStr).createParser(aggStr);
-        schedulerConfig.setAggregations(parser.map());
+        schedulerConfig.setAggregations(new AggregatorFactories.Builder().addAggregator(AggregationBuilders.avg("foo")));
         return schedulerConfig;
     }
 

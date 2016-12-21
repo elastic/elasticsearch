@@ -29,7 +29,7 @@ public class Scheduler extends AbstractDiffable<Scheduler> implements ToXContent
     public static final ParseField RESULTS_FIELD = new ParseField("schedulers");
 
     public static final ConstructingObjectParser<Scheduler, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>("scheduler",
-            a -> new Scheduler((SchedulerConfig) a[0], (SchedulerStatus) a[1]));
+            a -> new Scheduler(((SchedulerConfig.Builder) a[0]).build(), (SchedulerStatus) a[1]));
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), SchedulerConfig.PARSER, CONFIG_FIELD);

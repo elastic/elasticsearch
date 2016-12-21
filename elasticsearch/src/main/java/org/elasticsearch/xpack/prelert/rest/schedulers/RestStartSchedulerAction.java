@@ -21,16 +21,17 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.StartSchedulerAction;
-import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
-import org.elasticsearch.xpack.prelert.scheduler.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.scheduler.ScheduledJobRunner;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerStatus;
 import org.elasticsearch.xpack.prelert.utils.SchedulerStatusObserver;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ public class RestStartSchedulerAction extends BaseRestHandler {
 
     @Inject
     public RestStartSchedulerAction(Settings settings, RestController controller, ThreadPool threadPool,
-                                    ClusterService clusterService) {
+                                    ClusterService clusterService, SearchRequestParsers searchRequestParsers) {
         super(settings);
         this.clusterService = clusterService;
         this.schedulerStatusObserver = new SchedulerStatusObserver(threadPool, clusterService);

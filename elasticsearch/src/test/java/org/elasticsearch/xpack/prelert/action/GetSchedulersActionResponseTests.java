@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.prelert.action.GetSchedulersAction.Response;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.scheduler.Scheduler;
@@ -14,7 +19,6 @@ import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public class GetSchedulersActionResponseTests extends AbstractStreamableTestCase<Response> {
@@ -34,16 +38,24 @@ public class GetSchedulersActionResponseTests extends AbstractStreamableTestCase
             schedulerConfig.setFrequency(randomPositiveLong());
             schedulerConfig.setQueryDelay(randomPositiveLong());
             if (randomBoolean()) {
-                schedulerConfig.setQuery(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
+                schedulerConfig.setQuery(QueryBuilders.termQuery(randomAsciiOfLength(10), randomAsciiOfLength(10)));
             }
             if (randomBoolean()) {
-                schedulerConfig.setScriptFields(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
+                int scriptsSize = randomInt(3);
+                List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
+                for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
+                    scriptFields.add(new SearchSourceBuilder.ScriptField(randomAsciiOfLength(10), new Script(randomAsciiOfLength(10)),
+                            randomBoolean()));
+                }
+                schedulerConfig.setScriptFields(scriptFields);
             }
             if (randomBoolean()) {
                 schedulerConfig.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
             }
             if (randomBoolean()) {
-                schedulerConfig.setAggregations(Collections.singletonMap(randomAsciiOfLength(10), randomAsciiOfLength(10)));
+                AggregatorFactories.Builder aggsBuilder = new AggregatorFactories.Builder();
+                aggsBuilder.addAggregator(AggregationBuilders.avg(randomAsciiOfLength(10)));
+                schedulerConfig.setAggregations(aggsBuilder);
             }
 
             schedulerList.add(schedulerConfig.build());

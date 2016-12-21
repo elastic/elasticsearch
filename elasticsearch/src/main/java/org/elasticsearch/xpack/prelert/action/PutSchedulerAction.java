@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
@@ -173,11 +174,15 @@ public class PutSchedulerAction extends Action<PutSchedulerAction.Request, PutSc
 
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
+        private final SearchRequestParsers searchRequestParsers;
+
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                               ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                               SearchRequestParsers searchRequestParsers) {
             super(settings, PutSchedulerAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
+            this.searchRequestParsers = searchRequestParsers;
         }
 
         @Override
@@ -213,7 +218,7 @@ public class PutSchedulerAction extends Action<PutSchedulerAction.Request, PutSc
         private ClusterState putScheduler(Request request, ClusterState clusterState) {
             PrelertMetadata currentMetadata = clusterState.getMetaData().custom(PrelertMetadata.TYPE);
             PrelertMetadata newMetadata = new PrelertMetadata.Builder(currentMetadata)
-                    .putScheduler(request.getScheduler()).build();
+                    .putScheduler(request.getScheduler(), searchRequestParsers).build();
             return ClusterState.builder(clusterState).metaData(
                     MetaData.builder(clusterState.getMetaData()).putCustom(PrelertMetadata.TYPE, newMetadata).build())
                     .build();

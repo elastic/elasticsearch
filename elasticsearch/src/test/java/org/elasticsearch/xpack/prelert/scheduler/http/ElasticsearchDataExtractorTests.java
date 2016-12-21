@@ -28,7 +28,7 @@ public class ElasticsearchDataExtractorTests extends ESTestCase {
 
     private static final List<String> INDEXES = Arrays.asList("index-*");
     private static final List<String> TYPES = Arrays.asList("dataType");
-    private static final String SEARCH = "\"match_all\":{}";
+    private static final String SEARCH = "{\"match_all\":{}}";
     private static final String TIME_FIELD = "time";
     private static final String CLEAR_SCROLL_RESPONSE = "{}";
 

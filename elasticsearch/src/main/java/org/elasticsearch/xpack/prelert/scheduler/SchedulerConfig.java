@@ -8,12 +8,25 @@ package org.elasticsearch.xpack.prelert.scheduler;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
@@ -22,12 +35,9 @@ import org.elasticsearch.xpack.prelert.utils.PrelertStrings;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.SortedMap;
-import java.util.TreeMap;
 
 /**
  * Scheduler configuration options. Describes where to proactively pull input
@@ -61,7 +71,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
     public static final ParseField AGGS = new ParseField("aggs");
     public static final ParseField SCRIPT_FIELDS = new ParseField("script_fields");
 
-    public static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("schedule_config", Builder::new);
+    public static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("scheduler_config", Builder::new);
 
     static {
         PARSER.declareString(Builder::setId, ID);
@@ -70,34 +80,26 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         PARSER.declareStringArray(Builder::setTypes, TYPES);
         PARSER.declareLong(Builder::setQueryDelay, QUERY_DELAY);
         PARSER.declareLong(Builder::setFrequency, FREQUENCY);
-        PARSER.declareObject(Builder::setQuery, (p, c) -> {
-            try {
-                return p.map();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }, QUERY);
-        PARSER.declareObject(Builder::setAggregations, (p, c) -> {
-            try {
-                return p.map();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }, AGGREGATIONS);
-        PARSER.declareObject(Builder::setAggregations, (p, c) -> {
-            try {
-                return p.map();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }, AGGS);
-        PARSER.declareObject(Builder::setScriptFields, (p, c) -> {
-            try {
-                return p.map();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }, SCRIPT_FIELDS);
+        PARSER.declareField((parser, builder, aVoid) -> {
+            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
+            XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
+            builder.setQuery(contentBuilder.bytes());
+        }, QUERY, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((parser, builder, aVoid) -> {
+            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
+            XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
+            builder.setAggregations(contentBuilder.bytes());
+        }, AGGREGATIONS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((parser, builder, aVoid) -> {
+            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
+            XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
+            builder.setAggregations(contentBuilder.bytes());
+        }, AGGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((parser, builder, aVoid) -> {
+            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
+            XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
+            builder.setScriptFields(contentBuilder.bytes());
+        }, SCRIPT_FIELDS, ObjectParser.ValueType.OBJECT);
         PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
     }
 
@@ -116,16 +118,13 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
 
     private final List<String> indexes;
     private final List<String> types;
-    // NORELEASE: These 4 fields can be reduced to a single
-    // SearchSourceBuilder field holding the entire source:
-    private final Map<String, Object> query;
-    private final Map<String, Object> aggregations;
-    private final Map<String, Object> scriptFields;
+    private final BytesReference query;
+    private final BytesReference aggregations;
+    private final BytesReference scriptFields;
     private final Integer scrollSize;
 
     private SchedulerConfig(String id, String jobId, Long queryDelay, Long frequency, List<String> indexes, List<String> types,
-                            Map<String, Object> query, Map<String, Object> aggregations, Map<String, Object> scriptFields,
-                            Integer scrollSize) {
+                            BytesReference query, BytesReference aggregations, BytesReference scriptFields, Integer scrollSize) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -153,21 +152,9 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         } else {
             this.types = null;
         }
-        if (in.readBoolean()) {
-            this.query = in.readMap();
-        } else {
-            this.query = null;
-        }
-        if (in.readBoolean()) {
-            this.aggregations = in.readMap();
-        } else {
-            this.aggregations = null;
-        }
-        if (in.readBoolean()) {
-            this.scriptFields = in.readMap();
-        } else {
-            this.scriptFields = null;
-        }
+        this.query = in.readOptionalBytesReference();
+        this.aggregations = in.readOptionalBytesReference();
+        this.scriptFields = in.readOptionalBytesReference();
         this.scrollSize = in.readOptionalVInt();
     }
 
@@ -207,82 +194,74 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         return this.types;
     }
 
-    /**
-     * For the ELASTICSEARCH data source only, the Elasticsearch query DSL
-     * representing the query to submit to Elasticsearch to get the input data.
-     * This should not include time bounds, as these are added separately. This
-     * class does not attempt to interpret the query. The map will be converted
-     * back to an arbitrary JSON object.
-     *
-     * @return The search query, or <code>null</code> if not set.
-     */
-    public Map<String, Object> getQuery() {
-        return this.query;
-    }
-
-    /**
-     * For the ELASTICSEARCH data source only, get the size of documents to be
-     * retrieved from each shard via a scroll search
-     *
-     * @return The size of documents to be retrieved from each shard via a
-     *         scroll search
-     */
     public Integer getScrollSize() {
         return this.scrollSize;
     }
 
-    /**
-     * For the ELASTICSEARCH data source only, optional Elasticsearch
-     * script_fields to add to the search to be submitted to Elasticsearch to
-     * get the input data. This class does not attempt to interpret the script
-     * fields. The map will be converted back to an arbitrary JSON object.
-     *
-     * @return The script fields, or <code>null</code> if not set.
-     */
-    public Map<String, Object> getScriptFields() {
-        return this.scriptFields;
+    Map<String, Object> getQueryAsMap() {
+        return XContentHelper.convertToMap(query, true).v2();
     }
 
-    /**
-     * For the ELASTICSEARCH data source only, optional Elasticsearch
-     * aggregations to apply to the search to be submitted to Elasticsearch to
-     * get the input data. This class does not attempt to interpret the
-     * aggregations. The map will be converted back to an arbitrary JSON object.
-     *
-     * @return The aggregations, or <code>null</code> if not set.
-     */
-    public Map<String, Object> getAggregations() {
-        return this.aggregations;
+    Map<String, Object> getAggregationsAsMap() {
+        return XContentHelper.convertToMap(aggregations, true).v2();
     }
 
-    /**
-     * Build the list of fields expected in the output from aggregations
-     * submitted to Elasticsearch.
-     *
-     * @return The list of fields, or empty list if there are no aggregations.
-     */
-    public List<String> buildAggregatedFieldList() {
-        Map<String, Object> aggs = getAggregations();
-        if (aggs == null) {
+    Map<String, Object> getScriptFieldsAsMap() {
+        return XContentHelper.convertToMap(scriptFields, true).v2();
+    }
+
+    public QueryBuilder buildQuery(IndicesQueriesRegistry queryParsers) {
+        if (query == null) {
+            return QueryBuilders.matchAllQuery();
+        }
+        XContentParser parser = createParser(QUERY, query);
+        QueryParseContext queryParseContext = new QueryParseContext(queryParsers, parser, ParseFieldMatcher.STRICT);
+        try {
+            return queryParseContext.parseInnerQueryBuilder().orElse(QueryBuilders.matchAllQuery());
+        } catch (IOException e) {
+            throw ExceptionsHelper.parseException(QUERY, e);
+        }
+    }
+
+    public boolean hasAggregations() {
+        return aggregations != null;
+    }
+
+    public AggregatorFactories.Builder buildAggregations(IndicesQueriesRegistry queryParsers, AggregatorParsers aggParsers) {
+        if (!hasAggregations()) {
+            return null;
+        }
+        XContentParser parser = createParser(AGGREGATIONS, aggregations);
+        QueryParseContext queryParseContext = new QueryParseContext(queryParsers, parser, ParseFieldMatcher.STRICT);
+        try {
+            return aggParsers.parseAggregators(queryParseContext);
+        } catch (IOException e) {
+            throw ExceptionsHelper.parseException(AGGREGATIONS, e);
+        }
+    }
+
+    public List<SearchSourceBuilder.ScriptField> buildScriptFields(IndicesQueriesRegistry queryParsers) {
+        if (scriptFields == null) {
             return Collections.emptyList();
         }
-
-        SortedMap<Integer, String> orderedFields = new TreeMap<>();
-
-        scanSubLevel(aggs, 0, orderedFields);
-
-        return new ArrayList<>(orderedFields.values());
+        List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
+        XContentParser parser = createParser(SCRIPT_FIELDS, scriptFields);
+        try {
+            QueryParseContext queryParseContext = new QueryParseContext(queryParsers, parser, ParseFieldMatcher.STRICT);
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                parsedScriptFields.add(new SearchSourceBuilder.ScriptField(queryParseContext));
+            }
+        } catch (IOException e) {
+            throw ExceptionsHelper.parseException(SCRIPT_FIELDS, e);
+        }
+        return parsedScriptFields;
     }
 
-    @SuppressWarnings("unchecked")
-    private void scanSubLevel(Map<String, Object> subLevel, int depth, SortedMap<Integer, String> orderedFields) {
-        for (Map.Entry<String, Object> entry : subLevel.entrySet()) {
-            Object value = entry.getValue();
-            if (value instanceof Map<?, ?>) {
-                scanSubLevel((Map<String, Object>) value, depth + 1, orderedFields);
-            } else if (value instanceof String && FIELD.equals(entry.getKey())) {
-                orderedFields.put(depth, (String) value);
-            }
+    private XContentParser createParser(ParseField parseField, BytesReference bytesReference) {
+        try {
+            return XContentFactory.xContent(query).createParser(query);
+        } catch (IOException e) {
+            throw ExceptionsHelper.parseException(parseField, e);
         }
     }
 
@@ -304,24 +283,9 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         } else {
             out.writeBoolean(false);
         }
-        if (query != null) {
-            out.writeBoolean(true);
-            out.writeMap(query);
-        } else {
-            out.writeBoolean(false);
-        }
-        if (aggregations != null) {
-            out.writeBoolean(true);
-            out.writeMap(aggregations);
-        } else {
-            out.writeBoolean(false);
-        }
-        if (scriptFields != null) {
-            out.writeBoolean(true);
-            out.writeMap(scriptFields);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalBytesReference(query);
+        out.writeOptionalBytesReference(aggregations);
+        out.writeOptionalBytesReference(scriptFields);
         out.writeOptionalVInt(scrollSize);
     }
 
@@ -349,13 +313,13 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             builder.field(TYPES.getPreferredName(), types);
         }
         if (query != null) {
-            builder.field(QUERY.getPreferredName(), query);
+            builder.field(QUERY.getPreferredName(), getQueryAsMap());
         }
         if (aggregations != null) {
-            builder.field(AGGREGATIONS.getPreferredName(), aggregations);
+            builder.field(AGGREGATIONS.getPreferredName(), getAggregationsAsMap());
         }
         if (scriptFields != null) {
-            builder.field(SCRIPT_FIELDS.getPreferredName(), scriptFields);
+            builder.field(SCRIPT_FIELDS.getPreferredName(), getScriptFieldsAsMap());
         }
         if (scrollSize != null) {
             builder.field(SCROLL_SIZE.getPreferredName(), scrollSize);
@@ -388,13 +352,13 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
                 && Objects.equals(this.types, that.types)
                 && Objects.equals(this.query, that.query)
                 && Objects.equals(this.scrollSize, that.scrollSize)
-                && Objects.equals(this.getAggregations(), that.getAggregations())
+                && Objects.equals(this.aggregations, that.aggregations)
                 && Objects.equals(this.scriptFields, that.scriptFields);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, jobId, frequency, queryDelay, indexes, types, query, scrollSize, getAggregations(), scriptFields);
+        return Objects.hash(id, jobId, frequency, queryDelay, indexes, types, query, scrollSize, aggregations, scriptFields);
     }
 
     public static class Builder {
@@ -402,29 +366,18 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         private static final int DEFAULT_SCROLL_SIZE = 1000;
         private static final long DEFAULT_ELASTICSEARCH_QUERY_DELAY = 60L;
 
-        /**
-         * The default query for elasticsearch searches
-         */
-        private static final String MATCH_ALL_ES_QUERY = "match_all";
-
         private String id;
         private String jobId;
         private Long queryDelay;
         private Long frequency;
         private List<String> indexes = Collections.emptyList();
         private List<String> types = Collections.emptyList();
-        // NORELEASE: use Collections.emptyMap() instead of null as initial
-        // value:
-        // NORELEASE: Use SearchSourceBuilder
-        private Map<String, Object> query = null;
-        private Map<String, Object> aggregations = null;
-        private Map<String, Object> scriptFields = null;
+        private BytesReference query;
+        private BytesReference aggregations;
+        private BytesReference scriptFields;
         private Integer scrollSize;
 
         public Builder() {
-            Map<String, Object> query = new HashMap<>();
-            query.put(MATCH_ALL_ES_QUERY, new HashMap<String, Object>());
-            setQuery(query);
             setQueryDelay(DEFAULT_ELASTICSEARCH_QUERY_DELAY);
             setScrollSize(DEFAULT_SCROLL_SIZE);
         }
@@ -482,19 +435,47 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             this.frequency = frequency;
         }
 
-        public void setQuery(Map<String, Object> query) {
-            // NORELEASE: make use of Collections.unmodifiableMap(...)
+        private void setQuery(BytesReference query) {
             this.query = Objects.requireNonNull(query);
         }
 
-        public void setAggregations(Map<String, Object> aggregations) {
-            // NORELEASE: make use of Collections.unmodifiableMap(...)
+        public void setQuery(QueryBuilder query) {
+            this.query = xContentToBytes(query);
+        }
+
+        private BytesReference xContentToBytes(ToXContent value) {
+            try {
+                XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+                return value.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS).bytes();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private void setAggregations(BytesReference aggregations) {
             this.aggregations = Objects.requireNonNull(aggregations);
         }
 
-        public void setScriptFields(Map<String, Object> scriptFields) {
-            // NORELEASE: make use of Collections.unmodifiableMap(...)
+        public void setAggregations(AggregatorFactories.Builder aggregations) {
+            this.aggregations = xContentToBytes(aggregations);
+        }
+
+        private void setScriptFields(BytesReference scriptFields) {
             this.scriptFields = Objects.requireNonNull(scriptFields);
+        }
+
+        public void setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
+            try {
+                XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
+                jsonBuilder.startObject();
+                for (SearchSourceBuilder.ScriptField scriptField : scriptFields) {
+                    scriptField.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+                }
+                jsonBuilder.endObject();
+                this.scriptFields = jsonBuilder.bytes();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         public void setScrollSize(int scrollSize) {

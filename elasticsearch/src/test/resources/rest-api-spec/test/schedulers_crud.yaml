@@ -105,6 +105,20 @@ setup:
           }
 
 ---
+"Test put scheduler with invalid query":
+  - do:
+      catch: /parsing_exception/
+      xpack.prelert.put_scheduler:
+        scheduler_id: test-scheduler-1
+        body:  >
+          {
+            "job_id":"job-1",
+            "indexes":["index-foo"],
+            "types":["type-bar"],
+            "query":{"match_all_mispelled":{}}
+          }
+
+---
 "Test delete scheduler with missing id":
   - do:
       catch: /resource_not_found_exception/

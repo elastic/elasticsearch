@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
@@ -99,8 +100,8 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         when(client.execute(same(JobDataAction.INSTANCE), any())).thenReturn(jobDataFuture);
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
 
-        scheduledJobRunner =
-                new ScheduledJobRunner(threadPool, client, clusterService,jobProvider,  dataExtractorFactory, () -> currentTime);
+        scheduledJobRunner = new ScheduledJobRunner(threadPool, client, clusterService, jobProvider, dataExtractorFactory,
+                () -> currentTime);
 
         when(jobProvider.audit(anyString())).thenReturn(auditor);
         when(jobProvider.buckets(anyString(), any(BucketsQueryBuilder.BucketsQuery.class))).thenThrow(
@@ -114,7 +115,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         Job job = jobBuilder.build();
         PrelertMetadata prelertMetadata = new PrelertMetadata.Builder()
                 .putJob(job, false)
-                .putScheduler(schedulerConfig)
+                .putScheduler(schedulerConfig, mock(SearchRequestParsers.class))
                 .updateStatus("foo", JobStatus.OPENED, null)
                 .build();
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
@@ -147,7 +148,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         Job job = jobBuilder.build();
         PrelertMetadata prelertMetadata = new PrelertMetadata.Builder()
                 .putJob(job, false)
-                .putScheduler(schedulerConfig)
+                .putScheduler(schedulerConfig, mock(SearchRequestParsers.class))
                 .updateStatus("foo", JobStatus.OPENED, null)
                 .build();
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
@@ -202,21 +203,24 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         PrelertMetadata prelertMetadata1 = new PrelertMetadata.Builder()
                 .putJob(job1, false)
                 .build();
-        Exception e = expectThrows(ResourceNotFoundException.class, () -> ScheduledJobRunner.validate("some-scheduler", prelertMetadata1));
+        Exception e = expectThrows(ResourceNotFoundException.class,
+                () -> ScheduledJobRunner.validate("some-scheduler", prelertMetadata1));
         assertThat(e.getMessage(), equalTo("No scheduler with id [some-scheduler] exists"));
 
         SchedulerConfig schedulerConfig1 = createSchedulerConfig("foo-scheduler", "foo").build();
         PrelertMetadata prelertMetadata2 = new PrelertMetadata.Builder(prelertMetadata1)
-                .putScheduler(schedulerConfig1)
+                .putScheduler(schedulerConfig1, mock(SearchRequestParsers.class))
                 .build();
-        e = expectThrows(ElasticsearchStatusException.class, () -> ScheduledJobRunner.validate("foo-scheduler", prelertMetadata2));
+        e = expectThrows(ElasticsearchStatusException.class,
+                () -> ScheduledJobRunner.validate("foo-scheduler", prelertMetadata2));
         assertThat(e.getMessage(), equalTo("cannot start scheduler, expected job status [OPENED], but got [CLOSED]"));
 
         PrelertMetadata prelertMetadata3 = new PrelertMetadata.Builder(prelertMetadata2)
                 .updateStatus("foo", JobStatus.OPENED, null)
                 .updateSchedulerStatus("foo-scheduler", SchedulerStatus.STARTED)
                 .build();
-        e = expectThrows(ElasticsearchStatusException.class, () -> ScheduledJobRunner.validate("foo-scheduler", prelertMetadata3));
+        e = expectThrows(ElasticsearchStatusException.class,
+                () -> ScheduledJobRunner.validate("foo-scheduler", prelertMetadata3));
         assertThat(e.getMessage(), equalTo("scheduler already started, expected scheduler status [STOPPED], but got [STARTED]"));
     }
 

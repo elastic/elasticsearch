@@ -37,7 +37,7 @@ public class ElasticsearchQueryBuilder {
             + "\"query\": {"
             +   "\"bool\": {"
             +     "\"filter\": ["
-            +       "{%s},"
+            +       "%s,"
             +       "{"
             +         "\"range\": {"
             +           "\"%s\": {"

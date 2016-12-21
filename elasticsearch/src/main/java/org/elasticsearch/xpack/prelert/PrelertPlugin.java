@@ -196,7 +196,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 autodetectProcessFactory, normalizerFactory);
         ScheduledJobRunner scheduledJobRunner = new ScheduledJobRunner(threadPool, client, clusterService, jobProvider,
                 // norelease: we will no longer need to pass the client here after we switch to a client based data extractor
-                new HttpDataExtractorFactory(client),
+                new HttpDataExtractorFactory(client, searchRequestParsers),
                 System::currentTimeMillis);
 
         JobLifeCycleService jobLifeCycleService =

@@ -21,6 +21,7 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -32,6 +33,7 @@ import org.joda.time.DateTimeZone;
 import java.io.EOFException;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -48,6 +50,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
@@ -801,5 +804,13 @@ public class BytesStreamsTests extends ESTestCase {
             Exception e = expectThrows(IllegalStateException.class, () -> output.writeVLong(value));
             assertEquals("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + value + "]", e.getMessage());
         }
+
+        assertTrue("If we're not compatible with 5.1.1 we can drop the assertion below",
+                Version.CURRENT.minimumCompatibilityVersion().onOrBefore(Version.V_5_1_1_UNRELEASED));
+        /* Read -1 as serialized by a version of Elasticsearch that supported writing negative numbers with writeVLong. Note that this
+         * should be the same test as the first case (when value is negative) but we've kept some bytes so no matter what we do to
+         * writeVLong in the future we can be sure we can read bytes as written by Elasticsearch before 5.1.2 */
+        StreamInput in = new BytesArray(Base64.getDecoder().decode("////////////AQAAAAAAAA==")).streamInput();
+        assertEquals(-1, in.readVLong());
     }
 }

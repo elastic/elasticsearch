@@ -598,8 +598,8 @@ public class NumberFieldMapper extends FieldMapper {
                     // - if the bound is negative then we leave it as is:
                     //      if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
                     boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
-                    if ((!lowerTermHasDecimalPart && includeLower == false) ||
-                        (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
+                    if ((lowerTermHasDecimalPart == false && includeLower == false) ||
+                            (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
                         if (l == Integer.MAX_VALUE) {
                             return new MatchNoDocsQuery();
                         }
@@ -609,8 +609,8 @@ public class NumberFieldMapper extends FieldMapper {
                 if (upperTerm != null) {
                     u = parse(upperTerm, true);
                     boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
-                    if ((!upperTermHasDecimalPart && includeUpper == false) ||
-                        (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
+                    if ((upperTermHasDecimalPart == false && includeUpper == false) ||
+                            (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
                         if (u == Integer.MIN_VALUE) {
                             return new MatchNoDocsQuery();
                         }
@@ -718,8 +718,8 @@ public class NumberFieldMapper extends FieldMapper {
                     // - if the bound is negative then we leave it as is:
                     //      if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
                     boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
-                    if ((!lowerTermHasDecimalPart && includeLower == false) ||
-                        (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
+                    if ((lowerTermHasDecimalPart == false && includeLower == false) ||
+                            (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
                         if (l == Long.MAX_VALUE) {
                             return new MatchNoDocsQuery();
                         }
@@ -729,8 +729,8 @@ public class NumberFieldMapper extends FieldMapper {
                 if (upperTerm != null) {
                     u = parse(upperTerm, true);
                     boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
-                    if ((!upperTermHasDecimalPart && includeUpper == false) ||
-                        (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
+                    if ((upperTermHasDecimalPart == false && includeUpper == false) ||
+                            (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
                         if (u == Long.MIN_VALUE) {
                             return new MatchNoDocsQuery();
                         }
@@ -805,7 +805,7 @@ public class NumberFieldMapper extends FieldMapper {
         /**
          * Returns true if the object is a number and has a decimal part
          */
-        protected boolean hasDecimalPart(Object number) {
+        boolean hasDecimalPart(Object number) {
             if (number instanceof Number) {
                 double doubleValue = ((Number) number).doubleValue();
                 return doubleValue % 1 != 0;
@@ -822,7 +822,7 @@ public class NumberFieldMapper extends FieldMapper {
         /**
          * Returns -1, 0, or 1 if the value is lower than, equal to, or greater than 0
          */
-        protected double signum(Object value) {
+        double signum(Object value) {
             if (value instanceof Number) {
                 double doubleValue = ((Number) value).doubleValue();
                 return Math.signum(doubleValue);

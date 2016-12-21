@@ -149,4 +149,20 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         }
         IOUtils.close(reader, dir);
     }
+
+    public void testNegativeZero() {
+        assertEquals(
+                NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true),
+                NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false));
+        assertEquals(
+                NumberType.FLOAT.rangeQuery("field", null, -0f, true, true),
+                NumberType.FLOAT.rangeQuery("field", null, +0f, true, false));
+        assertEquals(
+                NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true),
+                NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false));
+
+        assertFalse(NumberType.DOUBLE.termQuery("field", -0d).equals(NumberType.DOUBLE.termQuery("field", +0d)));
+        assertFalse(NumberType.FLOAT.termQuery("field", -0f).equals(NumberType.FLOAT.termQuery("field", +0f)));
+        assertFalse(NumberType.HALF_FLOAT.termQuery("field", -0f).equals(NumberType.HALF_FLOAT.termQuery("field", +0f)));
+    }
 }

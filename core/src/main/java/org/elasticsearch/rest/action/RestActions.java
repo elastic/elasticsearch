@@ -195,7 +195,6 @@ public class RestActions {
     }
 
     public static QueryBuilder getQueryContent(XContentParser requestParser, ParseFieldMatcher parseFieldMatcher) {
-        // NOCOMMIT it is very close to time to remove this
         QueryParseContext context = new QueryParseContext(requestParser, parseFieldMatcher);
         return context.parseTopLevelQueryBuilder();
     }

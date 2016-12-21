@@ -21,21 +21,18 @@ package org.elasticsearch.gradle.test
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
-import java.util.function.Consumer
-
 /**
  * A plugin to add integration tests with multiple clusters
  * Enables defining external clusters to be used in integTest
  * using <code>clusters</code>
  */
-public class MultiClusterTestPlugin implements Plugin<Project> {
+public class ExtraClustersTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
         project.pluginManager.apply(RestTestPlugin)
-        ClustersTask clustersTask = project.tasks.create('clusters', ClustersTask.class)
+        ExtraClustersTask clustersTask = project.tasks.create('extraClusters', ExtraClustersTask.class)
         RestIntegTestTask integTest = (RestIntegTestTask) project.tasks.getByName('integTest')
-        integTest.cluster.distribution = 'zip' // rest tests should run with the real zip
         integTest.dependsOn(clustersTask)
         // finalized tasks are available after cluster task has been configured
         project.gradle.projectsEvaluated {

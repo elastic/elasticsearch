@@ -21,37 +21,32 @@ package org.elasticsearch.gradle.test
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.Input
-import org.gradle.util.ConfigureUtil
 
-/** task for forming a cluster and tracking sub-task dependency */
-class ClusterTask extends DefaultTask {
-    ClusterConfiguration clusterConfiguration
-    List<NodeInfo> nodes
-
-    ClusterTask() {
-        clusterConfiguration = new ClusterConfiguration(project)
-        project.gradle.projectsEvaluated {
-            nodes = ClusterFormationTasks.setup(project, this, clusterConfiguration)
-        }
-    }
+/** task for forming clusters and track cluster sub-task dependency */
+class ExtraClustersTask extends DefaultTask {
+    List<ExtraClusterTask> clusterTasks = new ArrayList<>()
 
     @Input
     public void cluster(Closure closure) {
-        ConfigureUtil.configure(closure, clusterConfiguration)
+        ExtraClusterTask clusterTask = project.tasks.create('cluster'+ clusterTasks.size(), ExtraClusterTask.class)
+        clusterTask.cluster(closure)
+        clusterTasks.add(clusterTask)
+        dependsOn(clusterTask)
     }
 
-    public List<NodeInfo> getNodes() {
-        return nodes
-    }
-
-    public String[] getFinalizedTaskNames() {
-        List<String> finalizedTaskNames = new ArrayList<>();
-        if (clusterConfiguration.numNodes > 1) {
-            for (int i = 0; i < clusterConfiguration.numNodes; i++) {
-                finalizedTaskNames.add("${name}#node${i}.stop")
+    public List<NodeInfo> getNodes(String clusterName) {
+        for (ExtraClusterTask clusterTask: clusterTasks) {
+            if (clusterTask.clusterConfiguration.clusterName.equals(clusterName)) {
+                return clusterTask.getNodes()
             }
-        } else {
-            finalizedTaskNames.add("${name}#stop")
+        }
+        throw new IllegalArgumentException("no cluster named ${clusterName} was configured")
+    }
+
+    public String[] getFinalizedTasks() {
+        List<String> finalizedTaskNames = new ArrayList<>()
+        for (ExtraClusterTask clusterTask: clusterTasks) {
+            finalizedTaskNames.addAll(clusterTask.finalizedTaskNames)
         }
         return finalizedTaskNames.stream().toArray();
     }

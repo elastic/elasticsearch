@@ -21,32 +21,37 @@ package org.elasticsearch.gradle.test
 
 import org.gradle.api.DefaultTask
 import org.gradle.api.tasks.Input
+import org.gradle.util.ConfigureUtil
 
-/** task for forming clusters and track cluster sub-task dependency */
-class ClustersTask extends DefaultTask {
-    List<ClusterTask> clusterTasks = new ArrayList<>()
+/** task for forming a cluster and tracking sub-task dependency */
+class ExtraClusterTask extends DefaultTask {
+    ClusterConfiguration clusterConfiguration
+    List<NodeInfo> nodes
+
+    ExtraClusterTask() {
+        clusterConfiguration = new ClusterConfiguration(project)
+        project.gradle.projectsEvaluated {
+            nodes = ClusterFormationTasks.setup(project, this, clusterConfiguration)
+        }
+    }
 
     @Input
     public void cluster(Closure closure) {
-        ClusterTask clusterTask = project.tasks.create('cluster'+ clusterTasks.size(), ClusterTask.class)
-        clusterTask.cluster(closure)
-        clusterTasks.add(clusterTask)
-        dependsOn(clusterTask)
+        ConfigureUtil.configure(closure, clusterConfiguration)
     }
 
-    public List<NodeInfo> getNodes(String clusterName) {
-        for (ClusterTask clusterTask: clusterTasks) {
-            if (clusterTask.clusterConfiguration.clusterName.equals(clusterName)) {
-                return clusterTask.getNodes()
+    public List<NodeInfo> getNodes() {
+        return nodes
+    }
+
+    public String[] getFinalizedTaskNames() {
+        List<String> finalizedTaskNames = new ArrayList<>();
+        if (clusterConfiguration.numNodes > 1) {
+            for (int i = 0; i < clusterConfiguration.numNodes; i++) {
+                finalizedTaskNames.add("${name}#node${i}.stop")
             }
-        }
-        throw new IllegalArgumentException("no cluster named ${clusterName} was configured")
-    }
-
-    public String[] getFinalizedTasks() {
-        List<String> finalizedTaskNames = new ArrayList<>()
-        for (ClusterTask clusterTask: clusterTasks) {
-            finalizedTaskNames.addAll(clusterTask.finalizedTaskNames)
+        } else {
+            finalizedTaskNames.add("${name}#stop")
         }
         return finalizedTaskNames.stream().toArray();
     }

@@ -17,9 +17,9 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.multi-cluster-test'
+apply plugin: 'elasticsearch.extra-clusters-test'
 
-clusters {
+extraClusters {
   cluster {
     clusterName = 'one'
     setting 'node.name', 'one'
@@ -34,10 +34,10 @@ integTest {
   cluster {
     setting 'node.name', 'quest'
     setting 'tribe.one.cluster.name', 'one'
-    setting 'tribe.one.discovery.zen.ping.unicast.hosts', "'${-> clusters.getNodes('one').get(0).transportUri()}'"
+    setting 'tribe.one.discovery.zen.ping.unicast.hosts', "'${-> extraClusters.getNodes('one').get(0).transportUri()}'"
     setting 'tribe.one.http.enabled', 'true'
     setting 'tribe.two.cluster.name', 'two'
-    setting 'tribe.two.discovery.zen.ping.unicast.hosts', "'${-> clusters.getNodes('two').get(0).transportUri()}'"
+    setting 'tribe.two.discovery.zen.ping.unicast.hosts', "'${-> extraClusters.getNodes('two').get(0).transportUri()}'"
     setting 'tribe.two.http.enabled', 'true'
   }
 }

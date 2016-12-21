@@ -209,7 +209,7 @@ public final class HyperLogLogBeta implements Releasable {
         return z;
     }
 
-    private double calculateBeta(int p, int z) {
+    public double calculateBeta(int p, int z) {
         double[] betaCoefficients = BETA_FUNCTION_DATA[p - MIN_PRECISION];
         double zl = Math.log(z + 1);
         double beta = betaCoefficients[0] * z;
@@ -217,6 +217,21 @@ public final class HyperLogLogBeta implements Releasable {
             beta += betaCoefficients[i] * Math.pow(zl, i);
         }
         return beta;
+    }
+
+    public double calculateIdealBeta(long bucket, long knownCardinality) {
+        double inverseSum = 0;
+        int z = 0;
+        for (long i = bucket << p, end = i + m; i < end; ++i) {
+            final int runLen = runLens.get(i);
+            inverseSum += 1. / (1L << runLen);
+            if (runLen == 0) {
+                ++z;
+            }
+        }
+        double idealBeta = (alphaM * (m - z) / knownCardinality) - inverseSum;
+
+        return idealBeta;
     }
 
     static long mask(int bits) {

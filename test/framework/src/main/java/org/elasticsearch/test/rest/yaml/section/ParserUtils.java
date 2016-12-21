@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml.parser;
+package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;

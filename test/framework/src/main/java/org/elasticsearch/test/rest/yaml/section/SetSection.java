@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
@@ -50,7 +51,7 @@ public class SetSection implements ExecutableSection {
         parser.nextToken();
 
         if (setSection.getStash().isEmpty()) {
-            throw new IllegalArgumentException("set section must set at least a value");
+            throw new ParsingException(setSection.location, "set section must set at least a value");
         }
 
         return setSection;

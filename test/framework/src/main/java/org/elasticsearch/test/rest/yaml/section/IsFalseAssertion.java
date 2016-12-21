@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.rest.yaml.parser.ParserUtils;
 
 import java.io.IOException;
 

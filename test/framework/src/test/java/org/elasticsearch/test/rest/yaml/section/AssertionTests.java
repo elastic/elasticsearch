@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.parser;
+package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.GreaterThanAssertion;
@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserTestCase {
+public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseIsTrue() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
                 "get.fields._timestamp"

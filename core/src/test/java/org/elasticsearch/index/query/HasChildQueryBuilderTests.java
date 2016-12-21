@@ -104,13 +104,13 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         HasChildQueryBuilder hqb = new HasChildQueryBuilder(CHILD_TYPE, innerQueryBuilder,
                 RandomPicks.randomFrom(random(), ScoreMode.values()));
         hqb.minMaxChildren(min, max);
+        hqb.ignoreUnmapped(randomBoolean());
         if (randomBoolean()) {
             hqb.innerHit(new InnerHitBuilder()
                     .setName(randomAsciiOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
-                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)), hqb.ignoreUnmapped());
         }
-        hqb.ignoreUnmapped(randomBoolean());
         return hqb;
     }
 
@@ -189,6 +189,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "    \"_name\" : \"WNzYMJKRwePuRBh\",\n" +
                 "    \"inner_hits\" : {\n" +
                 "      \"name\" : \"inner_hits_name\",\n" +
+                "      \"ignore_unmapped\" : false,\n" +
                 "      \"from\" : 0,\n" +
                 "      \"size\" : 100,\n" +
                 "      \"version\" : false,\n" +
@@ -211,7 +212,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertEquals(query, queryBuilder.childType(), "child");
         assertEquals(query, queryBuilder.scoreMode(), ScoreMode.Avg);
         assertNotNull(query, queryBuilder.innerHit());
-        InnerHitBuilder expected = new InnerHitBuilder(new InnerHitBuilder(), queryBuilder.query(), "child")
+        InnerHitBuilder expected = new InnerHitBuilder(new InnerHitBuilder(), queryBuilder.query(), "child", false)
                 .setName("inner_hits_name")
                 .setSize(100)
                 .addSort(new FieldSortBuilder("mapped_string").order(SortOrder.ASC));

@@ -84,54 +84,56 @@ public class RestExecuteWatchAction extends WatcherRestHandler {
         builder.setRecordExecution(request.paramAsBoolean(RECORD_EXECUTION.getPreferredName(), builder.request().isRecordExecution()));
         builder.setIgnoreCondition(request.paramAsBoolean(IGNORE_CONDITION.getPreferredName(), builder.request().isIgnoreCondition()));
 
-        XContentParser parser = XContentHelper.createParser(request.content());
-        parser.nextToken();
+        try (XContentParser parser = request.contentParser()) {
+            parser.nextToken();
 
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, IGNORE_CONDITION)) {
-                    builder.setIgnoreCondition(parser.booleanValue());
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, RECORD_EXECUTION)) {
-                    builder.setRecordExecution(parser.booleanValue());
-                } else {
-                    throw new ElasticsearchParseException("could not parse watch execution request. unexpected boolean field [{}]",
-                            currentFieldName);
-                }
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ALTERNATIVE_INPUT)) {
-                    builder.setAlternativeInput(parser.map());
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGER_DATA)) {
-                    builder.setTriggerData(parser.map());
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.WATCH)) {
-                    XContentBuilder watcherSource = XContentBuilder.builder(parser.contentType().xContent());
-                    XContentHelper.copyCurrentStructure(watcherSource.generator(), parser);
-                    builder.setWatchSource(watcherSource.bytes());
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTION_MODES)) {
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else if (token == XContentParser.Token.VALUE_STRING) {
-                            try {
-                                ActionExecutionMode mode = ActionExecutionMode.resolve(parser.textOrNull());
-                                builder.setActionMode(currentFieldName, mode);
-                            } catch (IllegalArgumentException iae) {
-                                throw new ElasticsearchParseException("could not parse watch execution request", iae);
+            String currentFieldName = null;
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                    if (ParseFieldMatcher.STRICT.match(currentFieldName, IGNORE_CONDITION)) {
+                        builder.setIgnoreCondition(parser.booleanValue());
+                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, RECORD_EXECUTION)) {
+                        builder.setRecordExecution(parser.booleanValue());
+                    } else {
+                        throw new ElasticsearchParseException("could not parse watch execution request. unexpected boolean field [{}]",
+                                currentFieldName);
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ALTERNATIVE_INPUT)) {
+                        builder.setAlternativeInput(parser.map());
+                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGER_DATA)) {
+                        builder.setTriggerData(parser.map());
+                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.WATCH)) {
+                        XContentBuilder watcherSource = XContentBuilder.builder(parser.contentType().xContent());
+                        XContentHelper.copyCurrentStructure(watcherSource.generator(), parser);
+                        builder.setWatchSource(watcherSource.bytes());
+                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTION_MODES)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.VALUE_STRING) {
+                                try {
+                                    ActionExecutionMode mode = ActionExecutionMode.resolve(parser.textOrNull());
+                                    builder.setActionMode(currentFieldName, mode);
+                                } catch (IllegalArgumentException iae) {
+                                    throw new ElasticsearchParseException("could not parse watch execution request", iae);
+                                }
+                            } else {
+                                throw new ElasticsearchParseException(
+                                        "could not parse watch execution request. unexpected array field [{}]",
+                                        currentFieldName);
                             }
-                        } else {
-                            throw new ElasticsearchParseException("could not parse watch execution request. unexpected array field [{}]",
-                                    currentFieldName);
                         }
+                    } else {
+                        throw new ElasticsearchParseException("could not parse watch execution request. unexpected object field [{}]",
+                                currentFieldName);
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse watch execution request. unexpected object field [{}]",
-                            currentFieldName);
+                    throw new ElasticsearchParseException("could not parse watch execution request. unexpected token [{}]", token);
                 }
-            } else {
-                throw new ElasticsearchParseException("could not parse watch execution request. unexpected token [{}]", token);
             }
         }
 

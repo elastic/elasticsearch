@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.actions.Action;
+import org.elasticsearch.xpack.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.watcher.actions.ExecutableAction;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.support.ArrayObjectIterator;
@@ -29,6 +30,7 @@ import org.joda.time.DateTime;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalState;
@@ -70,14 +72,15 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         indexRequest.source(jsonBuilder().prettyPrint().map(data));
 
         if (ctx.simulateAction(actionId)) {
-            return new IndexAction.Result.Simulated(indexRequest.index(), action.docType, new XContentSource(indexRequest.source(),
+            return new IndexAction.Simulated(indexRequest.index(), action.docType, new XContentSource(indexRequest.source(),
                     XContentType.JSON));
         }
 
         IndexResponse response = client.index(indexRequest, timeout);
         XContentBuilder jsonBuilder = jsonBuilder();
         indexResponseToXContent(jsonBuilder, response);
-        return new IndexAction.Result.Success(new XContentSource(jsonBuilder));
+
+        return new IndexAction.Result(Status.SUCCESS, new XContentSource(jsonBuilder));
     }
 
     Action.Result indexBulk(Iterable list, String actionId, WatchExecutionContext ctx) throws Exception {
@@ -98,11 +101,19 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
         BulkResponse bulkResponse = client.bulk(bulkRequest, action.timeout);
         XContentBuilder jsonBuilder = jsonBuilder().startArray();
         for (BulkItemResponse item : bulkResponse) {
-            IndexResponse response = item.getResponse();
-            indexResponseToXContent(jsonBuilder, response);
+            itemResponseToXContent(jsonBuilder, item);
         }
         jsonBuilder.endArray();
-        return new IndexAction.Result.Success(new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+
+        // different error states, depending on how successful the bulk operation was
+        long failures = Stream.of(bulkResponse.getItems()).filter(BulkItemResponse::isFailed).count();
+        if (failures == 0) {
+            return new IndexAction.Result(Status.SUCCESS, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+        } else if (failures == bulkResponse.getItems().length) {
+            return new IndexAction.Result(Status.FAILURE, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+        } else {
+            return new IndexAction.Result(Status.PARTIAL_FAILURE, new XContentSource(jsonBuilder.bytes(), XContentType.JSON));
+        }
     }
 
     private Map<String, Object> addTimestampToDocument(Map<String, Object> data, DateTime executionTime) {
@@ -113,6 +124,20 @@ public class ExecutableIndexAction extends ExecutableAction<IndexAction> {
             data.put(action.executionTimeField, WatcherDateTimeUtils.formatDate(executionTime));
         }
         return data;
+    }
+
+    static void itemResponseToXContent(XContentBuilder builder, BulkItemResponse item) throws IOException {
+        if (item.isFailed()) {
+            builder.startObject()
+                    .field("failed", item.isFailed())
+                    .field("message", item.getFailureMessage())
+                    .field("id", item.getId())
+                    .field("type", item.getType())
+                    .field("index", item.getIndex())
+                    .endObject();
+        } else {
+            indexResponseToXContent(builder, item.getResponse());
+        }
     }
 
     static void indexResponseToXContent(XContentBuilder builder, IndexResponse response) throws IOException {

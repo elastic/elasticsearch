@@ -6,6 +6,7 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -55,7 +56,9 @@ class TrialLicense {
             byte[] content = new byte[contentLen];
             byteBuffer.get(content);
             final License expectedLicense;
-            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(decrypt(content))) {
+            // EMPTY is safe here because we don't call namedObject
+            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
+                    decrypt(content))) {
                 parser.nextToken();
                 expectedLicense = License.builder().fromLicenseSpec(License.fromXContent(parser),
                         license.signature()).version(-version).build();

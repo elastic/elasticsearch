@@ -29,6 +29,7 @@ import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -43,6 +44,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.templateRequest;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.cron;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.joda.time.DateTimeZone.UTC;
@@ -69,7 +71,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
 
         // valid watch record:
         DateTime now = DateTime.now(UTC);
-        Wid wid = new Wid("_id", 1, now);
+        Wid wid = new Wid("_id", now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
         Condition condition = AlwaysCondition.INSTANCE;
         String index = HistoryStore.getHistoryIndexNameForTime(now);
@@ -90,7 +92,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 .get();
 
         // unknown condition:
-        wid = new Wid("_id", 2, now);
+        wid = new Wid("_id", now);
         client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
@@ -108,7 +110,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                 .get();
 
         // unknown trigger:
-        wid = new Wid("_id", 2, now);
+        wid = new Wid("_id", now);
         client().prepareIndex(index, HistoryStore.DOC_TYPE, wid.value())
                 .setSource(jsonBuilder().startObject()
                         .startObject(WatchRecord.Field.TRIGGER_EVENT.getPreferredName())
@@ -139,7 +141,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
         }
         DateTime now = DateTime.now(UTC);
-        Wid wid = new Wid("_id", 1, now);
+        Wid wid = new Wid("_id", now);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent("_id", now, now);
 
         client().prepareIndex(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, wid.value())
@@ -188,7 +190,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getWatchesCount(), equalTo((long) numWatches));
     }
 
-    public void testTriggeredWatchLoading() throws Exception {
+    public void testMixedTriggeredWatchLoading() throws Exception {
         createIndex("output");
         client().prepareIndex("my-index", "foo", "bar")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -198,8 +200,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
         assertThat(response.getWatchesCount(), equalTo(0L));
 
-        WatcherSearchTemplateRequest request =
-                templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
+        WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "value")), "my-index");
 
         int numWatches = 8;
         for (int i = 0; i < numWatches; i++) {
@@ -219,7 +220,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
             String watchId = "_id" + (i % numWatches);
             now = now.plusMinutes(1);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(watchId, now, now);
-            Wid wid = new Wid(watchId, randomLong(), now);
+            Wid wid = new Wid(watchId, now);
             TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
             client().prepareIndex(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, triggeredWatch.id().value())
                     .setSource(jsonBuilder().value(triggeredWatch))
@@ -230,22 +231,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         stopWatcher();
         startWatcher();
 
-        assertBusy(() -> {
-            // We need to wait until all the records are processed from the internal execution queue, only then we can assert
-            // that numRecords watch records have been processed as part of starting up.
-            WatcherStatsResponse response1 = watcherClient().prepareWatcherStats().get();
-            assertThat(response1.getWatcherState(), equalTo(WatcherState.STARTED));
-            assertThat(response1.getThreadPoolQueueSize(), equalTo(0L));
-
-            // but even then since the execution of the watch record is async it may take a little bit before
-            // the actual documents are in the output index
-            refresh();
-            SearchResponse searchResponse = client().prepareSearch("output").get();
-            assertHitCount(searchResponse, numRecords);
-        }, 30, TimeUnit.SECONDS);
+        assertSingleExecutionAndCompleteWatchHistory(numWatches, numRecords);
     }
 
-    public void testMixedTriggeredWatchLoading() throws Exception {
+    public void testTriggeredWatchLoading() throws Exception {
         createIndex("output");
         client().prepareIndex("my-index", "foo", "bar")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
@@ -270,7 +259,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         for (int i = 0; i < numRecords; i++) {
             now = now.plusMinutes(1);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(watchId, now, now);
-            Wid wid = new Wid(watchId, randomLong(), now);
+            Wid wid = new Wid(watchId, now);
             TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
             client().prepareIndex(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, triggeredWatch.id().value())
                     .setSource(jsonBuilder().value(triggeredWatch))
@@ -281,19 +270,34 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         stopWatcher();
         startWatcher();
 
+        assertSingleExecutionAndCompleteWatchHistory(1, numRecords);
+    }
+
+    private void assertSingleExecutionAndCompleteWatchHistory(long numberOfWatches, int expectedWatchHistoryCount) throws Exception {
         assertBusy(() -> {
             // We need to wait until all the records are processed from the internal execution queue, only then we can assert
             // that numRecords watch records have been processed as part of starting up.
-            WatcherStatsResponse response1 = watcherClient().prepareWatcherStats().get();
-            assertThat(response1.getWatcherState(), equalTo(WatcherState.STARTED));
-            assertThat(response1.getThreadPoolQueueSize(), equalTo(0L));
+            WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+            assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
+            assertThat(response.getThreadPoolQueueSize(), equalTo(0L));
 
-            // but even then since the execution of the watch record is async it may take a little bit before
-            // the actual documents are in the output index
+            // because we try to execute a single watch in parallel, only one execution should happen
             refresh();
             SearchResponse searchResponse = client().prepareSearch("output").get();
-            assertHitCount(searchResponse, numRecords);
-        });
+            assertThat(searchResponse.getHits().totalHits(), is(greaterThanOrEqualTo(numberOfWatches)));
+            long successfulWatchExecutions = searchResponse.getHits().totalHits();
+
+            // the watch history should contain entries for each triggered watch, which a few have been marked as not executed
+            SearchResponse historySearchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+                    .setSize(expectedWatchHistoryCount).get();
+            assertHitCount(historySearchResponse, expectedWatchHistoryCount);
+            long notExecutedCount = Arrays.asList(historySearchResponse.getHits().getHits()).stream()
+                    .filter(hit -> hit.getSource().get("state").equals(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED.id()))
+                    .count();
+            logger.info("Watches not executed: [{}]: expected watch history count [{}] - [{}] successful watch exections",
+                    notExecutedCount, expectedWatchHistoryCount, successfulWatchExecutions);
+            assertThat(notExecutedCount, is(expectedWatchHistoryCount - successfulWatchExecutions));
+        }, 20, TimeUnit.SECONDS);
     }
 
     public void testManuallyStopped() throws Exception {
@@ -327,7 +331,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         for (int i = 0; i < numRecords; i++) {
             String watchId = Integer.toString(i);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(watchId, triggeredTime, triggeredTime);
-            Wid wid = new Wid(watchId, 0, triggeredTime);
+            Wid wid = new Wid(watchId, triggeredTime);
             TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
             client().prepareIndex(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, triggeredWatch.id().value())
                     .setSource(jsonBuilder().value(triggeredWatch))

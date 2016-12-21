@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -82,24 +82,19 @@ public class VersionHttpResource extends HttpResource {
      * @throws IOException if any parsing issue occurs.
      */
     private boolean validateVersion(final Response response) throws IOException {
-        boolean supported = false;
+        Map<String, Object> map = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(), false);
+        // the response should be filtered to just '{"version":{"number":"xyz"}}', so this is cheap and guaranteed
+        @SuppressWarnings("unchecked")
+        final String versionNumber = (String) ((Map<String, Object>) map.get("version")).get("number");
+        final Version version = Version.fromString(versionNumber);
 
-        try (final XContentParser parser = XContentType.JSON.xContent().createParser(response.getEntity().getContent())) {
-            // the response should be filtered to just '{"version":{"number":"xyz"}}', so this is cheap and guaranteed
-            @SuppressWarnings("unchecked")
-            final String versionNumber = (String)((Map<String, Object>)parser.map().get("version")).get("number");
-            final Version version = Version.fromString(versionNumber);
-
-            if (version.onOrAfter(minimumVersion)) {
-                logger.debug("version [{}] >= [{}] and supported for [{}]", version, minimumVersion, resourceOwnerName);
-
-                supported = true;
-            } else {
-                logger.error("version [{}] < [{}] and NOT supported for [{}]", version, minimumVersion, resourceOwnerName);
-            }
+        if (version.onOrAfter(minimumVersion)) {
+            logger.debug("version [{}] >= [{}] and supported for [{}]", version, minimumVersion, resourceOwnerName);
+            return true;
+        } else {
+            logger.error("version [{}] < [{}] and NOT supported for [{}]", version, minimumVersion, resourceOwnerName);
+            return false;
         }
-
-        return supported;
     }
 
 }

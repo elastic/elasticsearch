@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -27,7 +26,6 @@ import org.elasticsearch.xpack.watcher.support.WatcherIndexTemplateRegistry;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchLockService;
 import org.elasticsearch.xpack.watcher.watch.WatchStoreUtils;
 
 import java.util.ArrayList;
@@ -45,7 +43,6 @@ import static org.elasticsearch.xpack.watcher.watch.Watch.INDEX;
 public class WatcherService extends AbstractComponent {
 
     private final TriggerService triggerService;
-    private final WatchLockService watchLockService;
     private final ExecutionService executionService;
     private final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry;
     // package-private for testing
@@ -55,12 +52,10 @@ public class WatcherService extends AbstractComponent {
     private final Watch.Parser parser;
     private final WatcherClientProxy client;
 
-    public WatcherService(Settings settings, TriggerService triggerService,
-                          ExecutionService executionService, WatchLockService watchLockService,
+    public WatcherService(Settings settings, TriggerService triggerService, ExecutionService executionService,
                           WatcherIndexTemplateRegistry watcherIndexTemplateRegistry, Watch.Parser parser, WatcherClientProxy client) {
         super(settings);
         this.triggerService = triggerService;
-        this.watchLockService = watchLockService;
         this.executionService = executionService;
         this.watcherIndexTemplateRegistry = watcherIndexTemplateRegistry;
         this.scrollTimeout = settings.getAsTime("xpack.watcher.watch.scroll.timeout", TimeValue.timeValueSeconds(30));
@@ -74,7 +69,6 @@ public class WatcherService extends AbstractComponent {
             try {
                 logger.debug("starting watch service...");
                 watcherIndexTemplateRegistry.addTemplatesIfMissing();
-                watchLockService.start();
                 executionService.start(clusterState);
                 triggerService.start(loadWatches(clusterState));
 
@@ -98,11 +92,6 @@ public class WatcherService extends AbstractComponent {
             logger.debug("stopping watch service...");
             triggerService.stop();
             executionService.stop();
-            try {
-                watchLockService.stop();
-            } catch (ElasticsearchTimeoutException te) {
-                logger.warn("error stopping WatchLockService", te);
-            }
             state.set(WatcherState.STOPPED);
             logger.debug("watch service has stopped");
         } else {

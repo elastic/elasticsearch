@@ -9,7 +9,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.XPackPlugin.resolveXPackExtensionsFile;
 /**
  * A command for the extension cli to remove an extension from x-pack.
  */
-class RemoveXPackExtensionCommand  extends SettingCommand {
+class RemoveXPackExtensionCommand  extends EnvironmentAwareCommand {
     private final OptionSpec<String> arguments;
 
     RemoveXPackExtensionCommand() {
@@ -39,21 +39,20 @@ class RemoveXPackExtensionCommand  extends SettingCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
 
         // TODO: in jopt-simple 5.0 we can enforce a min/max number of positional args
         List<String> args = arguments.values(options);
         if (args.size() != 1) {
             throw new UserException(ExitCodes.USAGE, "Must supply a single extension id argument");
         }
-        execute(terminal, args.get(0), settings);
+        execute(terminal, args.get(0), env);
     }
 
     // pkg private for testing
-    void execute(Terminal terminal, String extensionName, Map<String, String> settings) throws Exception {
+    void execute(Terminal terminal, String extensionName, Environment env) throws Exception {
         terminal.println("-> Removing " + Strings.coalesceToEmpty(extensionName) + "...");
 
-        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
         Path extensionDir = resolveXPackExtensionsFile(env).resolve(extensionName);
         if (Files.exists(extensionDir) == false) {
             throw new UserException(ExitCodes.USAGE,

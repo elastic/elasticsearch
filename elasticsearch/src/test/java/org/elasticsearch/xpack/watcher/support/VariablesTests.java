@@ -31,7 +31,7 @@ public class VariablesTests extends ESTestCase {
         Payload payload = new Payload.Simple(singletonMap("payload_key", "payload_value"));
         Map<String, Object> metatdata = singletonMap("metadata_key", "metadata_value");
         TriggerEvent event = new ScheduleTriggerEvent("_watch_id", triggeredTime, scheduledTime);
-        Wid wid = new Wid("_watch_id", 0, executionTime);
+        Wid wid = new Wid("_watch_id", executionTime);
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
                 .wid(wid)
                 .executionTime(executionTime)

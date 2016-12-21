@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.Objects;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -68,22 +69,15 @@ public class IndexAction implements Action {
 
         IndexAction that = (IndexAction) o;
 
-        if (!index.equals(that.index)) return false;
-        if (!docType.equals(that.docType)) return false;
-        if (executionTimeField != null ? !executionTimeField.equals(that.executionTimeField) : that.executionTimeField != null)
-            return false;
-        if (timeout != null ? !timeout.equals(that.timeout) : that.timeout != null) return false;
-        return !(dynamicNameTimeZone != null ? !dynamicNameTimeZone.equals(that.dynamicNameTimeZone) : that.dynamicNameTimeZone != null);
+        return Objects.equals(index, that.index) && Objects.equals(docType, that.docType)
+                && Objects.equals(executionTimeField, that.executionTimeField)
+                && Objects.equals(timeout, that.timeout)
+                && Objects.equals(dynamicNameTimeZone, that.dynamicNameTimeZone);
     }
 
     @Override
     public int hashCode() {
-        int result = index.hashCode();
-        result = 31 * result + docType.hashCode();
-        result = 31 * result + (executionTimeField != null ? executionTimeField.hashCode() : 0);
-        result = 31 * result + (timeout != null ? timeout.hashCode() : 0);
-        result = 31 * result + (dynamicNameTimeZone != null ? dynamicNameTimeZone.hashCode() : 0);
-        return result;
+        return Objects.hash(index, docType, executionTimeField, timeout, dynamicNameTimeZone);
     }
 
     @Override
@@ -171,64 +165,61 @@ public class IndexAction implements Action {
         return new Builder(index, docType);
     }
 
-    public interface Result {
+    public static class Result extends Action.Result {
 
-        class Success extends Action.Result implements Result {
+        private final XContentSource response;
 
-            private final XContentSource response;
-
-            public Success(XContentSource response) {
-                super(TYPE, Status.SUCCESS);
-                this.response = response;
-            }
-
-            public XContentSource response() {
-                return response;
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject(type)
-                        .field(Field.RESPONSE.getPreferredName(), response, params)
-                        .endObject();
-            }
+        public Result(Status status, XContentSource response) {
+            super(TYPE, status);
+            this.response = response;
         }
 
-        class Simulated extends Action.Result implements Result {
+        public XContentSource response() {
+            return response;
+        }
 
-            private final String index;
-            private final String docType;
-            private final XContentSource source;
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject(type)
+                    .field(Field.RESPONSE.getPreferredName(), response, params)
+                    .endObject();
+        }
+    }
 
-            protected Simulated(String index, String docType, XContentSource source) {
-                super(TYPE, Status.SIMULATED);
-                this.index = index;
-                this.docType = docType;
-                this.source = source;
-            }
+    static class Simulated extends Action.Result {
 
-            public String index() {
-                return index;
-            }
+        private final String index;
+        private final String docType;
+        private final XContentSource source;
 
-            public String docType() {
-                return docType;
-            }
+        protected Simulated(String index, String docType, XContentSource source) {
+            super(TYPE, Status.SIMULATED);
+            this.index = index;
+            this.docType = docType;
+            this.source = source;
+        }
 
-            public XContentSource source() {
-                return source;
-            }
+        public String index() {
+            return index;
+        }
 
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject(type)
-                        .startObject(Field.REQUEST.getPreferredName())
-                            .field(Field.INDEX.getPreferredName(), index)
-                            .field(Field.DOC_TYPE.getPreferredName(), docType)
-                            .field(Field.SOURCE.getPreferredName(), source, params)
-                        .endObject()
-                        .endObject();
-            }
+        public String docType() {
+            return docType;
+        }
+
+        public XContentSource source() {
+            return source;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject(type)
+                    .startObject(Field.REQUEST.getPreferredName())
+                        .field(Field.INDEX.getPreferredName(), index)
+                        .field(Field.DOC_TYPE.getPreferredName(), docType)
+                        .field(Field.SOURCE.getPreferredName(), source, params)
+                    .endObject()
+                    .endObject();
         }
     }
 

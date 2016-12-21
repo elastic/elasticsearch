@@ -15,6 +15,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -71,8 +72,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     @Nullable private final TimeValue throttlePeriod;
     @Nullable private final Map<String, Object> metadata;
     private final WatchStatus status;
-
-    private final transient AtomicLong nonceCounter = new AtomicLong();
 
     private transient long version = Versions.MATCH_ANY;
 
@@ -155,10 +154,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     public boolean acked(String actionId) {
         ActionStatus actionStatus = status.actionStatus(actionId);
         return actionStatus.ackStatus().state() == ActionStatus.AckStatus.State.ACKED;
-    }
-
-    public long nonce() {
-        return nonceCounter.getAndIncrement();
     }
 
     @Override
@@ -263,7 +258,9 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             }
             XContentParser parser = null;
             try {
-                parser = new WatcherXContentParser(createParser(source), new HaltedClock(now), withSecrets ? cryptoService : null);
+                // EMPTY is safe here because we never use namedObject
+                parser = new WatcherXContentParser(createParser(NamedXContentRegistry.EMPTY, source), new HaltedClock(now),
+                        withSecrets ? cryptoService : null);
                 parser.nextToken();
                 return parse(id, includeStatus, parser);
             } catch (IOException ioe) {

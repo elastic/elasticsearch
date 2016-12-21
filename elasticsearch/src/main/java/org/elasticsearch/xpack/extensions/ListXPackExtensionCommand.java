@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.extensions;
 
 import joptsimple.OptionSet;
-import org.elasticsearch.cli.SettingCommand;
+import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -27,15 +27,14 @@ import static org.elasticsearch.xpack.XPackPlugin.resolveXPackExtensionsFile;
 /**
  * A command for the extension cli to list extensions installed in x-pack.
  */
-class ListXPackExtensionCommand extends SettingCommand {
+class ListXPackExtensionCommand extends EnvironmentAwareCommand {
 
     ListXPackExtensionCommand() {
         super("Lists installed x-pack extensions");
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception {
-        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         if (Files.exists(resolveXPackExtensionsFile(env)) == false) {
             throw new IOException("Extensions directory missing: " + resolveXPackExtensionsFile(env));
         }

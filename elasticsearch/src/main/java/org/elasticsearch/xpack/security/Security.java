@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -714,15 +715,13 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-                                                                        CircuitBreakerService circuitBreakerService,
-                                                                        NamedWriteableRegistry namedWriteableRegistry,
-                                                                        NetworkService networkService) {
+            CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
+            NamedXContentRegistry xContentRegistry, NetworkService networkService) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
         return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
-                ipFilter.get(), sslService,
-                threadPool));
+                ipFilter.get(), sslService, threadPool, xContentRegistry));
     }
 
     @Override

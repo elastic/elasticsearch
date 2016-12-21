@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.actions.index;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -28,7 +29,10 @@ import org.elasticsearch.xpack.watcher.test.WatcherTestUtils;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 import org.joda.time.DateTime;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -48,19 +52,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.joda.time.DateTimeZone.UTC;
 
 public class IndexActionTests extends ESIntegTestCase {
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .build();
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        return Settings.builder()
-                .put(super.transportClientSettings())
-                .build();
-    }
 
     public void testIndexActionExecuteSingleDoc() throws Exception {
         String timestampField = randomFrom("@timestamp", null);
@@ -75,8 +66,8 @@ public class IndexActionTests extends ESIntegTestCase {
         Action.Result result = executable.execute("_id", ctx, ctx.payload());
 
         assertThat(result.status(), equalTo(Status.SUCCESS));
-        assertThat(result, instanceOf(IndexAction.Result.Success.class));
-        IndexAction.Result.Success successResult = (IndexAction.Result.Success) result;
+        assertThat(result, instanceOf(IndexAction.Result.class));
+        IndexAction.Result successResult = (IndexAction.Result) result;
         XContentSource response = successResult.response();
         assertThat(response.getValue("created"), equalTo((Object)Boolean.TRUE));
         assertThat(response.getValue("version"), equalTo((Object) 1));
@@ -135,8 +126,8 @@ public class IndexActionTests extends ESIntegTestCase {
         Action.Result result = executable.execute("_id", ctx, ctx.payload());
 
         assertThat(result.status(), equalTo(Status.SUCCESS));
-        assertThat(result, instanceOf(IndexAction.Result.Success.class));
-        IndexAction.Result.Success successResult = (IndexAction.Result.Success) result;
+        assertThat(result, instanceOf(IndexAction.Result.class));
+        IndexAction.Result successResult = (IndexAction.Result) result;
         XContentSource response = successResult.response();
         assertThat(successResult.toString(), response.getValue("0.created"), equalTo((Object)Boolean.TRUE));
         assertThat(successResult.toString(), response.getValue("0.version"), equalTo((Object) 1));
@@ -234,6 +225,33 @@ public class IndexActionTests extends ESIntegTestCase {
             }
         } catch (ElasticsearchParseException iae) {
             assertThat(useIndex && useType, equalTo(false));
+        }
+    }
+
+    // https://github.com/elastic/x-pack/issues/4416
+    public void testIndexingWithWrongMappingReturnsFailureResult() throws Exception {
+        // index a document to set the mapping of the foo field to a boolean
+        client().prepareIndex("test-index", "test-type", "_id").setSource("foo", true)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        IndexAction action = new IndexAction("test-index", "test-type", "@timestamp", null, null);
+        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, WatcherClientProxy.of(client()), null);
+
+        List<Map<String, Object>> docs = new ArrayList<>();
+        boolean addSuccessfulIndexedDoc = randomBoolean();
+        if (addSuccessfulIndexedDoc) {
+            docs.add(Collections.singletonMap("foo", randomBoolean()));
+        }
+        docs.add(Collections.singletonMap("foo", Collections.singletonMap("foo", "bar")));
+        Payload payload = new Payload.Simple(Collections.singletonMap("_doc", docs));
+
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", DateTime.now(UTC), payload);
+
+        Action.Result result = executable.execute("_id", ctx, payload);
+        if (addSuccessfulIndexedDoc) {
+            assertThat(result.status(), is(Status.PARTIAL_FAILURE));
+        } else {
+            assertThat(result.status(), is(Status.FAILURE));
         }
     }
 }

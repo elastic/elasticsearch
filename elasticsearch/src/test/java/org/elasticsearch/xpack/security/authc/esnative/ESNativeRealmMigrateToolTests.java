@@ -113,16 +113,16 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
         MockTerminal mockTerminal = new MockTerminal();
 
         FileNotFoundException fnfe = expectThrows(FileNotFoundException.class,
-                () -> muor.importUsers(mockTerminal, settings, environment, options));
+                () -> muor.importUsers(mockTerminal, environment, options));
         assertThat(fnfe.getMessage(), containsString("users file"));
 
         Files.createFile(xpackConfDir.resolve("users"));
         fnfe = expectThrows(FileNotFoundException.class,
-                () -> muor.importUsers(mockTerminal, settings, environment, options));
+                () -> muor.importUsers(mockTerminal, environment, options));
         assertThat(fnfe.getMessage(), containsString("users_roles file"));
 
         fnfe = expectThrows(FileNotFoundException.class,
-                () -> muor.importRoles(mockTerminal, settings, environment, options));
+                () -> muor.importRoles(mockTerminal, environment, options));
         assertThat(fnfe.getMessage(), containsString("roles.yml file"));
     }
 }

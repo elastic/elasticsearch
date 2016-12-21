@@ -39,10 +39,9 @@ public class RemoveXPackExtensionCommandTests extends ESTestCase {
     }
 
     static MockTerminal removeExtension(String name, Path home) throws Exception {
-        Map<String, String> settings = new HashMap<>();
-        settings.put("path.home", home.toString());
+        Environment env = new Environment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
-        new RemoveXPackExtensionCommand().execute(terminal, name, settings);
+        new RemoveXPackExtensionCommand().execute(terminal, name, env);
         return terminal;
     }
 

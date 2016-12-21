@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -140,7 +141,6 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.YearlySchedule;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.SchedulerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.schedule.engine.TickerScheduleTriggerEngine;
 import org.elasticsearch.xpack.watcher.watch.Watch;
-import org.elasticsearch.xpack.watcher.watch.WatchLockService;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -208,7 +208,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
                                                SearchRequestParsers searchRequestParsers, XPackLicenseState licenseState,
                                                HttpClient httpClient, HttpRequestTemplate.Parser httpTemplateParser,
                                                ThreadPool threadPool, ClusterService clusterService, CryptoService cryptoService,
-                                               Collection<Object> components) {
+                                               NamedXContentRegistry xContentRegistry, Collection<Object> components) {
         if (enabled == false) {
             return Collections.emptyList();
         }
@@ -224,7 +224,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final Map<String, TransformFactory> transformFactories = new HashMap<>();
         transformFactories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
         transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, internalClient, searchRequestParsers,
-                scriptService));
+                xContentRegistry, scriptService));
         final TransformRegistry transformRegistry = new TransformRegistry(settings, Collections.unmodifiableMap(transformFactories));
 
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
@@ -246,7 +246,8 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final ActionRegistry registry = new ActionRegistry(actionFactoryMap, conditionRegistry, transformRegistry, clock, licenseState);
 
         final Map<String, InputFactory> inputFactories = new HashMap<>();
-        inputFactories.put(SearchInput.TYPE, new SearchInputFactory(settings, internalClient, searchRequestParsers, scriptService));
+        inputFactories.put(SearchInput.TYPE,
+                new SearchInputFactory(settings, internalClient, searchRequestParsers, xContentRegistry, scriptService));
         inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
         inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine, httpTemplateParser));
         inputFactories.put(NoneInput.TYPE, new NoneInputFactory(settings));
@@ -279,13 +280,12 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, watcherClientProxy, triggeredWatchParser);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
-                new WatcherSearchTemplateService(settings, scriptService, searchRequestParsers);
-        final WatchLockService watchLockService = new WatchLockService(settings);
+                new WatcherSearchTemplateService(settings, scriptService, searchRequestParsers, xContentRegistry);
         final WatchExecutor watchExecutor = getWatchExecutor(threadPool);
         final Watch.Parser watchParser = new Watch.Parser(settings, triggerService, registry, inputRegistry, cryptoService, clock);
 
         final ExecutionService executionService = new ExecutionService(settings, historyStore, triggeredWatchStore, watchExecutor,
-                watchLockService, clock, threadPool, watchParser, watcherClientProxy);
+                clock, threadPool, watchParser, watcherClientProxy);
 
         final TriggerEngine.Listener triggerEngineListener = getTriggerEngineListener(executionService);
         triggerService.register(triggerEngineListener);
@@ -293,7 +293,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final WatcherIndexTemplateRegistry watcherIndexTemplateRegistry = new WatcherIndexTemplateRegistry(settings,
                 clusterService.getClusterSettings(), clusterService, threadPool, internalClient);
 
-        final WatcherService watcherService = new WatcherService(settings, triggerService, executionService, watchLockService,
+        final WatcherService watcherService = new WatcherService(settings, triggerService, executionService,
                 watcherIndexTemplateRegistry, watchParser, watcherClientProxy);
 
         final WatcherLifeCycleService watcherLifeCycleService =

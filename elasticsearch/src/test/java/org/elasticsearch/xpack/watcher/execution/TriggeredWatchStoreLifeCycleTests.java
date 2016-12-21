@@ -34,7 +34,7 @@ public class TriggeredWatchStoreLifeCycleTests extends AbstractWatcherIntegratio
         for (int i = 0; i < triggeredWatches.length; i++) {
             DateTime dateTime = new DateTime(i, DateTimeZone.UTC);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(watch.id(), dateTime, dateTime);
-            Wid wid = new Wid("record_" + i, randomLong(), DateTime.now(DateTimeZone.UTC));
+            Wid wid = new Wid("record_" + i, DateTime.now(DateTimeZone.UTC));
             triggeredWatches[i] = new TriggeredWatch(wid, event);
             triggeredWatchStore.put(triggeredWatches[i]);
             GetResponse getResponse = client().prepareGet(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE,

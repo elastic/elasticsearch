@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -102,7 +103,8 @@ public class SentEvent implements ToXContent {
         // lets first try to parse the error response in the body
         // based on https://developer.pagerduty.com/documentation/rest/errors
         try {
-            XContentParser parser = JsonXContent.jsonXContent.createParser(response.body());
+            // EMPTY is safe here because we never call namedObject
+            XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, response.body());
             parser.nextToken();
 
             String message = null;

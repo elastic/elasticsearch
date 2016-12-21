@@ -139,19 +139,19 @@ public final class WatcherTestUtils {
 
     public static WatchExecutionContextMockBuilder mockExecutionContextBuilder(String watchId) {
         return new WatchExecutionContextMockBuilder(watchId)
-                .wid(new Wid(watchId, randomInt(10), DateTime.now(UTC)));
+                .wid(new Wid(watchId, DateTime.now(UTC)));
     }
 
     public static WatchExecutionContext mockExecutionContext(String watchId, Payload payload) {
         return mockExecutionContextBuilder(watchId)
-                .wid(new Wid(watchId, randomInt(10), DateTime.now(UTC)))
+                .wid(new Wid(watchId, DateTime.now(UTC)))
                 .payload(payload)
                 .buildMock();
     }
 
     public static WatchExecutionContext mockExecutionContext(String watchId, DateTime time, Payload payload) {
         return mockExecutionContextBuilder(watchId)
-                .wid(new Wid(watchId, randomInt(10), DateTime.now(UTC)))
+                .wid(new Wid(watchId, DateTime.now(UTC)))
                 .payload(payload)
                 .time(watchId, time)
                 .buildMock();
@@ -159,7 +159,7 @@ public final class WatcherTestUtils {
 
     public static WatchExecutionContext mockExecutionContext(String watchId, DateTime executionTime, TriggerEvent event, Payload payload) {
         return mockExecutionContextBuilder(watchId)
-                .wid(new Wid(watchId, randomInt(10), DateTime.now(UTC)))
+                .wid(new Wid(watchId, DateTime.now(UTC)))
                 .payload(payload)
                 .executionTime(executionTime)
                 .triggerEvent(event)

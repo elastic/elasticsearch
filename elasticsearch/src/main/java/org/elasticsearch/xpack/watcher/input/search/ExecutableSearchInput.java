@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -80,7 +81,8 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         final Payload payload;
         if (input.getExtractKeys() != null) {
             XContentBuilder builder = jsonBuilder().startObject().value(response).endObject();
-            XContentParser parser = XContentHelper.createParser(builder.bytes());
+            // EMPTY is safe here because we never use namedObject
+            XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes());
             Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
             payload = new Payload.Simple(filteredKeys);
         } else {

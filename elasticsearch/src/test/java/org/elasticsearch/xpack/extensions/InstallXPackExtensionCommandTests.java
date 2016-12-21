@@ -88,10 +88,9 @@ public class InstallXPackExtensionCommandTests extends ESTestCase {
     }
 
     static MockTerminal installExtension(String extensionUrl, Path home) throws Exception {
-        Map<String, String> settings = new HashMap<>();
-        settings.put("path.home", home.toString());
+        Environment env = new Environment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
-        new InstallXPackExtensionCommand().execute(terminal, extensionUrl, true, settings);
+        new InstallXPackExtensionCommand().execute(terminal, extensionUrl, true, env);
         return terminal;
     }
 

@@ -10,6 +10,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -35,12 +36,15 @@ public class WatcherSearchTemplateService extends AbstractComponent {
     private final ScriptService scriptService;
     private final ParseFieldMatcher parseFieldMatcher;
     private final SearchRequestParsers searchRequestParsers;
+    private final NamedXContentRegistry xContentRegistry;
 
-    public WatcherSearchTemplateService(Settings settings, ScriptService scriptService, SearchRequestParsers searchRequestParsers) {
+    public WatcherSearchTemplateService(Settings settings, ScriptService scriptService, SearchRequestParsers searchRequestParsers,
+            NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.scriptService = scriptService;
         this.searchRequestParsers = searchRequestParsers;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
+        this.xContentRegistry = xContentRegistry;
     }
 
     public BytesReference renderTemplate(Script source,
@@ -69,7 +73,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource();
         BytesReference source = request.getSearchSource();
         if (source != null && source.length() > 0) {
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
+            try (XContentParser parser = XContentFactory.xContent(source).createParser(xContentRegistry, source)) {
                 sourceBuilder.parseXContent(new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher),
                         searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
                 searchRequest.source(sourceBuilder);

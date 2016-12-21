@@ -9,6 +9,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -21,13 +22,14 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.template.TemplateUtils;
@@ -101,9 +103,8 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
                 , SECURITY_INDEX_TEMPLATE_VERSION_PATTERN);
         Map<String, Object> typeMappingMap;
         try {
-            XContentParser xParser = XContentFactory.xContent(template).createParser(template);
-            typeMappingMap = xParser.map();
-        } catch (IOException e) {
+            typeMappingMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, template, false);
+        } catch (ElasticsearchParseException e) {
             updateMappingPending.set(false);
             logger.error("failed to parse the security index template", e);
             throw new ElasticsearchException("failed to parse the security index template", e);
@@ -218,9 +219,9 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
         // we have to parse the source here which is annoying
         for (Object typeMapping : mappings.values().toArray()) {
             CompressedXContent typeMappingXContent = (CompressedXContent) typeMapping;
-            try (XContentParser xParser = XContentFactory.xContent(typeMappingXContent.toString())
-                    .createParser(typeMappingXContent.toString())) {
-                Map<String, Object> typeMappingMap = xParser.map();
+            try  {
+                Map<String, Object> typeMappingMap = XContentHelper.convertToMap(new BytesArray(typeMappingXContent.uncompressed()), false)
+                        .v2();
                 // should always contain one entry with key = typename
                 assert (typeMappingMap.size() == 1);
                 String key = typeMappingMap.keySet().iterator().next();
@@ -230,7 +231,7 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
                 if (containsCorrectVersion(mappingMap, predicate) == false) {
                     return false;
                 }
-            } catch (IOException e) {
+            } catch (ElasticsearchParseException e) {
                 logger.error("Cannot parse the template for security index.", e);
                 throw new IllegalStateException("Cannot parse the template for security index.", e);
             }

@@ -104,9 +104,8 @@ public class HistoryStore extends AbstractComponent {
                     .opType(IndexRequest.OpType.CREATE);
             client.index(request, (TimeValue) null);
         } catch (VersionConflictEngineException vcee) {
-            logger.warn("watch record [{}] has executed multiple times, this can happen during watcher restarts", watchRecord);
             watchRecord = new WatchRecord.MessageWatchRecord(watchRecord, ExecutionState.EXECUTED_MULTIPLE_TIMES,
-                    "watch record has been stored before, previous state [" + watchRecord.state() + "]");
+                    "watch record [{ " + watchRecord.id() + " }] has been stored before, previous state [" + watchRecord.state() + "]");
             IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id().value())
                     .source(XContentFactory.jsonBuilder().value(watchRecord));
             client.index(request, (TimeValue) null);

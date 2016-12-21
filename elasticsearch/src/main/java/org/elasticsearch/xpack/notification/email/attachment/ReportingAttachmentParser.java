@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -195,7 +196,8 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
      * Extract the id from JSON payload, so we know which ID to poll for
      */
     private String extractIdFromJson(String watchId, String attachmentId, BytesReference body) throws IOException {
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(body)) {
+        // EMPTY is safe here becaus we never call namedObject
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, body)) {
             KibanaReportingPayload payload = new KibanaReportingPayload();
             PAYLOAD_PARSER.parse(parser, payload, STRICT_PARSING);
             String path = payload.getPath();

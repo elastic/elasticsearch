@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.common.xcontent;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -38,7 +39,8 @@ public class XContentUtils {
 
     public static Tuple<XContentType, Object> convertToObject(BytesReference bytes) throws ElasticsearchParseException {
         try {
-            XContentParser parser = XContentHelper.createParser(bytes);
+            // EMPTY is safe here because we never call namedObject
+            XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, bytes);
             return Tuple.tuple(parser.contentType(), readValue(parser, parser.nextToken()));
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);

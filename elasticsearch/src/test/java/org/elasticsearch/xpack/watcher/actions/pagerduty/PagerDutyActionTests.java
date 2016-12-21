@@ -79,7 +79,7 @@ public class PagerDutyActionTests extends ESTestCase {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
-        Wid wid = new Wid(randomAsciiOfLength(5), randomLong(), now);
+        Wid wid = new Wid(randomAsciiOfLength(5), now);
         WatchExecutionContext ctx = mockExecutionContextBuilder(wid.watchId())
                 .wid(wid)
                 .payload(payload)

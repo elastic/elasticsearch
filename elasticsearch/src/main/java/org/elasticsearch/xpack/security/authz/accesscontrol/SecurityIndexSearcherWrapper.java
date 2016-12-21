@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
@@ -156,7 +157,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 for (BytesReference bytesReference : permissions.getQueries()) {
                     QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
                     bytesReference = evaluateTemplate(bytesReference);
-                    try (XContentParser parser = XContentFactory.xContent(bytesReference).createParser(bytesReference)) {
+                    try (XContentParser parser = XContentFactory.xContent(bytesReference)
+                            .createParser(queryShardContext.getXContentRegistry(), bytesReference)) {
                         QueryBuilder queryBuilder = queryShardContext.newParseContext(parser).parseInnerQueryBuilder();
                         verifyRoleQuery(queryBuilder);
                         failIfQueryUsesClient(scriptService, queryBuilder, queryShardContext);
@@ -286,7 +288,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
     }
 
     BytesReference evaluateTemplate(BytesReference querySource) throws IOException {
-        try (XContentParser parser = XContentFactory.xContent(querySource).createParser(querySource)) {
+        // EMPTY is safe here because we never use namedObject
+        try (XContentParser parser = XContentFactory.xContent(querySource).createParser(NamedXContentRegistry.EMPTY, querySource)) {
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new ElasticsearchParseException("Unexpected token [" + token + "]");
@@ -399,8 +402,8 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 throw new IllegalStateException("role queries are not allowed to execute additional requests");
             }
         };
-        QueryRewriteContext copy = new QueryRewriteContext(original.getIndexSettings(), original.getMapperService(), scriptService, null,
-                client, original.getIndexReader(), original::nowInMillis);
+        QueryRewriteContext copy = new QueryRewriteContext(original.getIndexSettings(), original.getMapperService(), scriptService,
+                original.getXContentRegistry(), null, client, original.getIndexReader(), original::nowInMillis);
         queryBuilder.rewrite(copy);
     }
 }

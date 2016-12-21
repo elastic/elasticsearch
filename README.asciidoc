@@ -1,4 +1,4 @@
-= Elasticsearch X Plugins
+= Elasticsearch X Pack
 
 A set of Elastic's commercial plugins:
 
@@ -8,8 +8,11 @@ A set of Elastic's commercial plugins:
 - Monitoring
 
 = Setup
-You must checkout x-plugins and elasticsearch in the same directory as siblings. This
-elasticsearch checkout will be used when building x-plugins.
+You must checkout x-pack and elasticsearch with a specific directory structure. The
+elasticsearch checkout will be used when building x-pack. The structure is:
+
+- /path/to/elastic/elasticsearch
+- /path/to/elastic/elasticsearch-extra/x-pack
 
 = Build
 

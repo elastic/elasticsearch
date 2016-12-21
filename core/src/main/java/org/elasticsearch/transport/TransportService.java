@@ -62,7 +62,6 @@ import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -326,32 +325,6 @@ public class TransportService extends AbstractLifecycleComponent {
         } else {
             return transport.openConnection(node, profile);
         }
-    }
-
-    /**
-     * Lightly connect to the specified node, returning updated node
-     * information. The handshake will fail if the cluster name on the
-     * target node mismatches the local cluster name and
-     * {@code checkClusterName} is {@code true}.
-     *
-     * @param node             the node to connect to
-     * @param handshakeTimeout handshake timeout
-     * @return the connected node
-     * @throws ConnectTransportException if the connection failed
-     * @throws IllegalStateException if the handshake failed
-     */
-    public DiscoveryNode connectToNodeAndHandshake(
-        final DiscoveryNode node,
-        final long handshakeTimeout) throws IOException {
-        if (node.equals(localNode)) {
-            return localNode;
-        }
-        DiscoveryNode handshakeNode;
-        try (Transport.Connection connection = transport.openConnection(node, ConnectionProfile.LIGHT_PROFILE)) {
-            handshakeNode = handshake(connection, handshakeTimeout);
-        }
-        connectToNode(node, ConnectionProfile.LIGHT_PROFILE);
-        return handshakeNode;
     }
 
     /**

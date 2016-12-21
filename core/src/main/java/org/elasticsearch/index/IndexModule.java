@@ -48,7 +48,6 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -327,7 +326,6 @@ public final class IndexModule {
         BigArrays bigArrays,
         ThreadPool threadPool,
         ScriptService scriptService,
-        IndicesQueriesRegistry indicesQueriesRegistry,
         ClusterService clusterService,
         Client client,
         IndicesQueryCache indicesQueryCache,
@@ -366,7 +364,7 @@ public final class IndexModule {
         }
         return new IndexService(indexSettings, environment, xContentRegistry, new SimilarityService(indexSettings, similarities),
                 shardStoreDeleter, analysisRegistry, engineFactory.get(), circuitBreakerService, bigArrays, threadPool, scriptService,
-                indicesQueriesRegistry, clusterService, client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
+                clusterService, client, queryCache, store, eventListener, searcherWrapperFactory, mapperRegistry,
                 indicesFieldDataCache, globalCheckpointSyncer, searchOperationListeners, indexOperationListeners);
     }
 

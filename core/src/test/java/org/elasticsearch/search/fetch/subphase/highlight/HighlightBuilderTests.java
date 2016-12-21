@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -46,7 +47,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.Order;
@@ -75,7 +75,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static NamedXContentRegistry xContentRegistry;
 
     /**
      * setup for the whole base test class
@@ -84,13 +84,13 @@ public class HighlightBuilderTests extends ESTestCase {
     public static void init() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         namedWriteableRegistry = new NamedWriteableRegistry(searchModule.getNamedWriteables());
-        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     @AfterClass
     public static void afterClass() throws Exception {
         namedWriteableRegistry = null;
-        indicesQueriesRegistry = null;
+        xContentRegistry = null;
     }
 
     /**
@@ -129,7 +129,7 @@ public class HighlightBuilderTests extends ESTestCase {
             XContentBuilder shuffled = shuffleXContent(builder);
 
             XContentParser parser = createParser(shuffled);
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+            QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
             parser.nextToken();
             HighlightBuilder secondHighlightBuilder;
             try {
@@ -170,7 +170,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
     private <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
         return expectThrows(exceptionClass, () -> HighlightBuilder.fromXContent(context));
     }
 
@@ -266,7 +266,7 @@ public class HighlightBuilderTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         // shard context will only need indicesQueriesRegistry for building Query objects nested in highlighter
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
-                indicesQueriesRegistry, null, null, System::currentTimeMillis) {
+                null, null, System::currentTimeMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name);
@@ -380,7 +380,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 "}\n";
         XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
                 highlightBuilder.preTags());
@@ -392,7 +392,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 "}\n";
         parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
                 highlightBuilder.preTags());
@@ -413,21 +413,21 @@ public class HighlightBuilderTests extends ESTestCase {
         String highlightElement = "{ }";
         XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { } }";
         parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { \"foo\" : { } } }";
         parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
     }
@@ -714,5 +714,10 @@ public class HighlightBuilderTests extends ESTestCase {
 
     private static HighlightBuilder serializedCopy(HighlightBuilder original) throws IOException {
         return ESTestCase.copyWriteable(original, namedWriteableRegistry, HighlightBuilder::new);
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 }

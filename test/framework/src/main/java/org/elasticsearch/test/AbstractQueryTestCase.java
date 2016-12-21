@@ -83,7 +83,6 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -779,7 +778,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
     protected static QueryParseContext createParseContext(XContentParser parser, ParseFieldMatcher matcher) {
-        return new QueryParseContext(serviceHolder.indicesQueriesRegistry, parser, matcher);
+        return new QueryParseContext(parser, matcher);
     }
 
     /**
@@ -1013,8 +1012,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     private static class ServiceHolder implements Closeable {
-
-        private final IndicesQueriesRegistry indicesQueriesRegistry;
         private final IndexFieldDataService indexFieldDataService;
         private final SearchModule searchModule;
         private final NamedWriteableRegistry namedWriteableRegistry;
@@ -1075,7 +1072,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
                 }
             });
-            indicesQueriesRegistry = searchModule.getQueryParserRegistry();
 
             for (String type : currentTypes) {
                 mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
@@ -1106,7 +1102,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
         QueryShardContext createShardContext() {
             return new QueryShardContext(0, idxSettings, bitsetFilterCache, indexFieldDataService, mapperService, similarityService,
-                    scriptService, xContentRegistry, indicesQueriesRegistry, this.client, null, () -> nowInMillis);
+                    scriptService, xContentRegistry, this.client, null, () -> nowInMillis);
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

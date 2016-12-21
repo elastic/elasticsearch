@@ -48,7 +48,6 @@ import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -92,7 +91,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private final Map<String, Query> namedQueries = new HashMap<>();
     private final MapperQueryParser queryParser = new MapperQueryParser(this);
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
     private boolean allowUnmappedFields;
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
@@ -100,9 +98,9 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public QueryShardContext(int shardId, IndexSettings indexSettings, BitsetFilterCache bitsetFilterCache,
             IndexFieldDataService indexFieldDataService, MapperService mapperService, SimilarityService similarityService,
-            ScriptService scriptService, NamedXContentRegistry xContentRegistry, IndicesQueriesRegistry indicesQueriesRegistry,
+            ScriptService scriptService, NamedXContentRegistry xContentRegistry,
             Client client, IndexReader reader, LongSupplier nowInMillis) {
-        super(indexSettings, mapperService, scriptService, xContentRegistry, indicesQueriesRegistry, client, reader, nowInMillis);
+        super(indexSettings, mapperService, scriptService, xContentRegistry, client, reader, nowInMillis);
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.similarityService = similarityService;
@@ -110,14 +108,13 @@ public class QueryShardContext extends QueryRewriteContext {
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataService = indexFieldDataService;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.nestedScope = new NestedScope();
 
     }
 
     public QueryShardContext(QueryShardContext source) {
         this(source.shardId, source.indexSettings, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService,
-                source.similarityService, source.scriptService, source.getXContentRegistry(), source.indicesQueriesRegistry, source.client,
+                source.similarityService, source.scriptService, source.getXContentRegistry(), source.client,
                 source.reader, source.nowInMillis);
         this.types = source.getTypes();
     }

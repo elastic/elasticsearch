@@ -34,37 +34,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleQueryParserTests extends ESTestCase {
-
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
-
-    /**
-     * setup for the whole base test class
-     */
-    @BeforeClass
-    public static void init() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
-        indicesQueriesRegistry = searchModule.getQueryParserRegistry();
-    }
-
-    @AfterClass
-    public static void afterClass() throws Exception {
-        indicesQueriesRegistry = null;
-    }
-
     private static class MockSimpleQueryParser extends SimpleQueryParser {
         public MockSimpleQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags, Settings settings) {
             super(analyzer, weights, flags, settings, null);
@@ -148,7 +126,7 @@ public class SimpleQueryParserTests extends ESTestCase {
         IndexMetaData indexState = IndexMetaData.builder("index").settings(indexSettings).build();
         IndexSettings settings = new IndexSettings(indexState, Settings.EMPTY);
         QueryShardContext mockShardContext = new QueryShardContext(0, settings, null, null, null, null, null, xContentRegistry(),
-                indicesQueriesRegistry, null, null, System::currentTimeMillis) {
+                null, null, System::currentTimeMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {
                 return new MockFieldMapper.FakeFieldType();
@@ -161,7 +139,7 @@ public class SimpleQueryParserTests extends ESTestCase {
         assertEquals(new TermQuery(new Term("foo.quote", "bar")), parser.parse("\"bar\""));
 
         // Now check what happens if foo.quote does not exist
-        mockShardContext = new QueryShardContext(0, settings, null, null, null, null, null, xContentRegistry(), indicesQueriesRegistry,
+        mockShardContext = new QueryShardContext(0, settings, null, null, null, null, null, xContentRegistry(),
                 null, null, System::currentTimeMillis) {
             @Override
             public MappedFieldType fieldMapper(String name) {

@@ -186,6 +186,30 @@ public class NumberFieldMapper extends FieldMapper {
                 return HalfFloatPoint.newSetQuery(field, v);
             }
 
+            private float nextDown(float f) {
+                // HalfFloatPoint.nextDown considers that -0 is the same as +0
+                // while point ranges are consistent with Float.compare, so
+                // they consider that -0 < +0, so we explicitly make sure
+                // that nextDown(+0) returns -0
+                if (Float.floatToIntBits(f) == Float.floatToIntBits(0f)) {
+                    return -0f;
+                } else {
+                    return HalfFloatPoint.nextDown(f);
+                }
+            }
+
+            private float nextUp(float f) {
+                // HalfFloatPoint.nextUp considers that -0 is the same as +0
+                // while point ranges are consistent with Float.compare, so
+                // they consider that -0 < +0, so we explicitly make sure
+                // that nextUp(-0) returns +0
+                if (Float.floatToIntBits(f) == Float.floatToIntBits(-0f)) {
+                    return +0f;
+                } else {
+                    return HalfFloatPoint.nextUp(f);
+                }
+            }
+
             @Override
             Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper) {
@@ -194,16 +218,16 @@ public class NumberFieldMapper extends FieldMapper {
                 if (lowerTerm != null) {
                     l = parse(lowerTerm);
                     if (includeLower) {
-                        l = Math.nextDown(l);
+                        l = nextDown(l);
                     }
                     l = HalfFloatPoint.nextUp(l);
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm);
                     if (includeUpper) {
-                        u = Math.nextUp(u);
+                        u = nextUp(u);
                     }
-                    u = HalfFloatPoint.nextDown(u);
+                    u = nextDown(u);
                 }
                 return HalfFloatPoint.newRangeQuery(field, l, u);
             }
@@ -276,6 +300,30 @@ public class NumberFieldMapper extends FieldMapper {
                 return FloatPoint.newSetQuery(field, v);
             }
 
+            private float nextDown(float f) {
+                // Math.nextDown considers that -0 is the same as +0
+                // while point ranges are consistent with Float.compare, so
+                // they consider that -0 < +0, so we explicitly make sure
+                // that nextDown(+0) returns -0
+                if (Float.floatToIntBits(f) == Float.floatToIntBits(0f)) {
+                    return -0f;
+                } else {
+                    return Math.nextDown(f);
+                }
+            }
+
+            private float nextUp(float f) {
+                // Math.nextUp considers that -0 is the same as +0
+                // while point ranges are consistent with Float.compare, so
+                // they consider that -0 < +0, so we explicitly make sure
+                // that nextUp(-0) returns +0
+                if (Float.floatToIntBits(f) == Float.floatToIntBits(-0f)) {
+                    return +0f;
+                } else {
+                    return Math.nextUp(f);
+                }
+            }
+
             @Override
             Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper) {
@@ -284,13 +332,13 @@ public class NumberFieldMapper extends FieldMapper {
                 if (lowerTerm != null) {
                     l = parse(lowerTerm);
                     if (includeLower == false) {
-                        l = Math.nextUp(l);
+                        l = nextUp(l);
                     }
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm);
                     if (includeUpper == false) {
-                        u = Math.nextDown(u);
+                        u = nextDown(u);
                     }
                 }
                 return FloatPoint.newRangeQuery(field, l, u);
@@ -364,6 +412,30 @@ public class NumberFieldMapper extends FieldMapper {
                 return DoublePoint.newSetQuery(field, v);
             }
 
+            private double nextDown(double d) {
+                // Math.nextDown considers that -0 is the same as +0
+                // while point ranges are consistent with Double.compare, so
+                // they consider that -0 < +0, so we explicitly make sure
+                // that nextDown(+0) returns -0
+                if (Double.doubleToLongBits(d) == Double.doubleToLongBits(0d)) {
+                    return -0d;
+                } else {
+                    return Math.nextDown(d);
+                }
+            }
+
+            private double nextUp(double d) {
+                // Math.nextUp considers that -0 is the same as +0
+                // while point ranges are consistent with Double.compare, so
+                // they consider that -0 < +0, so we explicitly make sure
+                // that nextUp(-0) returns +0
+                if (Double.doubleToLongBits(d) == Double.doubleToLongBits(-0d)) {
+                    return +0d;
+                } else {
+                    return Math.nextUp(d);
+                }
+            }
+
             @Override
             Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                              boolean includeLower, boolean includeUpper) {
@@ -372,13 +444,13 @@ public class NumberFieldMapper extends FieldMapper {
                 if (lowerTerm != null) {
                     l = parse(lowerTerm);
                     if (includeLower == false) {
-                        l = Math.nextUp(l);
+                        l = nextUp(l);
                     }
                 }
                 if (upperTerm != null) {
                     u = parse(upperTerm);
                     if (includeUpper == false) {
-                        u = Math.nextDown(u);
+                        u = nextDown(u);
                     }
                 }
                 return DoublePoint.newRangeQuery(field, l, u);

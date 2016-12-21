@@ -21,6 +21,10 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.rest.yaml.parser.ParserUtils;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,6 +38,9 @@ import static org.junit.Assert.assertThat;
  *
  */
 public class IsFalseAssertion extends Assertion {
+    public static IsFalseAssertion parse(XContentParser parser) throws IOException {
+        return new IsFalseAssertion(parser.getTokenLocation(), ParserUtils.parseField(parser));
+    }
 
     private static final Logger logger = Loggers.getLogger(IsFalseAssertion.class);
 
@@ -42,7 +49,6 @@ public class IsFalseAssertion extends Assertion {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected void doAssert(Object actualValue, Object expectedValue) {
         logger.trace("assert that [{}] doesn't have a true value (field: [{}])", actualValue, getField());
 

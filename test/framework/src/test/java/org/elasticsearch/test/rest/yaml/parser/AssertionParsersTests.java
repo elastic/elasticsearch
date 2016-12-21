@@ -39,8 +39,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
                 "get.fields._timestamp"
         );
 
-        IsTrueParser isTrueParser = new IsTrueParser();
-        IsTrueAssertion trueAssertion = isTrueParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        IsTrueAssertion trueAssertion = IsTrueAssertion.parse(parser);
 
         assertThat(trueAssertion, notNullValue());
         assertThat(trueAssertion.getField(), equalTo("get.fields._timestamp"));
@@ -51,8 +50,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
                 "docs.1._source"
         );
 
-        IsFalseParser isFalseParser = new IsFalseParser();
-        IsFalseAssertion falseAssertion = isFalseParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        IsFalseAssertion falseAssertion = IsFalseAssertion.parse(parser);
 
         assertThat(falseAssertion, notNullValue());
         assertThat(falseAssertion.getField(), equalTo("docs.1._source"));
@@ -63,8 +61,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
                 "{ field: 3}"
         );
 
-        GreaterThanParser greaterThanParser = new GreaterThanParser();
-        GreaterThanAssertion greaterThanAssertion = greaterThanParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        GreaterThanAssertion greaterThanAssertion = GreaterThanAssertion.parse(parser);
         assertThat(greaterThanAssertion, notNullValue());
         assertThat(greaterThanAssertion.getField(), equalTo("field"));
         assertThat(greaterThanAssertion.getExpectedValue(), instanceOf(Integer.class));
@@ -102,8 +99,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
                 "{ field: 10 }"
         );
 
-        MatchParser matchParser = new MatchParser();
-        MatchAssertion matchAssertion = matchParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
 
         assertThat(matchAssertion, notNullValue());
         assertThat(matchAssertion.getField(), equalTo("field"));
@@ -116,8 +112,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
                 "{ foo: bar }"
         );
 
-        MatchParser matchParser = new MatchParser();
-        MatchAssertion matchAssertion = matchParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
 
         assertThat(matchAssertion, notNullValue());
         assertThat(matchAssertion.getField(), equalTo("foo"));
@@ -130,13 +125,12 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
                 "{'matches': ['test_percolator_1', 'test_percolator_2']}"
         );
 
-        MatchParser matchParser = new MatchParser();
-        MatchAssertion matchAssertion = matchParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
 
         assertThat(matchAssertion, notNullValue());
         assertThat(matchAssertion.getField(), equalTo("matches"));
         assertThat(matchAssertion.getExpectedValue(), instanceOf(List.class));
-        List strings = (List) matchAssertion.getExpectedValue();
+        List<?> strings = (List<?>) matchAssertion.getExpectedValue();
         assertThat(strings.size(), equalTo(2));
         assertThat(strings.get(0).toString(), equalTo("test_percolator_1"));
         assertThat(strings.get(1).toString(), equalTo("test_percolator_2"));
@@ -148,8 +142,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
                 "{ _source: { responses.0.hits.total: 3, foo: bar  }}"
         );
 
-        MatchParser matchParser = new MatchParser();
-        MatchAssertion matchAssertion = matchParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        MatchAssertion matchAssertion = MatchAssertion.parse(parser);
 
         assertThat(matchAssertion, notNullValue());
         assertThat(matchAssertion.getField(), equalTo("_source"));

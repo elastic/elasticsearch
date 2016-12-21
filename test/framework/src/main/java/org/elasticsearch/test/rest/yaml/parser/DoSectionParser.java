@@ -40,7 +40,7 @@ import static java.util.Collections.unmodifiableList;
 public class DoSectionParser implements ClientYamlTestFragmentParser<DoSection> {
 
     @Override
-    public DoSection parse(ClientYamlTestSuiteParseContext parseContext) throws IOException, ClientYamlTestParseException {
+    public DoSection parse(ClientYamlTestSuiteParseContext parseContext) throws IOException {
 
         XContentParser parser = parseContext.parser();
 
@@ -110,7 +110,7 @@ public class DoSectionParser implements ClientYamlTestFragmentParser<DoSection> 
         }
         try {
             if (apiCallSection == null) {
-                throw new ClientYamlTestParseException("client call section is mandatory within a do section");
+                throw new IllegalArgumentException("client call section is mandatory within a do section");
             }
             if (headers.isEmpty() == false) {
                 apiCallSection.addHeaders(headers);

@@ -378,7 +378,7 @@ public class DoSectionParserTests extends AbstractClientYamlTestFragmentParserTe
         try {
             doSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
             fail("Expected RestTestParseException");
-        } catch (ClientYamlTestParseException e) {
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("client call section is mandatory within a do section"));
         }
     }

@@ -18,19 +18,28 @@
  */
 package org.elasticsearch.test.rest.yaml.parser;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.elasticsearch.test.rest.yaml.section.GreaterThanAssertion;
+import org.elasticsearch.test.rest.yaml.section.GreaterThanEqualToAssertion;
+import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
+import org.elasticsearch.test.rest.yaml.section.IsTrueAssertion;
+import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
+import org.elasticsearch.test.rest.yaml.section.SetSection;
 import org.elasticsearch.test.rest.yaml.section.SetupSection;
 import org.elasticsearch.test.rest.yaml.section.SkipSection;
 import org.elasticsearch.test.rest.yaml.section.TeardownSection;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -48,17 +57,21 @@ public class ClientYamlTestSuiteParseContext implements ParseFieldMatcherSupplie
     private static final Map<String, ClientYamlTestFragmentParser<? extends ExecutableSection>> EXECUTABLE_SECTIONS_PARSERS =
             new HashMap<>();
     static {
-        EXECUTABLE_SECTIONS_PARSERS.put("do", DO_SECTION_PARSER);
-        EXECUTABLE_SECTIONS_PARSERS.put("set", new SetSectionParser());
-        EXECUTABLE_SECTIONS_PARSERS.put("match", new MatchParser());
-        EXECUTABLE_SECTIONS_PARSERS.put("is_true", new IsTrueParser());
-        EXECUTABLE_SECTIONS_PARSERS.put("is_false", new IsFalseParser());
-        EXECUTABLE_SECTIONS_PARSERS.put("gt", new GreaterThanParser());
-        EXECUTABLE_SECTIONS_PARSERS.put("gte", new GreaterThanEqualToParser());
         EXECUTABLE_SECTIONS_PARSERS.put("lt", new LessThanParser());
         EXECUTABLE_SECTIONS_PARSERS.put("lte", new LessThanOrEqualToParser());
         EXECUTABLE_SECTIONS_PARSERS.put("length", new LengthParser());
     }
+    private static final NamedXContentRegistry XCONTENT_REGISTRY = new NamedXContentRegistry(Arrays.asList(
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("do"), (p, c) -> DO_SECTION_PARSER.parse((ClientYamlTestSuiteParseContext) c)),
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("set"), SetSection::parse),
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("match"), MatchAssertion::parse),
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("is_true"), IsTrueAssertion::parse),
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("is_false"), IsFalseAssertion::parse),
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("gt"), GreaterThanAssertion::parse),
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("gte"), GreaterThanEqualToAssertion::parse)
+
+
+            )); 
 
     private final String api;
     private final String suiteName;
@@ -129,13 +142,9 @@ public class ClientYamlTestSuiteParseContext implements ParseFieldMatcherSupplie
     public ExecutableSection parseExecutableSection() throws IOException, ClientYamlTestParseException {
         advanceToFieldName();
         String section = parser.currentName();
-        ClientYamlTestFragmentParser<? extends ExecutableSection> execSectionParser = EXECUTABLE_SECTIONS_PARSERS.get(section);
-        if (execSectionParser == null) {
-            throw new ClientYamlTestParseException("no parser found for executable section [" + section + "]");
-        }
         XContentLocation location = parser.getTokenLocation();
         try {
-            ExecutableSection executableSection = execSectionParser.parse(this);
+            ExecutableSection executableSection = parser.namedObject(ExecutableSection.class, section, null);
             parser.nextToken();
             return executableSection;
         } catch (Exception e) {
@@ -147,45 +156,16 @@ public class ClientYamlTestSuiteParseContext implements ParseFieldMatcherSupplie
         return DO_SECTION_PARSER.parse(this);
     }
 
-    public void advanceToFieldName() throws IOException, ClientYamlTestParseException {
-        XContentParser.Token token = parser.currentToken();
-        //we are in the beginning, haven't called nextToken yet
-        if (token == null) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.START_ARRAY) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.START_OBJECT) {
-            token = parser.nextToken();
-        }
-        if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ClientYamlTestParseException("malformed test section: field name expected but found " + token + " at "
-                    + parser.getTokenLocation());
-        }
+    public void advanceToFieldName() throws IOException {
+        ParserUtils.advanceToFieldName(parser);
     }
 
     public String parseField() throws IOException, ClientYamlTestParseException {
-        parser.nextToken();
-        assert parser.currentToken().isValue();
-        String field = parser.text();
-        parser.nextToken();
-        return field;
+        return ParserUtils.parseField(parser);
     }
 
     public Tuple<String, Object> parseTuple() throws IOException, ClientYamlTestParseException {
-        parser.nextToken();
-        advanceToFieldName();
-        Map<String,Object> map = parser.map();
-        assert parser.currentToken() == XContentParser.Token.END_OBJECT;
-        parser.nextToken();
-
-        if (map.size() != 1) {
-            throw new ClientYamlTestParseException("expected key value pair but found " + map.size() + " ");
-        }
-
-        Map.Entry<String, Object> entry = map.entrySet().iterator().next();
-        return Tuple.tuple(entry.getKey(), entry.getValue());
+        return ParserUtils.parseTuple(parser);
     }
 
     @Override

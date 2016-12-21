@@ -24,7 +24,7 @@ import java.io.IOException;
  * Base parser for a REST test suite fragment
  * @param <T> the test fragment's type that gets parsed and returned
  */
-public interface ClientYamlTestFragmentParser<T> {
+public interface ClientYamlTestFragmentParser<T> { // NOCOMMIT remove me
 
     /**
      * Parses a test fragment given the current {@link ClientYamlTestSuiteParseContext}

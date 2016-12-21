@@ -55,7 +55,7 @@ public final class HyperLogLogBeta implements Releasable {
     // these static tables come from the appendix of the paper
     private static final double[][] BETA_FUNCTION_DATA = {
         // precision 4
-        {},
+        { 129.811426122, -127.758849345, -144.856462515, 185.084979526, -13.2281686587, 43.5841078986, -383.603665383, 154.492845304 },
         // precision 5
         {},
         // precision 6
@@ -75,7 +75,7 @@ public final class HyperLogLogBeta implements Releasable {
         // precision 13
         {},
         // precision 14
-            { -0.370393911, 0.070471823, 0.17393686, 0.16339839, -0.09237745, 0.03738027, -0.005384159, 0.00042419 },
+        { -0.370393911, 0.070471823, 0.17393686, 0.16339839, -0.09237745, 0.03738027, -0.005384159, 0.00042419 },
         // precision 15
         {},
         // precision 16

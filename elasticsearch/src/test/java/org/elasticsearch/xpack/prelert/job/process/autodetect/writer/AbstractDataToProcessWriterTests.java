@@ -79,6 +79,8 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         AbstractDataToProcessWriter writer =
                 new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
 
+        writer.writeHeader();
+
         Set<String> inputFields = new HashSet<>(writer.inputFields());
         assertEquals(4, inputFields.size());
         assertTrue(inputFields.contains("time_field"));
@@ -87,7 +89,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         assertTrue(inputFields.contains("metric"));
 
         String[] header = { "time_field", "metric", "host", "value" };
-        writer.buildTransformsAndWriteHeader(header);
+        writer.buildTransforms(header);
         List<Transform> trs = writer.postDateTransforms;
         assertEquals(1, trs.size());
         Transform tr = trs.get(0);
@@ -136,6 +138,8 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         AbstractDataToProcessWriter writer =
                 new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
 
+        writer.writeHeader();
+
         Set<String> inputFields = new HashSet<>(writer.inputFields());
 
         assertEquals(3, inputFields.size());
@@ -144,7 +148,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         assertTrue(inputFields.contains("domain"));
 
         String[] header = { "time_field", "domain", "value" };
-        writer.buildTransformsAndWriteHeader(header);
+        writer.buildTransforms(header);
         List<Transform> trs = writer.postDateTransforms;
         assertEquals(1, trs.size());
 
@@ -205,6 +209,8 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         AbstractDataToProcessWriter writer =
                 new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
 
+        writer.writeHeader();
+
         Set<String> inputFields = new HashSet<>(writer.inputFields());
 
         assertEquals(3, inputFields.size());
@@ -213,7 +219,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         assertTrue(inputFields.contains("domain"));
 
         String[] header = { "time_field", "domain", "value" };
-        writer.buildTransformsAndWriteHeader(header);
+        writer.buildTransforms(header);
         List<Transform> trs = writer.postDateTransforms;
         assertEquals(1, trs.size());
 
@@ -275,6 +281,8 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         AbstractDataToProcessWriter writer =
                 new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
 
+        writer.writeHeader();
+
         Set<String> inputFields = new HashSet<>(writer.inputFields());
 
         assertEquals(4, inputFields.size());
@@ -285,7 +293,7 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
 
         String[] header = { "date", "time", "domain", "value" };
 
-        writer.buildTransformsAndWriteHeader(header);
+        writer.buildTransforms(header);
         List<Transform> trs = writer.dateInputTransforms;
         assertEquals(1, trs.size());
         assertTrue(trs.get(0) instanceof Concat);
@@ -325,9 +333,11 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         AbstractDataToProcessWriter writer =
                 new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
 
+        writer.writeHeader();
+
         String[] header = { "datetime", "metric", "value" };
 
-        writer.buildTransformsAndWriteHeader(header);
+        writer.buildTransforms(header);
 
         // metricA is excluded
         String[] input = { "1", "metricA", "0" };
@@ -376,9 +386,11 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         AbstractDataToProcessWriter writer =
                 new CsvDataToProcessWriter(true, autodetectProcess, dd.build(), ac, transforms, statusReporter, jobLogger);
 
+        writer.writeHeader();
+
         String[] header = { "date-somethingelse", "time", "type", "value" };
 
-        writer.buildTransformsAndWriteHeader(header);
+        writer.buildTransforms(header);
 
         // the date input transforms should be in this order
         List<Transform> trs = writer.dateInputTransforms;

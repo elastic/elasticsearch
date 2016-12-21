@@ -16,6 +16,14 @@ import org.elasticsearch.xpack.prelert.job.DataCounts;
  * inputstream to outputstream as the process expects.
  */
 public interface DataToProcessWriter {
+
+    /**
+     * Write the header.
+     * The header is created from the list of analysis input fields,
+     * the time field and the control field.
+     */
+    void writeHeader() throws IOException;
+
     /**
      * Reads the inputIndex, transform to length encoded values and pipe
      * to the OutputStream.

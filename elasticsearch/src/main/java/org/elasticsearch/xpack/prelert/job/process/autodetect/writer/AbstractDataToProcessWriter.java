@@ -107,10 +107,8 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
      * <p>
      * Transforms can be chained so some write their outputs to
      * a scratch area which is input to another transform
-     * <p>
-     * Writes the header.
      */
-    public void buildTransformsAndWriteHeader(String[] header) throws IOException {
+    public void buildTransforms(String[] header) throws IOException {
         Collection<String> inputFields = inputFields();
         inFieldIndexes = inputFieldIndexes(header, inputFields);
         checkForMissingFields(inputFields, inFieldIndexes, header);
@@ -124,12 +122,10 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         scratchArea = new String[scratchAreaIndexes.size()];
         readWriteArea[TransformFactory.SCRATCH_ARRAY_INDEX] = scratchArea;
 
-
         buildDateTransform(scratchAreaIndexes, outFieldIndexes);
 
         List<TransformConfig> dateInputTransforms = DependencySorter.findDependencies(
                 dataDescription.getTimeField(), transformConfigs.getTransforms());
-
 
         TransformFactory transformFactory = new TransformFactory();
         for (TransformConfig config : dateInputTransforms) {
@@ -152,8 +148,29 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
                     outFieldIndexes, logger);
             this.postDateTransforms.add(tr);
         }
+    }
 
-        writeHeader(outFieldIndexes);
+    /**
+     * Write the header.
+     * The header is created from the list of analysis input fields,
+     * the time field and the control field
+     */
+    @Override
+    public void writeHeader() throws IOException {
+        Map<String, Integer> outFieldIndexes = outputFieldIndexes();
+
+        //  header is all the analysis input fields + the time field + control field
+        int numFields = outFieldIndexes.size();
+        String[] record = new String[numFields];
+
+        Iterator<Map.Entry<String, Integer>> itr = outFieldIndexes.entrySet().iterator();
+        while (itr.hasNext()) {
+            Map.Entry<String, Integer> entry = itr.next();
+            record[entry.getValue()] = entry.getKey();
+        }
+
+        // Write the header
+        autodetectProcess.writeRecord(record);
     }
 
     protected void buildDateTransform(Map<String, Integer> scratchAreaIndexes, Map<String, Integer> outFieldIndexes) {
@@ -180,7 +197,6 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
             }
         }
 
-
         List<TransformIndex> writeIndexes = new ArrayList<>();
         writeIndexes.add(new TransformIndex(TransformFactory.OUTPUT_ARRAY_INDEX,
                 outFieldIndexes.get(dataDescription.getTimeField())));
@@ -195,7 +211,6 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
             dateTransform = new DoubleDateTransform(dataDescription.isEpochMs(),
                     readIndexes, writeIndexes, logger);
         }
-
     }
 
     /**
@@ -209,7 +224,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
      *
      * @param cancelled          Determines whether the process writting has been cancelled
      * @param input              The record the transforms should read their input from. The contents should
-     *                           align with the header parameter passed to {@linkplain #buildTransformsAndWriteHeader(String[])}
+     *                           align with the header parameter passed to {@linkplain #buildTransforms(String[])}
      * @param output             The record that will be written to the length encoded writer.
      *                           This should be the same size as the number of output (analysis fields) i.e.
      *                           the size of the map returned by {@linkplain #outputFieldIndexes()}
@@ -282,27 +297,6 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         }
 
         return true;
-    }
-
-
-    /**
-     * Write the header.
-     * The header is created from the list of analysis input fields,
-     * the time field and the control field
-     */
-    protected void writeHeader(Map<String, Integer> outFieldIndexes) throws IOException {
-        //  header is all the analysis input fields + the time field + control field
-        int numFields = outFieldIndexes.size();
-        String[] record = new String[numFields];
-
-        Iterator<Map.Entry<String, Integer>> itr = outFieldIndexes.entrySet().iterator();
-        while (itr.hasNext()) {
-            Map.Entry<String, Integer> entry = itr.next();
-            record[entry.getValue()] = entry.getKey();
-        }
-
-        // Write the header
-        autodetectProcess.writeRecord(record);
     }
 
     @Override
@@ -471,7 +465,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
      * Either return true or throw a MissingFieldException
      * <p>
      * Every input field should have an entry in <code>inputFieldIndexes</code>
-     * otherwise the field cannnot be found.
+     * otherwise the field cannot be found.
      */
     protected abstract boolean checkForMissingFields(Collection<String> inputFields, Map<String, Integer> inputFieldIndexes,
             String[] header);

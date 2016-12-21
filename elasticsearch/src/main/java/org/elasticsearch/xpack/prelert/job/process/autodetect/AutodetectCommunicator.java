@@ -74,6 +74,10 @@ public class AutodetectCommunicator implements Closeable {
                 new TransformConfigs(job.getTransforms()) , statusReporter, LOGGER);
     }
 
+    public void writeJobInputHeader() throws IOException {
+        autoDetectWriter.writeHeader();
+    }
+
     public DataCounts writeToJob(InputStream inputStream, DataLoadParams params, Supplier<Boolean> cancelled) throws IOException {
         return checkAndRun(() -> Messages.getMessage(Messages.JOB_DATA_CONCURRENT_USE_UPLOAD, jobId), () -> {
             if (params.isResettingBuckets()) {

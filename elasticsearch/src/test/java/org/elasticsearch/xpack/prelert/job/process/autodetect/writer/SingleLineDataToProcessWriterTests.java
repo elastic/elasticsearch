@@ -86,6 +86,7 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
 
         InputStream inputStream = endLessStream("", "2015-04-29 10:00:00Z this is a message\n");
         SingleLineDataToProcessWriter writer = createWriter();
+        writer.writeHeader();
 
         AtomicBoolean cancel = new AtomicBoolean(false);
         AtomicReference<Exception> exception = new AtomicReference<>();
@@ -122,7 +123,7 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         input.append("2015-04-29 12:00:00Z This is message 3\r\n");
         InputStream inputStream = createInputStream(input.toString());
         SingleLineDataToProcessWriter writer = createWriter();
-
+        writer.writeHeader();
         writer.write(inputStream, () -> false);
         verify(statusReporter, times(1)).getLatestRecordTime();
         verify(statusReporter, times(1)).startNewIncrementalCount();
@@ -159,7 +160,7 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         input.append("2015-04-29 12:00:00Z This is message 3\n");
         InputStream inputStream = createInputStream(input.toString());
         SingleLineDataToProcessWriter writer = createWriter();
-
+        writer.writeHeader();
         writer.write(inputStream, () -> false);
         verify(statusReporter, times(1)).getLatestRecordTime();
         verify(statusReporter, times(1)).startNewIncrementalCount();
@@ -185,7 +186,7 @@ public class SingleLineDataToProcessWriterTests extends ESTestCase {
         input.append("2015-04-29 10:00:00Z This is message 1\n");
         InputStream inputStream = createInputStream(input.toString());
         SingleLineDataToProcessWriter writer = createWriter();
-
+        writer.writeHeader();
         writer.write(inputStream, () -> false);
         verify(statusReporter, times(1)).startNewIncrementalCount();
         verify(statusReporter, times(1)).setAnalysedFieldsPerRecord(1);

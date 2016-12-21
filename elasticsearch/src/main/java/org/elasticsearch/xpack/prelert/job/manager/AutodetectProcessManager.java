@@ -145,7 +145,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
             // TODO check for errors from autodetect
         } catch (IOException ioe) {
             String msg = String.format(Locale.ROOT, "[%s] exception while flushing job", jobId);
-            logger.warn(msg);
+            logger.error(msg);
             throw ExceptionsHelper.serverError(msg, ioe);
         }
     }
@@ -164,6 +164,13 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
     public void openJob(String jobId, boolean ignoreDowntime) {
         autoDetectCommunicatorByJob.computeIfAbsent(jobId, id -> {
             AutodetectCommunicator communicator = create(id, ignoreDowntime);
+            try {
+                communicator.writeJobInputHeader();
+            } catch (IOException ioe) {
+                String msg = String.format(Locale.ROOT, "[%s] exception while opening job", jobId);
+                logger.error(msg);
+                throw ExceptionsHelper.serverError(msg, ioe);
+            }
             setJobStatus(jobId, JobStatus.OPENED);
             return communicator;
         });

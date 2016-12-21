@@ -64,7 +64,7 @@ class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
     private void writeJson(JsonParser parser, Supplier<Boolean> cancelled) throws IOException {
         Collection<String> analysisFields = inputFields();
 
-        buildTransformsAndWriteHeader(analysisFields.toArray(new String[0]));
+        buildTransforms(analysisFields.toArray(new String[0]));
 
         int numFields = outputFieldCount();
         String[] input = new String[numFields];

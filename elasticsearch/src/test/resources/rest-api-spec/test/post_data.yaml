@@ -71,6 +71,23 @@ setup:
   - match: { _source.latest_record_timestamp: 1403481700000}
 
 ---
+"Test flush and close job WITHOUT sending any data":
+  - do:
+      xpack.prelert.flush_job:
+        job_id: farequote
+  - match: { acknowledged: true }
+
+  - do:
+      xpack.prelert.close_job:
+        job_id: farequote
+  - match: { acknowledged: true }
+
+  - do:
+      xpack.prelert.get_jobs_stats:
+        job_id: farequote
+  - match: { jobs.0.status: "CLOSED" }
+
+---
 "Test POST data with invalid parameters":
   - do:
       catch: missing

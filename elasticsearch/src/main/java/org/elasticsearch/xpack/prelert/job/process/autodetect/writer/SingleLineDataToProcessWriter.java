@@ -49,7 +49,7 @@ public class SingleLineDataToProcessWriter extends AbstractDataToProcessWriter {
 
         try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
             String[] header = {RAW};
-            buildTransformsAndWriteHeader(header);
+            buildTransforms(header);
 
             int numFields = outputFieldCount();
             String[] record = new String[numFields];

@@ -76,6 +76,8 @@ public class JobResultsPersisterTests extends ESTestCase {
         assertTrue(s.matches(".*event_count.:57.*"));
         assertTrue(s.matches(".*bucket_span.:123456.*"));
         assertTrue(s.matches(".*processing_time_ms.:8888.*"));
+        // There should NOT be any nested records
+        assertFalse(s.matches(".*records*"));
 
         s = list.get(1).string();
         assertTrue(s.matches(".*probability.:0\\.0054.*"));

@@ -165,7 +165,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         Bucket bucket1 = new Bucket("foo", new Date(123), 123);
         bucket1.setRecords(Arrays.asList(new AnomalyRecord("foo", new Date(123), 123, 1)));
         Bucket bucket2 = new Bucket("foo", new Date(123), 123);
-        bucket2.setRecords(null);
+        bucket2.setRecords(Collections.emptyList());
 
         assertFalse(bucket1.equals(bucket2));
         assertFalse(bucket2.equals(bucket1));
@@ -250,14 +250,6 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
         assertTrue(bucket1.equals(bucket2));
         assertTrue(bucket2.equals(bucket1));
         assertEquals(bucket1.hashCode(), bucket2.hashCode());
-    }
-
-    public void testIsNormalizable_GivenNullBucketInfluencers() {
-        Bucket bucket = new Bucket("foo", new Date(123), 123);
-        bucket.setBucketInfluencers(null);
-        bucket.setAnomalyScore(90.0);
-
-        assertFalse(bucket.isNormalizable());
     }
 
     public void testIsNormalizable_GivenEmptyBucketInfluencers() {

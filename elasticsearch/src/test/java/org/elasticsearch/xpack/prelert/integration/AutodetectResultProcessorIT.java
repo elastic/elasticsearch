@@ -115,6 +115,9 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
 
         QueryPage<Bucket> persistedBucket = jobProvider.buckets(JOB_ID, new BucketsQueryBuilder().includeInterim(true).build());
         assertEquals(1, persistedBucket.count());
+        // Records are not persisted to Elasticsearch as an array within the bucket
+        // documents, so remove them from the expected bucket before comparing
+        bucket.setRecords(Collections.emptyList());
         assertEquals(bucket, persistedBucket.results().get(0));
 
         QueryPage<AnomalyRecord> persistedRecords = jobProvider.records(JOB_ID, new RecordsQueryBuilder().includeInterim(true).build());
@@ -179,6 +182,9 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
 
         QueryPage<Bucket> persistedBucket = jobProvider.buckets(JOB_ID, new BucketsQueryBuilder().includeInterim(true).build());
         assertEquals(1, persistedBucket.count());
+        // Records are not persisted to Elasticsearch as an array within the bucket
+        // documents, so remove them from the expected bucket before comparing
+        nonInterimBucket.setRecords(Collections.emptyList());
         assertEquals(nonInterimBucket, persistedBucket.results().get(0));
 
         QueryPage<Influencer> persistedInfluencers = jobProvider.influencers(JOB_ID, new InfluencersQueryBuilder().build());
@@ -225,6 +231,9 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
 
         QueryPage<Bucket> persistedBucket = jobProvider.buckets(JOB_ID, new BucketsQueryBuilder().includeInterim(true).build());
         assertEquals(1, persistedBucket.count());
+        // Records are not persisted to Elasticsearch as an array within the bucket
+        // documents, so remove them from the expected bucket before comparing
+        finalBucket.setRecords(Collections.emptyList());
         assertEquals(finalBucket, persistedBucket.results().get(0));
 
         QueryPage<AnomalyRecord> persistedRecords = jobProvider.records(JOB_ID, new RecordsQueryBuilder().includeInterim(true).build());

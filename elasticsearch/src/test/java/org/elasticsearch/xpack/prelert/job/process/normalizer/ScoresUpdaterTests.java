@@ -95,7 +95,7 @@ public class ScoresUpdaterTests extends ESTestCase {
     public void testUpdate_GivenBucketWithNonZeroScoreButNoBucketInfluencers() throws IOException {
         Bucket bucket = generateBucket(new Date(0));
         bucket.setAnomalyScore(0.0);
-        bucket.setBucketInfluencers(null);
+        bucket.setBucketInfluencers(new ArrayList<>());
         Deque<Bucket> buckets = new ArrayDeque<>();
         buckets.add(bucket);
         givenProviderReturnsBuckets(DEFAULT_START_TIME, DEFAULT_END_TIME, buckets);

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.job.results.Result;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -68,7 +69,7 @@ public class JobResultsPersister extends AbstractComponent {
         private final String jobId;
         private final String indexName;
 
-        private Builder (String jobId) {
+        private Builder(String jobId) {
             this.jobId = Objects.requireNonNull(jobId);
             indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
             bulkRequest = client.prepareBulk();
@@ -82,22 +83,30 @@ public class JobResultsPersister extends AbstractComponent {
          * @return this
          */
         public Builder persistBucket(Bucket bucket) {
+            // If the supplied bucket has records then create a copy with records
+            // removed, because we never persist nested records in buckets
+            Bucket bucketWithoutRecords = bucket;
+            if (!bucketWithoutRecords.getRecords().isEmpty()) {
+                bucketWithoutRecords = new Bucket(bucket);
+                bucketWithoutRecords.setRecords(Collections.emptyList());
+            }
             try {
-                XContentBuilder content = toXContentBuilder(bucket);
+                XContentBuilder content = toXContentBuilder(bucketWithoutRecords);
                 logger.trace("[{}] ES API CALL: index result type {} to index {} at epoch {}",
-                        jobId, Bucket.RESULT_TYPE_VALUE, indexName, bucket.getEpoch());
+                        jobId, Bucket.RESULT_TYPE_VALUE, indexName, bucketWithoutRecords.getEpoch());
 
-                bulkRequest.add(client.prepareIndex(indexName, Result.TYPE.getPreferredName(), bucket.getId()).setSource(content));
+                bulkRequest.add(client.prepareIndex(indexName, Result.TYPE.getPreferredName(),
+                        bucketWithoutRecords.getId()).setSource(content));
 
-                persistBucketInfluencersStandalone(jobId, bucket.getId(), bucket.getBucketInfluencers());
+                persistBucketInfluencersStandalone(jobId, bucketWithoutRecords.getBucketInfluencers());
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising bucket", new Object[] {jobId}, e));
+                logger.error(new ParameterizedMessage("[{}] Error serialising bucket", new Object[] {jobId}), e);
             }
 
             return this;
         }
 
-        private void persistBucketInfluencersStandalone(String jobId, String bucketId, List<BucketInfluencer> bucketInfluencers)
+        private void persistBucketInfluencersStandalone(String jobId, List<BucketInfluencer> bucketInfluencers)
                 throws IOException {
             if (bucketInfluencers != null && bucketInfluencers.isEmpty() == false) {
                 for (BucketInfluencer bucketInfluencer : bucketInfluencers) {
@@ -128,7 +137,7 @@ public class JobResultsPersister extends AbstractComponent {
                             client.prepareIndex(indexName, Result.TYPE.getPreferredName(), record.getId()).setSource(content));
                 }
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising records", new Object [] {jobId}, e));
+                logger.error(new ParameterizedMessage("[{}] Error serialising records", new Object [] {jobId}), e);
             }
 
             return this;
@@ -151,7 +160,7 @@ public class JobResultsPersister extends AbstractComponent {
                             client.prepareIndex(indexName, Result.TYPE.getPreferredName(), influencer.getId()).setSource(content));
                 }
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error serialising influencers", new Object[] {jobId}, e));
+                logger.error(new ParameterizedMessage("[{}] Error serialising influencers", new Object[] {jobId}), e);
             }
 
             return this;
@@ -173,7 +182,7 @@ public class JobResultsPersister extends AbstractComponent {
                         .setSource(builder));
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] error serialising bucket per partition max normalized scores",
-                        new Object[]{jobId}, e));
+                        new Object[]{jobId}), e);
             }
 
             return this;
@@ -294,7 +303,6 @@ public class JobResultsPersister extends AbstractComponent {
         return true;
     }
 
-
     XContentBuilder toXContentBuilder(ToXContent obj) throws IOException {
         XContentBuilder builder = jsonBuilder();
         obj.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -336,7 +344,7 @@ public class JobResultsPersister extends AbstractComponent {
                 .execute().actionGet();
                 return true;
             } catch (IOException e) {
-                logger.error(new ParameterizedMessage("[{}] Error writing {}", new Object[]{jobId, type}, e));
+                logger.error(new ParameterizedMessage("[{}] Error writing {}", new Object[]{jobId, type}), e);
                 return false;
             }
         }

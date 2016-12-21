@@ -105,3 +105,5 @@ Returns this:
 NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines
       using this processor in a dedicated ingest node.
+      
+NOTE: To process an array of attachments the {ref}/foreach-processor.html[foreach processor] is required.

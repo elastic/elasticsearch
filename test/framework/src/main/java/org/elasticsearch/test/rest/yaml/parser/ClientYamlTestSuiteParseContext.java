@@ -32,6 +32,9 @@ import org.elasticsearch.test.rest.yaml.section.GreaterThanAssertion;
 import org.elasticsearch.test.rest.yaml.section.GreaterThanEqualToAssertion;
 import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
 import org.elasticsearch.test.rest.yaml.section.IsTrueAssertion;
+import org.elasticsearch.test.rest.yaml.section.LengthAssertion;
+import org.elasticsearch.test.rest.yaml.section.LessThanAssertion;
+import org.elasticsearch.test.rest.yaml.section.LessThanOrEqualToAssertion;
 import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 import org.elasticsearch.test.rest.yaml.section.SetSection;
 import org.elasticsearch.test.rest.yaml.section.SetupSection;
@@ -40,8 +43,6 @@ import org.elasticsearch.test.rest.yaml.section.TeardownSection;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * Context shared across the whole tests parse phase.
@@ -54,13 +55,6 @@ public class ClientYamlTestSuiteParseContext implements ParseFieldMatcherSupplie
     private static final ClientYamlTestSectionParser TEST_SECTION_PARSER = new ClientYamlTestSectionParser();
     private static final SkipSectionParser SKIP_SECTION_PARSER = new SkipSectionParser();
     private static final DoSectionParser DO_SECTION_PARSER = new DoSectionParser();
-    private static final Map<String, ClientYamlTestFragmentParser<? extends ExecutableSection>> EXECUTABLE_SECTIONS_PARSERS =
-            new HashMap<>();
-    static {
-        EXECUTABLE_SECTIONS_PARSERS.put("lt", new LessThanParser());
-        EXECUTABLE_SECTIONS_PARSERS.put("lte", new LessThanOrEqualToParser());
-        EXECUTABLE_SECTIONS_PARSERS.put("length", new LengthParser());
-    }
     private static final NamedXContentRegistry XCONTENT_REGISTRY = new NamedXContentRegistry(Arrays.asList(
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("do"), (p, c) -> DO_SECTION_PARSER.parse((ClientYamlTestSuiteParseContext) c)),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("set"), SetSection::parse),
@@ -68,9 +62,10 @@ public class ClientYamlTestSuiteParseContext implements ParseFieldMatcherSupplie
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("is_true"), IsTrueAssertion::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("is_false"), IsFalseAssertion::parse),
             new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("gt"), GreaterThanAssertion::parse),
-            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("gte"), GreaterThanEqualToAssertion::parse)
-
-
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("gte"), GreaterThanEqualToAssertion::parse),
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("lt"), LessThanAssertion::parse),
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("lte"), LessThanOrEqualToAssertion::parse),
+            new NamedXContentRegistry.Entry(ExecutableSection.class, new ParseField("length"), LengthAssertion::parse)
             )); 
 
     private final String api;

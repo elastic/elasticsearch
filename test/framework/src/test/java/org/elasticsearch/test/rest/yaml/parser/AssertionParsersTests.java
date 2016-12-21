@@ -73,8 +73,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
                 "{ field: 3}"
         );
 
-        LessThanParser lessThanParser = new LessThanParser();
-        LessThanAssertion lessThanAssertion = lessThanParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        LessThanAssertion lessThanAssertion = LessThanAssertion.parse(parser);
         assertThat(lessThanAssertion, notNullValue());
         assertThat(lessThanAssertion.getField(), equalTo("field"));
         assertThat(lessThanAssertion.getExpectedValue(), instanceOf(Integer.class));
@@ -86,8 +85,7 @@ public class AssertionParsersTests extends AbstractClientYamlTestFragmentParserT
                 "{ _id: 22}"
         );
 
-        LengthParser lengthParser = new LengthParser();
-        LengthAssertion lengthAssertion = lengthParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        LengthAssertion lengthAssertion = LengthAssertion.parse(parser);
         assertThat(lengthAssertion, notNullValue());
         assertThat(lengthAssertion.getField(), equalTo("_id"));
         assertThat(lengthAssertion.getExpectedValue(), instanceOf(Integer.class));

@@ -96,13 +96,13 @@ public class FileBasedUnicastHostsProviderTests extends ESTestCase {
         assertEquals(hostEntries.size() - 1, nodes.size()); // minus 1 because we are ignoring the first line that's a comment
         assertEquals("192.168.0.1", nodes.get(0).getAddress().getHost());
         assertEquals(9300, nodes.get(0).getAddress().getPort());
-        assertEquals(UNICAST_HOST_PREFIX + "1#", nodes.get(0).getId());
-        assertEquals("192.168.0.2", nodes.get(1).getAddress().getHost());
+        assertEquals(UNICAST_HOST_PREFIX + "192.168.0.1_0#", nodes.get(0).getId());
+        assertEquals("192.168.0.2", nodes.get(1).getAddress().getAddress());
         assertEquals(9305, nodes.get(1).getAddress().getPort());
-        assertEquals(UNICAST_HOST_PREFIX + "2#", nodes.get(1).getId());
-        assertEquals("255.255.23.15", nodes.get(2).getAddress().getHost());
+        assertEquals(UNICAST_HOST_PREFIX + "192.168.0.2:9305_0#", nodes.get(1).getId());
+        assertEquals("255.255.23.15", nodes.get(2).getAddress().getAddress());
         assertEquals(9300, nodes.get(2).getAddress().getPort());
-        assertEquals(UNICAST_HOST_PREFIX + "3#", nodes.get(2).getId());
+        assertEquals(UNICAST_HOST_PREFIX + "255.255.23.15_0#", nodes.get(2).getId());
     }
 
     public void testEmptyUnicastHostsFile() throws Exception {

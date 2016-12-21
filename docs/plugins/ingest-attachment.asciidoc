@@ -120,6 +120,7 @@ PUT _ingest/pipeline/attachment
   ]
 }
 --------------------------------------------------
+// CONSOLE
 
 NOTE: Extracting contents from binary data is a resource intensive operation and
       consumes a lot of resources. It is highly recommended to run pipelines

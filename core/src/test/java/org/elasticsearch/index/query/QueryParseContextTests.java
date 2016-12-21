@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -40,6 +41,11 @@ public class QueryParseContextTests extends ESTestCase {
     @BeforeClass
     public static void init() {
         xContentRegistry = new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents());
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        xContentRegistry = null;
     }
 
     public void testParseTopLevelBuilder() throws IOException {

@@ -599,7 +599,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private void checkPartitionedIndexConstraints(DocumentMapper newMapper) {
-        if (indexSettings.getIndexMetaData().isPartitionedIndex()) {
+        if (indexSettings.getIndexMetaData().isRoutingPartitionedIndex()) {
             if (newMapper.parentFieldMapper().active()) {
                 throw new IllegalArgumentException("mapping type name [" + newMapper.type() + "] cannot have a "
                         + "_parent field for the partitioned index [" + indexSettings.getIndex().getName() + "]");

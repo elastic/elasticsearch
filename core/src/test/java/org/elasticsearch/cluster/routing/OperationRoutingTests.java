@@ -109,7 +109,7 @@ public class OperationRoutingTests extends ESTestCase{
         IndexMetaData metaData = IndexMetaData.builder("test")
                 .settings(settings(Version.CURRENT))
                 .numberOfShards(6)
-                .partitionSize(2)
+                .routingPartitionSize(2)
                 .numberOfReplicas(1)
                 .build();
 

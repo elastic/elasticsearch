@@ -777,7 +777,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .setPatterns(Collections.singletonList("te*"))
                 .setSettings(Settings.builder()
                     .put("index.number_of_shards", "5")
-                    .put("index.partition_size", "6"))
+                    .put("index.routing_partition_size", "6"))
                 .get());
         assertThat(eBadSettings.getMessage(), containsString("partition size [6] should be a positive number "
                 + "less than the number of shards [5]"));
@@ -789,7 +789,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 .addMapping("type", "{\"type\":{\"_routing\":{\"required\":false}}}")
                 .setSettings(Settings.builder()
                     .put("index.number_of_shards", "6")
-                    .put("index.partition_size", "3"))
+                    .put("index.routing_partition_size", "3"))
                 .get());
         assertThat(eBadMapping.getMessage(), containsString("must have routing required for partitioned index"));
 
@@ -801,7 +801,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().preparePutTemplate("just_partitions")
             .setPatterns(Collections.singletonList("te*"))
             .setSettings(Settings.builder()
-                .put("index.partition_size", "6"))
+                .put("index.routing_partition_size", "6"))
             .get());
 
         // create an index with too few shards
@@ -819,6 +819,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             .get();
 
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test_good").get();
-        assertEquals("6", getSettingsResponse.getIndexToSettings().get("test_good").getAsMap().get("index.partition_size"));
+        assertEquals("6", getSettingsResponse.getIndexToSettings().get("test_good").getAsMap().get("index.routing_partition_size"));
     }
 }

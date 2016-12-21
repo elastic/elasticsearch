@@ -584,7 +584,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             // now copy all similarity / analysis settings - this overrides all settings from the user unless they
             // wanna add extra settings
             .put(sourceMetaData.getSettings().filter(analysisSimilarityPredicate))
-            .put(IndexMetaData.SETTING_PARTITION_SIZE, sourceMetaData.getPartitionSize())
+            .put(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, sourceMetaData.getRoutingPartitionSize())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());
     }

@@ -179,9 +179,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final Setting<Boolean> INDEX_SHADOW_REPLICAS_SETTING =
         Setting.boolSetting(SETTING_SHADOW_REPLICAS, false, Property.IndexScope);
 
-    public static final String SETTING_PARTITION_SIZE = "index.partition_size";
-    public static final Setting<Integer> INDEX_PARTITION_SIZE_SETTING =
-            Setting.intSetting(SETTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
+    public static final String SETTING_ROUTING_PARTITION_SIZE = "index.routing_partition_size";
+    public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
+            Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
 
     public static final String SETTING_SHARED_FILESYSTEM = "index.shared_filesystem";
     public static final Setting<Boolean> INDEX_SHARED_FILESYSTEM_SETTING =
@@ -267,10 +267,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
     private final int routingNumShards;
     private final int routingFactor;
+    private final int routingPartitionSize;
 
     private final int numberOfShards;
     private final int numberOfReplicas;
-    private final int partitionSize;
 
     private final Index index;
     private final long version;
@@ -301,12 +301,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
 
     private final ActiveShardCount waitForActiveShards;
 
-    private IndexMetaData(Index index, long version, long[] primaryTerms, State state, int numberOfShards, int numberOfReplicas, int partitionSize, Settings settings,
+    private IndexMetaData(Index index, long version, long[] primaryTerms, State state, int numberOfShards, int numberOfReplicas, Settings settings,
                           ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases,
                           ImmutableOpenMap<String, Custom> customs, ImmutableOpenIntMap<Set<String>> inSyncAllocationIds,
                           DiscoveryNodeFilters requireFilters, DiscoveryNodeFilters initialRecoveryFilters, DiscoveryNodeFilters includeFilters, DiscoveryNodeFilters excludeFilters,
                           Version indexCreatedVersion, Version indexUpgradedVersion, org.apache.lucene.util.Version minimumCompatibleLuceneVersion,
-                          int routingNumShards, ActiveShardCount waitForActiveShards) {
+                          int routingNumShards, int routingPartitionSize, ActiveShardCount waitForActiveShards) {
 
         this.index = index;
         this.version = version;
@@ -315,7 +315,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.state = state;
         this.numberOfShards = numberOfShards;
         this.numberOfReplicas = numberOfReplicas;
-        this.partitionSize = partitionSize;
         this.totalNumberOfShards = numberOfShards * (numberOfReplicas + 1);
         this.settings = settings;
         this.mappings = mappings;
@@ -331,6 +330,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.minimumCompatibleLuceneVersion = minimumCompatibleLuceneVersion;
         this.routingNumShards = routingNumShards;
         this.routingFactor = routingNumShards / numberOfShards;
+        this.routingPartitionSize = routingPartitionSize;
         this.waitForActiveShards = waitForActiveShards;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
@@ -410,12 +410,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         return numberOfReplicas;
     }
 
-    public int getPartitionSize() {
-        return partitionSize;
+    public int getRoutingPartitionSize() {
+        return routingPartitionSize;
     }
 
-    public boolean isPartitionedIndex() {
-        return partitionSize != 1;
+    public boolean isRoutingPartitionedIndex() {
+        return routingPartitionSize != 1;
     }
 
     public int getTotalNumberOfShards() {
@@ -827,13 +827,13 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
         }
 
-        public Builder partitionSize(int partitionSize) {
-            settings = Settings.builder().put(settings).put(SETTING_PARTITION_SIZE, partitionSize).build();
+        public Builder routingPartitionSize(int routingPartitionSize) {
+            settings = Settings.builder().put(settings).put(SETTING_ROUTING_PARTITION_SIZE, routingPartitionSize).build();
             return this;
         }
 
-        public int partitionSize() {
-            return settings.getAsInt(SETTING_PARTITION_SIZE, -1);
+        public int routingPartitionSize() {
+            return settings.getAsInt(SETTING_ROUTING_PARTITION_SIZE, -1);
         }
 
         public Builder creationDate(long creationDate) {
@@ -980,14 +980,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 throw new IllegalArgumentException("must specify non-negative number of shards for index [" + index + "]");
             }
 
-            Integer maybePartitionSize = settings.getAsInt(SETTING_PARTITION_SIZE, null);
-            if (maybePartitionSize == null) {
-                maybePartitionSize = 1;
+            Integer maybeRoutingPartitionSize = settings.getAsInt(SETTING_ROUTING_PARTITION_SIZE, null);
+            if (maybeRoutingPartitionSize == null) {
+                maybeRoutingPartitionSize = 1;
             }
-            int partitionSize = maybePartitionSize;
-            if (partitionSize <= 0 || (partitionSize != 1 && partitionSize >= getRoutingNumShards())) {
-                throw new IllegalArgumentException("partition size [" + partitionSize + "] should be a positive number less than"
-                        + " the number of shards [" + getRoutingNumShards() + "] for [" + index + "]");
+            int routingPartitionSize = maybeRoutingPartitionSize;
+            if (routingPartitionSize <= 0 || (routingPartitionSize != 1 && routingPartitionSize >= getRoutingNumShards())) {
+                throw new IllegalArgumentException("routing partition size [" + routingPartitionSize + "] should be a positive number"
+                        + " less than the number of shards [" + getRoutingNumShards() + "] for [" + index + "]");
             }
 
             // fill missing slots in inSyncAllocationIds with empty set if needed and make all entries immutable
@@ -1056,9 +1056,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             }
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
-            return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, partitionSize, tmpSettings, mappings.build(),
+            return new IndexMetaData(new Index(index, uuid), version, primaryTerms, state, numberOfShards, numberOfReplicas, tmpSettings, mappings.build(),
                 tmpAliases.build(), customs.build(), filledInSyncAllocationIds.build(), requireFilters, initialRecoveryFilters, includeFilters, excludeFilters,
-                indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion, getRoutingNumShards(), waitForActiveShards);
+                indexCreatedVersion, indexUpgradedVersion, minimumCompatibleLuceneVersion, getRoutingNumShards(), routingPartitionSize, waitForActiveShards);
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {

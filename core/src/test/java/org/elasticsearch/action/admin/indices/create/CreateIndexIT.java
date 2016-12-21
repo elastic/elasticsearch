@@ -503,14 +503,14 @@ public class CreateIndexIT extends ESIntegTestCase {
     }
 
     public void testInvalidPartitionSize() {
-        BiFunction<Integer, Integer, Boolean> createPartitionedIndex = (shards, partition_size) -> {
+        BiFunction<Integer, Integer, Boolean> createPartitionedIndex = (shards, partitionSize) -> {
             CreateIndexResponse response;
 
             try {
-                response = prepareCreate("test_" + shards + "_" + partition_size)
+                response = prepareCreate("test_" + shards + "_" + partitionSize)
                     .setSettings(Settings.builder()
                         .put("index.number_of_shards", shards)
-                        .put("index.partition_size", partition_size))
+                        .put("index.routing_partition_size", partitionSize))
                     .execute().actionGet();
             } catch (IllegalStateException | IllegalArgumentException e) {
                 return false;

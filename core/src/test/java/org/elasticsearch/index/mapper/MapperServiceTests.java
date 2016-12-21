@@ -249,7 +249,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     .addMapping("type", "{\"type\":{}}")
                     .setSettings(Settings.builder()
                         .put("index.number_of_shards", 4)
-                        .put("index.partition_size", 2))
+                        .put("index.routing_partition_size", 2))
                     .execute().actionGet();
         });
         assertTrue(noRoutingException.getMessage(), noRoutingException.getMessage().contains("must have routing"));
@@ -261,7 +261,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     .addMapping("child", "{\"child\": {\"_routing\":{\"required\":true}, \"_parent\": {\"type\": \"parent\"}}}")
                     .setSettings(Settings.builder()
                         .put("index.number_of_shards", 4)
-                        .put("index.partition_size", 2))
+                        .put("index.routing_partition_size", 2))
                     .execute().actionGet();
         });
         assertTrue(parentException.getMessage(), parentException.getMessage().contains("cannot have a _parent field"));
@@ -271,7 +271,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             .addMapping("type", "{\"type\":{\"_routing\":{\"required\":true}}}")
             .setSettings(Settings.builder()
                 .put("index.number_of_shards", 4)
-                .put("index.partition_size", 2))
+                .put("index.routing_partition_size", 2))
             .execute().actionGet().isAcknowledged());
     }
 }

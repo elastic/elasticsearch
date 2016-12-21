@@ -160,12 +160,13 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] in index [test1] has been exceeded"));
     }
 
-    public void testUnmappedFieldType() {
+    public void testUnmappedFieldType() throws IOException {
         MapperService mapperService = createIndex("index").mapperService();
         assertThat(mapperService.unmappedFieldType("keyword"), instanceOf(KeywordFieldType.class));
         assertThat(mapperService.unmappedFieldType("long"), instanceOf(NumberFieldType.class));
         // back compat
         assertThat(mapperService.unmappedFieldType("string"), instanceOf(KeywordFieldType.class));
+        assertWarnings("[unmapped_type:string] should be replaced with [unmapped_type:keyword]");
     }
 
     public void testMergeWithMap() throws Throwable {
@@ -173,13 +174,13 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         MapperService mapperService = indexService1.mapperService();
         Map<String, Map<String, Object>> mappings = new HashMap<>();
 
-        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping("{}"));
+        mappings.put(MapperService.DEFAULT_MAPPING, MapperService.parseMapping(xContentRegistry(), "{}"));
         MapperException e = expectThrows(MapperParsingException.class,
             () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
         assertThat(e.getMessage(), startsWith("Failed to parse mapping [" + MapperService.DEFAULT_MAPPING + "]: "));
 
         mappings.clear();
-        mappings.put("type1", MapperService.parseMapping("{}"));
+        mappings.put("type1", MapperService.parseMapping(xContentRegistry(), "{}"));
 
         e = expectThrows( MapperParsingException.class,
             () -> mapperService.merge(mappings, MergeReason.MAPPING_UPDATE, false));
@@ -206,9 +207,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
             .startObject("properties")
             .startObject("field")
             .field("type", "text")
-            .startObject("norms")
-            .field("enabled", false)
-            .endObject()
+            .field("norms", false)
             .endObject()
             .endObject().endObject().bytes());
 

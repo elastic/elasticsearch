@@ -39,6 +39,7 @@ import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -383,7 +384,8 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
         String[] pathElements = path.split("\\.");
         int currentPathSlot = 0;
 
-        try (XContentParser parser = XContentHelper.createParser(response.getSourceAsBytesRef())) {
+        // It is safe to use EMPTY here because this never uses namedObject
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, response.getSourceAsBytesRef())) {
             XContentParser.Token currentToken;
             while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (currentToken == XContentParser.Token.FIELD_NAME) {

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.parser;
 
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
@@ -57,7 +58,7 @@ public class ClientYamlTestSuiteParser implements ClientYamlTestFragmentParser<C
             }
         }
 
-        try (XContentParser parser = YamlXContent.yamlXContent.createParser(Files.newInputStream(file))) {
+        try (XContentParser parser = YamlXContent.yamlXContent.createParser(NamedXContentRegistry.EMPTY, Files.newInputStream(file))) {
             ClientYamlTestSuiteParseContext testParseContext = new ClientYamlTestSuiteParseContext(api, filename, parser);
             return parse(testParseContext);
         } catch(Exception e) {

@@ -45,8 +45,8 @@ import static org.elasticsearch.script.Script.DEFAULT_SCRIPT_LANG;
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
 
     @Inject
-    public RestUpdateByQueryAction(Settings settings, RestController controller,
-            SearchRequestParsers searchRequestParsers, ClusterService clusterService) {
+    public RestUpdateByQueryAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers,
+            ClusterService clusterService) {
         super(settings, searchRequestParsers, clusterService, UpdateByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);

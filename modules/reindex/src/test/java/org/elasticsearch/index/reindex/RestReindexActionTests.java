@@ -136,7 +136,7 @@ public class RestReindexActionTests extends ESTestCase {
         SearchRequestParsers parsers = new SearchRequestParsers(new IndicesQueriesRegistry(), null, null, null);
         RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class), parsers, null);
 
-        FakeRestRequest.Builder request = new FakeRestRequest.Builder();
+        FakeRestRequest.Builder request = new FakeRestRequest.Builder(xContentRegistry());
         try (XContentBuilder body = JsonXContent.contentBuilder().prettyPrint()) {
             body.startObject(); {
                 body.startObject("source"); {

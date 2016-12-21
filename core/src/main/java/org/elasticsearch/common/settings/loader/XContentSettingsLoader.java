@@ -20,6 +20,7 @@
 package org.elasticsearch.common.settings.loader;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -46,14 +47,16 @@ public abstract class XContentSettingsLoader implements SettingsLoader {
 
     @Override
     public Map<String, String> load(String source) throws IOException {
-        try (XContentParser parser = XContentFactory.xContent(contentType()).createParser(source)) {
+        // It is safe to use EMPTY here because this never uses namedObject
+        try (XContentParser parser = XContentFactory.xContent(contentType()).createParser(NamedXContentRegistry.EMPTY, source)) {
             return load(parser);
         }
     }
 
     @Override
     public Map<String, String> load(byte[] source) throws IOException {
-        try (XContentParser parser = XContentFactory.xContent(contentType()).createParser(source)) {
+        // It is safe to use EMPTY here because this never uses namedObject
+        try (XContentParser parser = XContentFactory.xContent(contentType()).createParser(NamedXContentRegistry.EMPTY, source)) {
             return load(parser);
         }
     }

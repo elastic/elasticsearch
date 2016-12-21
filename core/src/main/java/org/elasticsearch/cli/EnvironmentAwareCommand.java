@@ -22,16 +22,20 @@ package org.elasticsearch.cli;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-public abstract class SettingCommand extends Command {
+/** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
+public abstract class EnvironmentAwareCommand extends Command {
 
     private final OptionSpec<KeyValuePair> settingOption;
 
-    public SettingCommand(String description) {
+    public EnvironmentAwareCommand(String description) {
         super(description);
         this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
     }
@@ -51,9 +55,15 @@ public abstract class SettingCommand extends Command {
         putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
         putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
 
-        execute(terminal, options, settings);
+        execute(terminal, options, createEnv(terminal, settings));
     }
 
+    /** Create an {@link Environment} for the command to use. Overrideable for tests. */
+    protected Environment createEnv(Terminal terminal, Map<String, String> settings) {
+        return InternalSettingsPreparer.prepareEnvironment(Settings.EMPTY, terminal, settings);
+    }
+
+    /** Ensure the given setting exists, reading it from system properties if not already set. */
     protected static void putSystemPropertyIfSettingIsMissing(final Map<String, String> settings, final String setting, final String key) {
         final String value = System.getProperty(key);
         if (value != null) {
@@ -72,6 +82,7 @@ public abstract class SettingCommand extends Command {
         }
     }
 
-    protected abstract void execute(Terminal terminal, OptionSet options, Map<String, String> settings) throws Exception;
+    /** Execute the command with the initialized {@link Environment}. */
+    protected abstract void execute(Terminal terminal, OptionSet options, Environment env) throws Exception;
 
 }

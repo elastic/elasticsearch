@@ -26,6 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
@@ -45,7 +46,7 @@ public class ClusterStateObserver {
     volatile TimeValue timeOutValue;
 
 
-    final AtomicReference<ClusterState> lastObservedState;
+    final AtomicReference<StoredState> lastObservedState;
     final TimeoutClusterStateListener clusterStateListener = new ObserverClusterStateListener();
     // observingContext is not null when waiting on cluster state changes
     final AtomicReference<ObservingContext> observingContext = new AtomicReference<>(null);
@@ -73,7 +74,7 @@ public class ClusterStateObserver {
     public ClusterStateObserver(ClusterState initialState, ClusterService clusterService, @Nullable TimeValue timeout, Logger logger,
                                 ThreadContext contextHolder) {
         this.clusterService = clusterService;
-        this.lastObservedState = new AtomicReference<>(initialState);
+        this.lastObservedState = new AtomicReference<>(new StoredState(initialState));
         this.timeOutValue = timeout;
         if (timeOutValue != null) {
             this.startTimeNS = System.nanoTime();
@@ -82,11 +83,14 @@ public class ClusterStateObserver {
         this.contextHolder = contextHolder;
     }
 
-    /** last cluster state and status observed by this observer. Note that this may not be the current one */
-    public ClusterState observedState() {
-        ClusterState state = lastObservedState.get();
-        assert state != null;
-        return state;
+    /** sets the last observed state to the currently applied cluster state and returns it */
+    public ClusterState setAndGetObservedState() {
+        if (observingContext.get() != null) {
+            throw new ElasticsearchException("cannot set current cluster state while waiting for a cluster state change");
+        }
+        ClusterState clusterState = clusterService.state();
+        lastObservedState.set(new StoredState(clusterState));
+        return clusterState;
     }
 
     /** indicates whether this observer has timedout */
@@ -130,7 +134,7 @@ public class ClusterStateObserver {
                     logger.trace("observer timed out. notifying listener. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStartMS));
                     // update to latest, in case people want to retry
                     timedOut = true;
-                    lastObservedState.set(clusterService.state());
+                    lastObservedState.set(new StoredState(clusterService.state()));
                     listener.onTimeout(timeOutValue);
                     return;
                 }
@@ -146,11 +150,10 @@ public class ClusterStateObserver {
 
         // sample a new state
         ClusterState newState = clusterService.state();
-        ClusterState lastState = lastObservedState.get();
-        if (newState != lastState && statePredicate.test(newState)) {
+        if (lastObservedState.get().sameState(newState) == false && statePredicate.test(newState)) {
             // good enough, let's go.
             logger.trace("observer: sampled state accepted by predicate ({})", newState);
-            lastObservedState.set(newState);
+            lastObservedState.set(new StoredState(newState));
             listener.onNewClusterState(newState);
         } else {
             logger.trace("observer: sampled state rejected by predicate ({}). adding listener to ClusterService", newState);
@@ -177,7 +180,7 @@ public class ClusterStateObserver {
                 if (observingContext.compareAndSet(context, null)) {
                     clusterService.removeTimeoutListener(this);
                     logger.trace("observer: accepting cluster state change ({})", state);
-                    lastObservedState.set(state);
+                    lastObservedState.set(new StoredState(state));
                     context.listener.onNewClusterState(state);
                 } else {
                     logger.trace("observer: predicate approved change but observing context has changed - ignoring (new cluster state version [{}])", state.version());
@@ -195,13 +198,12 @@ public class ClusterStateObserver {
                 return;
             }
             ClusterState newState = clusterService.state();
-            ClusterState lastState = lastObservedState.get();
-            if (newState != lastState && context.statePredicate.test(newState)) {
+            if (lastObservedState.get().sameState(newState) == false && context.statePredicate.test(newState)) {
                 // double check we're still listening
                 if (observingContext.compareAndSet(context, null)) {
                     logger.trace("observer: post adding listener: accepting current cluster state ({})", newState);
                     clusterService.removeTimeoutListener(this);
-                    lastObservedState.set(newState);
+                    lastObservedState.set(new StoredState(newState));
                     context.listener.onNewClusterState(newState);
                 } else {
                     logger.trace("observer: postAdded - predicate approved state but observing context has changed - ignoring ({})", newState);
@@ -230,10 +232,27 @@ public class ClusterStateObserver {
                 long timeSinceStartMS = TimeValue.nsecToMSec(System.nanoTime() - startTimeNS);
                 logger.trace("observer: timeout notification from cluster service. timeout setting [{}], time since start [{}]", timeOutValue, new TimeValue(timeSinceStartMS));
                 // update to latest, in case people want to retry
-                lastObservedState.set(clusterService.state());
+                lastObservedState.set(new StoredState(clusterService.state()));
                 timedOut = true;
                 context.listener.onTimeout(timeOutValue);
             }
+        }
+    }
+
+    /**
+     * The observer considers two cluster states to be the same if they have the same version and master node id (i.e. null or set)
+     */
+    private static class StoredState {
+        private final String masterNodeId;
+        private final long version;
+
+        public StoredState(ClusterState clusterState) {
+            this.masterNodeId = clusterState.nodes().getMasterNodeId();
+            this.version = clusterState.version();
+        }
+
+        public boolean sameState(ClusterState clusterState) {
+            return version == clusterState.version() && Objects.equals(masterNodeId, clusterState.nodes().getMasterNodeId());
         }
     }
 

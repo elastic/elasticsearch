@@ -22,12 +22,14 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -225,14 +227,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                 this.filter = null;
                 return this;
             }
-            try {
-                try (XContentParser parser = XContentFactory.xContent(filter).createParser(filter)) {
-                    filter(parser.mapOrdered());
-                }
-                return this;
-            } catch (IOException e) {
-                throw new ElasticsearchGenerationException("Failed to generate [" + filter + "]", e);
-            }
+            return filter(XContentHelper.convertToMap(XContentFactory.xContent(filter), filter, true));
         }
 
         public Builder filter(Map<String, Object> filter) {
@@ -286,11 +281,7 @@ public class AliasMetaData extends AbstractDiffable<AliasMetaData> {
                 if (binary) {
                     builder.field("filter", aliasMetaData.filter.compressed());
                 } else {
-                    byte[] data = aliasMetaData.filter().uncompressed();
-                    try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
-                        Map<String, Object> filter = parser.mapOrdered();
-                        builder.field("filter", filter);
-                    }
+                    builder.field("filter", XContentHelper.convertToMap(new BytesArray(aliasMetaData.filter().uncompressed()), true).v2());
                 }
             }
             if (aliasMetaData.indexRouting() != null) {

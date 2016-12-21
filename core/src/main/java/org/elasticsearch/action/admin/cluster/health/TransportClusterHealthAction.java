@@ -141,8 +141,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         }
 
         assert waitFor >= 0;
-        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
-        final ClusterState state = observer.observedState();
+        final ClusterState state = clusterService.state();
+        final ClusterStateObserver observer = new ClusterStateObserver(state, clusterService, null, logger, threadPool.getThreadContext());
         if (request.timeout().millis() == 0) {
             listener.onResponse(getResponse(request, state, waitFor, request.timeout().millis() == 0));
             return;
@@ -163,8 +163,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
 
             @Override
             public void onTimeout(TimeValue timeout) {
-                final ClusterState clusterState = clusterService.state();
-                final ClusterHealthResponse response = getResponse(request, clusterState, concreteWaitFor, true);
+                final ClusterHealthResponse response = getResponse(request, observer.setAndGetObservedState(), concreteWaitFor, true);
                 listener.onResponse(response);
             }
         };

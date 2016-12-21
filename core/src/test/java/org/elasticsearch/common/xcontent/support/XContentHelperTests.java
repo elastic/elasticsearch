@@ -19,10 +19,16 @@
 
 package org.elasticsearch.common.xcontent.support;
 
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -61,5 +67,27 @@ public class XContentHelperTests extends ESTestCase {
         assertThat(content, Matchers.equalTo(expected));
     }
 
-
+    public void testToXContentWrapInObject() throws IOException {
+        boolean wrapInObject = randomBoolean();
+        XContentType xContentType = randomFrom(XContentType.values());
+        ToXContent toXContent = (builder, params) -> {
+            if (wrapInObject == false) {
+                builder.startObject();
+            }
+            builder.field("field", "value");
+            if (wrapInObject == false) {
+                builder.endObject();
+            }
+            return builder;
+        };
+        BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, wrapInObject);
+        try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, bytes)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            assertTrue(parser.nextToken().isValue());
+            assertEquals("value", parser.text());
+            assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+            assertNull(parser.nextToken());
+        }
+    }
 }

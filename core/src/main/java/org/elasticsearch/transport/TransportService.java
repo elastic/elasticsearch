@@ -1182,4 +1182,11 @@ public class TransportService extends AbstractLifecycleComponent {
             return "direct";
         }
     }
+
+    /**
+     * Returns the internal thread pool
+     */
+    public ThreadPool getThreadPool() {
+        return threadPool;
+    }
 }

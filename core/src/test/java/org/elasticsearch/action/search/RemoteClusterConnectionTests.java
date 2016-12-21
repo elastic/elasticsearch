@@ -31,6 +31,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -59,7 +60,7 @@ public class RemoteClusterConnectionTests extends ESIntegTestCase {
                 exceptionAtomicReference.set(x);
                 latch.countDown();
             });
-            connection.connectWithSeeds(listener);
+            connection.updateSeedNodes(Arrays.asList(node),listener);
             latch.await();
             assertTrue(service.nodeConnected(node));
             Iterable<DiscoveryNode> nodesIterable = dataNodes::valuesIt;
@@ -79,28 +80,35 @@ public class RemoteClusterConnectionTests extends ESIntegTestCase {
         try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
             service.start();
             service.acceptIncomingRequests();
-            RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster", Arrays.asList(node), service);
+            final boolean hasInitialNodes = randomBoolean();
+            RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
+                hasInitialNodes ? Arrays.asList(node) : Collections.emptyList(), service);
             CountDownLatch latch = new CountDownLatch(1);
-            AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
-            ActionListener<Void> listener = ActionListener.wrap(x -> latch.countDown(), x -> {
-                exceptionAtomicReference.set(x);
-                latch.countDown();
-            });
-            connection.connectWithSeeds(listener);
-            latch.await();
 
-            String newNode = internalCluster().startDataOnlyNode();
-            createIndex("test-index");
-            assertTrue(service.nodeConnected(node));
-            Iterable<DiscoveryNode> nodesIterable = dataNodes::valuesIt;
-            for (DiscoveryNode dataNode : nodesIterable) {
-                if (dataNode.getName().equals(newNode)) {
-                    assertFalse(service.nodeConnected(dataNode));
-                } else {
-                    assertTrue(service.nodeConnected(dataNode));
+            if (hasInitialNodes == false) {
+                AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
+                ActionListener<Void> listener = ActionListener.wrap(x -> latch.countDown(), x -> {
+                    exceptionAtomicReference.set(x);
+                    latch.countDown();
+                });
+                connection.updateSeedNodes(Arrays.asList(node), listener);
+                latch.await();
+
+                String newNode = internalCluster().startDataOnlyNode();
+                createIndex("test-index");
+                assertTrue(service.nodeConnected(node));
+                Iterable<DiscoveryNode> nodesIterable = dataNodes::valuesIt;
+                for (DiscoveryNode dataNode : nodesIterable) {
+                    if (dataNode.getName().equals(newNode)) {
+                        assertFalse(service.nodeConnected(dataNode));
+                    } else {
+                        assertTrue(service.nodeConnected(dataNode));
+                    }
                 }
+                assertNull(exceptionAtomicReference.get());
+            } else {
+                createIndex("test-index");
             }
-            assertNull(exceptionAtomicReference.get());
 
             SearchRequest request = new SearchRequest("test-index");
             CountDownLatch responseLatch = new CountDownLatch(1);

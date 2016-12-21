@@ -106,23 +106,7 @@ public class SearchTransportService extends AbstractComponent {
     }
 
     public void setupRemoteClusters() {
-        // nocommit we have to figure out a good way to set-up these connections
         setRemoteClusters(REMOTE_CLUSTERS_SEEDS.get(settings));
-    }
-
-    private void connect() {
-        int size = remoteClusters.size();
-        CountDownLatch latch = new CountDownLatch(size);
-        for (RemoteClusterConnection connection : remoteClusters.values()) {
-            connection.connectWithSeeds(ActionListener.wrap(x -> latch.countDown(), ex -> {
-                throw new Error("failed to connect to to remote cluster " + connection.getClusterName(), ex);
-            }));
-        }
-        try {
-            latch.await(); // NOCOMMIT timeout?
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
     }
 
     private static void validateRemoteClustersSeeds(Settings settings) {
@@ -195,14 +179,13 @@ public class SearchTransportService extends AbstractComponent {
             if (remote == null) {
                 remote = new RemoteClusterConnection(settings, entry.getKey(), entry.getValue(), transportService);
                 remoteClusters.put(entry.getKey(), remote);
-            } else {
-                remote.updateSeedNodes(entry.getValue());
             }
+            remote.updateSeedNodes(entry.getValue(), ActionListener.wrap((x) -> {},
+                e -> logger.error("failed to update seed list for cluster: " + entry.getKey(), e) ));
         }
         if (remoteClusters.isEmpty() == false) {
             remoteClusters.putAll(this.remoteClusters);
             this.remoteClusters = Collections.unmodifiableMap(remoteClusters);
-            connect(); //nocommit this sucks as it's executed on the state update thread
         }
     }
 
@@ -212,10 +195,6 @@ public class SearchTransportService extends AbstractComponent {
 
     boolean isRemoteClusterRegistered(String clusterName) {
         return remoteClusters.containsKey(clusterName);
-    }
-
-    void connectToRemoteNode(DiscoveryNode remoteNode) {
-        transportService.connectToNode(remoteNode);
     }
 
     void sendSearchShards(SearchRequest searchRequest, Map<String, List<String>> remoteIndicesByCluster,

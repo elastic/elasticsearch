@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
@@ -43,26 +44,29 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 
-class RemoteClusterConnection extends AbstractComponent implements TransportConnectionListener {
+final class RemoteClusterConnection extends AbstractComponent implements TransportConnectionListener {
 
     private final TransportService transportService;
     private final ConnectionProfile remoteProfile;
     private final CopyOnWriteArrayList<DiscoveryNode> clusterNodes = new CopyOnWriteArrayList();
     private final Supplier<DiscoveryNode> nodeSupplier;
     private final String clusterName;
-    private final CountDownLatch connected;
     private volatile List<DiscoveryNode> seedNodes;
+    private final ConnectHandler connectHandler;
 
     RemoteClusterConnection(Settings settings, String clusterName, List<DiscoveryNode> seedNodes,
                                    TransportService transportService) {
         super(settings);
-        this.connected = new CountDownLatch(1);
         this.transportService = transportService;
         this.clusterName = clusterName;
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -86,91 +90,12 @@ class RemoteClusterConnection extends AbstractComponent implements TransportConn
             }
         };
         this.seedNodes = seedNodes;
+        this.connectHandler = new ConnectHandler();
     }
 
-    public synchronized void connectWithSeeds(ActionListener<Void> connectListener) {
-        if (clusterNodes.isEmpty()) {
-            TimeValue connectTimeout = TimeValue.timeValueSeconds(10); // TODO make configurable
-            Iterator<DiscoveryNode> iterator = Collections.synchronizedList(seedNodes).iterator();
-            handshakeAndConnect(iterator, transportService, connectTimeout, connectListener, true);
-        } else {
-            connectListener.onResponse(null);
-        }
-
-    }
-
-    public synchronized void updateSeedNodes(List<DiscoveryNode> seedNodes) {
-        if (this.seedNodes.containsAll(seedNodes) == false || this.seedNodes.size() != seedNodes.size()) {
-            this.seedNodes = new ArrayList<>(seedNodes);
-            ActionListener<Void> listener = ActionListener.wrap(x -> {},
-                e -> logger.error("failed to establish connection to remote cluster", e));
-            connectWithSeeds(listener);
-        }
-    }
-
-    private void handshakeAndConnect(Iterator<DiscoveryNode> seedNodes,
-                                     final TransportService transportService, TimeValue connectTimeout, ActionListener<Void> listener,
-                                     boolean connect) {
-        try {
-            if (seedNodes.hasNext()) {
-                final DiscoveryNode seedNode = seedNodes.next();
-                final DiscoveryNode handshakeNode;
-                if (connect) {
-                    try (Transport.Connection connection = transportService.openConnection(seedNode, ConnectionProfile.LIGHT_PROFILE)) {
-                        handshakeNode = transportService.handshake(connection, connectTimeout.millis(), (c) -> true);
-                        transportService.connectToNode(handshakeNode, remoteProfile);
-                        clusterNodes.add(handshakeNode);
-                    }
-                } else {
-                    handshakeNode = seedNode;
-                }
-                ClusterStateRequest request = new ClusterStateRequest();
-                request.clear();
-                request.nodes(true);
-                transportService.sendRequest(transportService.getConnection(handshakeNode),
-                    ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
-                    new TransportResponseHandler<ClusterStateResponse>() {
-
-                        @Override
-                        public ClusterStateResponse newInstance() {
-                            return new ClusterStateResponse();
-                        }
-
-                        @Override
-                        public void handleResponse(ClusterStateResponse response) {
-                            DiscoveryNodes nodes = response.getState().nodes();
-                            Iterable<DiscoveryNode> nodesIter = nodes.getDataNodes()::valuesIt;
-                            for (DiscoveryNode node : nodesIter) {
-                                transportService.connectToNode(node); // noop if node is connected
-                                clusterNodes.add(node);
-                            }
-                            listener.onResponse(null);
-                        }
-
-                        @Override
-                        public void handleException(TransportException exp) {
-                            logger.warn((Supplier<?>) () -> new ParameterizedMessage("fetching nodes from external cluster {} failed",
-                                clusterName), exp);
-                            handshakeAndConnect(seedNodes, transportService, connectTimeout, listener, connect);
-                        }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.MANAGEMENT;
-                        }
-                    });
-            } else {
-                listener.onFailure(new IllegalStateException("no seed node left"));
-            }
-        } catch (IOException ex) {
-            if (seedNodes.hasNext()) {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("fetching nodes from external cluster {} failed",
-                    clusterName), ex);
-                handshakeAndConnect(seedNodes, transportService, connectTimeout, listener, connect);
-            } else {
-                listener.onFailure(ex);
-            }
-        }
+    synchronized void updateSeedNodes(List<DiscoveryNode> seedNodes, ActionListener<Void> connectListener) {
+        this.seedNodes = new ArrayList<>(seedNodes);
+        connectHandler.handshake(connectListener);
     }
 
     @Override
@@ -180,7 +105,7 @@ class RemoteClusterConnection extends AbstractComponent implements TransportConn
             // try to reconnect
             ActionListener<Void> listener = ActionListener.wrap(x -> {},
                 e -> logger.error("failed to establish connection to remote cluster", e));
-            connectWithSeeds(listener);
+            connectHandler.handshake(listener);
         }
     }
 
@@ -193,8 +118,8 @@ class RemoteClusterConnection extends AbstractComponent implements TransportConn
             }
         }
         if (seenNotConnectedNode) {
-            final TimeValue connectTimeout = TimeValue.timeValueSeconds(10); // TODO make configurable
-            handshakeAndConnect(clusterNodes.iterator(), transportService, connectTimeout,
+            TimeValue connectTimeout = TimeValue.timeValueSeconds(10); // TODO make configurable
+            connectHandler.handshakeAndConnect(clusterNodes.iterator(), transportService, connectTimeout,
                 ActionListener.wrap((x) -> {
                 }, x -> {
                 }), false); // nocommit handle exceptions here what should we do
@@ -203,6 +128,14 @@ class RemoteClusterConnection extends AbstractComponent implements TransportConn
 
     public void fetchSearchShards(SearchRequest searchRequest, final List<String> indices,
                                   ActionListener<ClusterSearchShardsResponse> listener) {
+        if (clusterNodes.isEmpty()) {
+            connectHandler.handshake(ActionListener.wrap((x) -> fetchSearchShards(searchRequest, indices, listener), listener::onFailure));
+        } else {
+            fetchShardsInternal(searchRequest, indices, listener);
+        }
+    }
+
+    private void fetchShardsInternal(SearchRequest searchRequest, List<String> indices, final ActionListener<ClusterSearchShardsResponse> listener) {
         final DiscoveryNode node = nodeSupplier.get();
         ClusterSearchShardsRequest searchShardsRequest = new ClusterSearchShardsRequest(indices.toArray(new String[indices.size()]))
             .indicesOptions(searchRequest.indicesOptions()).local(true).preference(searchRequest.preference())
@@ -236,4 +169,145 @@ class RemoteClusterConnection extends AbstractComponent implements TransportConn
     public String getClusterName() {
         return clusterName;
     }
+
+
+    private class ConnectHandler {
+        private Semaphore running = new Semaphore(1);
+        private BlockingQueue<ActionListener<Void>> queue = new ArrayBlockingQueue<>(100);
+
+        public void handshake(ActionListener<Void> connectListener) {
+            final boolean runConnect;
+            final Collection<ActionListener<Void>> toNotify;
+            synchronized (queue) {
+                if (connectListener != null && queue.offer(connectListener) == false) {
+                    throw new IllegalStateException("connect queue is full");
+                }
+                if (queue.isEmpty()) {
+                    return;
+                }
+                runConnect = running.tryAcquire();
+                if (runConnect) {
+                    toNotify = new ArrayList<>();
+                    queue.drainTo(toNotify);
+                } else {
+                    toNotify = Collections.emptyList();
+                }
+            }
+            if (runConnect) {
+                forkConnect(toNotify);
+            }
+
+        }
+
+        private void forkConnect(final Collection<ActionListener<Void>> toNotify) {
+            ThreadPool threadPool = transportService.getThreadPool();
+            ExecutorService executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+            executor.submit(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    synchronized (queue) {
+                        running.release();
+                    }
+                    for (ActionListener<Void> queuedListener : toNotify) {
+                        queuedListener.onFailure(e);
+                    }
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    ActionListener<Void> listener = ActionListener.wrap((x) -> {
+
+                            synchronized (queue) {
+                                running.release();
+                            }
+                            for (ActionListener<Void> queuedListener : toNotify) {
+                                queuedListener.onResponse(x);
+                            }
+                            handshake(null);
+                        },
+                        (e) -> {
+                            synchronized (queue) {
+                                running.release();
+                            }
+                            for (ActionListener<Void> queuedListener : toNotify) {
+                                queuedListener.onFailure(e);
+                            }
+                            handshake(null);
+                        });
+                    TimeValue connectTimeout = TimeValue.timeValueSeconds(10); // TODO make configurable
+                    Iterator<DiscoveryNode> iterator = Collections.synchronizedList(seedNodes).iterator();
+                    handshakeAndConnect(iterator, transportService, connectTimeout, listener, true);
+                }
+            });
+
+        }
+
+
+
+        void handshakeAndConnect(Iterator<DiscoveryNode> seedNodes,
+                                 final TransportService transportService, TimeValue connectTimeout, ActionListener<Void> listener,
+                                 boolean connect) {
+                try {
+                    if (seedNodes.hasNext()) {
+                        final DiscoveryNode seedNode = seedNodes.next();
+                        final DiscoveryNode handshakeNode;
+                        if (connect) {
+                            try (Transport.Connection connection = transportService.openConnection(seedNode, ConnectionProfile.LIGHT_PROFILE)) {
+                                handshakeNode = transportService.handshake(connection, connectTimeout.millis(), (c) -> true);
+                                transportService.connectToNode(handshakeNode, remoteProfile);
+                                clusterNodes.add(handshakeNode);
+                            }
+                        } else {
+                            handshakeNode = seedNode;
+                        }
+                        ClusterStateRequest request = new ClusterStateRequest();
+                        request.clear();
+                        request.nodes(true);
+                        transportService.sendRequest(transportService.getConnection(handshakeNode),
+                            ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
+                            new TransportResponseHandler<ClusterStateResponse>() {
+
+                                @Override
+                                public ClusterStateResponse newInstance() {
+                                    return new ClusterStateResponse();
+                                }
+
+                                @Override
+                                public void handleResponse(ClusterStateResponse response) {
+                                    DiscoveryNodes nodes = response.getState().nodes();
+                                    Iterable<DiscoveryNode> nodesIter = nodes.getDataNodes()::valuesIt;
+                                    for (DiscoveryNode node : nodesIter) {
+                                        transportService.connectToNode(node); // noop if node is connected
+                                        clusterNodes.add(node);
+                                    }
+                                    listener.onResponse(null);
+                                }
+
+                                @Override
+                                public void handleException(TransportException exp) {
+                                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("fetching nodes from external cluster {} failed",
+                                        clusterName), exp);
+                                    handshakeAndConnect(seedNodes, transportService, connectTimeout, listener, connect);
+                                }
+
+                                @Override
+                                public String executor() {
+                                    return ThreadPool.Names.MANAGEMENT;
+                                }
+                            });
+                    } else {
+                        listener.onFailure(new IllegalStateException("no seed node left"));
+                    }
+                } catch (IOException ex) {
+                    if (seedNodes.hasNext()) {
+                        logger.debug((Supplier<?>) () -> new ParameterizedMessage("fetching nodes from external cluster {} failed",
+                            clusterName), ex);
+                        handshakeAndConnect(seedNodes, transportService, connectTimeout, listener, connect);
+                    } else {
+                        listener.onFailure(ex);
+                    }
+                }
+        }
+    }
+
 }

@@ -279,13 +279,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (remoteNodes.isEmpty()) {
             return nodes::get;
         }
-        ImmutableOpenMap.Builder<String, DiscoveryNode> builder = ImmutableOpenMap.builder(nodes.getNodes());
+        ImmutableOpenMap.Builder<String, DiscoveryNode> builder = ImmutableOpenMap.builder();
         for (DiscoveryNode remoteNode : remoteNodes) {
-            //TODO shall we catch connect exceptions here? Otherwise we will return an error but we could rather return partial results?
-            searchTransportService.connectToRemoteNode(remoteNode);
             builder.put(remoteNode.getId(), remoteNode);
         }
-        return builder.build()::get;
+        ImmutableOpenMap<String, DiscoveryNode> remoteNodesMap = builder.build();
+        return (nodeId) -> {
+            DiscoveryNode discoveryNode = nodes.get(nodeId);
+            if (discoveryNode == null) {
+                discoveryNode = remoteNodesMap.get(nodeId);
+            }
+            if (discoveryNode == null) {
+                throw new IllegalArgumentException("no node found for id: " + nodeId);
+            }
+            return discoveryNode;
+        };
     }
 
     @Override

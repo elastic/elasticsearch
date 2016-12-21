@@ -162,7 +162,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false));
 
         assertFalse(NumberType.DOUBLE.termQuery("field", -0d).equals(NumberType.DOUBLE.termQuery("field", +0d)));
-        assertFalse(NumberType.FLOAT.termQuery("field", -0d).equals(NumberType.FLOAT.termQuery("field", +0d)));
-        assertFalse(NumberType.HALF_FLOAT.termQuery("field", -0d).equals(NumberType.HALF_FLOAT.termQuery("field", +0d)));
+        assertFalse(NumberType.FLOAT.termQuery("field", -0f).equals(NumberType.FLOAT.termQuery("field", +0f)));
+        assertFalse(NumberType.HALF_FLOAT.termQuery("field", -0f).equals(NumberType.HALF_FLOAT.termQuery("field", +0f)));
     }
 }

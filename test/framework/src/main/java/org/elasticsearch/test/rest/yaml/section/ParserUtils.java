@@ -25,7 +25,14 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 
-public class ParserUtils {
+/**
+ * Utility methods used for parsing test sections.
+ */
+class ParserUtils {
+    private ParserUtils() {
+        // Do not build.
+    }
+
     public static String parseField(XContentParser parser) throws IOException {
         parser.nextToken();
         assert parser.currentToken().isValue();

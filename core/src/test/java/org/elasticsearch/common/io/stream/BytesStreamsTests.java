@@ -789,12 +789,14 @@ public class BytesStreamsTests extends ESTestCase {
     public void testVLong() throws IOException {
         final long value = randomLong();
         {
+            // Read works for positive and negative numbers
             BytesStreamOutput output = new BytesStreamOutput();
-            output.writeVLongNoCheck(value);
+            output.writeVLongNoCheck(value); // Use NoCheck variant so we can write negative numbers
             StreamInput input = output.bytes().streamInput();
             assertEquals(value, input.readVLong());
         }
         if (value < 0) {
+            // Write doesn't work for negative numbers
             BytesStreamOutput output = new BytesStreamOutput();
             Exception e = expectThrows(IllegalStateException.class, () -> output.writeVLong(value));
             assertEquals("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + value + "]", e.getMessage());

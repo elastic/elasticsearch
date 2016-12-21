@@ -20,15 +20,18 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.search.SearchRequestParsers;
@@ -38,6 +41,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -168,13 +172,12 @@ public class MultiSearchRequestTests extends ESTestCase {
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data)).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true, parsers(), ParseFieldMatcher.EMPTY);
+        return RestMultiSearchAction.parseRequest(restRequest, true, new SearchRequestParsers(null, null, null), ParseFieldMatcher.EMPTY);
     }
 
-    private SearchRequestParsers parsers() {
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
-        QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
-        registry.register(parser, MatchAllQueryBuilder.NAME);
-        return new SearchRequestParsers(registry, null, null, null);
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(singletonList(new NamedXContentRegistry.Entry(QueryBuilder.class,
+                new ParseField(MatchAllQueryBuilder.NAME), (p, c) -> MatchAllQueryBuilder.fromXContent((QueryParseContext) c))));
     }
 }

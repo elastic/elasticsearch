@@ -39,7 +39,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
@@ -99,7 +98,7 @@ public abstract class SmoothingModelTestCase extends ESTestCase {
         testModel.innerToXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
         contentBuilder.endObject();
         XContentParser parser = createParser(shuffleXContent(contentBuilder));
-        QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
         parser.nextToken();  // go to start token, real parsing would do that in the outer element parser
         SmoothingModel parsedModel = fromXContent(context);
         assertNotSame(testModel, parsedModel);

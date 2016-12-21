@@ -134,7 +134,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
 
         try {
           FieldSortBuilder.fromXContent(context, "");

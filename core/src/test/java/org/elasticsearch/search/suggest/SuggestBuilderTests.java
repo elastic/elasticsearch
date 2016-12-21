@@ -25,11 +25,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.completion.CompletionSuggesterBuilderTests;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilderTests;
@@ -78,7 +76,7 @@ public class SuggestBuilderTests extends ESTestCase {
             }
             suggestBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             XContentParser parser = createParser(xContentBuilder);
-            QueryParseContext context = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
+            QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
             SuggestBuilder secondSuggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
             assertNotSame(suggestBuilder, secondSuggestBuilder);
             assertEquals(suggestBuilder, secondSuggestBuilder);

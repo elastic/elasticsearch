@@ -68,7 +68,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -120,7 +119,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final BigArrays bigArrays;
     private final AsyncGlobalCheckpointTask globalCheckpointTask;
     private final ScriptService scriptService;
-    private final IndicesQueriesRegistry queryRegistry;
     private final ClusterService clusterService;
     private final Client client;
 
@@ -134,7 +132,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         BigArrays bigArrays,
                         ThreadPool threadPool,
                         ScriptService scriptService,
-                        IndicesQueriesRegistry queryRegistry,
                         ClusterService clusterService,
                         Client client,
                         QueryCache queryCache,
@@ -162,7 +159,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
-        this.queryRegistry = queryRegistry;
         this.clusterService = clusterService;
         this.client = client;
         this.eventListener = eventListener;
@@ -478,7 +474,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis) {
         return new QueryShardContext(
             shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
-                similarityService(), scriptService, xContentRegistry, queryRegistry,
+                similarityService(), scriptService, xContentRegistry,
                 client, indexReader,
             nowInMillis);
     }

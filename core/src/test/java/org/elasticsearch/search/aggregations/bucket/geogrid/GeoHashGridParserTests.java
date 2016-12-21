@@ -23,20 +23,16 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoHashGridParserTests extends ESTestCase {
-    private static final IndicesQueriesRegistry mockRegistry = new IndicesQueriesRegistry();
-
     public void testParseValidFromInts() throws Exception {
         int precision = randomIntBetween(1, 12);
         XContentParser stParser = createParser(JsonXContent.jsonXContent, 
                 "{\"field\":\"my_loc\", \"precision\":" + precision + ", \"size\": 500, \"shard_size\": 550}");
-        QueryParseContext parseContext = new QueryParseContext(mockRegistry,
-                stParser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
@@ -47,7 +43,7 @@ public class GeoHashGridParserTests extends ESTestCase {
         int precision = randomIntBetween(1, 12);
         XContentParser stParser = createParser(JsonXContent.jsonXContent, 
                 "{\"field\":\"my_loc\", \"precision\":\"" + precision + "\", \"size\": \"500\", \"shard_size\": \"550\"}");
-        QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         // can create a factory
@@ -56,7 +52,7 @@ public class GeoHashGridParserTests extends ESTestCase {
 
     public void testParseErrorOnNonIntPrecision() throws Exception {
         XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":\"2.0\"}");
-        QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {
@@ -70,7 +66,7 @@ public class GeoHashGridParserTests extends ESTestCase {
 
     public void testParseErrorOnBooleanPrecision() throws Exception {
         XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":false}");
-        QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {
@@ -83,7 +79,7 @@ public class GeoHashGridParserTests extends ESTestCase {
 
     public void testParseErrorOnPrecisionOutOfRange() throws Exception {
         XContentParser stParser = createParser(JsonXContent.jsonXContent, "{\"field\":\"my_loc\", \"precision\":\"13\"}");
-        QueryParseContext parseContext = new QueryParseContext(mockRegistry, stParser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(stParser, ParseFieldMatcher.STRICT);
         XContentParser.Token token = stParser.nextToken();
         assertSame(XContentParser.Token.START_OBJECT, token);
         try {

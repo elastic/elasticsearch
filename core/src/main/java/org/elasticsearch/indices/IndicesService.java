@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
@@ -41,7 +39,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -106,7 +103,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.PluginsService;
@@ -156,7 +152,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final NamedXContentRegistry xContentRegistry;
     private final TimeValue shardsClosedTimeout;
     private final AnalysisRegistry analysisRegistry;
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopeSetting;
     private final IndicesFieldDataCache indicesFieldDataCache;
@@ -187,7 +182,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
                           ClusterSettings clusterSettings, AnalysisRegistry analysisRegistry,
-                          IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
+                          IndexNameExpressionResolver indexNameExpressionResolver,
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry,
                           ThreadPool threadPool, IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService,
                           BigArrays bigArrays, ScriptService scriptService, ClusterService clusterService, Client client,
@@ -199,7 +194,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.xContentRegistry = xContentRegistry;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesRequestCache = new IndicesRequestCache(settings);
         this.indicesQueryCache = new IndicesQueryCache(settings);
@@ -451,7 +445,6 @@ public class IndicesService extends AbstractLifecycleComponent
             bigArrays,
             threadPool,
             scriptService,
-            indicesQueriesRegistry,
             clusterService,
             client,
             indicesQueryCache,
@@ -1017,13 +1010,6 @@ public class IndicesService extends AbstractLifecycleComponent
         return numUncompletedDeletes.get() > 0;
     }
 
-    /**
-     * Returns this nodes {@link IndicesQueriesRegistry}
-     */
-    public IndicesQueriesRegistry getIndicesQueryRegistry() {
-        return indicesQueriesRegistry;
-    }
-
     public AnalysisRegistry getAnalysis() {
         return analysisRegistry;
     }
@@ -1268,7 +1254,7 @@ public class IndicesService extends AbstractLifecycleComponent
          * of dependencies we pass in a function that can perform the parsing. */
         ShardSearchRequest.FilterParser filterParser = bytes -> {
             try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes)) {
-                return new QueryParseContext(indicesQueriesRegistry, parser, new ParseFieldMatcher(settings)).parseInnerQueryBuilder();
+                return new QueryParseContext(parser, new ParseFieldMatcher(settings)).parseInnerQueryBuilder();
             }
         };
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, expressions);

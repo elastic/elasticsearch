@@ -1,38 +1,33 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
+from math import log
 
 data = []
-xData = []
-yData = []
 
 with open('coeffData.dat', 'r') as csvfile:
     csvreader = csv.reader(csvfile, delimiter=' ', quotechar='|')
     for row in csvreader:
-        rowData = []
-        for value in row:
-            rowData.append(float(value))
-        data.append(rowData)
-        xData.append(rowData[0])
-        yData.append(rowData[1])
+        data.append([float(row[1]), float(row[2])])
 
-print(data)
+input = np.array(data)
 
-# input = np.array(data)
-# m = np.shape(input)[0]
-# X = np.matrix([np.ones(m), input[:,0]]).T
-# y = np.matrix(input[:,1]).T
-# betaHat = np.linalg.inv(X.T.dot(X)).dot(X.T).dot(y)
-# print(betaHat)
+m = np.shape(input)[0]
+z = input[:,0]
+zl = np.log(z+1)
+M = np.matrix([z, zl, zl**2, zl**3, zl**4, zl**5, zl**6, zl**7]).T
+y = np.matrix(input[:,1]).T
+p = np.linalg.inv(M.T.dot(M)).dot(M.T).dot(y)
 
-p = np.polyfit(xData, yData, 7)
-print(p)
+print('coefficients: ', p)§
 
-# plt.figure(1)
-# xx = np.linspace(0, 5, 2)
-# yy = np.array(betaHat[0] + betaHat[1] * xx)
-# poly = np.array(p[0] + p[1] * xx + p[2] * xx * xx + p[3] * xx * xx * xx)
-# plt.plot(xx, yy.T, color='b')
-# plt.plot(xx, poly.T, color='g')
-# plt.scatter(input[:,0], input[:,1], color='r')
-# plt.show()
+plt.figure(1)
+zz = np.linspace(0, np.max(z))
+zzlData = []
+for zzi in zz:
+    zzlData.append(log(zzi + 1))
+zzl = np.array(zzlData)
+poly = np.array(p[0] * zz + p[1] * zzl + p[2] * zzl**2 + p[3] * zzl**3 + p[4] * zzl**4 + p[5] * zzl**5 + p[6] * zzl**6 + p[7] * zzl**7)
+plt.plot(zz, poly.T, color='g')
+plt.scatter(input[:,0], input[:,1], color='r')
+plt.show()

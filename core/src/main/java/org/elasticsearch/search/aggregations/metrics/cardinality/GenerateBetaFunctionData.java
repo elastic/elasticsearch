@@ -35,16 +35,23 @@ public class GenerateBetaFunctionData {
         Random r = new Random();
         boolean compareWithCalculated = false;
         int precision = 14;
+        int numTestRuns = 100;
+        // int maxCardinality = 10000000;
+        // int initialCardinality = 100;
+        // int initialStep = 10;
+        int maxCardinality = 170000;
+        int initialCardinality = 1000;
+        int initialStep = 1000;
         File outFile = new File("/Users/colings86/dev/work/git/elasticsearch/gnuplot/coeffData.dat");
         try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
-            for (int testRun = 0; testRun < 100; testRun++) {
+            for (int testRun = 0; testRun < numTestRuns; testRun++) {
                 try (HyperLogLogBeta hllb = new HyperLogLogBeta(precision, BigArrays.NON_RECYCLING_INSTANCE, 1)) {
 
-                    int next = 100;
-                    int step = 10;
+                    int next = initialCardinality;
+                    int step = initialStep;
                     Set<Long> distinct = new HashSet<>();
 
-                    for (int i = 1; i <= 10000000; ++i) {
+                    for (int i = 1; i <= maxCardinality; ++i) {
                         long h = BitMixer.mix64(r.nextLong());
                         hllb.collect(0, h);
                         distinct.add(h);
@@ -69,11 +76,15 @@ public class GenerateBetaFunctionData {
                             }
                             sb.append('\n');
 
-                            writer.write(sb.toString());
-                            next += step;
-                            if (next >= 100 * step) {
-                                step *= 10;
+                            if (compareWithCalculated) {
+                                System.out.print(sb.toString());
+                            } else {
+                                writer.write(sb.toString());
                             }
+                            next += step;
+                            // if (next >= 100 * step) {
+                            // step *= 10;
+                            // }
                         }
                     }
                 }

@@ -115,7 +115,7 @@ public class ClusterStatsResolverTests extends MonitoringIndexNameResolverTestCa
                 buildNewFakeTransportAddress());
         return new NodeInfo(Version.CURRENT, org.elasticsearch.Build.CURRENT,
                 new DiscoveryNode("node_0", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT), Settings.EMPTY,
-                DummyOsInfo.INSTANCE, new ProcessInfo(randomInt(), randomBoolean(), randomPositiveLong()), JvmInfo.jvmInfo(),
+                DummyOsInfo.INSTANCE, new ProcessInfo(randomInt(), randomBoolean(), randomNonNegativeLong()), JvmInfo.jvmInfo(),
                 new ThreadPoolInfo(Collections.singletonList(new ThreadPool.Info("test_threadpool", ThreadPool.ThreadPoolType.FIXED, 5))),
                 new TransportInfo(transportAddress, Collections.emptyMap()), new HttpInfo(transportAddress, randomLong()),
                 new PluginsAndModules(Collections.emptyList(), Collections.emptyList()),

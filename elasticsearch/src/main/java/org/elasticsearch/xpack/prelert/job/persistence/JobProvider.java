@@ -130,7 +130,7 @@ public class JobProvider {
             XContentBuilder usageMapping = ElasticsearchMappings.usageMapping();
             LOGGER.trace("ES API CALL: create index {}", PRELERT_USAGE_INDEX);
             client.admin().indices().prepareCreate(PRELERT_USAGE_INDEX)
-                    .setSettings(prelertIndexSettings())
+                    .setSettings(mlResultsIndexSettings())
                     .addMapping(Usage.TYPE, usageMapping)
                     .execute(new ActionListener<CreateIndexResponse>() {
                         @Override
@@ -145,12 +145,12 @@ public class JobProvider {
                     });
 
         } catch (IOException e) {
-            LOGGER.warn("Error checking the usage metering index", e);
+            LOGGER.warn("Error creating the usage metering index", e);
         }
     }
 
     /**
-     * Build the Elasticsearch index settings that we want to apply to Prelert
+     * Build the Elasticsearch index settings that we want to apply to results
      * indexes.  It's better to do this in code rather than in elasticsearch.yml
      * because then the settings can be applied regardless of whether we're
      * using our own Elasticsearch to store results or a customer's pre-existing
@@ -159,7 +159,7 @@ public class JobProvider {
      * @return An Elasticsearch builder initialised with the desired settings
      * for Prelert indexes.
      */
-    Settings.Builder prelertIndexSettings() {
+    Settings.Builder mlResultsIndexSettings() {
         return Settings.builder()
                 // Our indexes are small and one shard puts the
                 // least possible burden on Elasticsearch
@@ -177,38 +177,53 @@ public class JobProvider {
     }
 
     /**
+     * Build the Elasticsearch index settings that we want to apply to the state
+     * index.  It's better to do this in code rather than in elasticsearch.yml
+     * because then the settings can be applied regardless of whether we're
+     * using our own Elasticsearch to store results or a customer's pre-existing
+     * Elasticsearch.
+     *
+     * @return An Elasticsearch builder initialised with the desired settings
+     * for Prelert indexes.
+     */
+    Settings.Builder mlStateIndexSettings() {
+        // TODO review these settings
+        return Settings.builder()
+                // Our indexes are small and one shard puts the
+                // least possible burden on Elasticsearch
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
+                // Sacrifice durability for performance: in the event of power
+                // failure we can lose the last 5 seconds of changes, but it's
+                // much faster
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), ASYNC);
+    }
+
+    /**
      * Create the Elasticsearch index and the mappings
      */
-    // TODO: rename and move?
-    public void createJobRelatedIndices(Job job, ActionListener<Boolean> listener) {
+    public void createJobResultIndex(Job job, ActionListener<Boolean> listener) {
         Collection<String> termFields = (job.getAnalysisConfig() != null) ? job.getAnalysisConfig().termFields() : Collections.emptyList();
         try {
             XContentBuilder resultsMapping = ElasticsearchMappings.resultsMapping(termFields);
-            XContentBuilder categorizerStateMapping = ElasticsearchMappings.categorizerStateMapping();
             XContentBuilder categoryDefinitionMapping = ElasticsearchMappings.categoryDefinitionMapping();
-            XContentBuilder quantilesMapping = ElasticsearchMappings.quantilesMapping();
-            XContentBuilder modelStateMapping = ElasticsearchMappings.modelStateMapping();
-            XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
             XContentBuilder dataCountsMapping = ElasticsearchMappings.dataCountsMapping();
             XContentBuilder usageMapping = ElasticsearchMappings.usageMapping();
             XContentBuilder auditMessageMapping = ElasticsearchMappings.auditMessageMapping();
             XContentBuilder auditActivityMapping = ElasticsearchMappings.auditActivityMapping();
+            XContentBuilder modelSnapshotMapping = ElasticsearchMappings.modelSnapshotMapping();
 
             String jobId = job.getId();
             boolean createIndexAlias = !job.getIndexName().equals(job.getId());
-            String indexName = AnomalyDetectorsIndex.getJobIndexName(job.getIndexName());
+            String indexName = AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName());
 
             LOGGER.trace("ES API CALL: create index {}", indexName);
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
-            Settings.Builder settingsBuilder = prelertIndexSettings();
-            createIndexRequest.settings(settingsBuilder);
+            createIndexRequest.settings(mlResultsIndexSettings());
             createIndexRequest.mapping(Result.TYPE.getPreferredName(), resultsMapping);
-            createIndexRequest.mapping(CategorizerState.TYPE, categorizerStateMapping);
             createIndexRequest.mapping(CategoryDefinition.TYPE.getPreferredName(), categoryDefinitionMapping);
-            createIndexRequest.mapping(Quantiles.TYPE.getPreferredName(), quantilesMapping);
-            createIndexRequest.mapping(ModelState.TYPE.getPreferredName(), modelStateMapping);
-            createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
             createIndexRequest.mapping(DataCounts.TYPE.getPreferredName(), dataCountsMapping);
+            createIndexRequest.mapping(ModelSnapshot.TYPE.getPreferredName(), modelSnapshotMapping);
             // NORELASE These mappings shouldn't go in the results index once the index
             // strategy has been reworked
             createIndexRequest.mapping(Usage.TYPE, usageMapping);
@@ -220,7 +235,7 @@ public class JobProvider {
                 final ActionListener<Boolean> responseListener = listener;
                 listener = ActionListener.wrap(aBoolean -> {
                             client.admin().indices().prepareAliases()
-                                    .addAlias(indexName, AnomalyDetectorsIndex.getJobIndexName(jobId))
+                                    .addAlias(indexName, AnomalyDetectorsIndex.jobResultsIndexName(jobId))
                                     .execute(new ActionListener<IndicesAliasesResponse>() {
                                         @Override
                                         public void onResponse(IndicesAliasesResponse indicesAliasesResponse) {
@@ -254,12 +269,42 @@ public class JobProvider {
         }
     }
 
+    public void createJobStateIndex(BiConsumer<Boolean, Exception> listener) {
+        try {
+            XContentBuilder categorizerStateMapping = ElasticsearchMappings.categorizerStateMapping();
+            XContentBuilder quantilesMapping = ElasticsearchMappings.quantilesMapping();
+            XContentBuilder modelStateMapping = ElasticsearchMappings.modelStateMapping();
+
+            LOGGER.trace("ES API CALL: create state index {}", AnomalyDetectorsIndex.jobStateIndexName());
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(AnomalyDetectorsIndex.jobStateIndexName());
+            createIndexRequest.settings(mlStateIndexSettings());
+            createIndexRequest.mapping(CategorizerState.TYPE, categorizerStateMapping);
+            createIndexRequest.mapping(Quantiles.TYPE.getPreferredName(), quantilesMapping);
+            createIndexRequest.mapping(ModelState.TYPE.getPreferredName(), modelStateMapping);
+
+            client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
+                @Override
+                public void onResponse(CreateIndexResponse createIndexResponse) {
+                    listener.accept(true, null);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    listener.accept(false, e);
+                }
+            });
+        } catch (Exception e) {
+            LOGGER.warn("Error creating the usage metering index", e);
+        }
+    }
+
+
     /**
      * Delete all the job related documents from the database.
      */
     // TODO: should live together with createJobRelatedIndices (in case it moves)?
     public void deleteJobRelatedIndices(String jobId, ActionListener<DeleteJobAction.Response> listener) {
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         LOGGER.trace("ES API CALL: delete index {}", indexName);
 
         try {
@@ -286,7 +331,7 @@ public class JobProvider {
      * @return The dataCounts or default constructed object if not found
      */
     public DataCounts dataCounts(String jobId) {
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
 
         try {
             GetResponse response = client.prepareGet(indexName, DataCounts.TYPE.getPreferredName(),
@@ -378,7 +423,7 @@ public class JobProvider {
 
         SearchResponse searchResponse;
         try {
-            String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+            String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
             LOGGER.trace("ES API CALL: search all of result type {}  from index {} with filter from {} size {}",
                     Bucket.RESULT_TYPE_VALUE, indexName, from, size);
 
@@ -421,7 +466,7 @@ public class JobProvider {
      * @throws ResourceNotFoundException If the job id is not recognised
      */
     public QueryPage<Bucket> bucket(String jobId, BucketQueryBuilder.BucketQuery query) throws ResourceNotFoundException {
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         SearchHits hits;
         try {
             LOGGER.trace("ES API CALL: get Bucket with timestamp {} from index {}", query.getTimestamp(), indexName);
@@ -504,7 +549,7 @@ public class JobProvider {
                 .filter(new TermsQueryBuilder(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), partitionFieldValue));
 
         FieldSortBuilder sb = new FieldSortBuilder(Bucket.TIMESTAMP.getPreferredName()).order(SortOrder.ASC);
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         SearchRequestBuilder searchBuilder = client
                 .prepareSearch(indexName)
                 .setQuery(boolQuery)
@@ -630,7 +675,7 @@ public class JobProvider {
      * @return QueryPage of CategoryDefinition
      */
     public QueryPage<CategoryDefinition> categoryDefinitions(String jobId, int from, int size) {
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} from {} size {}",
                 CategoryDefinition.TYPE.getPreferredName(), indexName, CategoryDefinition.CATEGORY_ID.getPreferredName(), from, size);
 
@@ -670,7 +715,7 @@ public class JobProvider {
      * @return QueryPage CategoryDefinition
      */
     public QueryPage<CategoryDefinition> categoryDefinition(String jobId, String categoryId) {
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         GetResponse response;
 
         try {
@@ -737,7 +782,7 @@ public class JobProvider {
     private QueryPage<AnomalyRecord> records(String jobId, int from, int size,
                                              QueryBuilder recordFilter, FieldSortBuilder sb, List<String> secondarySort,
                                              boolean descending) throws ResourceNotFoundException {
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
 
         recordFilter = new BoolQueryBuilder()
                 .filter(recordFilter)
@@ -804,7 +849,7 @@ public class JobProvider {
 
     private QueryPage<Influencer> influencers(String jobId, int from, int size, QueryBuilder filterBuilder, String sortField,
                                               boolean sortDescending) throws ResourceNotFoundException {
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         LOGGER.trace("ES API CALL: search all of result type {} from index {}{}  with filter from {} size {}",
                 () -> Influencer.RESULT_TYPE_VALUE, () -> indexName,
                 () -> (sortField != null) ?
@@ -884,13 +929,12 @@ public class JobProvider {
      * Get the persisted quantiles state for the job
      */
     public Optional<Quantiles> getQuantiles(String jobId) {
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
         try {
             String quantilesId = Quantiles.quantilesId(jobId);
 
             LOGGER.trace("ES API CALL: get ID {} type {} from index {}", quantilesId, Quantiles.TYPE.getPreferredName(), indexName);
-            GetResponse response = client.prepareGet(
-                    indexName, Quantiles.TYPE.getPreferredName(), quantilesId).get();
+            GetResponse response = client.prepareGet(indexName, Quantiles.TYPE.getPreferredName(), quantilesId).get();
             if (!response.isExists()) {
                 LOGGER.info("There are currently no quantiles for job " + jobId);
                 return Optional.empty();
@@ -965,7 +1009,7 @@ public class JobProvider {
 
         SearchResponse searchResponse;
         try {
-            String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+            String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
             LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} with filter after sort from {} size {}",
                 ModelSnapshot.TYPE, indexName, sortField, from, size);
 
@@ -1006,7 +1050,7 @@ public class JobProvider {
      * @param restoreStream the stream to write the state to
      */
     public void restoreStateToStream(String jobId, ModelSnapshot modelSnapshot, OutputStream restoreStream) throws IOException {
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
 
         // First try to restore categorizer state.  There are no snapshots for this, so the IDs simply
         // count up until a document is not found.  It's NOT an error to have no categorizer state.
@@ -1081,7 +1125,7 @@ public class JobProvider {
 
         SearchResponse searchResponse;
         try {
-            String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+            String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
             LOGGER.trace("ES API CALL: search result type {} from index {} from {}, size {}",
                     ModelDebugOutput.RESULT_TYPE_VALUE, indexName, from, size);
 
@@ -1115,7 +1159,7 @@ public class JobProvider {
      * Get the job's model size stats.
      */
     public Optional<ModelSizeStats> modelSizeStats(String jobId) {
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         try {
             LOGGER.trace("ES API CALL: get result type {} ID {} from index {}",
                     ModelSizeStats.RESULT_TYPE_VALUE, ModelSizeStats.RESULT_TYPE_FIELD, indexName);
@@ -1173,6 +1217,6 @@ public class JobProvider {
      * @return the {@code Auditor}
      */
     public Auditor audit(String jobId) {
-         return new Auditor(client, AnomalyDetectorsIndex.getJobIndexName(jobId), jobId);
+         return new Auditor(client, AnomalyDetectorsIndex.jobResultsIndexName(jobId), jobId);
     }
 }

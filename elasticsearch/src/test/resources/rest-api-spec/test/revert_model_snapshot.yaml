@@ -128,6 +128,9 @@ setup:
       indices.refresh:
         index: prelertresults-foo
 
+  - do:
+      indices.refresh:
+        index: .ml-state
 ---
 "Test revert model with only job_id":
   - do:

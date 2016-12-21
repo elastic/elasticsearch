@@ -13,15 +13,20 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
+import org.elasticsearch.xpack.prelert.job.ModelState;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import static org.elasticsearch.mock.orig.Mockito.mock;
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.mock.orig.Mockito.verify;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.when;
 
 public class JobDataDeleterTests extends ESTestCase {
@@ -35,7 +40,7 @@ public class JobDataDeleterTests extends ESTestCase {
         BulkResponse bulkResponse = Mockito.mock(BulkResponse.class);
 
         Client client = new MockClientBuilder("myCluster")
-                                .prepareSearchExecuteListener(AnomalyDetectorsIndex.getJobIndexName("foo"), response)
+                                .prepareSearchExecuteListener(AnomalyDetectorsIndex.jobResultsIndexName("foo"), response)
                                 .prepareSearchScrollExecuteListener(response)
                                 .prepareBulk(bulkResponse).build();
 
@@ -71,6 +76,24 @@ public class JobDataDeleterTests extends ESTestCase {
         bulkDeleter.commit(bulkListener);
 
         verify(client.prepareBulk(), times(1)).execute(bulkListener);
+    }
+
+    public void testDeleteModelSnapShot() {
+        String jobId = "foo";
+        ModelSnapshot snapshot = new ModelSnapshot(jobId);
+        snapshot.setSnapshotDocCount(5);
+        snapshot.setSnapshotId("snap-1");
+
+        BulkResponse bulkResponse = Mockito.mock(BulkResponse.class);
+        Client client = new MockClientBuilder("myCluster").prepareBulk(bulkResponse).build();
+
+        JobDataDeleter bulkDeleter = new JobDataDeleter(client, jobId);
+        bulkDeleter.deleteModelSnapshot(snapshot);
+        verify(client, times(5))
+                .prepareDelete(eq(AnomalyDetectorsIndex.jobStateIndexName()), eq(ModelState.TYPE.getPreferredName()), anyString());
+        verify(client, times(1))
+                .prepareDelete(eq(AnomalyDetectorsIndex.jobResultsIndexName(jobId)), eq(ModelSnapshot.TYPE.getPreferredName()),
+                        eq("snap-1"));
     }
 
     private SearchResponse createSearchResponseWithHits(long totalHitCount, int hitsPerSearchResult) {

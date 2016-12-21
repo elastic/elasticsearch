@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.prelert.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 
 import java.util.concurrent.ExecutorService;
@@ -57,6 +58,7 @@ public class PrelertInitializationServiceTests extends ESTestCase {
 
         verify(clusterService, times(1)).submitStateUpdateTask(eq("install-prelert-metadata"), any());
         verify(jobProvider, times(1)).createUsageMeteringIndex(any());
+        verify(jobProvider, times(1)).createJobStateIndex(any());
     }
 
     public void testInitialize_noMasterNode() {
@@ -109,12 +111,17 @@ public class PrelertInitializationServiceTests extends ESTestCase {
                                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                         ))
+                        .put(IndexMetaData.builder(AnomalyDetectorsIndex.jobStateIndexName()).settings(Settings.builder()
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                        ))
                         .putCustom(PrelertMetadata.TYPE, new PrelertMetadata.Builder().build()))
                 .build();
         initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
 
         verify(clusterService, times(0)).submitStateUpdateTask(eq("install-prelert-metadata"), any());
         verify(jobProvider, times(0)).createUsageMeteringIndex(any());
+        verify(jobProvider, times(0)).createJobStateIndex(any());
     }
-
 }

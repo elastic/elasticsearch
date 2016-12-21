@@ -67,7 +67,7 @@ public class JobDataDeleter {
      * @param listener Response listener
      */
     public void deleteResultsFromTime(long cutoffEpochMs, ActionListener<Boolean> listener) {
-        String index = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String index = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
 
         RangeQueryBuilder timeRange = QueryBuilders.rangeQuery(Bucket.TIMESTAMP.getPreferredName());
         timeRange.gte(cutoffEpochMs);
@@ -108,17 +108,18 @@ public class JobDataDeleter {
     public void deleteModelSnapshot(ModelSnapshot modelSnapshot) {
         String snapshotId = modelSnapshot.getSnapshotId();
         int docCount = modelSnapshot.getSnapshotDocCount();
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String stateIndexName = AnomalyDetectorsIndex.jobStateIndexName();
         // Deduce the document IDs of the state documents from the information
         // in the snapshot document - we cannot query the state itself as it's
         // too big and has no mappings
         for (int i = 0; i < docCount; ++i) {
             String stateId = snapshotId + '_' + i;
-            bulkRequestBuilder.add(client.prepareDelete(indexName, ModelState.TYPE.getPreferredName(), stateId));
+            bulkRequestBuilder.add(client.prepareDelete(stateIndexName, ModelState.TYPE.getPreferredName(), stateId));
             ++deletedModelStateCount;
         }
 
-        bulkRequestBuilder.add(client.prepareDelete(indexName, ModelSnapshot.TYPE.getPreferredName(), snapshotId));
+        bulkRequestBuilder.add(client.prepareDelete(AnomalyDetectorsIndex.jobResultsIndexName(modelSnapshot.getJobId()),
+                ModelSnapshot.TYPE.getPreferredName(), snapshotId));
         ++deletedModelSnapshotCount;
     }
 
@@ -126,7 +127,7 @@ public class JobDataDeleter {
      * Delete all results marked as interim
      */
     public void deleteInterimResults() {
-        String index = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        String index = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
 
         QueryBuilder qb = QueryBuilders.termQuery(Bucket.IS_INTERIM.getPreferredName(), true);
 
@@ -192,7 +193,7 @@ public class JobDataDeleter {
     }
 
     /**
-     * Repeats a scroll search adding the hits a bulk delete request
+     * Repeats a scroll search adding the hits to the bulk delete request
      */
     private class RepeatingSearchScrollListener implements ActionListener<SearchResponse> {
 

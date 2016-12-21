@@ -84,6 +84,8 @@ public class AutoDetectResultProcessor {
                     LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, bucketCount);
                 }
             }
+
+            context.bulkResultsPersister.executeRequest();
             LOGGER.info("[{}] {} buckets parsed from autodetect output", jobId, bucketCount);
             LOGGER.info("[{}] Parse results Complete", jobId);
         } catch (Exception e) {
@@ -157,7 +159,7 @@ public class AutoDetectResultProcessor {
             // Commit previous writes here, effectively continuing
             // the flush from the C++ autodetect process right
             // through to the data store
-            persister.commitWrites(context.jobId);
+            persister.commitResultWrites(context.jobId);
             flushListener.acknowledgeFlush(flushAcknowledgement.getId());
             // Interim results may have been produced by the flush,
             // which need to be

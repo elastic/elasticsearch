@@ -278,8 +278,7 @@ PutModelSnapshotDescriptionAction.RequestBuilder> {
             modelSnapshot.setDescription(request.getDescriptionString());
 
             // The quantiles can be large, and totally dominate the output -
-            // it's
-            // clearer to remove them
+            // it's clearer to remove them
             modelSnapshot.setQuantiles(null);
 
             listener.onResponse(new Response(modelSnapshot));

@@ -21,7 +21,10 @@
   - do:
       indices.get:
         index: "prelertresults-farequote"
-  - is_true: "prelertresults-farequote"
+
+  - do:
+      indices.get:
+        index: ".ml-state"
 
   - do:
       xpack.prelert.get_jobs:

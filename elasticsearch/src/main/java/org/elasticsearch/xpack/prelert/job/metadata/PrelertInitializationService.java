@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.prelert.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 
 public class PrelertInitializationService extends AbstractComponent implements ClusterStateListener {
@@ -62,9 +63,25 @@ public class PrelertInitializationService extends AbstractComponent implements C
                             logger.info("successfully created prelert-usage index");
                         } else {
                             if (error instanceof ResourceAlreadyExistsException) {
-                                logger.debug("not able to create prelert-usage index", error);
+                                logger.debug("not able to create prelert-usage index as it already exists");
                             } else {
                                 logger.error("not able to create prelert-usage index", error);
+                            }
+                        }
+                    });
+                });
+            }
+            String stateIndexName = AnomalyDetectorsIndex.jobStateIndexName();
+            if (metaData.hasIndex(stateIndexName) == false) {
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                    jobProvider.createJobStateIndex((result, error) -> {
+                        if (result) {
+                            logger.info("successfully created {} index", stateIndexName);
+                        } else {
+                            if (error instanceof ResourceAlreadyExistsException) {
+                                logger.debug("not able to create {} index as it already exists", stateIndexName);
+                            } else {
+                                logger.error("not able to create " + stateIndexName + " index", error);
                             }
                         }
                     });

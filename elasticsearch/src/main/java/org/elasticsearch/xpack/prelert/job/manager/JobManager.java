@@ -166,7 +166,7 @@ public class JobManager extends AbstractComponent {
         Job job = request.getJob();
 
         ActionListener<Boolean> delegateListener = ActionListener.wrap(jobSaved ->
-                jobProvider.createJobRelatedIndices(job, new ActionListener<Boolean>() {
+                jobProvider.createJobResultIndex(job, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean indicesCreated) {
                 audit(job.getId()).info(Messages.getMessage(Messages.JOB_AUDIT_CREATED));
@@ -195,12 +195,11 @@ public class JobManager extends AbstractComponent {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 ClusterState cs = updateClusterState(job, request.isOverwrite(), currentState);
-                if (currentState.metaData().index(AnomalyDetectorsIndex.getJobIndexName(job.getIndexName())) != null) {
+                if (currentState.metaData().index(AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName())) != null) {
                     throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_INDEX_ALREADY_EXISTS, job.getIndexName()));
                 }
                 return cs;
             }
-
         });
     }
 
@@ -390,7 +389,7 @@ public class JobManager extends AbstractComponent {
         }
         // Commit so that when the REST API call that triggered the update
         // returns the updated document is searchable
-        jobResultsPersister.commitWrites(jobId);
+        jobResultsPersister.commitStateWrites(jobId);
     }
 
     private static PrelertMetadata.Builder createPrelertMetadataBuilder(ClusterState currentState) {

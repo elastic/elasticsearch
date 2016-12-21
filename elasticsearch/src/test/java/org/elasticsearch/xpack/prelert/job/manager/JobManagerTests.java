@@ -155,14 +155,14 @@ public class JobManagerTests extends ESTestCase {
         PutJobAction.Request request = new PutJobAction.Request(jobBuilder.build());
 
         Index index = mock(Index.class);
-        when(index.getName()).thenReturn(AnomalyDetectorsIndex.getJobIndexName("my-special-place"));
+        when(index.getName()).thenReturn(AnomalyDetectorsIndex.jobResultsIndexName("my-special-place"));
         IndexMetaData indexMetaData = mock(IndexMetaData.class);
         when(indexMetaData.getIndex()).thenReturn(index);
         ImmutableOpenMap<String, AliasMetaData> aliases = ImmutableOpenMap.of();
         when(indexMetaData.getAliases()).thenReturn(aliases);
 
         ImmutableOpenMap<String, IndexMetaData> indexMap = ImmutableOpenMap.<String, IndexMetaData>builder()
-                .fPut(AnomalyDetectorsIndex.getJobIndexName("my-special-place"), indexMetaData).build();
+                .fPut(AnomalyDetectorsIndex.jobResultsIndexName("my-special-place"), indexMetaData).build();
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, PrelertMetadata.PROTO).indices(indexMap)).build();

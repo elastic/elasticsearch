@@ -71,7 +71,7 @@ public class JobResultsPersister extends AbstractComponent {
 
         private Builder(String jobId) {
             this.jobId = Objects.requireNonNull(jobId);
-            indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+            indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
             bulkRequest = client.prepareBulk();
         }
 
@@ -208,7 +208,7 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistCategoryDefinition(CategoryDefinition category) {
         Persistable persistable = new Persistable(category.getJobId(), category, CategoryDefinition.TYPE.getPreferredName(),
                 String.valueOf(category.getCategoryId()));
-        persistable.persist();
+        persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(category.getJobId()));
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
     }
@@ -219,13 +219,13 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistQuantiles(Quantiles quantiles) {
         Persistable persistable = new Persistable(quantiles.getJobId(), quantiles, Quantiles.TYPE.getPreferredName(),
                 Quantiles.quantilesId(quantiles.getJobId()));
-        if (persistable.persist()) {
+        if (persistable.persist(AnomalyDetectorsIndex.jobStateIndexName())) {
             // Refresh the index when persisting quantiles so that previously
             // persisted results will be available for searching.  Do this using the
             // indices API rather than the index API (used to write the quantiles
             // above), because this will refresh all shards rather than just the
             // shard that the quantiles document itself was written to.
-            commitWrites(quantiles.getJobId());
+            commitStateWrites(quantiles.getJobId());
         }
     }
 
@@ -235,7 +235,7 @@ public class JobResultsPersister extends AbstractComponent {
     public void persistModelSnapshot(ModelSnapshot modelSnapshot) {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.TYPE.getPreferredName(),
                 modelSnapshot.getSnapshotId());
-        persistable.persist();
+        persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(modelSnapshot.getJobId()));
     }
 
     /**
@@ -246,9 +246,9 @@ public class JobResultsPersister extends AbstractComponent {
         logger.trace("[{}] Persisting model size stats, for size {}", jobId, modelSizeStats.getModelBytes());
         Persistable persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE.getPreferredName(),
                 ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
-        persistable.persist();
+        persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(jobId));
         persistable = new Persistable(modelSizeStats.getJobId(), modelSizeStats, Result.TYPE.getPreferredName(), null);
-        persistable.persist();
+        persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(jobId));
         // Don't commit as we expect masses of these updates and they're only
         // for information at the API level
     }
@@ -258,7 +258,7 @@ public class JobResultsPersister extends AbstractComponent {
      */
     public void persistModelDebugOutput(ModelDebugOutput modelDebugOutput) {
         Persistable persistable = new Persistable(modelDebugOutput.getJobId(), modelDebugOutput, Result.TYPE.getPreferredName(), null);
-        persistable.persist();
+        persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(modelDebugOutput.getJobId()));
         // Don't commit as we expect masses of these updates and they're not
         // read again by this process
     }
@@ -293,10 +293,26 @@ public class JobResultsPersister extends AbstractComponent {
      * Once all the job data has been written this function will be
      * called to commit the writes to the datastore.
      *
+     * @param jobId The job Id
      * @return True if successful
      */
-    public boolean commitWrites(String jobId) {
-        String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+    public boolean commitResultWrites(String jobId) {
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        // Refresh should wait for Lucene to make the data searchable
+        logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
+        client.admin().indices().refresh(new RefreshRequest(indexName)).actionGet();
+        return true;
+    }
+
+    /**
+     * Once the job state has been written calling this function makes it
+     * immediately searchable.
+     *
+     * @param jobId The job Id
+     * @return True if successful
+     * */
+    public boolean commitStateWrites(String jobId) {
+        String indexName = AnomalyDetectorsIndex.jobStateIndexName();
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         client.admin().indices().refresh(new RefreshRequest(indexName)).actionGet();
@@ -329,16 +345,15 @@ public class JobResultsPersister extends AbstractComponent {
             this.id = id;
         }
 
-        boolean persist() {
+        boolean persist(String indexName) {
             if (object == null) {
                 logger.warn("[{}] No {} to persist for job ", jobId, type);
                 return false;
             }
 
-            logCall();
+            logCall(indexName);
 
             try {
-                String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
                 client.prepareIndex(indexName, type, id)
                 .setSource(toXContentBuilder(object))
                 .execute().actionGet();
@@ -349,8 +364,7 @@ public class JobResultsPersister extends AbstractComponent {
             }
         }
 
-        private void logCall() {
-            String indexName = AnomalyDetectorsIndex.getJobIndexName(jobId);
+        private void logCall(String indexName) {
             if (id != null) {
                 logger.trace("[{}] ES API CALL: index type {} to index {} with ID {}", jobId, type, indexName, id);
             } else {

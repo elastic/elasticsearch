@@ -191,7 +191,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
     }
 
     private DataCounts getDataCounts(String jobId) {
-        GetResponse getResponse = client().prepareGet(AnomalyDetectorsIndex.getJobIndexName(jobId),
+        GetResponse getResponse = client().prepareGet(AnomalyDetectorsIndex.jobResultsIndexName(jobId),
                 DataCounts.TYPE.getPreferredName(), jobId + "-data-counts").get();
         if (getResponse.isExists() == false) {
             return new DataCounts(jobId);

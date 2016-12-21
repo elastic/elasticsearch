@@ -9,13 +9,26 @@ package org.elasticsearch.xpack.prelert.job.persistence;
  * Methods for handling index naming related functions
  */
 public final class AnomalyDetectorsIndex {
-    private static final String INDEX_PREFIX = "prelertresults-";
+    private static final String RESULTS_INDEX_PREFIX = "prelertresults-";
+    private static final String STATE_INDEX_NAME = ".ml-state";
 
     private AnomalyDetectorsIndex() {
     }
 
-    public static String getJobIndexName(String jobId) {
-        return INDEX_PREFIX + jobId;
+    /**
+     * The name of the default index where the job's results are stored
+     * @param jobId Job Id
+     * @return The index name
+     */
+    public static String jobResultsIndexName(String jobId) {
+        return RESULTS_INDEX_PREFIX + jobId;
     }
 
+    /**
+     * The name of the default index where a job's state is stored
+     * @return The index name
+     */
+    public static String jobStateIndexName() {
+        return STATE_INDEX_NAME;
+    }
 }

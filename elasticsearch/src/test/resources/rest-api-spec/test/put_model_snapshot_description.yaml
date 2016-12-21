@@ -10,6 +10,7 @@ setup:
                   type: date
                 "restore_priority":
                   type: integer
+
   - do:
       index:
         index:  prelertresults-foo

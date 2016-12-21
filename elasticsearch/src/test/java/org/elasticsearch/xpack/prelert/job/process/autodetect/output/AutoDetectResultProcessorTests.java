@@ -204,7 +204,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         processor.processResult(context, result);
 
         verify(flushListener, times(1)).acknowledgeFlush(JOB_ID);
-        verify(persister, times(1)).commitWrites(JOB_ID);
+        verify(persister, times(1)).commitResultWrites(JOB_ID);
         verify(bulkBuilder, never()).executeRequest();
         verifyNoMoreInteractions(persister);
         assertTrue(context.deleteInterimRequired);
@@ -230,7 +230,7 @@ public class AutoDetectResultProcessorTests extends ESTestCase {
         processor.processResult(context, result);
 
         inOrder.verify(persister, times(1)).persistCategoryDefinition(categoryDefinition);
-        inOrder.verify(persister, times(1)).commitWrites(JOB_ID);
+        inOrder.verify(persister, times(1)).commitResultWrites(JOB_ID);
         inOrder.verify(flushListener, times(1)).acknowledgeFlush(JOB_ID);
         verify(bulkBuilder, never()).executeRequest();
         verifyNoMoreInteractions(persister);

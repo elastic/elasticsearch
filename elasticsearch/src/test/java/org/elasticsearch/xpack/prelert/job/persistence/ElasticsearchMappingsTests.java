@@ -92,8 +92,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(Quantiles.TYPE.getPreferredName());
         overridden.add(Usage.TYPE);
 
-        // These are not reserved because they're in the prelert-int index, not
-        // prelertresults-*
+        // These are not reserved because they're in the prelert-int index
+        // not the job indices
         overridden.add(ListDocument.ID.getPreferredName());
         overridden.add(ListDocument.ITEMS.getPreferredName());
 

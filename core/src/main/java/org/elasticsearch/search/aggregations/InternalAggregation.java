@@ -195,9 +195,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
         return Objects.hash(name, metaData, pipelineAggregators, doHashCode());
     }
 
-    // norelease: make this abstract when all InternalAggregations implement this method
     /**
-     * Opportunity for subclasses to the {@link #hashCode(Object)} for this
+     * Opportunity for subclasses to the {@link #hashCode()} for this
      * class.
      **/
     protected int doHashCode() {
@@ -223,7 +222,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, Na
     /**
      * Opportunity for subclasses to add criteria to the {@link #equals(Object)}
      * method for this class.
-     * 
+     *
      * This method can safely cast <code>obj</code> to the subclass since the
      * {@link #equals(Object)} method checks that <code>obj</code> is the same
      * class as <code>this</code>

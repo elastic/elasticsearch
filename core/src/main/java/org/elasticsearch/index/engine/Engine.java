@@ -47,7 +47,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -296,6 +295,8 @@ public abstract class Engine implements Closeable {
      */
     public abstract DeleteResult delete(final Delete delete);
 
+    public abstract NoOpResult noOp(final NoOp noOp);
+
     /**
      * Base class for index and delete operation results
      * Holds result meta data (e.g. translog location, updated version)
@@ -382,6 +383,7 @@ public abstract class Engine implements Closeable {
     }
 
     public static class IndexResult extends Result {
+
         private final boolean created;
 
         public IndexResult(long version, long seqNo, boolean created) {
@@ -397,9 +399,11 @@ public abstract class Engine implements Closeable {
         public boolean isCreated() {
             return created;
         }
+
     }
 
     public static class DeleteResult extends Result {
+
         private final boolean found;
 
         public DeleteResult(long version, long seqNo, boolean found) {
@@ -415,6 +419,19 @@ public abstract class Engine implements Closeable {
         public boolean isFound() {
             return found;
         }
+
+    }
+
+    static class NoOpResult extends Result {
+
+        NoOpResult(long seqNo) {
+            super(Operation.TYPE.NO_OP, 0, seqNo);
+        }
+
+        NoOpResult(long seqNo, Exception failure) {
+            super(Operation.TYPE.NO_OP, failure, 0, seqNo);
+        }
+
     }
 
     /**
@@ -910,7 +927,7 @@ public abstract class Engine implements Closeable {
 
         /** type of operation (index, delete), subclasses use static types */
         public enum TYPE {
-            INDEX, DELETE;
+            INDEX, DELETE, NO_OP;
 
             private final String lowercase;
 
@@ -1114,6 +1131,50 @@ public abstract class Engine implements Closeable {
         public int estimatedSizeInBytes() {
             return (uid().field().length() + uid().text().length()) * 2 + 20;
         }
+
+    }
+
+    public static class NoOp extends Operation {
+
+        private final String reason;
+
+        public String reason() {
+            return reason;
+        }
+
+        public NoOp(
+            final Term uid,
+            final long seqNo,
+            final long primaryTerm,
+            final long version,
+            final VersionType versionType,
+            final Origin origin,
+            final long startTime,
+            final String reason) {
+            super(uid, seqNo, primaryTerm, version, versionType, origin, startTime);
+            this.reason = reason;
+        }
+
+        @Override
+        public String type() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        String id() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        TYPE operationType() {
+            return TYPE.NO_OP;
+        }
+
+        @Override
+        public int estimatedSizeInBytes() {
+            return 2 * reason.length() + 2 * Long.BYTES;
+        }
+
     }
 
     public static class Get {

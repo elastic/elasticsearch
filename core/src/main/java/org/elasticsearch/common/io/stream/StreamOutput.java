@@ -328,7 +328,7 @@ public abstract class StreamOutput extends OutputStream {
             // make sure any possible char can fit into the buffer in any possible iteration
             // we need at most 3 bytes so we flush the buffer once we have less than 3 bytes
             // left before we start another iteration
-            if (offset > buffer.length-3) {
+            if (offset > buffer.length - 3) {
                 writeBytes(buffer, offset);
                 offset = 0;
             }

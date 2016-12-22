@@ -36,10 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
-import java.util.HashSet;
 
 import static org.elasticsearch.mock.orig.Mockito.when;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
@@ -103,7 +100,8 @@ public class GlobalCheckpointSyncActionTests extends ESTestCase {
         if (randomBoolean()) {
             action.shardOperationOnPrimary(primaryRequest, indexShard);
         } else {
-            action.shardOperationOnReplica(new GlobalCheckpointSyncAction.ReplicaRequest(primaryRequest, randomPositiveLong()), indexShard);
+            action.shardOperationOnReplica(
+                new GlobalCheckpointSyncAction.ReplicaRequest(primaryRequest, randomNonNegativeLong()), indexShard);
         }
 
         verify(translog).sync();

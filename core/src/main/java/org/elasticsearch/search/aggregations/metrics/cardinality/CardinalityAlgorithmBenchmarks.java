@@ -21,31 +21,29 @@ public class CardinalityAlgorithmBenchmarks {
     }
 
     public static void main(String[] args) throws Exception {
-        File outFile = new File("/Users/colings86/dev/work/git/elasticsearch/gnuplot/hllBBenchmark4.dat");
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
-            int p100 = HyperLogLogPlusPlus.precisionFromThreshold(100);
-            int p1000 = HyperLogLogPlusPlus.precisionFromThreshold(1000);
-            int p10000 = HyperLogLogPlusPlus.precisionFromThreshold(10000);
-            HyperLogLogPlusPlus hllpp = new HyperLogLogPlusPlus(4, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        for (int precision = HyperLogLogBeta.MIN_PRECISION; precision <= HyperLogLogBeta.MAX_PRECISION; precision++) {
+            File outFile = new File("/Users/colings86/dev/work/git/elasticsearch/gnuplot/hllBBenchmark" + precision + ".dat");
+            try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
+                HyperLogLogPlusPlus hllpp = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
 
-            HyperLogLogBeta hllb = new HyperLogLogBeta(4, BigArrays.NON_RECYCLING_INSTANCE, 1);
+                HyperLogLogBeta hllb = new HyperLogLogBeta(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
 
-            int next = 100;
-            int step = 10;
+                int next = 100;
+                int step = 10;
 
-            for (int i = 1; i <= 10000000; ++i) {
-                long h = BitMixer.mix64(i);
-                hllpp.collect(0, h);
+                for (int i = 1; i <= 10000000; ++i) {
+                    long h = BitMixer.mix64(i);
+                    hllpp.collect(0, h);
 
-                hllb.collect(0, h);
+                    hllb.collect(0, h);
 
-                if (i == next) {
-                    System.out
-                            .println(i + " " + error(hllpp, i) * 100 + " " + error(hllb, i) * 100);
-                    writer.write(i + " " + error(hllpp, i) * 100 + " " + error(hllb, i) * 100 + '\n');
-                    next += step;
-                    if (next >= 100 * step) {
-                        step *= 10;
+                    if (i == next) {
+                        System.out.println(i + " " + error(hllpp, i) * 100 + " " + error(hllb, i) * 100);
+                        writer.write(i + " " + error(hllpp, i) * 100 + " " + error(hllb, i) * 100 + '\n');
+                        next += step;
+                        if (next >= 100 * step) {
+                            step *= 10;
+                        }
                     }
                 }
             }

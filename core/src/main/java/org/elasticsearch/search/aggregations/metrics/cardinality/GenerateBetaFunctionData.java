@@ -31,7 +31,6 @@ import java.util.Random;
 import java.util.Set;
 
 public class GenerateBetaFunctionData {
-    private static final org.elasticsearch.common.hash.MurmurHash3.Hash128 hash = new org.elasticsearch.common.hash.MurmurHash3.Hash128();
 
     public static void main(String[] args) throws Exception {
         Random r = new Random();

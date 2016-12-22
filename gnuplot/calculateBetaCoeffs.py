@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import csv
 from math import log
 
-for precision in range(4,5):
+for precision in range(4,19):
 
     data = []
     with open('coeffData' + str(precision) + '.dat', 'r') as csvfile:

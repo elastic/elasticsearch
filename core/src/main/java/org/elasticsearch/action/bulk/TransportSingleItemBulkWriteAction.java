@@ -101,7 +101,8 @@ public abstract class TransportSingleItemBulkWriteAction<
         itemRequests[0] = new BulkItemRequest(0, ((DocWriteRequest) replicaRequest));
         BulkShardRequest bulkShardRequest = new BulkShardRequest(replicaRequest.shardId(), refreshPolicy, itemRequests);
         WriteReplicaResult<BulkShardRequest> result = shardBulkAction.shardOperationOnReplica(bulkShardRequest, replica);
-        // nocommit - is the null failure ok?
+        // a replica operation can never throw a document-level failure,
+        // as the same document has been already indexed successfully in the primary
         return new WriteReplicaResult<>(replicaRequest, result.location, null, replica, logger);
     }
 

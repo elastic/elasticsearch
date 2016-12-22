@@ -31,6 +31,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 
@@ -105,12 +107,17 @@ public class ConfigurationUtilsTests extends ESTestCase {
         assertThat(result.get(0), sameInstance(processor));
         assertThat(result.get(1), sameInstance(processor));
 
-        config.add(Collections.singletonMap("unknown_processor", emptyConfig));
+        Map<String, Object> unknownTaggedConfig = new HashMap<>();
+        unknownTaggedConfig.put("tag", "my_unknown");
+        config.add(Collections.singletonMap("unknown_processor", unknownTaggedConfig));
         try {
             ConfigurationUtils.readProcessorConfigs(config, registry);
             fail("exception expected");
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("No processor type exists with name [unknown_processor]"));
+            assertThat(e.getHeader("processor_tag"), equalTo(Collections.singletonList("my_unknown")));
+            assertThat(e.getHeader("processor_type"), equalTo(Collections.singletonList("unknown_processor")));
+            assertThat(e.getHeader("property_name"), is(nullValue()));
         }
     }
 

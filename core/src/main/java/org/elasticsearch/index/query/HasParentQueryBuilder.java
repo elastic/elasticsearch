@@ -124,8 +124,8 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         return innerHit;
     }
 
-    public HasParentQueryBuilder innerHit(InnerHitBuilder innerHit) {
-        this.innerHit = new InnerHitBuilder(innerHit, query, type);
+    public HasParentQueryBuilder innerHit(InnerHitBuilder innerHit, boolean ignoreUnmapped) {
+        this.innerHit = new InnerHitBuilder(innerHit, query, type, ignoreUnmapped);
         return this;
     }
 
@@ -159,7 +159,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             context.setTypes(previousTypes);
         }
 
-        DocumentMapper parentDocMapper = context.getMapperService().documentMapper(type);
+        DocumentMapper parentDocMapper = context.documentMapper(type);
         if (parentDocMapper == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
@@ -276,7 +276,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                 .queryName(queryName)
                 .boost(boost);
         if (innerHits != null) {
-            queryBuilder.innerHit(innerHits);
+            queryBuilder.innerHit(innerHits, ignoreUnmapped);
         }
         return queryBuilder;
     }

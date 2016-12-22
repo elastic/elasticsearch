@@ -292,7 +292,7 @@ public class UpdateRequestTests extends ESTestCase {
                 .upsert(indexRequest)
                 .script(new Script(ScriptType.INLINE, "mock", "ctx._source.update_timestamp = ctx._now", Collections.emptyMap()))
                 .scriptedUpsert(true);
-            long nowInMillis = randomPositiveLong();
+            long nowInMillis = randomNonNegativeLong();
             // We simulate that the document is not existing yet
             GetResult getResult = new GetResult("test", "type1", "2", 0, false, null, null);
             UpdateHelper.Result result = updateHelper.prepare(new ShardId("test", "_na_", 0), updateRequest, getResult, () -> nowInMillis);

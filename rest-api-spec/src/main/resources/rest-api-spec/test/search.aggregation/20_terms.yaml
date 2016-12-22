@@ -465,3 +465,132 @@ setup:
   - match: { aggregations.str_terms.buckets.0.key: 1234 }
 
   - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+
+---
+"Unmapped strings":
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "string_terms" : { "terms" : { "field" : "unmapped_string", "value_type" : "string", "missing": "abc" } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.string_terms.buckets: 1 }
+
+  - match: { aggregations.string_terms.buckets.0.key: "abc" }
+
+  - match: { aggregations.string_terms.buckets.0.doc_count: 1 }
+
+---
+"Unmapped booleans":
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "boolean_terms" : { "terms" : { "field" : "unmapped_boolean", "value_type" : "boolean", "missing": true } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.boolean_terms.buckets: 1 }
+
+  - match: { aggregations.boolean_terms.buckets.0.key: 1 }
+
+  - match: { aggregations.boolean_terms.buckets.0.key_as_string: "true" }
+
+  - match: { aggregations.boolean_terms.buckets.0.doc_count: 1 }
+
+---
+"Unmapped dates":
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "date_terms" : { "terms" : { "field" : "unmapped_date", "value_type" : "date", "missing": "2016-05-11" } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.date_terms.buckets: 1 }
+
+  - match: { aggregations.date_terms.buckets.0.key: 1462924800000 }
+
+  - match: { aggregations.date_terms.buckets.0.key_as_string: "2016-05-11T00:00:00.000Z" }
+
+  - match: { aggregations.date_terms.buckets.0.doc_count: 1 }
+
+---
+"Unmapped longs":
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "long_terms" : { "terms" : { "field" : "unmapped_long", "value_type" : "long", "missing": 3 } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.long_terms.buckets: 1 }
+
+  - match: { aggregations.long_terms.buckets.0.key: 3 }
+
+  - match: { aggregations.long_terms.buckets.0.doc_count: 1 }
+
+---
+"Unmapped doubles":
+
+  - do:
+      index:
+        index: test_1
+        type: test
+        id: 1 
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        body: { "size" : 0, "aggs" : { "double_terms" : { "terms" : { "field" : "unmapped_double", "value_type" : "double", "missing": 3.5 } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.double_terms.buckets: 1 }
+
+  - match: { aggregations.double_terms.buckets.0.key: 3.5 }
+
+  - match: { aggregations.double_terms.buckets.0.doc_count: 1 }

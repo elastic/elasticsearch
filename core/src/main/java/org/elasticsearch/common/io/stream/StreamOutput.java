@@ -28,7 +28,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -211,16 +210,22 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a non-negative long in a variable-length format.
-     * Writes between one and nine bytes. Smaller values take fewer bytes.
-     * Negative numbers are not supported.
+     * Writes a non-negative long in a variable-length format. Writes between one and ten bytes. Smaller values take fewer bytes. Negative
+     * numbers use ten bytes and trip assertions (if running in tests) so prefer {@link #writeLong(long)} or {@link #writeZLong(long)} for
+     * negative numbers.
      */
     public void writeVLong(long i) throws IOException {
-        if (Assertions.ENABLED) {
-            if (i < 0) {
-                throw new IllegalStateException(Long.toString(i));
-            }
+        if (i < 0) {
+            throw new IllegalStateException("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + i + "]");
         }
+        writeVLongNoCheck(i);
+    }
+
+    /**
+     * Writes a long in a variable-length format without first checking if it is negative. Package private for testing. Use
+     * {@link #writeVLong(long)} instead.
+     */
+    void writeVLongNoCheck(long i) throws IOException {
         while ((i & ~0x7F) != 0) {
             writeByte((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
@@ -333,7 +338,7 @@ public abstract class StreamOutput extends OutputStream {
             // make sure any possible char can fit into the buffer in any possible iteration
             // we need at most 3 bytes so we flush the buffer once we have less than 3 bytes
             // left before we start another iteration
-            if (offset > buffer.length-3) {
+            if (offset > buffer.length - 3) {
                 writeBytes(buffer, offset);
                 offset = 0;
             }

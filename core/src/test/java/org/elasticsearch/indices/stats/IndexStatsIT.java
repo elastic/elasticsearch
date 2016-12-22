@@ -1085,18 +1085,20 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(response.getTotal().queryCache.getMemorySizeInBytes(), equalTo(0L));
     }
 
-    /*
+    /**
      * Test that we can safely concurrently index and get stats. This test was inspired by a serialization issue that arose due to a race
      * getting doc stats during heavy indexing. The race could lead to deleted docs being negative which would then be serialized as a
-     * variable-length long. Since serialization of variable-length longs was unsupported, the stream would become corrupted. Here, we want
-     * to test that we can continue to get stats while indexing.
+     * variable-length long. Since serialization of negative longs using a variable-length format was unsupported
+     * ({@link org.elasticsearch.common.io.stream.StreamOutput#writeVLong(long)}), the stream would become corrupted. Here, we want to test
+     * that we can continue to get stats while indexing.
      */
     public void testConcurrentIndexingAndStatsRequests() throws BrokenBarrierException, InterruptedException, ExecutionException {
         final AtomicInteger idGenerator = new AtomicInteger();
-        final int numberOfThreads = Runtime.getRuntime().availableProcessors();
-        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads + 4 * numberOfThreads);
+        final int numberOfIndexingThreads = Runtime.getRuntime().availableProcessors();
+        final int numberOfStatsThreads = 4 * numberOfIndexingThreads;
+        final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfIndexingThreads + numberOfStatsThreads);
         final AtomicBoolean stop = new AtomicBoolean();
-        final List<Thread> threads = new ArrayList<>(numberOfThreads + numberOfThreads);
+        final List<Thread> threads = new ArrayList<>(numberOfIndexingThreads + numberOfIndexingThreads);
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean failed = new AtomicBoolean();
@@ -1109,7 +1111,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         client().admin().indices().create(createIndexRequest).get();
 
         // start threads that will index concurrently with stats requests
-        for (int i = 0; i < numberOfThreads; i++) {
+        for (int i = 0; i < numberOfIndexingThreads; i++) {
             final Thread thread = new Thread(() -> {
                 try {
                     barrier.await();
@@ -1134,7 +1136,7 @@ public class IndexStatsIT extends ESIntegTestCase {
         }
 
         // start threads that will get stats concurrently with indexing
-        for (int i = 0; i < 4 * numberOfThreads; i++) {
+        for (int i = 0; i < numberOfStatsThreads; i++) {
             final Thread thread = new Thread(() -> {
                 try {
                     barrier.await();

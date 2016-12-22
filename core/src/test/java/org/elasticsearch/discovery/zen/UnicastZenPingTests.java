@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -115,6 +116,7 @@ public class UnicastZenPingTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         try {
+            logger.info("shutting down...");
             // JDK stack is broken, it does not iterate in the expected order (http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4475301)
             final List<Closeable> reverse = new ArrayList<>();
             while (!closeables.isEmpty()) {
@@ -168,8 +170,8 @@ public class UnicastZenPingTests extends ESTestCase {
         NetworkHandle handleD = startServices(settingsMismatch, threadPool, "UZP_D", versionD, supplier);
         closeables.push(handleD.transportService);
 
-        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
-        final ClusterState stateMismatch = ClusterState.builder(new ClusterName("mismatch")).version(randomPositiveLong()).build();
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
+        final ClusterState stateMismatch = ClusterState.builder(new ClusterName("mismatch")).version(randomNonNegativeLong()).build();
 
         Settings hostsSettings = Settings.builder()
             .putArray("discovery.zen.ping.unicast.hosts",
@@ -329,7 +331,7 @@ public class UnicastZenPingTests extends ESTestCase {
             .put("cluster.name", "test")
             .build();
 
-        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
 
         final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER);
         zenPingA.start(new PingContextProvider() {
@@ -538,6 +540,7 @@ public class UnicastZenPingTests extends ESTestCase {
         }
     }
 
+    @TestLogging("org.elasticsearch:DEBUG,org.elasticsearch.discovery:TRACE,org.elasticsearch.transport:TRACE")
     public void testResolveReuseExistingNodeConnections() throws ExecutionException, InterruptedException {
         final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
 
@@ -567,7 +570,7 @@ public class UnicastZenPingTests extends ESTestCase {
             hostsSettingsBuilder.put("discovery.zen.ping.unicast.hosts", (String) null);
         }
         final Settings hostsSettings = hostsSettingsBuilder.build();
-        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
 
         // connection to reuse
         handleA.transportService.connectToNode(handleB.node);
@@ -639,7 +642,7 @@ public class UnicastZenPingTests extends ESTestCase {
             .put("cluster.name", "test")
             .put("discovery.zen.ping.unicast.hosts", (String) null) // use nodes for simplicity
             .build();
-        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
 
         final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER);
         zenPingA.start(new PingContextProvider() {

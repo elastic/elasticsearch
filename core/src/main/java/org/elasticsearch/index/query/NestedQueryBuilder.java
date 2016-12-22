@@ -103,8 +103,8 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         return innerHitBuilder;
     }
 
-    public NestedQueryBuilder innerHit(InnerHitBuilder innerHit) {
-        this.innerHitBuilder = new InnerHitBuilder(innerHit, path, query);
+    public NestedQueryBuilder innerHit(InnerHitBuilder innerHit, boolean ignoreUnmapped) {
+        this.innerHitBuilder = new InnerHitBuilder(innerHit, path, query, ignoreUnmapped);
         return this;
     }
 
@@ -194,7 +194,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 .queryName(queryName)
                 .boost(boost);
         if (innerHitBuilder != null) {
-            queryBuilder.innerHit(innerHitBuilder);
+            queryBuilder.innerHit(innerHitBuilder, ignoreUnmapped);
         }
         return queryBuilder;
     }

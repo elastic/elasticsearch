@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
@@ -64,6 +65,8 @@ public class ClusterServiceUtils {
         });
         clusterService.setClusterStatePublisher((event, ackListener) -> {
         });
+        clusterService.setDiscoverySettings(new DiscoverySettings(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         clusterService.start();
         final DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(clusterService.state().nodes());
         nodes.masterNodeId(clusterService.localNode().getId());

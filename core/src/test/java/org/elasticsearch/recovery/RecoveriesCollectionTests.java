@@ -56,10 +56,10 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (RecoveriesCollection.RecoveryRef status = collection.getRecovery(recoveryId)) {
-                final long lastSeenTime = status.status().lastAccessTime();
+                final long lastSeenTime = status.target().lastAccessTime();
                 assertBusy(() -> {
                     try (RecoveriesCollection.RecoveryRef currentStatus = collection.getRecovery(recoveryId)) {
-                        assertThat("access time failed to update", lastSeenTime, lessThan(currentStatus.status().lastAccessTime()));
+                        assertThat("access time failed to update", lastSeenTime, lessThan(currentStatus.target().lastAccessTime()));
                     }
                 });
             } finally {
@@ -102,7 +102,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica());
             try (RecoveriesCollection.RecoveryRef recoveryRef = collection.getRecovery(recoveryId)) {
-                ShardId shardId = recoveryRef.status().shardId();
+                ShardId shardId = recoveryRef.target().shardId();
                 assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test"));
                 assertThat("all recoveries should be cancelled", collection.size(), equalTo(0));
             } finally {
@@ -120,32 +120,30 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             final RecoveriesCollection collection = new RecoveriesCollection(logger, threadPool, v -> {});
             IndexShard shard = shards.addReplica();
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard);
-            final long resetRecoveryId;
-            try (RecoveriesCollection.RecoveryRef recovery = collection.getRecovery(recoveryId)) {
-                final int currentAsTarget = shard.recoveryStats().currentAsTarget();
-                final int referencesToStore = recovery.status().store().refCount();
-                IndexShard indexShard = recovery.status().indexShard();
-                Store store = recovery.status().store();
-                String tempFileName = recovery.status().getTempNameForFile("foobar");
-                RecoveryTarget resetRecovery = collection.resetRecovery(recovery, TimeValue.timeValueMinutes(1), null);
-                resetRecoveryId = resetRecovery.recoveryId();
-                assertNotSame(recovery.status(), resetRecovery);
-                assertNotSame(recovery.status().CancellableThreads(), resetRecovery.CancellableThreads());
-                assertSame(indexShard, resetRecovery.indexShard());
-                assertSame(store, resetRecovery.store());
-                assertEquals(referencesToStore, resetRecovery.store().refCount());
-                assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
-                assertEquals(recovery.status().refCount(), 0);
-                expectThrows(ElasticsearchException.class, () -> recovery.status().store());
-                expectThrows(ElasticsearchException.class, () -> recovery.status().indexShard());
-                String resetTempFileName = resetRecovery.getTempNameForFile("foobar");
-                assertNotEquals(tempFileName, resetTempFileName);
-                assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
-            }
-            try (RecoveriesCollection.RecoveryRef resetRecovery = collection.getRecovery(resetRecoveryId)) {
+            RecoveryTarget recoveryTarget = collection.getRecoveryTarget(recoveryId);
+            final int currentAsTarget = shard.recoveryStats().currentAsTarget();
+            final int referencesToStore = recoveryTarget.store().refCount();
+            IndexShard indexShard = recoveryTarget.indexShard();
+            Store store = recoveryTarget.store();
+            String tempFileName = recoveryTarget.getTempNameForFile("foobar");
+            RecoveryTarget resetRecovery = collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
+            final long resetRecoveryId = resetRecovery.recoveryId();
+            assertNotSame(recoveryTarget, resetRecovery);
+            assertNotSame(recoveryTarget.CancellableThreads(), resetRecovery.CancellableThreads());
+            assertSame(indexShard, resetRecovery.indexShard());
+            assertSame(store, resetRecovery.store());
+            assertEquals(referencesToStore, resetRecovery.store().refCount());
+            assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
+            assertEquals(recoveryTarget.refCount(), 0);
+            expectThrows(ElasticsearchException.class, () -> recoveryTarget.store());
+            expectThrows(ElasticsearchException.class, () -> recoveryTarget.indexShard());
+            String resetTempFileName = resetRecovery.getTempNameForFile("foobar");
+            assertNotEquals(tempFileName, resetTempFileName);
+            assertEquals(currentAsTarget, shard.recoveryStats().currentAsTarget());
+            try (RecoveriesCollection.RecoveryRef newRecoveryRef = collection.getRecovery(resetRecoveryId)) {
                 shards.recoverReplica(shard, (s, n) -> {
-                    assertSame(s, resetRecovery.status().indexShard());
-                    return resetRecovery.status();
+                    assertSame(s, newRecoveryRef.target().indexShard());
+                    return newRecoveryRef.target();
                 }, false);
             }
             shards.assertAllEqual(numDocs);

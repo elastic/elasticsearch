@@ -49,13 +49,6 @@ public class RecoverySettings extends AbstractComponent {
         Setting.positiveTimeSetting("indices.recovery.retry_delay_network", TimeValue.timeValueSeconds(5),
             Property.Dynamic, Property.NodeScope);
 
-    /**
-     * how long to wait for previous attempt to release resources when retrying
-     */
-    public static final Setting<TimeValue> INDICES_RECOVERY_RETRY_CLEANUP_TIMEOUT_SETTING =
-        Setting.positiveTimeSetting("indices.recovery.retry_cleanup_timeout", TimeValue.timeValueSeconds(60),
-            Property.Dynamic, Property.NodeScope);
-
     /** timeout value to use for requests made as part of the recovery process */
     public static final Setting<TimeValue> INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING =
         Setting.positiveTimeSetting("indices.recovery.internal_action_timeout", TimeValue.timeValueMinutes(15),
@@ -76,7 +69,7 @@ public class RecoverySettings extends AbstractComponent {
      */
     public static final Setting<TimeValue> INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING =
         Setting.timeSetting("indices.recovery.recovery_activity_timeout",
-                INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING::get, TimeValue.timeValueSeconds(0),
+            INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING::get, TimeValue.timeValueSeconds(0),
             Property.Dynamic, Property.NodeScope);
 
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
@@ -85,7 +78,6 @@ public class RecoverySettings extends AbstractComponent {
     private volatile SimpleRateLimiter rateLimiter;
     private volatile TimeValue retryDelayStateSync;
     private volatile TimeValue retryDelayNetwork;
-    private volatile TimeValue retryCleanupTimeout;
     private volatile TimeValue activityTimeout;
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionLongTimeout;
@@ -99,7 +91,6 @@ public class RecoverySettings extends AbstractComponent {
         // doesn't have to be fast as nodes are reconnected every 10s by default (see InternalClusterService.ReconnectToNodes)
         // and we want to give the master time to remove a faulty node
         this.retryDelayNetwork = INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.get(settings);
-        this.retryCleanupTimeout = INDICES_RECOVERY_RETRY_CLEANUP_TIMEOUT_SETTING.get(settings);
 
         this.internalActionTimeout = INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.get(settings);
         this.internalActionLongTimeout = INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.get(settings);
@@ -118,7 +109,6 @@ public class RecoverySettings extends AbstractComponent {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING, this::setRetryDelayStateSync);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING, this::setRetryDelayNetwork);
-        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_RETRY_CLEANUP_TIMEOUT_SETTING, this::setRetryCleanupTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING, this::setInternalActionTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING, this::setInternalActionLongTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
@@ -134,10 +124,6 @@ public class RecoverySettings extends AbstractComponent {
 
     public TimeValue retryDelayStateSync() {
         return retryDelayStateSync;
-    }
-
-    public TimeValue retryCleanupTimeout() {
-        return retryCleanupTimeout;
     }
 
     public TimeValue activityTimeout() {
@@ -168,10 +154,6 @@ public class RecoverySettings extends AbstractComponent {
 
     public void setRetryDelayNetwork(TimeValue retryDelayNetwork) {
         this.retryDelayNetwork = retryDelayNetwork;
-    }
-
-    public void setRetryCleanupTimeout(TimeValue retryCleanupTimeout) {
-        this.retryCleanupTimeout = retryCleanupTimeout;
     }
 
     public void setActivityTimeout(TimeValue activityTimeout) {

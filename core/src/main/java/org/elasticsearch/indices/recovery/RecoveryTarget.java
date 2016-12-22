@@ -49,6 +49,7 @@ import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -96,10 +97,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
-                          Callback<Long> ensureClusterStateVersionCallback) {
-        this(indexShard, sourceNode, listener, new CancellableThreads(), idGenerator.incrementAndGet(), ensureClusterStateVersionCallback);
-    }
     /**
      * creates a new recovery target object that represents a recovery to the provided indexShard
      *
@@ -110,11 +107,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      *                                          version. Necessary for primary relocation so that new primary knows about all other ongoing
      *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler}).
      */
-    private RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
-                           CancellableThreads cancellableThreads, long recoveryId, Callback<Long> ensureClusterStateVersionCallback) {
+    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
+                          Callback<Long> ensureClusterStateVersionCallback) {
         super("recovery_status");
-        this.cancellableThreads = cancellableThreads;
-        this.recoveryId = recoveryId;
+        this.cancellableThreads = new CancellableThreads();
+        this.recoveryId = idGenerator.incrementAndGet();
         this.listener = listener;
         this.logger = Loggers.getLogger(getClass(), indexShard.indexSettings().getSettings(), indexShard.shardId());
         this.indexShard = indexShard;
@@ -188,20 +185,13 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     /**
      * Closes the current recovery target and waits up to a certain timeout for resources to be freed
      */
-    void resetRecovery(TimeValue timeout) throws IOException, TimeoutException {
+    void resetRecovery() throws InterruptedException {
         ensureRefCount();
         if (finished.compareAndSet(false, true)) {
             logger.debug("reset of recovery with shard {} and id [{}]", shardId, recoveryId);
             // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
             decRef();
-            try {
-                if (closedLatch.await(timeout.millis(), TimeUnit.MILLISECONDS) == false) {
-                    throw new TimeoutException("timed out while waiting on previous recovery attempt to release resources");
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException("Interrupted while waiting on previous recovery attempt to release resources", e);
-            }
+            closedLatch.await();
             RecoveryState.Stage stage = indexShard.recoveryState().getStage();
             if (indexShard.recoveryState().getPrimary() && (stage == RecoveryState.Stage.FINALIZE || stage == RecoveryState.Stage.DONE)) {
                 // once primary relocation has moved past the finalization step, the relocation source can be moved to RELOCATED state
@@ -211,7 +201,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 assert stage != RecoveryState.Stage.DONE : "recovery should not have completed when it's being reset";
                 throw new IllegalStateException("cannot reset recovery as previous attempt made it past finalization step");
             }
-            indexShard.performRecoveryRestart();
+            try {
+                indexShard.performRecoveryRestart();
+            } catch (IOException ioe) {
+                throw new UncheckedIOException(ioe);
+            }
         }
     }
 
@@ -336,8 +330,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             // free store. increment happens in constructor
             store.decRef();
             indexShard.recoveryStats().decCurrentAsTarget();
+            closedLatch.countDown();
         }
-        closedLatch.countDown();
     }
 
     @Override

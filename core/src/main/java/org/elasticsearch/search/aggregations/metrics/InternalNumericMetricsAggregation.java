@@ -105,12 +105,18 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
     }
 
     @Override
-    protected int doHashCode() {
+    public int hashCode() {
         return Objects.hash(format, super.hashCode());
     }
 
     @Override
-    protected boolean doEquals(Object obj) {
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (obj.getClass() != getClass()) {
+            return false;
+        }
         InternalNumericMetricsAggregation other = (InternalNumericMetricsAggregation) obj;
         return super.equals(obj) && 
                 Objects.equals(format, other.format);

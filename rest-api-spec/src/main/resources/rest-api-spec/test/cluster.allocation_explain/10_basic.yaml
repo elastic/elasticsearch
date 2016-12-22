@@ -2,12 +2,14 @@
 "cluster shard allocation explanation test":
   - do:
       # there aren't any unassigned shards to explain
-      catch: /unable to find any shards to explain/
+      catch: /illegal_state_exception/
       cluster.allocation_explain: {}
 
   - do:
       indices.create:
         index: test
+
+  - match: { acknowledged: true }
 
   - do:
       cluster.state:

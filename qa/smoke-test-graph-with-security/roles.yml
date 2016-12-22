@@ -17,7 +17,7 @@ graph_explorer:
         - write
         - indices:admin/refresh
         - indices:admin/create
-    
+
 
 no_graph_explorer:
   cluster:
@@ -28,5 +28,6 @@ no_graph_explorer:
       privileges:
         - indices:data/read/search
         - indices:data/write/index
+        - indices:data/write/bulk
         - indices:admin/refresh
         - indices:admin/create

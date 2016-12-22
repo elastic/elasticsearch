@@ -13,7 +13,9 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
@@ -335,6 +337,8 @@ public class AuthorizationService extends AbstractComponent {
 
     private static boolean isCompositeAction(String action) {
         return action.equals(BulkAction.NAME) ||
+                action.equals(IndexAction.NAME) ||
+                action.equals(DeleteAction.NAME) ||
                 action.equals(MultiGetAction.NAME) ||
                 action.equals(MultiTermVectorsAction.NAME) ||
                 action.equals(MultiSearchAction.NAME) ||

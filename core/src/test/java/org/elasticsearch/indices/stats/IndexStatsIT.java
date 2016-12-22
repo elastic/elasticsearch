@@ -1085,12 +1085,21 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(response.getTotal().queryCache.getMemorySizeInBytes(), equalTo(0L));
     }
 
+    /*
+     * Test that we can safely concurrently index and get stats. This test was inspired by a serialization issue that arose due to a race
+     * getting doc stats during heavy indexing. The race could lead to deleted docs being negative which would then be serialized as a
+     * variable-length long. Since serialization of variable-length longs was unsupported, the stream would become corrupted. Here, we want
+     * to test that we can continue to get stats while indexing.
+     */
     public void testConcurrentIndexingAndStatsRequests() throws BrokenBarrierException, InterruptedException, ExecutionException {
         final AtomicInteger idGenerator = new AtomicInteger();
         final int numberOfThreads = Runtime.getRuntime().availableProcessors();
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads + 4 * numberOfThreads);
         final AtomicBoolean stop = new AtomicBoolean();
         final List<Thread> threads = new ArrayList<>(numberOfThreads + numberOfThreads);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicBoolean failed = new AtomicBoolean();
         final AtomicReference<List<ShardOperationFailedException>> shardFailures = new AtomicReference<>(new CopyOnWriteArrayList<>());
         final AtomicReference<List<Exception>> executionFailures = new AtomicReference<>(new CopyOnWriteArrayList<>());
 
@@ -1099,12 +1108,15 @@ public class IndexStatsIT extends ESIntegTestCase {
             new CreateIndexRequest("test", Settings.builder().put("index.number_of_shards", 10).build());
         client().admin().indices().create(createIndexRequest).get();
 
+        // start threads that will index concurrently with stats requests
         for (int i = 0; i < numberOfThreads; i++) {
             final Thread thread = new Thread(() -> {
                 try {
                     barrier.await();
-                } catch (BrokenBarrierException | InterruptedException e) {
-                    fail(e.toString());
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    failed.set(true);
+                    executionFailures.get().add(e);
+                    latch.countDown();
                 }
                 while (!stop.get()) {
                     final String id = Integer.toString(idGenerator.incrementAndGet());
@@ -1121,14 +1133,15 @@ public class IndexStatsIT extends ESIntegTestCase {
             thread.start();
         }
 
-        final AtomicBoolean failed = new AtomicBoolean();
-
+        // start threads that will get stats concurrently with indexing
         for (int i = 0; i < 4 * numberOfThreads; i++) {
             final Thread thread = new Thread(() -> {
                 try {
                     barrier.await();
-                } catch (BrokenBarrierException | InterruptedException e) {
-                    fail(e.toString());
+                } catch (final BrokenBarrierException | InterruptedException e) {
+                    failed.set(true);
+                    executionFailures.get().add(e);
+                    latch.countDown();
                 }
                 final IndicesStatsRequest request = new IndicesStatsRequest();
                 request.all();
@@ -1139,10 +1152,12 @@ public class IndexStatsIT extends ESIntegTestCase {
                         if (response.getFailedShards() > 0) {
                             failed.set(true);
                             shardFailures.get().addAll(Arrays.asList(response.getShardFailures()));
+                            latch.countDown();
                         }
-                    } catch (ExecutionException | InterruptedException e) {
+                    } catch (final ExecutionException | InterruptedException e) {
                         failed.set(true);
                         executionFailures.get().add(e);
+                        latch.countDown();
                     }
                 }
             });
@@ -1151,34 +1166,17 @@ public class IndexStatsIT extends ESIntegTestCase {
             thread.start();
         }
 
+        // release the hounds
         barrier.await();
 
-        // start a timer thread, we will wait up to fifteen seconds for a failure to occur
-        final CountDownLatch latch = new CountDownLatch(1);
-        final Thread timer = new Thread(() -> {
-            try {
-                latch.await(15, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                failed.set(true);
-                executionFailures.get().add(e);
-            } finally {
-                stop.set(true);
-            }
-        });
-        timer.start();
+        // wait for a failure, or for fifteen seconds to elapse
+        latch.await(15, TimeUnit.SECONDS);
 
-        // busy spin watching for failures, if any occur, just kill the test
-        while (!stop.get()) {
-            if (failed.get()) {
-                stop.set(true);
-            }
-        }
-
+        // stop all threads and wait for them to complete
+        stop.set(true);
         for (final Thread thread : threads) {
             thread.join();
         }
-        latch.countDown();
-        timer.join();
 
         assertThat(shardFailures.get(), emptyCollectionOf(ShardOperationFailedException.class));
         assertThat(executionFailures.get(), emptyCollectionOf(Exception.class));

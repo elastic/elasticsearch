@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -54,7 +53,7 @@ public class RestGetCategoriesAction extends BaseRestHandler {
         BytesReference bodyBytes = restRequest.content();
 
         if (bodyBytes != null && bodyBytes.length() > 0) {
-            XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
+            XContentParser parser = restRequest.contentParser();
             request = GetCategoriesDefinitionAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
             request.setCategoryId(categoryId);
         } else {

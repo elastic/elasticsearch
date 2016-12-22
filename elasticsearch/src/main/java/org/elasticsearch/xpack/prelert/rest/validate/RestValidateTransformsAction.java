@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.prelert.rest.validate;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -34,8 +32,7 @@ public class RestValidateTransformsAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        BytesReference bodyBytes = restRequest.contentOrSourceParam();
-        XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
+        XContentParser parser = restRequest.contentOrSourceParamParser();
         ValidateTransformsAction.Request validateDetectorRequest = ValidateTransformsAction.Request.PARSER.apply(parser,
                 () -> parseFieldMatcher);
         return channel -> transportValidateAction.execute(validateDetectorRequest,

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.prelert.scheduler;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -93,7 +94,7 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
             XContentBuilder xContentBuilder = toXContent(testInstance, randomFrom(XContentType.values()));
             XContentBuilder shuffled = shuffleXContent(xContentBuilder, shuffleProtectedFields());
 
-            XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(shuffled.bytes());
+            XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(NamedXContentRegistry.EMPTY, shuffled.bytes());
             SchedulerConfig parsedInstance = parseInstance(parser, ParseFieldMatcher.STRICT);
 
             assertEquals(testInstance.getQueryAsMap(), parsedInstance.getQueryAsMap());

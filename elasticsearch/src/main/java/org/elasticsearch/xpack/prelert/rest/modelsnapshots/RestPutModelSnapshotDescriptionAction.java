@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.prelert.rest.modelsnapshots;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -40,8 +38,7 @@ public class RestPutModelSnapshotDescriptionAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        BytesReference bodyBytes = restRequest.contentOrSourceParam();
-        XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
+        XContentParser parser = restRequest.contentParser();
         PutModelSnapshotDescriptionAction.Request getModelSnapshots = PutModelSnapshotDescriptionAction.Request.parseRequest(
                 restRequest.param(Job.ID.getPreferredName()),
                 restRequest.param(ModelSnapshot.SNAPSHOT_ID.getPreferredName()),

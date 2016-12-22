@@ -34,7 +34,7 @@ public class JobLifeCycleService extends AbstractComponent implements ClusterSta
     public JobLifeCycleService(Settings settings, Client client, ClusterService clusterService, DataProcessor dataProcessor,
                                Executor executor) {
         super(settings);
-        clusterService.add(this);
+        clusterService.addListener(this);
         this.client = Objects.requireNonNull(client);
         this.dataProcessor = Objects.requireNonNull(dataProcessor);
         this.executor = Objects.requireNonNull(executor);

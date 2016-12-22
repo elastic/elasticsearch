@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -259,7 +260,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
 
     private XContentParser createParser(ParseField parseField, BytesReference bytesReference) {
         try {
-            return XContentFactory.xContent(query).createParser(query);
+            return XContentFactory.xContent(query).createParser(NamedXContentRegistry.EMPTY, query);
         } catch (IOException e) {
             throw ExceptionsHelper.parseException(parseField, e);
         }

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.prelert.rest.job;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -32,7 +31,7 @@ public class RestPutJobAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        XContentParser parser = XContentFactory.xContent(restRequest.content()).createParser(restRequest.content());
+        XContentParser parser = restRequest.contentParser();
         PutJobAction.Request putJobRequest = PutJobAction.Request.parseRequest(parser, () -> parseFieldMatcher);
         boolean overwrite = restRequest.paramAsBoolean("overwrite", false);
         putJobRequest.setOverwrite(overwrite);

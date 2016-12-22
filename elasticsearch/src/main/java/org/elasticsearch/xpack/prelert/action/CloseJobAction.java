@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -37,6 +36,7 @@ import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Predicate;
 
 public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobAction.Response, CloseJobAction.RequestBuilder> {
 
@@ -200,7 +200,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             }, new JobClosedChangePredicate(jobId), TimeValue.timeValueMinutes(30));
         }
 
-        private class JobClosedChangePredicate implements ClusterStateObserver.ChangePredicate {
+        private class JobClosedChangePredicate implements Predicate<ClusterState> {
 
             private final String jobId;
 
@@ -209,17 +209,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
             }
 
             @Override
-            public boolean apply(ClusterState previousState, ClusterState.ClusterStateStatus previousStatus, ClusterState newState,
-                                 ClusterState.ClusterStateStatus newStatus) {
-                return apply(newState);
-            }
-
-            @Override
-            public boolean apply(ClusterChangedEvent changedEvent) {
-                return apply(changedEvent.state());
-            }
-
-            boolean apply(ClusterState newState) {
+            public boolean test(ClusterState newState) {
                 PrelertMetadata metadata = newState.getMetaData().custom(PrelertMetadata.TYPE);
                 if (metadata != null) {
                     Allocation allocation = metadata.getAllocations().get(jobId);
@@ -227,6 +217,7 @@ public class CloseJobAction extends Action<CloseJobAction.Request, CloseJobActio
                 }
                 return false;
             }
+
         }
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {

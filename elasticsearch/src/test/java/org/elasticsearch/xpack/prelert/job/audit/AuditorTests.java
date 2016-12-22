@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.xpack.prelert.job.audit;
 
-import static org.mockito.Mockito.when;
-
-import java.io.IOException;
-
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,6 +18,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
+
+import java.io.IOException;
+
+import static org.mockito.Mockito.when;
 
 public class AuditorTests extends ESTestCase {
     private Client client;
@@ -113,7 +114,7 @@ public class AuditorTests extends ESTestCase {
     private AuditMessage parseAuditMessage() {
         try {
             String json = jsonCaptor.getValue().string();
-            XContentParser parser = XContentFactory.xContent(json).createParser(json);
+            XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
             return AuditMessage.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
         } catch (IOException e) {
             return new AuditMessage();
@@ -123,7 +124,7 @@ public class AuditorTests extends ESTestCase {
     private AuditActivity parseAuditActivity() {
         try {
             String json = jsonCaptor.getValue().string();
-            XContentParser parser = XContentFactory.xContent(json).createParser(json);
+            XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
             return AuditActivity.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
         } catch (IOException e) {
             return new AuditActivity();

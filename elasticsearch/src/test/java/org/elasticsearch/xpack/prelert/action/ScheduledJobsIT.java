@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.plugins.Plugin;
@@ -197,7 +198,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
             return new DataCounts(jobId);
         }
 
-        try (XContentParser parser = XContentHelper.createParser(getResponse.getSourceAsBytesRef())) {
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, getResponse.getSourceAsBytesRef())) {
             return DataCounts.PARSER.apply(parser, () -> ParseFieldMatcher.EMPTY);
         } catch (IOException e) {
             throw new RuntimeException(e);

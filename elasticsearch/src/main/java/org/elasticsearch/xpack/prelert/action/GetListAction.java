@@ -31,6 +31,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -279,7 +280,8 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
                         QueryPage<ListDocument> responseBody;
                         if (getDocResponse.isExists()) {
                             BytesReference docSource = getDocResponse.getSourceAsBytesRef();
-                            XContentParser parser = XContentFactory.xContent(docSource).createParser(docSource);
+                            XContentParser parser =
+                                    XContentFactory.xContent(docSource).createParser(NamedXContentRegistry.EMPTY, docSource);
                             ListDocument listDocument = ListDocument.PARSER.apply(parser, () -> parseFieldMatcher);
                             responseBody = new QueryPage<>(Collections.singletonList(listDocument), 1, ListDocument.RESULTS_FIELD);
 
@@ -319,7 +321,8 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
                             List<ListDocument> docs = new ArrayList<>(response.getHits().hits().length);
                             for (SearchHit hit : response.getHits().getHits()) {
                                 BytesReference docSource = hit.sourceRef();
-                                XContentParser parser = XContentFactory.xContent(docSource).createParser(docSource);
+                                XContentParser parser =
+                                        XContentFactory.xContent(docSource).createParser(NamedXContentRegistry.EMPTY, docSource);
                                 docs.add(ListDocument.PARSER.apply(parser, () -> parseFieldMatcher));
                             }
 

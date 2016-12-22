@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -40,7 +41,7 @@ public class AutodetectResultsParser extends AbstractComponent {
 
     public Stream<AutodetectResult> parseResults(InputStream in) throws ElasticsearchParseException {
         try {
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(in);
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY, in);
             XContentParser.Token token = parser.nextToken();
             // if start of an array ignore it, we expect an array of buckets
             if (token != XContentParser.Token.START_ARRAY) {

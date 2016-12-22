@@ -30,7 +30,7 @@ public class PrelertInitializationService extends AbstractComponent implements C
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.jobProvider = jobProvider;
-        clusterService.add(this);
+        clusterService.addListener(this);
     }
 
     @Override

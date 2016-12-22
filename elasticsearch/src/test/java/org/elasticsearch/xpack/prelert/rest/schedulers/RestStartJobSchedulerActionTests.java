@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchRequestParsers;
@@ -20,9 +21,9 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
-import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.scheduler.ScheduledJobRunnerTests;
+import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -51,7 +52,7 @@ public class RestStartJobSchedulerActionTests extends ESTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("start", "not-a-date");
         params.put("scheduler_id", "foo-scheduler");
-        RestRequest restRequest1 = new FakeRestRequest.Builder().withParams(params).build();
+        RestRequest restRequest1 = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(params).build();
         ElasticsearchParseException e =  expectThrows(ElasticsearchParseException.class,
                 () -> action.prepareRequest(restRequest1, mock(NodeClient.class)));
         assertEquals("Query param 'start' with value 'not-a-date' cannot be parsed as a date or converted to a number (epoch).",
@@ -60,7 +61,7 @@ public class RestStartJobSchedulerActionTests extends ESTestCase {
         params = new HashMap<>();
         params.put("end", "not-a-date");
         params.put("scheduler_id", "foo-scheduler");
-        RestRequest restRequest2 = new FakeRestRequest.Builder().withParams(params).build();
+        RestRequest restRequest2 = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(params).build();
         e =  expectThrows(ElasticsearchParseException.class, () -> action.prepareRequest(restRequest2, mock(NodeClient.class)));
         assertEquals("Query param 'end' with value 'not-a-date' cannot be parsed as a date or converted to a number (epoch).",
                 e.getMessage());

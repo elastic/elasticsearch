@@ -9,13 +9,13 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.prelert.job.results.Bucket;
 
 import java.io.IOException;
-
-import org.elasticsearch.xpack.prelert.job.results.Bucket;
 
 class ElasticsearchBatchedBucketsIterator extends ElasticsearchBatchedResultsIterator<Bucket> {
 
@@ -28,7 +28,7 @@ class ElasticsearchBatchedBucketsIterator extends ElasticsearchBatchedResultsIte
         BytesReference source = hit.getSourceRef();
         XContentParser parser;
         try {
-            parser = XContentFactory.xContent(source).createParser(source);
+            parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse bucket", e);
         }

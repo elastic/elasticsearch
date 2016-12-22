@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.prelert.rest.results;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -43,10 +41,9 @@ public class RestGetInfluencersAction extends BaseRestHandler {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         String start = restRequest.param(GetInfluencersAction.Request.START.getPreferredName());
         String end = restRequest.param(GetInfluencersAction.Request.END.getPreferredName());
-        BytesReference bodyBytes = restRequest.content();
         final GetInfluencersAction.Request request;
-        if (bodyBytes != null && bodyBytes.length() > 0) {
-            XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
+        if (restRequest.hasContent()) {
+            XContentParser parser = restRequest.contentParser();
             request = GetInfluencersAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
         } else {
             request = new GetInfluencersAction.Request(jobId);

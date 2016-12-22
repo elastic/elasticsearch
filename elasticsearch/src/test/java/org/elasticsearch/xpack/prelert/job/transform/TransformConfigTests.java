@@ -9,6 +9,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -183,7 +184,7 @@ public class TransformConfigTests extends AbstractSerializingTestCase<TransformC
 
     public void testInvalidTransformName() throws Exception {
         BytesArray json = new BytesArray("{ \"transform\":\"\" }");
-        XContentParser parser = XContentFactory.xContent(json).createParser(json);
+        XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
         ParsingException ex = expectThrows(ParsingException.class,
                 () -> TransformConfig.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
         assertThat(ex.getMessage(), containsString("[transform] failed to parse field [transform]"));

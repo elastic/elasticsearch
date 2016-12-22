@@ -5,20 +5,21 @@
  */
 package org.elasticsearch.xpack.prelert.support;
 
-import java.io.IOException;
-import java.util.Collections;
-import java.util.Map;
-
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+
+import java.io.IOException;
+import java.util.Collections;
+import java.util.Map;
 
 public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeable> extends AbstractWireSerializingTestCase<T> {
 
@@ -41,7 +42,7 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
 
     private void assertParsedInstance(BytesReference queryAsBytes, T expectedInstance)
             throws IOException {
-        XContentParser parser = XContentFactory.xContent(queryAsBytes).createParser(queryAsBytes);
+        XContentParser parser = XContentFactory.xContent(queryAsBytes).createParser(NamedXContentRegistry.EMPTY, queryAsBytes);
         T newInstance = parseQuery(parser, ParseFieldMatcher.STRICT);
         assertNotSame(newInstance, expectedInstance);
         assertEquals(expectedInstance, newInstance);

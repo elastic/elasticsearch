@@ -17,6 +17,7 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -161,9 +162,8 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-            SearchRequestParsers searchRequestParsers) {
-
+                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                               SearchRequestParsers searchRequestParsers, NamedXContentRegistry xContentRegistry) {
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
         JobProvider jobProvider = new JobProvider(client, 0, parseFieldMatcherSupplier.getParseFieldMatcher());
         JobRenormalizedResultsPersister jobRenormalizedResultsPersister = new JobRenormalizedResultsPersister(settings,

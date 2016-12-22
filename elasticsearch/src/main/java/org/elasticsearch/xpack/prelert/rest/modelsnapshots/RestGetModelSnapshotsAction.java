@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.prelert.rest.modelsnapshots;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -52,8 +50,7 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
         String jobId = restRequest.param(Job.ID.getPreferredName());
         Request getModelSnapshots;
         if (restRequest.hasContentOrSourceParam()) {
-            BytesReference bodyBytes = restRequest.contentOrSourceParam();
-            XContentParser parser = XContentFactory.xContent(bodyBytes).createParser(bodyBytes);
+            XContentParser parser = restRequest.contentOrSourceParamParser();
             getModelSnapshots = Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
         } else {
             getModelSnapshots = new Request(jobId);

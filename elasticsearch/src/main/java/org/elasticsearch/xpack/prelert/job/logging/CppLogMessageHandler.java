@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -167,7 +168,7 @@ public class CppLogMessageHandler implements Closeable {
 
     private void parseMessage(XContent xContent, BytesReference bytesRef) {
         try {
-            XContentParser parser = xContent.createParser(bytesRef);
+            XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, bytesRef);
             CppLogMessage msg = CppLogMessage.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
             Level level = Level.getLevel(msg.getLevel());
             if (level == null) {

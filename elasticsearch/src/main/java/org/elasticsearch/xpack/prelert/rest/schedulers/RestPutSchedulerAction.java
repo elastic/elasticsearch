@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.prelert.rest.schedulers;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
@@ -36,7 +35,7 @@ public class RestPutSchedulerAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String schedulerId = restRequest.param(SchedulerConfig.ID.getPreferredName());
-        XContentParser parser = XContentFactory.xContent(restRequest.content()).createParser(restRequest.content());
+        XContentParser parser = restRequest.contentParser();
         PutSchedulerAction.Request putSchedulerRequest = PutSchedulerAction.Request.parseRequest(schedulerId, parser,
                 () -> parseFieldMatcher);
         return channel -> transportPutSchedulerAction.execute(putSchedulerRequest, new RestToXContentListener<>(channel));

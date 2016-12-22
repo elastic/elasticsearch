@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class InternalMin extends InternalNumericMetricsAggregation.SingleValue implements Min {
     private final double min;
@@ -87,6 +88,17 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
             builder.field(CommonFields.VALUE_AS_STRING, format.format(min));
         }
         return builder;
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(min);
+    }
+
+    @Override
+    protected boolean doEquals(Object obj) {
+        InternalMin other = (InternalMin) obj;
+        return Objects.equals(min, other.min);
     }
 
 }

@@ -66,7 +66,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
                         .map(node -> new ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"))
                         .collect(Collectors.toList());
 
-        final ClusterStateTaskExecutor.ClusterTaskResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result
+        final ClusterStateTaskExecutor.ClusterTasksResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result
                 = executor.execute(clusterState, tasks);
         assertThat(result.resultingState, equalTo(clusterState));
     }
@@ -105,7 +105,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         }
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
 
-        final ClusterStateTaskExecutor.ClusterTaskResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
+        final ClusterStateTaskExecutor.ClusterTasksResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
                 executor.execute(clusterState, tasks);
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verifyNoMoreInteractions(electMasterService);
@@ -155,7 +155,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         }
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
 
-        final ClusterStateTaskExecutor.ClusterTaskResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
+        final ClusterStateTaskExecutor.ClusterTasksResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
                 executor.execute(clusterState, tasks);
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verifyNoMoreInteractions(electMasterService);

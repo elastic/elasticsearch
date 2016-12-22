@@ -40,25 +40,35 @@ public abstract class LocalClusterUpdateTask implements ClusterStateTaskConfig, 
         this.priority = priority;
     }
 
-    public abstract ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception;
+    public abstract ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception;
 
     @Override
-    public final ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState,
-                                                                   List<LocalClusterUpdateTask> tasks) throws Exception {
-        ClusterTaskResult<LocalClusterUpdateTask> result = execute(currentState);
-        return ClusterTaskResult.<LocalClusterUpdateTask>builder().successes(tasks).build(result);
+    public final ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState,
+                                                                    List<LocalClusterUpdateTask> tasks) throws Exception {
+        assert tasks.size() == 1 && tasks.get(0) == this : "expected one-element task list containing current object but was " + tasks;
+        ClusterTasksResult<LocalClusterUpdateTask> result = execute(currentState);
+        return ClusterTasksResult.<LocalClusterUpdateTask>builder().successes(tasks).build(result, currentState);
     }
 
-    public static ClusterTaskResult<LocalClusterUpdateTask> noMaster() {
-        return new ClusterTaskResult(true, null, null);
+    /**
+     * node stepped down as master or has lost connection to the master
+     */
+    public static ClusterTasksResult<LocalClusterUpdateTask> noMaster() {
+        return new ClusterTasksResult(true, null, null);
     }
 
-    public static ClusterTaskResult<LocalClusterUpdateTask> unchanged() {
-        return new ClusterTaskResult(false, null, null);
+    /**
+     * no changes were made to the cluster state. Useful to execute a runnable on the cluster state applier thread
+     */
+    public static ClusterTasksResult<LocalClusterUpdateTask> unchanged() {
+        return new ClusterTasksResult(false, null, null);
     }
 
-    public static ClusterTaskResult<LocalClusterUpdateTask> newState(ClusterState clusterState) {
-        return new ClusterTaskResult(false, clusterState, null);
+    /**
+     * locally apply cluster state received from a master
+     */
+    public static ClusterTasksResult<LocalClusterUpdateTask> newState(ClusterState clusterState) {
+        return new ClusterTasksResult(false, clusterState, null);
     }
 
     @Override

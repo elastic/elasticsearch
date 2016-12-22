@@ -58,7 +58,6 @@ public class NodeJoinController extends AbstractComponent {
     private final ClusterService clusterService;
     private final AllocationService allocationService;
     private final ElectMasterService electMaster;
-    private final DiscoverySettings discoverySettings;
     private final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor();
 
     // this is set while trying to become a master
@@ -67,12 +66,11 @@ public class NodeJoinController extends AbstractComponent {
 
 
     public NodeJoinController(ClusterService clusterService, AllocationService allocationService, ElectMasterService electMaster,
-                              DiscoverySettings discoverySettings, Settings settings) {
+                              Settings settings) {
         super(settings);
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.electMaster = electMaster;
-        this.discoverySettings = discoverySettings;
     }
 
     /**
@@ -407,8 +405,8 @@ public class NodeJoinController extends AbstractComponent {
     class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
 
         @Override
-        public ClusterTaskResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
-            final ClusterTaskResult.Builder<DiscoveryNode> results = ClusterTaskResult.builder();
+        public ClusterTasksResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
+            final ClusterTasksResult.Builder<DiscoveryNode> results = ClusterTasksResult.builder();
 
             final DiscoveryNodes currentNodes = currentState.nodes();
             boolean nodesChanged = false;

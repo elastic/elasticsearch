@@ -287,7 +287,7 @@ public class ClusterServiceTests extends ESTestCase {
         final CountDownLatch latch2 = new CountDownLatch(1);
         nonMaster.submitStateUpdateTask("test", new LocalClusterUpdateTask() {
             @Override
-            public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                 taskFailed[0] = false;
                 latch2.countDown();
                 return unchanged();
@@ -320,9 +320,9 @@ public class ClusterServiceTests extends ESTestCase {
             ClusterStateTaskConfig.build(Priority.NORMAL),
             new ClusterStateTaskExecutor<Object>() {
                 @Override
-                public ClusterTaskResult<Object> execute(ClusterState currentState, List<Object> tasks) throws Exception {
+                public ClusterTasksResult<Object> execute(ClusterState currentState, List<Object> tasks) throws Exception {
                     ClusterState newClusterState = ClusterState.builder(currentState).build();
-                    return ClusterTaskResult.builder().successes(tasks).build(newClusterState);
+                    return ClusterTasksResult.builder().successes(tasks).build(newClusterState);
                 }
 
                 @Override
@@ -358,9 +358,9 @@ public class ClusterServiceTests extends ESTestCase {
             ClusterStateTaskConfig.build(Priority.NORMAL),
             new ClusterStateTaskExecutor<Object>() {
                 @Override
-                public ClusterTaskResult<Object> execute(ClusterState currentState, List<Object> tasks) throws Exception {
+                public ClusterTasksResult<Object> execute(ClusterState currentState, List<Object> tasks) throws Exception {
                     ClusterState newClusterState = ClusterState.builder(currentState).build();
-                    return ClusterTaskResult.builder().successes(tasks).build(newClusterState);
+                    return ClusterTasksResult.builder().successes(tasks).build(newClusterState);
                 }
             },
             new ClusterStateTaskListener() {
@@ -400,11 +400,11 @@ public class ClusterServiceTests extends ESTestCase {
         class TaskExecutor implements ClusterStateTaskExecutor<String> {
 
             @Override
-            public ClusterTaskResult<String> execute(ClusterState currentState, List<String> tasks) throws Exception {
+            public ClusterTasksResult<String> execute(ClusterState currentState, List<String> tasks) throws Exception {
                 executionOrder.addAll(tasks); // do this first, so startedProcessing can be used as a notification that this is done.
                 startedProcessing.release(tasks.size());
                 allowProcessing.acquire(tasks.size());
-                return ClusterTaskResult.<String>builder().successes(tasks).build(ClusterState.builder(currentState).build());
+                return ClusterTasksResult.<String>builder().successes(tasks).build(ClusterState.builder(currentState).build());
             }
         }
 
@@ -454,9 +454,9 @@ public class ClusterServiceTests extends ESTestCase {
             List<Integer> tasks = new ArrayList<>();
 
             @Override
-            public ClusterTaskResult<Integer> execute(ClusterState currentState, List<Integer> tasks) throws Exception {
+            public ClusterTasksResult<Integer> execute(ClusterState currentState, List<Integer> tasks) throws Exception {
                 this.tasks.addAll(tasks);
-                return ClusterTaskResult.<Integer>builder().successes(tasks).build(ClusterState.builder(currentState).build());
+                return ClusterTasksResult.<Integer>builder().successes(tasks).build(ClusterState.builder(currentState).build());
             }
         }
 
@@ -544,7 +544,7 @@ public class ClusterServiceTests extends ESTestCase {
             (currentState, taskList) -> {
                 assertThat(taskList.size(), equalTo(tasks.size()));
                 assertThat(taskList.stream().collect(Collectors.toSet()), equalTo(tasks.keySet()));
-                return ClusterStateTaskExecutor.ClusterTaskResult.<Integer>builder().successes(taskList).build(currentState);
+                return ClusterStateTaskExecutor.ClusterTasksResult.<Integer>builder().successes(taskList).build(currentState);
             });
 
         latch.await();
@@ -608,7 +608,7 @@ public class ClusterServiceTests extends ESTestCase {
             }
 
             @Override
-            public ClusterTaskResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
+            public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
                 for (Set<Task> expectedSet : taskGroups) {
                     long count = tasks.stream().filter(expectedSet::contains).count();
                     assertThat("batched set should be executed together or not at all. Expected " + expectedSet + "s. Executing " + tasks,
@@ -622,7 +622,7 @@ public class ClusterServiceTests extends ESTestCase {
                     batches.incrementAndGet();
                     semaphore.acquire();
                 }
-                return ClusterTaskResult.<Task>builder().successes(tasks).build(maybeUpdatedClusterState);
+                return ClusterTasksResult.<Task>builder().successes(tasks).build(maybeUpdatedClusterState);
             }
 
             @Override
@@ -778,7 +778,7 @@ public class ClusterServiceTests extends ESTestCase {
             clusterService.submitStateUpdateTask("blocking", blockingTask);
 
             ClusterStateTaskExecutor<SimpleTask> executor = (currentState, tasks) ->
-                ClusterStateTaskExecutor.ClusterTaskResult.<SimpleTask>builder().successes(tasks).build(currentState);
+                ClusterStateTaskExecutor.ClusterTasksResult.<SimpleTask>builder().successes(tasks).build(currentState);
 
             SimpleTask task = new SimpleTask(1);
             ClusterStateTaskListener listener = new ClusterStateTaskListener() {

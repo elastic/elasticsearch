@@ -92,9 +92,9 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class RefreshTaskExecutor implements ClusterStateTaskExecutor<RefreshTask> {
         @Override
-        public ClusterTaskResult<RefreshTask> execute(ClusterState currentState, List<RefreshTask> tasks) throws Exception {
+        public ClusterTasksResult<RefreshTask> execute(ClusterState currentState, List<RefreshTask> tasks) throws Exception {
             ClusterState newClusterState = executeRefresh(currentState, tasks);
-            return ClusterTaskResult.<RefreshTask>builder().successes(tasks).build(newClusterState);
+            return ClusterTasksResult.<RefreshTask>builder().successes(tasks).build(newClusterState);
         }
     }
 
@@ -211,10 +211,10 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public ClusterTaskResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState,
-                                                                              List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+        public ClusterTasksResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState,
+                                                                               List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
-            ClusterTaskResult.Builder<PutMappingClusterStateUpdateRequest> builder = ClusterTaskResult.builder();
+            ClusterTasksResult.Builder<PutMappingClusterStateUpdateRequest> builder = ClusterTasksResult.builder();
             try {
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
                     try {

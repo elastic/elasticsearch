@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -553,17 +554,17 @@ public class TribeIT extends ESIntegTestCase {
     private static void updateMetaData(InternalTestCluster cluster, UnaryOperator<MetaData.Builder> addCustoms) {
         ClusterService clusterService = cluster.getInstance(ClusterService.class, cluster.getMasterName());
         final CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("update customMetaData", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
+        clusterService.submitStateUpdateTask("update customMetaData", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
 
             @Override
-            public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+            public ClusterState execute(ClusterState currentState) throws Exception {
                 MetaData.Builder builder = MetaData.builder(currentState.metaData());
                 builder = addCustoms.apply(builder);
-                return newState(ClusterState.builder(currentState).metaData(builder).build());
+                return ClusterState.builder(currentState).metaData(builder).build();
             }
 
             @Override

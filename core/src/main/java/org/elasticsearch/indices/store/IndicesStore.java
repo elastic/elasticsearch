@@ -285,7 +285,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
             clusterService.submitStateUpdateTask("indices_store ([" + shardId + "] active fully on other nodes)", new LocalClusterUpdateTask() {
                 @Override
-                public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+                public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                     if (clusterStateVersion != currentState.getVersion()) {
                         logger.trace("not deleting shard {}, the update task state version[{}] is not equal to cluster state before shard active api call [{}]", shardId, currentState.getVersion(), clusterStateVersion);
                         return unchanged();

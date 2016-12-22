@@ -258,8 +258,8 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public ClusterTaskResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
-            ClusterTaskResult.Builder<ShardEntry> batchResultBuilder = ClusterTaskResult.builder();
+        public ClusterTasksResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
+            ClusterTasksResult.Builder<ShardEntry> batchResultBuilder = ClusterTasksResult.builder();
             List<ShardEntry> tasksToBeApplied = new ArrayList<>();
             List<FailedShard> failedShardsToBeApplied = new ArrayList<>();
             List<StaleShard> staleShardsToBeApplied = new ArrayList<>();
@@ -393,8 +393,8 @@ public class ShardStateAction extends AbstractComponent {
         }
 
         @Override
-        public ClusterTaskResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
-            ClusterTaskResult.Builder<ShardEntry> builder = ClusterTaskResult.builder();
+        public ClusterTasksResult<ShardEntry> execute(ClusterState currentState, List<ShardEntry> tasks) throws Exception {
+            ClusterTasksResult.Builder<ShardEntry> builder = ClusterTasksResult.builder();
             List<ShardEntry> tasksToBeApplied = new ArrayList<>();
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates

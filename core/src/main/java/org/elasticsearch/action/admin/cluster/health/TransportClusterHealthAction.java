@@ -89,7 +89,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             if (request.local()) {
                 clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", new LocalClusterUpdateTask(request.waitForEvents()) {
                     @Override
-                    public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+                    public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
                         return unchanged();
                     }
 

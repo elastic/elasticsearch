@@ -61,7 +61,7 @@ public class BlockClusterStateProcessing extends SingleNodeDisruption {
         clusterService.submitStateUpdateTask("service_disruption_block", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
 
             @Override
-            public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                 started.countDown();
                 CountDownLatch latch = disruptionLatch.get();
                 if (latch != null) {

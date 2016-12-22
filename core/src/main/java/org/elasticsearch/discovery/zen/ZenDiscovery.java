@@ -205,7 +205,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         nodesFD.setLocalNode(clusterService.localNode());
         joinThreadControl.start();
         zenPing.start(this);
-        this.nodeJoinController = new NodeJoinController(clusterService, allocationService, electMaster, discoverySettings, settings);
+        this.nodeJoinController = new NodeJoinController(clusterService, allocationService, electMaster, settings);
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, electMaster, this::submitRejoin, logger);
     }
 
@@ -215,7 +215,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         clusterService.submitStateUpdateTask("initial_join", new LocalClusterUpdateTask() {
 
             @Override
-            public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                 // do the join on a different thread, the DiscoveryService waits for 30s anyhow till it is discovered
                 joinThreadControl.startNewThreadIfNotRunning();
                 return unchanged();
@@ -402,7 +402,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             final DiscoveryNode finalMasterNode = masterNode;
             clusterService.submitStateUpdateTask("finalize_join (" + masterNode + ")", new LocalClusterUpdateTask() {
                 @Override
-                public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+                public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                     if (!success) {
                         // failed to join. Try again...
                         joinThreadControl.markThreadAsDoneAndStartNew(currentThread);
@@ -485,7 +485,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     private void submitRejoin(String source) {
         clusterService.submitStateUpdateTask(source, new LocalClusterUpdateTask(Priority.IMMEDIATE) {
             @Override
-            public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
                 return rejoin(currentState, source);
             }
 
@@ -541,7 +541,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
 
         @Override
-        public ClusterTaskResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
+        public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
             final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
             boolean removed = false;
             for (final Task task : tasks) {
@@ -555,12 +555,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
             if (!removed) {
                 // no nodes to remove, keep the current cluster state
-                return ClusterTaskResult.<Task>builder().successes(tasks).build(currentState);
+                return ClusterTasksResult.<Task>builder().successes(tasks).build(currentState);
             }
 
             final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
 
-            final ClusterTaskResult.Builder<Task> resultBuilder = ClusterTaskResult.<Task>builder().successes(tasks);
+            final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
             if (!electMasterService.hasEnoughMasterNodes(remainingNodesClusterState.nodes())) {
                 rejoin.accept("not enough master nodes");
                 return resultBuilder.build(currentState);
@@ -634,7 +634,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
         clusterService.submitStateUpdateTask("zen-disco-min-master-nodes-changed", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
             @Override
-            public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
                 // check if we have enough master nodes, if not, we need to move into joining the cluster again
                 if (!electMaster.hasEnoughMasterNodes(currentState.nodes())) {
                     return rejoin(currentState, "not enough master nodes on change of minimum_master_nodes from [" + prevMinimumMasterNode + "] to [" + minimumMasterNodes + "]");
@@ -675,7 +675,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         clusterService.submitStateUpdateTask("master_failed (" + masterNode + ")", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
 
             @Override
-            public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
                 if (!masterNode.equals(currentState.nodes().getMasterNode())) {
                     // master got switched on us, no need to send anything
                     return unchanged();
@@ -700,7 +700,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             ClusterState newClusterState = null;
 
             @Override
-            public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
                 newClusterState = publishClusterState.pendingStatesQueue().getNextClusterStateToProcess();
 
                 // all pending states have been processed
@@ -935,7 +935,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         return pingResponses;
     }
 
-    protected ClusterStateTaskExecutor.ClusterTaskResult<LocalClusterUpdateTask> rejoin(ClusterState clusterState, String reason) {
+    protected ClusterStateTaskExecutor.ClusterTasksResult<LocalClusterUpdateTask> rejoin(ClusterState clusterState, String reason) {
 
         // *** called from within an cluster state update task *** //
         assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME);
@@ -954,7 +954,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         return nodes().isLocalNodeElectedMaster();
     }
 
-    private LocalClusterUpdateTask.ClusterTaskResult handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {
+    private ClusterStateTaskExecutor.ClusterTasksResult handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {
         assert localClusterState.nodes().isLocalNodeElectedMaster() : "handleAnotherMaster called but current node is not a master";
         assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
 
@@ -1049,9 +1049,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             clusterService.submitStateUpdateTask("ping from another master", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
 
                 @Override
-                public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
-                    pingsWhileMaster.set(0);
-                    return handleAnotherMaster(currentState, pingRequest.masterNode(), pingRequest.clusterStateVersion(), "node fd ping");
+                public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+                    if (currentState.nodes().isLocalNodeElectedMaster()) {
+                        pingsWhileMaster.set(0);
+                        return handleAnotherMaster(currentState, pingRequest.masterNode(), pingRequest.clusterStateVersion(), "node fd ping");
+                    } else {
+                        return unchanged();
+                    }
                 }
 
                 @Override
@@ -1100,7 +1104,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             clusterService.submitStateUpdateTask("received a request to rejoin the cluster from [" + request.fromNodeId + "]", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
 
                 @Override
-                public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
+                public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
                     try {
                         channel.sendResponse(TransportResponse.Empty.INSTANCE);
                     } catch (Exception e) {
@@ -1144,7 +1148,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
         }
 
         /** cleans any running joining thread and calls {@link #rejoin} */
-        public ClusterStateTaskExecutor.ClusterTaskResult<LocalClusterUpdateTask> stopRunningThreadAndRejoin(ClusterState clusterState, String reason) {
+        public ClusterStateTaskExecutor.ClusterTasksResult<LocalClusterUpdateTask> stopRunningThreadAndRejoin(ClusterState clusterState, String reason) {
             ClusterService.assertClusterStateThread();
             currentJoinThread.set(null);
             return rejoin(clusterState, reason);

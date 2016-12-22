@@ -41,9 +41,9 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
     }
 
     @Override
-    public final ClusterTaskResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
+    public final ClusterTasksResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
         ClusterState result = execute(currentState);
-        return ClusterTaskResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
+        return ClusterTasksResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
     }
 
     @Override
@@ -76,6 +76,10 @@ public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
         return priority;
     }
 
+    /**
+     * Marked as final as cluster state update tasks should only run on master.
+     * For local requests, use {@link LocalClusterUpdateTask} instead.
+     */
     @Override
     public final boolean runOnlyOnMaster() {
         return true;

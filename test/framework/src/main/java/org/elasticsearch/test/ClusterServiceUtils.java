@@ -85,7 +85,7 @@ public class ClusterServiceUtils {
         CountDownLatch latch = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("test setting state", new LocalClusterUpdateTask() {
             @Override
-            public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                 // make sure we increment versions as listener may depend on it for change
                 return newState(ClusterState.builder(clusterState).version(currentState.version() + 1).build());
             }

@@ -105,7 +105,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
         clusterService.submitStateUpdateTask("service_disruption_delay", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
 
             @Override
-            public ClusterTaskResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                 long count = duration.millis() / 200;
                 // wait while checking for a stopped
                 for (; count > 0 && !stopped.get(); count--) {

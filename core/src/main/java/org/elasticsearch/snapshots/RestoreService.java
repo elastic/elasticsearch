@@ -628,8 +628,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
         }
 
         @Override
-        public ClusterTaskResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
-            final ClusterTaskResult.Builder<Task> resultBuilder = ClusterTaskResult.<Task>builder().successes(tasks);
+        public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
+            final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
             Set<Snapshot> completedSnapshots = tasks.stream().map(e -> e.snapshot).collect(Collectors.toSet());
             final List<RestoreInProgress.Entry> entries = new ArrayList<>();
             final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);

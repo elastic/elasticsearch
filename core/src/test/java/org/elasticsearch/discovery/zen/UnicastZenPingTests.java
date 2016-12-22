@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -115,6 +116,7 @@ public class UnicastZenPingTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         try {
+            logger.info("shutting down...");
             // JDK stack is broken, it does not iterate in the expected order (http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4475301)
             final List<Closeable> reverse = new ArrayList<>();
             while (!closeables.isEmpty()) {
@@ -538,6 +540,7 @@ public class UnicastZenPingTests extends ESTestCase {
         }
     }
 
+    @TestLogging("org.elasticsearch:DEBUG,org.elasticsearch.discovery:TRACE,org.elasticsearch.transport:TRACE")
     public void testResolveReuseExistingNodeConnections() throws ExecutionException, InterruptedException {
         final Settings settings = Settings.builder().put("cluster.name", "test").put(TransportSettings.PORT.getKey(), 0).build();
 

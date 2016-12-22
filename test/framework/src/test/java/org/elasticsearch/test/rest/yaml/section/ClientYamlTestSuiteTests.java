@@ -16,20 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.parser;
+
+package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParseContext;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParser;
-import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
-import org.elasticsearch.test.rest.yaml.section.DoSection;
-import org.elasticsearch.test.rest.yaml.section.IsTrueAssertion;
-import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
-import org.junit.After;
 
 import java.util.Map;
 
@@ -39,21 +31,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class ClientYamlSuiteTestParserTests extends ESTestCase {
-    private XContentParser parser;
-
-    @Override
-    @After
-    public void tearDown() throws Exception {
-        super.tearDown();
-        //makes sure that we consumed the whole stream, XContentParser doesn't expose isClosed method
-        //next token can be null even in the middle of the document (e.g. with "---"), but not too many consecutive times
-        assertThat(parser.currentToken(), nullValue());
-        assertThat(parser.nextToken(), nullValue());
-        assertThat(parser.nextToken(), nullValue());
-        parser.close();
-    }
-
+public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseTestSetupTeardownAndSections() throws Exception {
         final boolean includeSetup = randomBoolean();
         final boolean includeTeardown = randomBoolean();
@@ -103,11 +81,10 @@ public class ClientYamlSuiteTestParserTests extends ESTestCase {
                         "  - match: {test_type.properties.text.analyzer: whitespace}\n"
         );
 
-        ClientYamlTestSuiteParser testParser = new ClientYamlTestSuiteParser();
-        ClientYamlTestSuite restTestSuite = testParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
         assertThat(restTestSuite, notNullValue());
-        assertThat(restTestSuite.getName(), equalTo("suite"));
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
         assertThat(restTestSuite.getSetupSection(), notNullValue());
         if (includeSetup) {
             assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(false));
@@ -207,11 +184,10 @@ public class ClientYamlSuiteTestParserTests extends ESTestCase {
                 " - match:   { _source: { foo: bar }}"
         );
 
-        ClientYamlTestSuiteParser testParser = new ClientYamlTestSuiteParser();
-        ClientYamlTestSuite restTestSuite = testParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
         assertThat(restTestSuite, notNullValue());
-        assertThat(restTestSuite.getName(), equalTo("suite"));
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
 
         assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));
 
@@ -320,11 +296,10 @@ public class ClientYamlSuiteTestParserTests extends ESTestCase {
                 "            params:       { bar: 'xxx' }\n"
         );
 
-        ClientYamlTestSuiteParser testParser = new ClientYamlTestSuiteParser();
-        ClientYamlTestSuite restTestSuite = testParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser);
 
         assertThat(restTestSuite, notNullValue());
-        assertThat(restTestSuite.getName(), equalTo("suite"));
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
 
         assertThat(restTestSuite.getSetupSection().isEmpty(), equalTo(true));
 
@@ -394,12 +369,8 @@ public class ClientYamlSuiteTestParserTests extends ESTestCase {
                         "\n"
         );
 
-        ClientYamlTestSuiteParser testParser = new ClientYamlTestSuiteParser();
-        try {
-            testParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
-            fail("Expected RestTestParseException");
-        } catch (ClientYamlTestParseException e) {
-            assertThat(e.getMessage(), containsString("duplicate test section"));
-        }
+        Exception e = expectThrows(ParsingException.class, () ->
+            ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), parser));
+        assertThat(e.getMessage(), containsString("duplicate test section"));
     }
 }

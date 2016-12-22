@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.parser;
+package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
@@ -25,7 +25,7 @@ import org.elasticsearch.test.rest.yaml.section.SetupSection;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SetupSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
+public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseSetupSection() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
                 "  - do:\n" +
@@ -42,8 +42,7 @@ public class SetupSectionParserTests extends AbstractClientYamlTestFragmentParse
                 "        body:   { \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }\n"
         );
 
-        SetupSectionParser setupSectionParser = new SetupSectionParser();
-        SetupSection setupSection = setupSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        SetupSection setupSection = SetupSection.parse(parser);
 
         assertThat(setupSection, notNullValue());
         assertThat(setupSection.getSkipSection().isEmpty(), equalTo(true));
@@ -71,8 +70,7 @@ public class SetupSectionParserTests extends AbstractClientYamlTestFragmentParse
                         "        body:   { \"include\": { \"field1\": \"v1\", \"field2\": \"v2\" }, \"count\": 1 }\n"
         );
 
-        SetupSectionParser setupSectionParser = new SetupSectionParser();
-        SetupSection setupSection = setupSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
+        SetupSection setupSection = SetupSection.parse(parser);
 
         assertThat(setupSection, notNullValue());
         assertThat(setupSection.getSkipSection().isEmpty(), equalTo(false));

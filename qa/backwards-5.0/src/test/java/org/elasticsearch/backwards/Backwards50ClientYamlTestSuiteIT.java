@@ -21,10 +21,10 @@ package org.elasticsearch.backwards;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
 
 import java.io.IOException;
 
@@ -36,7 +36,7 @@ public class Backwards50ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase 
     }
 
     @ParametersFactory
-    public static Iterable<Object[]> parameters() throws IOException, ClientYamlTestParseException {
+    public static Iterable<Object[]> parameters() throws IOException {
         return createParameters();
     }
 }

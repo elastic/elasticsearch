@@ -240,6 +240,47 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         assertResultsAreSame(finalAnomalyRecords, persistedRecords);
     }
 
+    public void testEndOfStreamTriggersPersisting() throws IOException, InterruptedException {
+        createJob();
+
+        AutoDetectResultProcessor resultProcessor =
+                new AutoDetectResultProcessor(renormalizer, jobResultsPersister, autodetectResultsParser);
+
+        PipedOutputStream outputStream = new PipedOutputStream();
+        PipedInputStream inputStream = new PipedInputStream(outputStream);
+
+        Bucket bucket = createBucket(false);
+        List<AnomalyRecord> firstSetOfRecords = createRecords(false);
+        List<AnomalyRecord> secondSetOfRecords = createRecords(false);
+
+        ResultsBuilder resultBuilder = new ResultsBuilder()
+                .start()
+                .addRecords(firstSetOfRecords)
+                .addBucket(bucket)  // bucket triggers persistence
+                .addRecords(secondSetOfRecords)
+                .end();  // end of stream should persist the second bunch of records
+
+        new Thread(() -> {
+            try {
+                writeResults(resultBuilder.build(), outputStream);
+            } catch (IOException e) {
+            }
+        }).start();
+
+        resultProcessor.process(JOB_ID, inputStream, false);
+        jobResultsPersister.commitResultWrites(JOB_ID);
+
+        QueryPage<Bucket> persistedBucket = jobProvider.buckets(JOB_ID, new BucketsQueryBuilder().includeInterim(true).build());
+        assertEquals(1, persistedBucket.count());
+
+        QueryPage<AnomalyRecord> persistedRecords = jobProvider.records(JOB_ID,
+                new RecordsQueryBuilder().size(200).includeInterim(true).build());
+
+        List<AnomalyRecord> allRecords = new ArrayList<>(firstSetOfRecords);
+        allRecords.addAll(secondSetOfRecords);
+        assertResultsAreSame(allRecords, persistedRecords);
+    }
+
     private void writeResults(XContentBuilder builder, OutputStream out) throws IOException {
         builder.bytes().writeTo(out);
     }

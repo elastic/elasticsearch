@@ -159,6 +159,7 @@ public class AutoDetectResultProcessor {
             // Commit previous writes here, effectively continuing
             // the flush from the C++ autodetect process right
             // through to the data store
+            context.bulkResultsPersister.executeRequest();
             persister.commitResultWrites(context.jobId);
             flushListener.acknowledgeFlush(flushAcknowledgement.getId());
             // Interim results may have been produced by the flush,

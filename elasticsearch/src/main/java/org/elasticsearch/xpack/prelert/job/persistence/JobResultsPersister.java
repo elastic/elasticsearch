@@ -192,7 +192,11 @@ public class JobResultsPersister extends AbstractComponent {
          * Execute the bulk action
          */
         public void executeRequest() {
+            if (bulkRequest.numberOfActions() == 0) {
+                return;
+            }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
+
             BulkResponse addRecordsResponse = bulkRequest.execute().actionGet();
             if (addRecordsResponse.hasFailures()) {
                 logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());

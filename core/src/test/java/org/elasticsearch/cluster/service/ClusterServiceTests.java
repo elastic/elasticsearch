@@ -138,6 +138,8 @@ public class ClusterServiceTests extends ESTestCase {
         });
         timedClusterService.setClusterStatePublisher((event, ackListener) -> {
         });
+        timedClusterService.setDiscoverySettings(new DiscoverySettings(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         timedClusterService.start();
         ClusterState state = timedClusterService.state();
         final DiscoveryNodes nodes = state.nodes();
@@ -1075,6 +1077,8 @@ public class ClusterServiceTests extends ESTestCase {
                 throw new Discovery.FailedToCommitClusterStateException("just to test this");
             }
         });
+        timedClusterService.setDiscoverySettings(new DiscoverySettings(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         timedClusterService.start();
         ClusterState state = timedClusterService.state();
         final DiscoveryNodes nodes = state.nodes();

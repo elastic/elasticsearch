@@ -16,25 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.test.rest.yaml.parser;
+package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.section.SetSection;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SetSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
+public class SetSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseSetSectionSingleValue() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
                         "{ _id: id }"
         );
 
-        SetSectionParser setSectionParser = new SetSectionParser();
-
-        SetSection setSection = setSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
-
+        SetSection setSection = SetSection.parse(parser);
         assertThat(setSection, notNullValue());
         assertThat(setSection.getStash(), notNullValue());
         assertThat(setSection.getStash().size(), equalTo(1));
@@ -46,10 +43,7 @@ public class SetSectionParserTests extends AbstractClientYamlTestFragmentParserT
                 "{ _id: id, _type: type, _index: index }"
         );
 
-        SetSectionParser setSectionParser = new SetSectionParser();
-
-        SetSection setSection = setSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
-
+        SetSection setSection = SetSection.parse(parser);
         assertThat(setSection, notNullValue());
         assertThat(setSection.getStash(), notNullValue());
         assertThat(setSection.getStash().size(), equalTo(3));
@@ -63,12 +57,7 @@ public class SetSectionParserTests extends AbstractClientYamlTestFragmentParserT
                 "{ }"
         );
 
-        SetSectionParser setSectionParser = new SetSectionParser();
-        try {
-            setSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
-            fail("Expected RestTestParseException");
-        } catch (ClientYamlTestParseException e) {
-            assertThat(e.getMessage(), is("set section must set at least a value"));
-        }
+        Exception e = expectThrows(ParsingException.class, () -> SetSection.parse(parser));
+        assertThat(e.getMessage(), is("set section must set at least a value"));
     }
 }

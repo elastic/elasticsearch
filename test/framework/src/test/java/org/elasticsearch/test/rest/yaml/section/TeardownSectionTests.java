@@ -17,22 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.test.rest.yaml.parser;
+package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParseContext;
-import org.elasticsearch.test.rest.yaml.parser.TeardownSectionParser;
-import org.elasticsearch.test.rest.yaml.section.TeardownSection;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Unit tests for the teardown section parser
+ * Unit tests for the teardown section.
  */
-public class TeardownSectionParserTests extends AbstractClientYamlTestFragmentParserTestCase {
-
+public class TeardownSectionTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseTeardownSection() throws Exception {
         parser = createParser(YamlXContent.yamlXContent,
                 "  - do:\n" +
@@ -49,9 +45,7 @@ public class TeardownSectionParserTests extends AbstractClientYamlTestFragmentPa
                 "        ignore: 404"
         );
 
-        TeardownSectionParser teardownSectionParser = new TeardownSectionParser();
-        TeardownSection section = teardownSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
-
+        TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
         assertThat(section.getSkipSection().isEmpty(), equalTo(true));
         assertThat(section.getDoSections().size(), equalTo(2));
@@ -78,9 +72,7 @@ public class TeardownSectionParserTests extends AbstractClientYamlTestFragmentPa
                 "        ignore: 404"
         );
 
-        TeardownSectionParser teardownSectionParser = new TeardownSectionParser();
-        TeardownSection section = teardownSectionParser.parse(new ClientYamlTestSuiteParseContext("api", "suite", parser));
-
+        TeardownSection section = TeardownSection.parse(parser);
         assertThat(section, notNullValue());
         assertThat(section.getSkipSection().isEmpty(), equalTo(false));
         assertThat(section.getSkipSection().getLowerVersion(), equalTo(Version.V_2_0_0));

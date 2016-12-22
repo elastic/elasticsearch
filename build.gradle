@@ -204,6 +204,14 @@ allprojects {
       }
     }
   }
+
+  task cleanIdeaBuildDir(type: Delete) {
+    delete 'build-idea'
+  }
+  cleanIdeaBuildDir.setGroup("ide")
+  cleanIdeaBuildDir.setDescription("Deletes the IDEA build directory.")
+
+  tasks.cleanIdea.dependsOn(cleanIdeaBuildDir)
 }
 
 idea {

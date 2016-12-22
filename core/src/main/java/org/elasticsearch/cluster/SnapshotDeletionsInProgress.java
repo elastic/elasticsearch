@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState.Custom;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,6 +40,8 @@ public class SnapshotDeletionsInProgress extends AbstractDiffable<Custom> implem
 
     public static final String TYPE = "snapshot_deletions";
     public static final SnapshotDeletionsInProgress PROTO = new SnapshotDeletionsInProgress(Collections.emptyList());
+    // the version where SnapshotDeletionsInProgress was introduced
+    public static final Version VERSION_INTRODUCED = Version.V_6_0_0_alpha1_UNRELEASED;
 
     // the list of snapshot deletion request entries
     private final List<Entry> entries;

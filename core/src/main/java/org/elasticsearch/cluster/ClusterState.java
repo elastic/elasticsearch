@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -717,7 +716,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         nodes.writeTo(out);
         blocks.writeTo(out);
         boolean omitSnapshotDeletions = false;
-        if (out.getVersion().before(Version.V_5_2_0_UNRELEASED)
+        if (out.getVersion().before(SnapshotDeletionsInProgress.VERSION_INTRODUCED)
                 && customs.containsKey(SnapshotDeletionsInProgress.TYPE)) {
             // before the stated version, there were no SnapshotDeletionsInProgress, so
             // don't transfer over the wire protocol
@@ -798,7 +797,21 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             nodes.writeTo(out);
             metaData.writeTo(out);
             blocks.writeTo(out);
-            customs.writeTo(out);
+            Diff<ImmutableOpenMap<String, Custom>> customsDiff = customs;
+            if (out.getVersion().before(SnapshotDeletionsInProgress.VERSION_INTRODUCED)) {
+                customsDiff = removeSnapshotDeletionsCustomDiff(customsDiff);
+            }
+            customsDiff.writeTo(out);
+        }
+
+        private Diff<ImmutableOpenMap<String, Custom>> removeSnapshotDeletionsCustomDiff(Diff<ImmutableOpenMap<String, Custom>> customs) {
+            if (customs instanceof DiffableUtils.ImmutableOpenMapDiff) {
+                @SuppressWarnings("unchecked")
+                DiffableUtils.ImmutableOpenMapDiff customsDiff = ((DiffableUtils.ImmutableOpenMapDiff) customs)
+                                                                     .withKeyRemoved(SnapshotDeletionsInProgress.TYPE);
+                return customsDiff;
+            }
+            return customs;
         }
 
         @Override

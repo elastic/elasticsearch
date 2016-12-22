@@ -210,12 +210,22 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes a non-negative long in a variable-length format.
-     * Writes between one and nine bytes. Smaller values take fewer bytes.
-     * Negative numbers are not supported.
+     * Writes a non-negative long in a variable-length format. Writes between one and ten bytes. Smaller values take fewer bytes. Negative
+     * numbers use ten bytes and trip assertions (if running in tests) so prefer {@link #writeLong(long)} or {@link #writeZLong(long)} for
+     * negative numbers.
      */
     public void writeVLong(long i) throws IOException {
-        assert i >= 0;
+        if (i < 0) {
+            throw new IllegalStateException("Negative longs unsupported, use writeLong or writeZLong for negative numbers [" + i + "]");
+        }
+        writeVLongNoCheck(i);
+    }
+
+    /**
+     * Writes a long in a variable-length format without first checking if it is negative. Package private for testing. Use
+     * {@link #writeVLong(long)} instead.
+     */
+    void writeVLongNoCheck(long i) throws IOException {
         while ((i & ~0x7F) != 0) {
             writeByte((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;

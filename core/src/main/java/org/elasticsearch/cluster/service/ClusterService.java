@@ -216,6 +216,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(state().nodes().getLocalNode(), "please set the local node before starting");
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
+        Objects.requireNonNull(discoverySettings, "please set discovery settings before starting");
         addListener(localNodeMasterListeners);
         updateState(state -> ClusterState.builder(state).blocks(initialBlocks).build());
         this.threadPoolExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME),

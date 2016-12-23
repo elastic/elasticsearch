@@ -22,10 +22,10 @@ package org.elasticsearch.tribe;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -556,7 +556,7 @@ public class TribeIT extends ESIntegTestCase {
         final CountDownLatch latch = new CountDownLatch(1);
         clusterService.submitStateUpdateTask("update customMetaData", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
-            public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
 
@@ -564,7 +564,7 @@ public class TribeIT extends ESIntegTestCase {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 MetaData.Builder builder = MetaData.builder(currentState.metaData());
                 builder = addCustoms.apply(builder);
-                return new ClusterState.Builder(currentState).metaData(builder).build();
+                return ClusterState.builder(currentState).metaData(builder).build();
             }
 
             @Override

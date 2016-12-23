@@ -26,9 +26,9 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -64,8 +64,8 @@ public class MetaDataMappingService extends AbstractComponent {
     private final ClusterService clusterService;
     private final IndicesService indicesService;
 
-    final ClusterStateTaskExecutor<RefreshTask> refreshExecutor = new RefreshTaskExecutor();
-    final ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> putMappingExecutor = new PutMappingExecutor();
+    final RefreshTaskExecutor refreshExecutor = new RefreshTaskExecutor();
+    final PutMappingExecutor putMappingExecutor = new PutMappingExecutor();
 
 
     @Inject
@@ -92,9 +92,9 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class RefreshTaskExecutor implements ClusterStateTaskExecutor<RefreshTask> {
         @Override
-        public BatchResult<RefreshTask> execute(ClusterState currentState, List<RefreshTask> tasks) throws Exception {
+        public ClusterTasksResult<RefreshTask> execute(ClusterState currentState, List<RefreshTask> tasks) throws Exception {
             ClusterState newClusterState = executeRefresh(currentState, tasks);
-            return BatchResult.<RefreshTask>builder().successes(tasks).build(newClusterState);
+            return ClusterTasksResult.<RefreshTask>builder().successes(tasks).build(newClusterState);
         }
     }
 
@@ -211,10 +211,10 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public BatchResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState,
-                                                                        List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+        public ClusterTasksResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState,
+                                                                               List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
-            BatchResult.Builder<PutMappingClusterStateUpdateRequest> builder = BatchResult.builder();
+            ClusterTasksResult.Builder<PutMappingClusterStateUpdateRequest> builder = ClusterTasksResult.builder();
             try {
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
                     try {

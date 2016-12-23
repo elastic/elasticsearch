@@ -33,7 +33,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -68,7 +67,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
                         .map(node -> new ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task(node, randomBoolean() ? "left" : "failed"))
                         .collect(Collectors.toList());
 
-        final ClusterStateTaskExecutor.BatchResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result
+        final ClusterStateTaskExecutor.ClusterTasksResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result
                 = executor.execute(clusterState, tasks);
         assertThat(result.resultingState, equalTo(clusterState));
     }
@@ -107,7 +106,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         }
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
 
-        final ClusterStateTaskExecutor.BatchResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
+        final ClusterStateTaskExecutor.ClusterTasksResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
                 executor.execute(clusterState, tasks);
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verifyNoMoreInteractions(electMasterService);
@@ -157,7 +156,7 @@ public class NodeRemovalClusterStateTaskExecutorTests extends ESTestCase {
         }
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(builder).build();
 
-        final ClusterStateTaskExecutor.BatchResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
+        final ClusterStateTaskExecutor.ClusterTasksResult<ZenDiscovery.NodeRemovalClusterStateTaskExecutor.Task> result =
                 executor.execute(clusterState, tasks);
         verify(electMasterService).hasEnoughMasterNodes(eq(remainingNodesClusterState.get().nodes()));
         verifyNoMoreInteractions(electMasterService);

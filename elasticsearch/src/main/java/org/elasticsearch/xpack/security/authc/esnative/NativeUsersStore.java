@@ -404,7 +404,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                     .execute(new ActionListener<UpdateResponse>() {
                         @Override
                         public void onResponse(UpdateResponse updateResponse) {
-                            assert updateResponse.getResult() == Result.UPDATED;
                             clearRealmCache(username, listener, null);
                         }
 

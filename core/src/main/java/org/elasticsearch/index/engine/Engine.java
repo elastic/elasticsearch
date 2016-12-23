@@ -64,7 +64,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
-import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -1372,16 +1371,6 @@ public abstract class Engine implements Closeable {
      */
     public long getLastWriteNanos() {
         return this.lastWriteNanos;
-    }
-
-    /**
-     * Returns the engines current document statistics
-     */
-    public DocsStats getDocStats() {
-        try (Engine.Searcher searcher = acquireSearcher("doc_stats")) {
-            IndexReader reader = searcher.reader();
-            return new DocsStats(reader.numDocs(), reader.numDeletedDocs());
-        }
     }
 
     /**

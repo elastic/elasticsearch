@@ -64,7 +64,6 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
-import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -1619,14 +1618,6 @@ public class InternalEngine extends Engine {
     public SequenceNumbersService seqNoService() {
         return seqNoService;
     }
-
-    @Override
-    public DocsStats getDocStats() {
-        final int numDocs = indexWriter.numDocs();
-        final int maxDoc = indexWriter.maxDoc();
-        return new DocsStats(numDocs, maxDoc-numDocs);
-    }
-
 
     /**
      * Returns the number of times a version was looked up either from the index.

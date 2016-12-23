@@ -2548,33 +2548,6 @@ public class InternalEngineTests extends ESTestCase {
 
     }
 
-    public void testDocStats() throws IOException {
-        final int numDocs = randomIntBetween(2, 10); // at least 2 documents otherwise we don't see any deletes below
-        for (int i = 0; i < numDocs; i++) {
-            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, testDocument(), new BytesArray("{}"), null);
-            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
-            Engine.IndexResult indexResult = engine.index(firstIndexRequest);
-            assertThat(indexResult.getVersion(), equalTo(1L));
-        }
-        DocsStats docStats = engine.getDocStats();
-        assertEquals(numDocs, docStats.getCount());
-        assertEquals(0, docStats.getDeleted());
-        engine.forceMerge(randomBoolean(), 1, false, false, false);
-
-        ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, testDocument(), new BytesArray("{}"), null);
-        Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(0)), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
-        Engine.IndexResult index = engine.index(firstIndexRequest);
-        assertThat(index.getVersion(), equalTo(2L));
-        engine.flush(); // flush - buffered deletes are not counted
-        docStats = engine.getDocStats();
-        assertEquals(1, docStats.getDeleted());
-        assertEquals(numDocs, docStats.getCount());
-        engine.forceMerge(randomBoolean(), 1, false, false, false);
-        docStats = engine.getDocStats();
-        assertEquals(0, docStats.getDeleted());
-        assertEquals(numDocs, docStats.getCount());
-    }
-
     public void testDoubleDelivery() throws IOException {
         final ParsedDocument doc = testParsedDocument("1", "1", "test", null, testDocumentWithTextField(), new BytesArray("{}".getBytes(Charset.defaultCharset())), null);
         Engine.Index operation = randomAppendOnly(1, doc, false);

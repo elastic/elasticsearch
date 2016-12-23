@@ -37,7 +37,8 @@ public class ReindexParallelizationHelperTests extends ESTestCase {
                 () -> null,
                 () -> null,
                 () -> null,
-                () -> emptyList()));
+                () -> emptyList(),
+                () -> null));
         if (searchRequest.source() != null) {
             // Clear the slice builder if there is one set. We can't call sliceIntoSubRequests if it is.
             searchRequest.source().slice(null);

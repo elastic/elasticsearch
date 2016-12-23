@@ -211,6 +211,16 @@ Closure setupTwitter = { String name, int count ->
         settings:
           number_of_shards: 1
           number_of_replicas: 1
+        mappings:
+          tweet:
+            properties:
+              user:
+                type: keyword
+                doc_values: true
+              date:
+                type: date
+              likes:
+                type: long
   - do:
     bulk:
       index: twitter

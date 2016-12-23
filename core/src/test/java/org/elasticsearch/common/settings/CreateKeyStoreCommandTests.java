@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -55,7 +56,7 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testOverwrite() throws Exception {
         Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
-        byte[] content = "not a keystore".getBytes();
+        byte[] content = "not a keystore".getBytes(StandardCharsets.UTF_8);
         Files.write(keystoreFile, content);
 
         terminal.addTextInput(""); // default is no

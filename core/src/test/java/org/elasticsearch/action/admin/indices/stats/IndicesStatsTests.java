@@ -19,7 +19,11 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.CommitStats;
@@ -109,6 +113,32 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
             assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_GENERATION_KEY));
             assertThat(commitStats.getUserData(), hasKey(Translog.TRANSLOG_UUID_KEY));
         }
+    }
+
+    public void testRefreshListeners() throws Exception {
+        // Create an index without automatic refreshes
+        createIndex("test", Settings.builder().put("refresh_interval", -1).build());
+
+        // Index a document asynchronously so the request will only return when document is refreshed
+        ListenableActionFuture<IndexResponse> index = client().prepareIndex("test", "test", "test").setSource("test", "test")
+                .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL).execute();
+
+        // Wait for the refresh listener to appear in the stats
+        assertBusy(() -> {
+            IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().setRefresh(true).get();
+            CommonStats common = stats.getIndices().get("test").getTotal();
+            assertEquals(1, common.refresh.getListeners());
+        });
+
+        // Refresh the index and wait for the request to come back
+        client().admin().indices().prepareRefresh("test").get();
+        index.get();
+
+        // The document should appear in the statistics and the refresh listener should be gone
+        IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().setRefresh(true).setDocs(true).get();
+        CommonStats common = stats.getIndices().get("test").getTotal();
+        assertEquals(1, common.docs.getCount());
+        assertEquals(0, common.refresh.getListeners());
     }
 
     /**

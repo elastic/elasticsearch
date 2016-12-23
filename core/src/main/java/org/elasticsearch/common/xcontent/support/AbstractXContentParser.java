@@ -72,6 +72,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
     }
 
+    //TODO dm: Test me
     @Override
     public boolean isBooleanValue() throws IOException {
         switch (currentToken()) {
@@ -84,6 +85,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
     }
 
+    //TODO dm: Test me
     @Override
     public boolean booleanValue() throws IOException {
         Token token = currentToken();
@@ -93,6 +95,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         return doBooleanValue();
     }
 
+    //TODO dm: Test me
     @Override
     @SuppressWarnings("deprecated")
     public boolean isBooleanValueLenient() throws IOException {
@@ -109,6 +112,7 @@ public abstract class AbstractXContentParser implements XContentParser {
         }
     }
 
+    //TODO dm: Test me
     @Override
     @SuppressWarnings("deprecated")
     public boolean booleanValueLenient() throws IOException {

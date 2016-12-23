@@ -47,8 +47,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
-
 public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_source";
@@ -116,7 +114,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    builder.enabled(lenientNodeBooleanValue(fieldNode));
+                    builder.enabled(TypeParsers.nodeBooleanValue(name, "enabled", fieldNode, parserContext));
                     iterator.remove();
                 } else if ("format".equals(fieldName) && parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
                     // ignore on old indices, reject on and after 5.0

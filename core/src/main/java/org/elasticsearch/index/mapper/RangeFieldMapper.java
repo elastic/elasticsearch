@@ -166,7 +166,7 @@ public class RangeFieldMapper extends FieldMapper {
                     throw new MapperParsingException("Property [null_value] is not supported for [" + this.type.name
                             + "] field types.");
                 } else if (propName.equals("coerce")) {
-                    builder.coerce(TypeParsers.nodeBooleanValue("coerce", propNode, parserContext));
+                    builder.coerce(TypeParsers.nodeBooleanValue(name, "coerce", propNode, parserContext));
                     iterator.remove();
                 } else if (propName.equals("locale")) {
                     builder.locale(LocaleUtils.parse(propNode.toString()));

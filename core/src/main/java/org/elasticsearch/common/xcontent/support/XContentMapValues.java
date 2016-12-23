@@ -24,6 +24,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -412,39 +413,13 @@ public class XContentMapValues {
         return Long.parseLong(node.toString());
     }
 
-    /**
-     * This method is very lenient, use {@link #nodeBooleanValue} instead.
-     */
-    public static boolean lenientNodeBooleanValue(Object node, boolean defaultValue) {
-        if (node == null) {
-            return defaultValue;
-        }
-        return lenientNodeBooleanValue(node);
-    }
-
-    /**
-     * This method is very lenient, use {@link #nodeBooleanValue} instead.
-     */
-    public static boolean lenientNodeBooleanValue(Object node) {
-        if (node instanceof Boolean) {
-            return (Boolean) node;
-        }
-        if (node instanceof Number) {
-            return ((Number) node).intValue() != 0;
-        }
-        String value = node.toString();
-        return !(value.equals("false") || value.equals("0") || value.equals("off"));
+    public static boolean nodeBooleanValue(Object node, boolean defaultValue) {
+        String nodeValue = node != null ? node.toString() : null;
+        return Booleans.parseBoolean(nodeValue, defaultValue);
     }
 
     public static boolean nodeBooleanValue(Object node) {
-        switch (node.toString()) {
-        case "true":
-            return true;
-        case "false":
-            return false;
-        default:
-            throw new IllegalArgumentException("Can't parse boolean value [" + node + "], expected [true] or [false]");
-        }
+        return Booleans.parseBoolean(node.toString());
     }
 
     public static TimeValue nodeTimeValue(Object node, TimeValue defaultValue) {

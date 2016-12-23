@@ -33,7 +33,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Mapping configuration for a type.
@@ -96,10 +96,6 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         initMappers((Map<String, Object>) mappingMap.get(this.type));
     }
 
-    public MappingMetaData(Map<String, Object> mapping) throws IOException {
-        this(mapping.keySet().iterator().next(), mapping);
-    }
-
     public MappingMetaData(String type, Map<String, Object> mapping) throws IOException {
         this.type = type;
         XContentBuilder mappingBuilder = XContentFactory.jsonBuilder().map(mapping);
@@ -128,7 +124,12 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("required")) {
-                    required = lenientNodeBooleanValue(fieldNode);
+                    try {
+                        required = nodeBooleanValue(fieldNode);
+                    } catch (IllegalArgumentException ex) {
+                        throw new IllegalArgumentException("Failed to create mapping for type [" + this.type() + "]. " +
+                            "Illegal value in field [_routing.required].", ex);
+                    }
                 }
             }
             this.routing = new Routing(required);

@@ -76,7 +76,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -1359,21 +1358,19 @@ public class IndexShardTests extends IndexShardTestCase {
             for (int i = 0; i < numDocs; i++) {
                 final String id = Integer.toString(i);
                 final ParsedDocument doc =
-                    testParsedDocument(id, id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
+                    testParsedDocument(id, id, "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{}), null);
                 final Engine.Index index =
                     new Engine.Index(
                         new Term("_uid", id),
                         doc,
-                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                        0,
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,
                         PRIMARY,
                         System.nanoTime(),
                         -1,
                         false);
-                final Engine.IndexResult result = indexShard.index(index);
-                assertThat(result.getVersion(), equalTo(1L));
+                indexShard.index(index);
+                assertThat(index.version(), equalTo(1L));
             }
 
             indexShard.refresh("test");
@@ -1388,21 +1385,20 @@ public class IndexShardTests extends IndexShardTestCase {
                 IntStream.range(0, Math.toIntExact(numDocs)).boxed().collect(Collectors.toList()));
             for (final Integer i : ids) {
                 final String id = Integer.toString(i);
-                final ParsedDocument doc = testParsedDocument(id, id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
+                final ParsedDocument doc =
+                    testParsedDocument(id, id, "test", null, -1, -1, new ParseContext.Document(), new BytesArray(new byte[]{}), null);
                 final Engine.Index index =
                     new Engine.Index(
                         new Term("_uid", id),
                         doc,
-                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
-                        0,
                         Versions.MATCH_ANY,
                         VersionType.INTERNAL,
                         PRIMARY,
                         System.nanoTime(),
                         -1,
                         false);
-                final Engine.IndexResult result = indexShard.index(index);
-                assertThat(result.getVersion(), equalTo(2L));
+                indexShard.index(index);
+                assertThat(index.version(), equalTo(2L));
             }
 
             // flush the buffered deletes

@@ -1401,7 +1401,8 @@ public class IndexShardTests extends IndexShardTestCase {
                 IntStream.range(0, Math.toIntExact(numDocs)).boxed().collect(Collectors.toList()));
             for (final Integer i : ids) {
                 final String id = Integer.toString(i);
-                final ParsedDocument doc = testParsedDocument(id, id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
+                final ParsedDocument doc =
+                    testParsedDocument(id, id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
                 final Engine.Index index =
                     new Engine.Index(
                         new Term("_uid", id),
@@ -1428,7 +1429,8 @@ public class IndexShardTests extends IndexShardTestCase {
             {
                 final DocsStats docStats = indexShard.docStats();
                 assertThat(docStats.getCount(), equalTo(numDocs));
-                assertThat(docStats.getDeleted(), equalTo(numDocsToDelete));
+                // Lucene will delete a segment if all docs are deleted from it; this means that we lose the deletes when deleting all docs
+                assertThat(docStats.getDeleted(), equalTo(numDocsToDelete == numDocs ? 0 : numDocsToDelete));
             }
 
             // merge them away

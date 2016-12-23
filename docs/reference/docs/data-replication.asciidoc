@@ -6,11 +6,11 @@
 === Introduction
 
 Each index in Elasticsearch is <<getting-started-shards-and-replicas,divided into shards>>
-and each shard can have multiple copies. These copies are known as _replication group_ and must be kept in sync when documents
+and each shard can have multiple copies. These copies are known as a _replication group_ and must be kept in sync when documents
 are added or removed. If we fail to do so, reading from one copy will result in very different results than reading from another.
 The process of keeping the shard copies in sync and serving reads from them is what we call the _data replication model_.
 
-Elasticsearch’s data replication model is based on the primary-backup model and is described very well in the 
+Elasticsearch’s data replication model is based on the _primary-backup model_ and is described very well in the 
 https://www.microsoft.com/en-us/research/publication/pacifica-replication-in-log-based-distributed-storage-systems/[PacificA paper] of
 Microsoft Research. That model is based on having a single copy from the replication group that acts as the primary shard.
 The other copies are called _replica shards_. The primary serves as the main entry point for all indexing operations. It is in charge of
@@ -24,9 +24,8 @@ it has for various interactions between write and read operations.
 === Basic write model
 
 Every indexing operation in Elasticsearch is first resolved to a replication group using <<index-routing,routing>>, 
-typically based on the document ID.
-This is <<index-routing,typically>> done by looking at the document ID. Once the replication group has been determined,
-the operation is forwarded internally to the current primary shard of the group. The _primary shard_ is responsible
+typically based on the document ID. Once the replication group has been determined,
+the operation is forwarded internally to the current _primary shard_ of the group. The primary shard is responsible
 for validating the operation and forwarding it to the other replicas. Since replicas can be offline, the primary
 is not required to replicate to all replicas. Instead, Elasticsearch maintains a list of shard copies that should
 receive the operation. This list is called the _in-sync copies_ and is maintained by the master node. As the name implies,
@@ -34,7 +33,7 @@ these are the set of "good" shard copies that are guaranteed to have processed a
 have been acknowledged to the user. The primary is responsible for maintaining this invariant and thus has to replicate all
 operations to each copy in this set.
 
-The _primary shard_ follows this basic flow:
+The primary shard follows this basic flow:
 
 . Validate incoming operation and reject it if structurally invalid (Example: have an object field where a number is expected)
 . Execute the operation locally i.e. indexing or deleting the relevant document. This will also validate the content of fields
@@ -50,8 +49,8 @@ Many things can go wrong during indexing -- disks can get corrupted, nodes can b
 configuration mistake could cause an operation to fail on a replica despite it being successful on the primary. These
 are infrequent but the primary has to respond to them.
 
-In the case that the primary itself fails, the node hosting it will send a message to the master about it. The indexing operation
-will wait (up to 1 minute, by <<dynamic-index-settings,default>>) for the master to promote one of the replicas to be a 
+In the case that the primary itself fails, the node hosting the primary will send a message to the master about it. The indexing
+operation will wait (up to 1 minute, by <<dynamic-index-settings,default>>) for the master to promote one of the replicas to be a 
 new primary. The operation will then be forwarded to the new primary for processing. Note that the master also monitors the
 health of the nodes and may decide to proactively demote a primary. This typically happens when the node holding the primary
 is isolated from the cluster by a networking issue. See <<demoted-primary,here>> for more details.
@@ -88,11 +87,11 @@ issues can cause data loss. See <<index-wait-for-active-shards>> for some mitiga
 === Basic read model
 
 Reads in Elasticsearch can be very lightweight lookups by ID or a heavy search request with complex aggregations that
-take non-trivial CPU power. One of the beauties of the _primary-backup model_ is that it keeps all shard copies identical
+take non-trivial CPU power. One of the beauties of the primary-backup model is that it keeps all shard copies identical
 (with the exception of in-flight operations). As such, a single in-sync copy is sufficient to serve read requests.
 
-When a read request is recieved by a node, that node is responsible for forwarding it to the nodes that hold the relevant shards,
-collating the responses, and responding to the client. We call that node the coordinating node for that reqyest. The basic flow 
+When a read request is received by a node, that node is responsible for forwarding it to the nodes that hold the relevant shards,
+collating the responses, and responding to the client. We call that node the _coordinating node_ for that request. The basic flow 
 is as follows:
 
 . Resolve the read requests to the relevant shards. Note that since most searches will be sent to one or more indices,
@@ -105,10 +104,10 @@ is as follows:
 [float]
 ==== Failure handling
 
-When a shard fails to respond to a read request, the _coordinating node_ will select another copy from the same replication group
+When a shard fails to respond to a read request, the coordinating node will select another copy from the same replication group
 and send the shard level search request to that copy instead. Repetitive failures can result in no shard copies being available.
-In some cases Elasticsearch, like `_search` will prefer to respond fast, albeit with partial results, instead of waiting for the issue to be
-resolved (partial results are indicated in the `_shards` header of the response).
+In some cases, such as `_search`, Elasticsearch will prefer to respond fast, albeit with partial results, instead of waiting 
+for the issue to be resolved (partial results are indicated in the `_shards` header of the response).
 
 [float]
 === A few simple implications

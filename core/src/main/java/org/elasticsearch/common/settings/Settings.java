@@ -76,10 +76,29 @@ public final class Settings implements ToXContent {
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
+    /** The raw settings from the full key to raw string value. */
     private Map<String, String> settings;
 
-    Settings(Map<String, String> settings) {
-        this.settings = Collections.unmodifiableMap(settings);
+    /** The keystore storage associated with these settings. */
+    private KeyStoreWrapper keystore;
+
+    Settings(Map<String, String> settings, KeyStoreWrapper keystore) {
+        // we use a sorted map for consistent serialization when using getAsMap()
+        this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
+        this.keystore = keystore;
+    }
+
+    /**
+     * Retrieve the keystore that contains secure settings.
+     */
+    KeyStoreWrapper getKeyStore() {
+        // pkg private so it can only be accessed by local subclasses of SecureSetting
+        return keystore;
+    }
+
+    /** Returns true if the setting exists, false otherwise. */
+    public boolean contains(String key) {
+        return settings.containsKey(key) || keystore != null && keystore.getSettings().contains(key);
     }
 
     /**
@@ -185,16 +204,18 @@ public final class Settings implements ToXContent {
 
     /**
      * A settings that are filtered (and key is removed) with the specified prefix.
+     * Secure settings may not be access through the prefixed settings.
      */
     public Settings getByPrefix(String prefix) {
-        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix));
+        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix), null);
     }
 
     /**
      * Returns a new settings object that contains all setting of the current one filtered by the given settings key predicate.
+     * Secure settings may not be accessed through a filter.
      */
     public Settings filter(Predicate<String> predicate) {
-        return new Settings(new FilteredMap(this.settings, predicate, null));
+        return new Settings(new FilteredMap(this.settings, predicate, null), null);
     }
 
     /**
@@ -456,7 +477,7 @@ public final class Settings implements ToXContent {
         }
         Map<String, Settings> retVal = new LinkedHashMap<>();
         for (Map.Entry<String, Map<String, String>> entry : map.entrySet()) {
-            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue())));
+            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue()), keystore));
         }
         return Collections.unmodifiableMap(retVal);
     }
@@ -591,6 +612,8 @@ public final class Settings implements ToXContent {
         // we use a sorted map for consistent serialization when using getAsMap()
         private final Map<String, String> map = new TreeMap<>();
 
+        private KeyStoreWrapper keystore;
+
         private Builder() {
 
         }
@@ -611,6 +634,13 @@ public final class Settings implements ToXContent {
          */
         public String get(String key) {
             return map.get(key);
+        }
+
+        /** Sets the secret store for these settings. */
+        public void setKeyStore(KeyStoreWrapper keystore) {
+            assert this.keystore == null; // only set once!
+            assert keystore.isLoaded();
+            this.keystore = Objects.requireNonNull(keystore);
         }
 
         /**
@@ -1019,7 +1049,7 @@ public final class Settings implements ToXContent {
          * set on this builder.
          */
         public Settings build() {
-            return new Settings(map);
+            return new Settings(map, keystore);
         }
     }
 

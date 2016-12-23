@@ -17,27 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.bootstrap;
+package org.elasticsearch.common.settings;
 
-import java.nio.file.Path;
+import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.Terminal;
 
 /**
- * Wrapper exception for checked exceptions thrown during the bootstrap process. Methods invoked
- * during bootstrap should explicitly declare the checked exceptions that they can throw, rather
- * than declaring the top-level checked exception {@link Exception}. This exception exists to wrap
- * these checked exceptions so that
- * {@link Bootstrap#init(boolean, Path, boolean, org.elasticsearch.env.Environment)}
- * does not have to declare all of these checked exceptions.
+ * A cli tool for managing secrets in the elasticsearch keystore.
  */
-class BootstrapException extends Exception {
+public class KeyStoreCli extends MultiCommand {
 
-    /**
-     * Wraps an existing exception.
-     *
-     * @param cause the underlying cause of bootstrap failing
-     */
-    BootstrapException(final Exception cause) {
-        super(cause);
+    private KeyStoreCli() {
+        super("A tool for managing settings stored in the elasticsearch keystore");
+        subcommands.put("create", new CreateKeyStoreCommand());
+        subcommands.put("list", new ListKeyStoreCommand());
+        subcommands.put("add", new AddStringKeyStoreCommand());
+        subcommands.put("remove", new RemoveSettingKeyStoreCommand());
     }
 
+    public static void main(String[] args) throws Exception {
+        exit(new KeyStoreCli().main(args, Terminal.DEFAULT));
+    }
 }

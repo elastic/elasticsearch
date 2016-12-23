@@ -592,15 +592,14 @@ public class InternalEngine extends Engine {
     private boolean assertSequenceNumber(final Engine.Operation.Origin origin, final long seqNo) {
         if (engineConfig.getIndexSettings().getIndexVersionCreated().before(Version.V_6_0_0_alpha1_UNRELEASED) && origin == Operation.Origin.LOCAL_TRANSLOG_RECOVERY) {
             // legacy support
-            assert seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "old op recovering but it already has a seq no." +
-                " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ". seq no: " + seqNo;
+            assert seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "old op recovering but it already has a seq no.;" +
+                " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated() + ", seqNo: " + seqNo;
         } else if (origin == Operation.Origin.PRIMARY) {
             // sequence number should not be set when operation origin is primary
-            assert seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "primary ops should never have an assigned seq no. got: " + seqNo;
-        } else {
+            assert seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "primary ops should never have an assigned seq no.; seqNo: " + seqNo;
+        } else if (engineConfig.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
             // sequence number should be set when operation origin is not primary
-            assert seqNo >= 0 : "recovery or replica ops should have an assigned seq no. origin: " + origin +
-                " index version: " + engineConfig.getIndexSettings().getIndexVersionCreated();
+            assert seqNo >= 0 : "recovery or replica ops should have an assigned seq no.; origin: " + origin;
         }
         return true;
     }

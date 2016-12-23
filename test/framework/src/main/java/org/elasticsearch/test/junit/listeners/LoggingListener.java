@@ -117,7 +117,7 @@ public class LoggingListener extends RunListener {
      * @param testLogging the test logging annotation
      * @return a map from logger name to logging level
      */
-    private static Map<String, String> getLoggersAndLevelsFromAnnotation(final TestLogging testLogging) {
+    public static Map<String, String> getLoggersAndLevelsFromAnnotation(final TestLogging testLogging) {
         if (testLogging == null) {
             return Collections.emptyMap();
         }

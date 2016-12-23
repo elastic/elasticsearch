@@ -42,7 +42,7 @@ import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Create snapshot request
@@ -366,14 +366,22 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                partial(lenientNodeBooleanValue(entry.getValue()));
+                try {
+                    partial(nodeBooleanValue(entry.getValue()));
+                } catch (IllegalArgumentException ex) {
+                    throw new IllegalArgumentException("Could not convert [partial] to boolean.", ex);
+                }
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section, should indices an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                includeGlobalState = lenientNodeBooleanValue(entry.getValue());
+                try {
+                    includeGlobalState = nodeBooleanValue(entry.getValue());
+                } catch (IllegalArgumentException ex) {
+                    throw new IllegalArgumentException("Could not convert [include_global_state] to boolean.", ex);
+                }
             }
         }
         indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));

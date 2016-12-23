@@ -40,7 +40,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Restore snapshot request
@@ -481,16 +481,28 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                partial(lenientNodeBooleanValue(entry.getValue()));
+                try {
+                    partial(nodeBooleanValue(entry.getValue()));
+                } catch (IllegalArgumentException ex) {
+                    throw new IllegalArgumentException("Could not convert [partial] to boolean.", ex);
+                }
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                includeGlobalState = lenientNodeBooleanValue(entry.getValue());
+                try {
+                    includeGlobalState = nodeBooleanValue(entry.getValue());
+                } catch (IllegalArgumentException ex) {
+                    throw new IllegalArgumentException("Could not convert [include_global_state] to boolean.", ex);
+                }
             } else if (name.equals("include_aliases")) {
-                includeAliases = lenientNodeBooleanValue(entry.getValue());
+                try {
+                    includeAliases = nodeBooleanValue(entry.getValue());
+                } catch (IllegalArgumentException ex) {
+                    throw new IllegalArgumentException("Could not convert [include_aliases] to boolean.", ex);
+                }
             } else if (name.equals("rename_pattern")) {
                 if (entry.getValue() instanceof String) {
                     renamePattern((String) entry.getValue());

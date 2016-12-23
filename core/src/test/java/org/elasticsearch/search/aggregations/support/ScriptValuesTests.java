@@ -108,6 +108,27 @@ public class ScriptValuesTests extends ESTestCase {
         }
     }
 
+    public void testBooleans() {
+        final Object[][] values = new Boolean[randomInt(10)][];
+        for (int i = 0; i < values.length; ++i) {
+            Boolean[] booleans = new Boolean[randomInt(8)];
+            for (int j = 0; j < booleans.length; ++j) {
+                booleans[j] = randomBoolean();
+            }
+            Arrays.sort(booleans);
+            values[i] = booleans;
+        }
+        FakeSearchScript script = new FakeSearchScript(values);
+        ScriptLongValues scriptValues = new ScriptLongValues(script);
+        for (int i = 0; i < values.length; ++i) {
+            scriptValues.setDocument(i);
+            assertEquals(values[i].length, scriptValues.count());
+            for (int j = 0; j < values[i].length; ++j) {
+                assertEquals(values[i][j], scriptValues.valueAt(j) == 1L);
+            }
+        }
+    }
+
     public void testDoubles() {
         final Object[][] values = new Double[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {

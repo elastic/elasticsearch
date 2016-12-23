@@ -22,6 +22,7 @@ package org.elasticsearch.transport.client;
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -46,6 +47,32 @@ import java.util.concurrent.TimeUnit;
  */
 @SuppressWarnings({"unchecked","varargs"})
 public class PreBuiltTransportClient extends TransportClient {
+
+    static {
+        // initialize Netty system properties before triggering any Netty class loads
+        initializeNetty();
+    }
+
+    /**
+     * Netty wants to do some unsafe things like use unsafe and replace a private field. This method disables these things by default, but
+     * can be overridden by setting the corresponding system properties.
+     */
+    @SuppressForbidden(reason = "set system properties to configure Netty")
+    private static void initializeNetty() {
+        final String noUnsafeKey = "io.netty.noUnsafe";
+        final String noUnsafe = System.getProperty(noUnsafeKey);
+        if (noUnsafe == null) {
+            // disable Netty from using unsafe
+            System.setProperty(noUnsafeKey, Boolean.toString(true));
+        }
+
+        final String noKeySetOptimizationKey = "io.netty.noKeySetOptimization";
+        final String noKeySetOptimization = System.getProperty(noKeySetOptimizationKey);
+        if (noKeySetOptimization == null) {
+            // disable Netty from replacing the selector key set
+            System.setProperty(noKeySetOptimizationKey, Boolean.toString(true));
+        }
+    }
 
     private static final Collection<Class<? extends Plugin>> PRE_INSTALLED_PLUGINS =
             Collections.unmodifiableList(

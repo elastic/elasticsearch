@@ -669,9 +669,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public DocsStats docStats() {
-        readAllowed();
-        final Engine engine = getEngine();
-        return engine.getDocStats();
+        try (final Engine.Searcher searcher = acquireSearcher("doc_stats")) {
+            return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
+        }
     }
 
     /**

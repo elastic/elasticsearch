@@ -202,6 +202,9 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
             case "eu-west-1":
                 endpoint = "s3-eu-west-1.amazonaws.com";
                 break;
+            case "eu-west-2":
+                endpoint = "s3-eu-west-2.amazonaws.com";
+                break;
             case "eu-central":
             case "eu-central-1":
                 endpoint = "s3.eu-central-1.amazonaws.com";

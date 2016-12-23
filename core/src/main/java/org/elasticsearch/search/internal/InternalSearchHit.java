@@ -20,7 +20,6 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Explanation;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -48,7 +47,6 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -67,8 +65,6 @@ import static org.elasticsearch.search.internal.InternalSearchHitField.readSearc
 
 public class InternalSearchHit implements SearchHit {
 
-    private static final Object[] EMPTY_SORT_VALUES = new Object[0];
-
     private transient int docId;
 
     private float score = Float.NEGATIVE_INFINITY;
@@ -86,7 +82,7 @@ public class InternalSearchHit implements SearchHit {
 
     private Map<String, HighlightField> highlightFields = null;
 
-    private Object[] sortValues = EMPTY_SORT_VALUES;
+    private SearchSortValues sortValues = SearchSortValues.EMPTY;
 
     private String[] matchedQueries = Strings.EMPTY_ARRAY;
 
@@ -343,17 +339,12 @@ public class InternalSearchHit implements SearchHit {
     }
 
     public void sortValues(Object[] sortValues, DocValueFormat[] sortValueFormats) {
-        this.sortValues = Arrays.copyOf(sortValues, sortValues.length);
-        for (int i = 0; i < sortValues.length; ++i) {
-            if (this.sortValues[i] instanceof BytesRef) {
-                this.sortValues[i] = sortValueFormats[i].format((BytesRef) sortValues[i]);
-            }
-        }
+        this.sortValues = new SearchSortValues(sortValues, sortValueFormats);
     }
 
     @Override
     public Object[] sortValues() {
-        return sortValues;
+        return sortValues.sortValues();
     }
 
     @Override
@@ -499,13 +490,7 @@ public class InternalSearchHit implements SearchHit {
             }
             builder.endObject();
         }
-        if (sortValues != null && sortValues.length > 0) {
-            builder.startArray(Fields.SORT);
-            for (Object sortValue : sortValues) {
-                builder.value(sortValue);
-            }
-            builder.endArray();
-        }
+        sortValues.toXContent(builder, params);
         if (matchedQueries.length > 0) {
             builder.startArray(Fields.MATCHED_QUERIES);
             for (String matchedFilter : matchedQueries) {
@@ -603,34 +588,7 @@ public class InternalSearchHit implements SearchHit {
             this.highlightFields = unmodifiableMap(highlightFields);
         }
 
-        size = in.readVInt();
-        if (size > 0) {
-            sortValues = new Object[size];
-            for (int i = 0; i < sortValues.length; i++) {
-                byte type = in.readByte();
-                if (type == 0) {
-                    sortValues[i] = null;
-                } else if (type == 1) {
-                    sortValues[i] = in.readString();
-                } else if (type == 2) {
-                    sortValues[i] = in.readInt();
-                } else if (type == 3) {
-                    sortValues[i] = in.readLong();
-                } else if (type == 4) {
-                    sortValues[i] = in.readFloat();
-                } else if (type == 5) {
-                    sortValues[i] = in.readDouble();
-                } else if (type == 6) {
-                    sortValues[i] = in.readByte();
-                } else if (type == 7) {
-                    sortValues[i] = in.readShort();
-                } else if (type == 8) {
-                    sortValues[i] = in.readBoolean();
-                } else {
-                    throw new IOException("Can't match type [" + type + "]");
-                }
-            }
-        }
+        sortValues = new SearchSortValues(in);
 
         size = in.readVInt();
         if (size > 0) {
@@ -681,46 +639,7 @@ public class InternalSearchHit implements SearchHit {
                 highlightField.writeTo(out);
             }
         }
-
-        if (sortValues.length == 0) {
-            out.writeVInt(0);
-        } else {
-            out.writeVInt(sortValues.length);
-            for (Object sortValue : sortValues) {
-                if (sortValue == null) {
-                    out.writeByte((byte) 0);
-                } else {
-                    Class type = sortValue.getClass();
-                    if (type == String.class) {
-                        out.writeByte((byte) 1);
-                        out.writeString((String) sortValue);
-                    } else if (type == Integer.class) {
-                        out.writeByte((byte) 2);
-                        out.writeInt((Integer) sortValue);
-                    } else if (type == Long.class) {
-                        out.writeByte((byte) 3);
-                        out.writeLong((Long) sortValue);
-                    } else if (type == Float.class) {
-                        out.writeByte((byte) 4);
-                        out.writeFloat((Float) sortValue);
-                    } else if (type == Double.class) {
-                        out.writeByte((byte) 5);
-                        out.writeDouble((Double) sortValue);
-                    } else if (type == Byte.class) {
-                        out.writeByte((byte) 6);
-                        out.writeByte((Byte) sortValue);
-                    } else if (type == Short.class) {
-                        out.writeByte((byte) 7);
-                        out.writeShort((Short) sortValue);
-                    } else if (type == Boolean.class) {
-                        out.writeByte((byte) 8);
-                        out.writeBoolean((Boolean) sortValue);
-                    } else {
-                        throw new IOException("Can't handle sort field value of type [" + type + "]");
-                    }
-                }
-            }
-        }
+        sortValues.writeTo(out);
 
         if (matchedQueries.length == 0) {
             out.writeVInt(0);

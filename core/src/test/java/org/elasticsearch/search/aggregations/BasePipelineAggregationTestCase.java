@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -65,7 +64,6 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
     private NamedWriteableRegistry namedWriteableRegistry;
 
     protected AggregatorParsers aggParsers;
-    protected IndicesQueriesRegistry queriesRegistry;
     protected ParseFieldMatcher parseFieldMatcher;
 
     protected abstract AF createTestAggregatorFactory();
@@ -86,7 +84,6 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        queriesRegistry = searchModule.getQueryParserRegistry();
         aggParsers = searchModule.getSearchRequestParsers().aggParsers;
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
@@ -113,7 +110,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
         XContentParser parser = createParser(shuffled);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
         String contentString = factoriesBuilder.toString();
         logger.info("Content string: {}", contentString);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());

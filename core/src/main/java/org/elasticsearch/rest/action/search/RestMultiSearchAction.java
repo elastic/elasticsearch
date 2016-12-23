@@ -89,8 +89,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             try {
-                final QueryParseContext queryParseContext = new QueryParseContext(searchRequestParsers.queryParsers, parser,
-                        parseFieldMatcher);
+                final QueryParseContext queryParseContext = new QueryParseContext(parser, parseFieldMatcher);
                 searchRequest.source(SearchSourceBuilder.fromXContent(queryParseContext,
                     searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers));
                 multiRequest.add(searchRequest);

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.cluster.allocation;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Nullable;
@@ -234,6 +235,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
+        checkVersion(in.getVersion());
         super.readFrom(in);
         this.index = in.readOptionalString();
         this.shard = in.readOptionalVInt();
@@ -245,6 +247,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        checkVersion(out.getVersion());
         super.writeTo(out);
         out.writeOptionalString(index);
         out.writeOptionalVInt(shard);
@@ -252,5 +255,12 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
         out.writeOptionalString(currentNode);
         out.writeBoolean(includeYesDecisions);
         out.writeBoolean(includeDiskInfo);
+    }
+
+    private void checkVersion(Version version) {
+        if (version.before(Version.V_5_2_0_UNRELEASED)) {
+            throw new IllegalStateException("cannot explain shards in a mixed-cluster with pre-" + Version.V_5_2_0_UNRELEASED +
+                                            " nodes, node version [" + version + "]");
+        }
     }
 }

@@ -469,6 +469,10 @@ setup:
 ---
 "Unmapped strings":
 
+  - skip:
+      version: " - 5.1.99"
+      reason: Unmapped fields handling with value_type was added in 5.2
+
   - do:
       index:
         index: test_1
@@ -493,6 +497,10 @@ setup:
 
 ---
 "Unmapped booleans":
+
+  - skip:
+      version: " - 5.1.99"
+      reason: Unmapped fields handling with value_type was added in 5.2
 
   - do:
       index:
@@ -521,6 +529,10 @@ setup:
 ---
 "Unmapped dates":
 
+  - skip:
+      version: " - 5.1.99"
+      reason: Unmapped fields handling with value_type was added in 5.2
+
   - do:
       index:
         index: test_1
@@ -548,6 +560,10 @@ setup:
 ---
 "Unmapped longs":
 
+  - skip:
+      version: " - 5.1.99"
+      reason: Unmapped fields handling with value_type was added in 5.2
+
   - do:
       index:
         index: test_1
@@ -572,6 +588,10 @@ setup:
 
 ---
 "Unmapped doubles":
+
+  - skip:
+      version: " - 5.1.99"
+      reason: Unmapped fields handling with value_type was added in 5.2
 
   - do:
       index:

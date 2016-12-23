@@ -127,8 +127,10 @@ public class LoggingListener extends RunListener {
         final String[] loggersAndLevels = testLogging.value().split(",");
         for (final String loggerAndLevel : loggersAndLevels) {
             final String[] loggerAndLevelArray = loggerAndLevel.split(":");
-            if (loggerAndLevelArray.length >= 2) {
+            if (loggerAndLevelArray.length == 2) {
                 map.put(loggerAndLevelArray[0], loggerAndLevelArray[1]);
+            } else {
+                throw new IllegalArgumentException("invalid test logging annotation [" + loggerAndLevel + "]");
             }
         }
         return map;

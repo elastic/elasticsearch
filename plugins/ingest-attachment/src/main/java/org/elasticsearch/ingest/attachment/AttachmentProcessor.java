@@ -141,6 +141,18 @@ public final class AttachmentProcessor extends AbstractProcessor {
                 }
                 additionalFields.put(Property.CONTENT_LENGTH.toLowerCase(), length);
             }
+
+            // If we asked for all metadata extraction
+            if (properties.contains(Property.RAW_METADATA)) {
+                Map<String, Object> rawMetadata = new HashMap<>();
+
+                for (String metadataName : metadata.names()) {
+                    String value = metadata.get(metadataName);
+                    rawMetadata.put(metadataName, value);
+                }
+
+                additionalFields.put(Property.RAW_METADATA.toLowerCase(), rawMetadata);
+            }
         } catch (Exception e) {
             throw new ElasticsearchParseException("Error parsing document in field [{}]", e, field);
         }
@@ -171,7 +183,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
 
-        static final Set<Property> DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
+        static final Set<Property> DEFAULT_PROPERTIES;
+
+        static {
+            DEFAULT_PROPERTIES = EnumSet.allOf(Property.class);
+            DEFAULT_PROPERTIES.remove(Property.RAW_METADATA);
+        }
 
         @Override
         public AttachmentProcessor create(Map<String, Processor.Factory> registry, String processorTag,
@@ -210,7 +227,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
         DATE,
         CONTENT_TYPE,
         CONTENT_LENGTH,
-        LANGUAGE;
+        LANGUAGE,
+        RAW_METADATA;
 
         public static Property parse(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));

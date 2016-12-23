@@ -48,12 +48,12 @@ The node must be stopped before removing the plugin.
 .Attachment options
 [options="header"]
 |======
-| Name                   | Required  | Default          | Description
-| `field`                | yes       | -                | The field to get the base64 encoded field from
-| `target_field`         | no        | attachment       | The field that will hold the attachment information
-| `indexed_chars`        | no        | 100000           | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
-| `properties`           | no        | all properties   | Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`
-| `ignore_missing`       | no        | `false`          | If `true` and `field` does not exist, the processor quietly exits without modifying the document
+| Name                   | Required  | Default                           | Description
+| `field`                | yes       | -                                 | The field to get the base64 encoded field from
+| `target_field`         | no        | attachment                        | The field that will hold the attachment information
+| `indexed_chars`        | no        | 100000                            | The number of chars being used for extraction to prevent huge fields. Use `-1` for no limit.
+| `properties`           | no        | all properties but `raw_metadata` | Array of properties to select to be stored. Can be `content`, `title`, `name`, `author`, `keywords`, `date`, `content_type`, `content_length`, `language`, `raw_metadata`
+| `ignore_missing`       | no        | `false`                           | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 |======
 
 For example, this:
@@ -238,3 +238,58 @@ properties on this top level field will contain the value of the
 first attachment only. However, by specifying the
 `target_field` on to a value on `_ingest._value` it will correctly
 associate the properties with the correct attachment.
+
+[[ingest-attachment-raw-metadata]]
+==== Extracting all raw metadata from documents
+
+By default, the `ingest-attachment` plugin only extracts a subset of the most common metadata.
+
+If you want to get back all the raw metadata, you can set `properties` to `raw_metadata`.
+It will populate a subfield `raw_metadata` with all key/value pairs found as metadata in the document.
+
+For example:
+
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/attachment
+{
+  "description" : "Extract all metadata",
+  "processors" : [
+    {
+      "attachment" : {
+        "field" : "data",
+        "properties": [ "raw_metadata" ]
+      }
+    }
+  ]
+}
+PUT my_index/my_type/my_id?pipeline=attachment
+{
+  "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0="
+}
+GET my_index/my_type/my_id
+--------------------------------------------------
+// CONSOLE
+
+Returns this:
+
+[source,js]
+--------------------------------------------------
+{
+  "found": true,
+  "_index": "my_index",
+  "_type": "my_type",
+  "_id": "my_id",
+  "_version": 1,
+  "_source": {
+    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
+    "attachment": {
+      "raw_metadata": {
+        "X-Parsed-By": "org.apache.tika.parser.rtf.RTFParser",
+        "Content-Type": "application/rtf"
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TESTRESPONSE

@@ -10,6 +10,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -19,6 +21,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractStreamableTestCase<T extends Streamable> extends ESTestCase {
     protected static final int NUMBER_OF_TESTQUERIES = 20;
+
+    private static final NamedWriteableRegistry NAMED_WRITEABLE_REGISTRY;
+    static {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        NAMED_WRITEABLE_REGISTRY = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
 
     protected abstract T createTestInstance();
 
@@ -77,8 +85,7 @@ public abstract class AbstractStreamableTestCase<T extends Streamable> extends E
     private T copyInstance(T instance) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             instance.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
-                    new NamedWriteableRegistry(Collections.emptyList()))) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), NAMED_WRITEABLE_REGISTRY)) {
                 T newInstance = createBlankInstance();
                 newInstance.readFrom(in);
                 return newInstance;

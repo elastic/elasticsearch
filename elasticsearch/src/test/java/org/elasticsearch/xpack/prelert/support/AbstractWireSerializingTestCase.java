@@ -5,20 +5,30 @@
  */
 package org.elasticsearch.xpack.prelert.support;
 
-import java.io.IOException;
-import java.util.Collections;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.util.Collections;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractWireSerializingTestCase<T extends ToXContent & Writeable> extends ESTestCase {
     protected static final int NUMBER_OF_TESTQUERIES = 20;
+
+    private static final NamedWriteableRegistry NAMED_WRITEABLE_REGISTRY;
+    static {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, false, Collections.emptyList());
+        NAMED_WRITEABLE_REGISTRY = new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
 
     protected abstract T createTestInstance();
 
@@ -77,8 +87,7 @@ public abstract class AbstractWireSerializingTestCase<T extends ToXContent & Wri
     private T copyInstance(T instance) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             instance.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(),
-                    new NamedWriteableRegistry(Collections.emptyList()))) {
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), NAMED_WRITEABLE_REGISTRY)) {
                 return instanceReader().read(in);
             }
         }

@@ -24,11 +24,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
+import org.elasticsearch.xpack.prelert.job.messages.Messages;
+import org.elasticsearch.xpack.prelert.scheduler.ScheduledJobValidator;
 import org.elasticsearch.xpack.prelert.scheduler.Scheduler;
 import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
 import org.elasticsearch.xpack.prelert.scheduler.SchedulerStatus;
-import org.elasticsearch.xpack.prelert.job.messages.Messages;
-import org.elasticsearch.xpack.prelert.scheduler.ScheduledJobValidator;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -289,10 +289,8 @@ public class PrelertMetadata implements MetaData.Custom {
             }
             ScheduledJobValidator.validate(schedulerConfig, job);
 
-            // Check the query, aggregations and script_fields can be built
-            schedulerConfig.buildQuery(searchRequestParsers.queryParsers);
-            schedulerConfig.buildAggregations(searchRequestParsers.queryParsers, searchRequestParsers.aggParsers);
-            schedulerConfig.buildScriptFields(searchRequestParsers.queryParsers);
+            // Check that aggregations can be built
+            schedulerConfig.buildAggregations(searchRequestParsers.aggParsers);
 
             return putScheduler(new Scheduler(schedulerConfig, SchedulerStatus.STOPPED));
         }

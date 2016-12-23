@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.prelert.scheduler;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -40,6 +39,16 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         builder.setIndexes(randomStringList(1, 10));
         builder.setTypes(randomStringList(1, 10));
         if (randomBoolean()) {
+            builder.setQuery(QueryBuilders.termQuery(randomAsciiOfLength(10), randomAsciiOfLength(10)));
+        }
+        int scriptsSize = randomInt(3);
+        List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
+        for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
+            scriptFields.add(new SearchSourceBuilder.ScriptField(randomAsciiOfLength(10), new Script(randomAsciiOfLength(10)),
+                    randomBoolean()));
+        }
+        builder.setScriptFields(scriptFields);
+        if (randomBoolean()) {
             builder.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
@@ -70,19 +79,10 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
         return SchedulerConfig.PARSER.apply(parser, () -> matcher).build();
     }
 
-    public void testToXContent_GivenQueryAggsAndScriptFields() throws IOException {
+    public void testToXContent_GivenAggregations() throws IOException {
         SchedulerConfig.Builder builder = new SchedulerConfig.Builder(randomValidSchedulerId(), randomAsciiOfLength(10));
         builder.setIndexes(randomStringList(1, 10));
         builder.setTypes(randomStringList(1, 10));
-        builder.setQuery(QueryBuilders.matchAllQuery());
-
-        int scriptsSize = randomInt(3);
-        List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
-        for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
-            scriptFields.add(new SearchSourceBuilder.ScriptField(randomAsciiOfLength(10), new Script(randomAsciiOfLength(10)),
-                    randomBoolean()));
-        }
-        builder.setScriptFields(scriptFields);
 
         AggregatorFactories.Builder aggsBuilder = new AggregatorFactories.Builder();
         aggsBuilder.addAggregator(AggregationBuilders.avg(randomAsciiOfLength(10)));
@@ -94,12 +94,10 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
             XContentBuilder xContentBuilder = toXContent(testInstance, randomFrom(XContentType.values()));
             XContentBuilder shuffled = shuffleXContent(xContentBuilder, shuffleProtectedFields());
 
-            XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(NamedXContentRegistry.EMPTY, shuffled.bytes());
+            XContentParser parser = XContentFactory.xContent(shuffled.bytes()).createParser(NAMED_X_CONTENT_REGISTRY, shuffled.bytes());
             SchedulerConfig parsedInstance = parseInstance(parser, ParseFieldMatcher.STRICT);
 
-            assertEquals(testInstance.getQueryAsMap(), parsedInstance.getQueryAsMap());
             assertEquals(testInstance.getAggregationsAsMap(), parsedInstance.getAggregationsAsMap());
-            assertEquals(testInstance.getScriptFieldsAsMap(), parsedInstance.getScriptFieldsAsMap());
         }
     }
 

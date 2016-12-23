@@ -28,6 +28,7 @@ import org.junit.runner.notification.RunListener;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * A {@link RunListener} that allows to change the log level for a specific test method.
@@ -81,8 +82,13 @@ public class LoggingListener extends RunListener {
         if (map == null) {
             return null;
         }
+        // sort the logging keys so they wouldn't override each other.
+        // for example, processing org.elasticsearch:DEBUG after org.elasticsearch.transport:TRACE
+        // will reset the later
+        TreeMap<String, String> sortedLogNames = new TreeMap<>(String::compareTo);
+        sortedLogNames.putAll(map);
         Map<String, String> previousValues = new HashMap<>();
-        for (Map.Entry<String, String> entry : map.entrySet()) {
+        for (Map.Entry<String, String> entry : sortedLogNames.entrySet()) {
             Logger logger = resolveLogger(entry.getKey());
             previousValues.put(entry.getKey(), logger.getLevel().toString());
             Loggers.setLevel(logger, entry.getValue());

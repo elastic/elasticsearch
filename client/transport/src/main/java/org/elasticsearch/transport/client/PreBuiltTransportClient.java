@@ -40,14 +40,13 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * A builder to create an instance of {@link TransportClient}
- * This class pre-installs the
- * {@link Netty3Plugin},
+ * A builder to create an instance of {@link TransportClient}. This class pre-installs the
+ * {@link Netty3Plugin}
  * {@link Netty4Plugin},
  * {@link ReindexPlugin},
  * {@link PercolatorPlugin},
  * and {@link MustachePlugin}
- * for the client. These plugins are all elasticsearch core modules required.
+ * plugins for the client. These plugins are all the required modules for Elasticsearch.
  */
 @SuppressWarnings({"unchecked","varargs"})
 public class PreBuiltTransportClient extends TransportClient {
@@ -67,6 +66,8 @@ public class PreBuiltTransportClient extends TransportClient {
         final String noUnsafe = System.getProperty(noUnsafeKey);
         if (noUnsafe == null) {
             // disable Netty from using unsafe
+            // while permissions are needed to set this, if a security exception is thrown the permission needed can either be granted or
+            // the system property can be set directly before starting the JVM; therefore, we do not catch a security exception here
             System.setProperty(noUnsafeKey, Boolean.toString(true));
         }
 
@@ -74,35 +75,37 @@ public class PreBuiltTransportClient extends TransportClient {
         final String noKeySetOptimization = System.getProperty(noKeySetOptimizationKey);
         if (noKeySetOptimization == null) {
             // disable Netty from replacing the selector key set
+            // while permissions are needed to set this, if a security exception is thrown the permission needed can either be granted or
+            // the system property can be set directly before starting the JVM; therefore, we do not catch a security exception here
             System.setProperty(noKeySetOptimizationKey, Boolean.toString(true));
         }
     }
 
     private static final Collection<Class<? extends Plugin>> PRE_INSTALLED_PLUGINS =
-            Collections.unmodifiableList(
-                    Arrays.asList(
-                            Netty3Plugin.class,
-                            Netty4Plugin.class,
-                            ReindexPlugin.class,
-                            PercolatorPlugin.class,
-                            MustachePlugin.class));
-
+        Collections.unmodifiableList(
+            Arrays.asList(
+                Netty3Plugin.class,
+                Netty4Plugin.class,
+                ReindexPlugin.class,
+                PercolatorPlugin.class,
+                MustachePlugin.class));
 
     /**
      * Creates a new transport client with pre-installed plugins.
+     *
      * @param settings the settings passed to this transport client
-     * @param plugins an optional array of additional plugins to run with this client
+     * @param plugins  an optional array of additional plugins to run with this client
      */
     @SafeVarargs
     public PreBuiltTransportClient(Settings settings, Class<? extends Plugin>... plugins) {
         this(settings, Arrays.asList(plugins));
     }
 
-
     /**
      * Creates a new transport client with pre-installed plugins.
+     *
      * @param settings the settings passed to this transport client
-     * @param plugins a collection of additional plugins to run with this client
+     * @param plugins  a collection of additional plugins to run with this client
      */
     public PreBuiltTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins) {
         this(settings, plugins, null);
@@ -110,12 +113,15 @@ public class PreBuiltTransportClient extends TransportClient {
 
     /**
      * Creates a new transport client with pre-installed plugins.
-     * @param settings the settings passed to this transport client
-     * @param plugins a collection of additional plugins to run with this client
-     * @param hostFailureListener a failure listener that is invoked if a node is disconnected. This can be <code>null</code>
+     *
+     * @param settings            the settings passed to this transport client
+     * @param plugins             a collection of additional plugins to run with this client
+     * @param hostFailureListener a failure listener that is invoked if a node is disconnected; this can be <code>null</code>
      */
-    public PreBuiltTransportClient(Settings settings, Collection<Class<? extends Plugin>> plugins,
-                                   HostFailureListener hostFailureListener) {
+    public PreBuiltTransportClient(
+        Settings settings,
+        Collection<Class<? extends Plugin>> plugins,
+        HostFailureListener hostFailureListener) {
         super(settings, Settings.EMPTY, addPlugins(plugins, PRE_INSTALLED_PLUGINS), hostFailureListener);
     }
 

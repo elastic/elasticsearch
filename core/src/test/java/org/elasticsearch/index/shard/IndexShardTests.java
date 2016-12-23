@@ -1411,7 +1411,8 @@ public class IndexShardTests extends IndexShardTestCase {
             {
                 final DocsStats docStats = indexShard.docStats();
                 assertThat(docStats.getCount(), equalTo(numDocs));
-                assertThat(docStats.getDeleted(), equalTo(numDocsToDelete));
+                // Lucene will delete a segment if all docs are deleted from it; this means that we lose the deletes when deleting all docs
+                assertThat(docStats.getDeleted(), equalTo(numDocsToDelete == numDocs ? 0 : numDocsToDelete));
             }
 
             // merge them away

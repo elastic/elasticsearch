@@ -1166,6 +1166,10 @@ In this example, if the `remove` processor does fail, then
 the array elements that have been processed thus far will
 be updated.
 
+Another advanced example can be found in the {plugins}/ingest-attachment-with-arrays.html[attachment processor documentation].
+
+
+
 [[grok-processor]]
 === Grok Processor
 

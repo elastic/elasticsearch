@@ -82,27 +82,42 @@ public class LoggingListenerTests extends ESTestCase {
 
         Logger abcLogger = Loggers.getLogger("abc");
         Logger xyzLogger = Loggers.getLogger("xyz");
+        // we include foo and foo.bar to maintain that logging levels are applied from the top of the hierarchy down; this ensures that
+        // setting the logging level for a parent logger and a child logger applies the parent level first and then the child as otherwise
+        // setting the parent level would overwrite the child level
+        Logger fooLogger = Loggers.getLogger("foo");
+        Logger fooBarLogger = Loggers.getLogger("foo.bar");
 
         final Level level = ESLoggerFactory.getRootLogger().getLevel();
 
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(level));
+        assertThat(fooLogger.getLevel(), equalTo(level));
+        assertThat(fooBarLogger.getLevel(), equalTo(level));
         loggingListener.testRunStarted(suiteDescription);
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooBarLogger.getLevel(), equalTo(Level.ERROR));
 
         Description testDescription = Description.createTestDescription(LoggingListenerTests.class, "test");
         loggingListener.testStarted(testDescription);
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooBarLogger.getLevel(), equalTo(Level.ERROR));
 
         loggingListener.testFinished(testDescription);
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooLogger.getLevel(), equalTo(Level.WARN));
+        assertThat(fooBarLogger.getLevel(), equalTo(Level.ERROR));
 
         loggingListener.testRunFinished(new Result());
         assertThat(xyzLogger.getLevel(), equalTo(level));
         assertThat(abcLogger.getLevel(), equalTo(level));
+        assertThat(fooLogger.getLevel(), equalTo(level));
+        assertThat(fooBarLogger.getLevel(), equalTo(level));
     }
 
     public void testCustomLevelPerClassAndPerMethod() throws Exception {
@@ -151,7 +166,7 @@ public class LoggingListenerTests extends ESTestCase {
     /**
      * dummy class used to create a junit suite description that has the @TestLogging annotation
      */
-    @TestLogging("abc:WARN")
+    @TestLogging("abc:WARN,foo:WARN,foo.bar:ERROR")
     public static class AnnotatedTestClass {
 
     }
@@ -162,7 +177,7 @@ public class LoggingListenerTests extends ESTestCase {
     public static class TestClass {
 
         @SuppressWarnings("unused")
-        @TestLogging("xyz:TRACE")
+        @TestLogging("xyz:TRACE,foo:WARN,foo.bar:ERROR")
         public void annotatedTestMethod() {}
 
         @SuppressWarnings("unused")

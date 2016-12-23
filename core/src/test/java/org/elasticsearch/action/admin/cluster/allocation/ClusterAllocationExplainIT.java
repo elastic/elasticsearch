@@ -143,10 +143,17 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> stopping the node with the replica");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode().getName()));
         ensureStableCluster(2);
+        assertBusy(() ->
+            // wait till we have passed any pending shard data fetching
+            assertEquals(AllocationDecision.ALLOCATION_DELAYED, client().admin().cluster().prepareAllocationExplain()
+                .setIndex("idx").setShard(0).setPrimary(false).get().getExplanation()
+                .getShardAllocationDecision().getAllocateDecision().getAllocationDecision())
+        );
 
         logger.info("--> observing delayed allocation...");
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
+
         ClusterAllocationExplanation explanation = runExplain(false, includeYesDecisions, includeDiskInfo);
 
         ShardId shardId = explanation.getShard();

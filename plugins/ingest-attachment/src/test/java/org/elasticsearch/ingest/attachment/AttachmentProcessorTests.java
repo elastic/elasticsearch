@@ -43,6 +43,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -261,53 +262,53 @@ public class AttachmentProcessorTests extends ESTestCase {
             "Application-Version", "extended-properties:Template", "Author", "publisher", "meta:page-count", "dc:publisher"));
 
         // An easy way to generate all metadata assertions is by running
-        /*
-        for (Map.Entry<String, Object> entry : rawMetadata.entrySet()) {
-            logger.info("assertThat(rawMetadata.get(\"{}\"), is(\"{}\"));", entry.getKey(), entry.getValue());
+        /*for (Map.Entry<String, Object> entry : rawMetadata.entrySet()) {
+            logger.info("assertThat(rawMetadata, hasEntry(\"{}\", \"{}\"));", entry.getKey(), entry.getValue());
         }*/
-        assertThat(rawMetadata.get("date"), is("2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata.get("cp:revision"), is("22"));
-        assertThat(rawMetadata.get("Total-Time"), is("6"));
-        assertThat(rawMetadata.get("extended-properties:AppVersion"), is("15.0000"));
-        assertThat(rawMetadata.get("meta:paragraph-count"), is("1"));
-        assertThat(rawMetadata.get("meta:word-count"), is("15"));
-        assertThat(rawMetadata.get("dc:creator"), is("Windows User"));
-        assertThat(rawMetadata.get("extended-properties:Company"), is("JDI"));
-        assertThat(rawMetadata.get("Word-Count"), is("15"));
-        assertThat(rawMetadata.get("dcterms:created"), is("2012-10-12T11:17:00Z"));
-        assertThat(rawMetadata.get("meta:line-count"), is("1"));
-        assertThat(rawMetadata.get("Last-Modified"), is("2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata.get("dcterms:modified"), is("2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata.get("Last-Save-Date"), is("2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata.get("meta:character-count"), is("92"));
-        assertThat(rawMetadata.get("Template"), is("Normal.dotm"));
-        assertThat(rawMetadata.get("Line-Count"), is("1"));
-        assertThat(rawMetadata.get("Paragraph-Count"), is("1"));
-        assertThat(rawMetadata.get("meta:save-date"), is("2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata.get("meta:character-count-with-spaces"), is("106"));
-        assertThat(rawMetadata.get("Application-Name"), is("Microsoft Office Word"));
-        assertThat(rawMetadata.get("extended-properties:TotalTime"), is("6"));
-        assertThat(rawMetadata.get("modified"), is("2015-02-20T11:36:00Z"));
-        assertThat(rawMetadata.get("Content-Type"), is("application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
-        assertThat(rawMetadata.get("X-Parsed-By"), is("org.apache.tika.parser.microsoft.ooxml.OOXMLParser"));
-        assertThat(rawMetadata.get("creator"), is("Windows User"));
-        assertThat(rawMetadata.get("meta:author"), is("Windows User"));
-        assertThat(rawMetadata.get("meta:creation-date"), is("2012-10-12T11:17:00Z"));
-        assertThat(rawMetadata.get("extended-properties:Application"), is("Microsoft Office Word"));
-        assertThat(rawMetadata.get("meta:last-author"), is("Luka Lampret"));
-        assertThat(rawMetadata.get("Creation-Date"), is("2012-10-12T11:17:00Z"));
-        assertThat(rawMetadata.get("xmpTPg:NPages"), is("1"));
-        assertThat(rawMetadata.get("Character-Count-With-Spaces"), is("106"));
-        assertThat(rawMetadata.get("Last-Author"), is("Luka Lampret"));
-        assertThat(rawMetadata.get("Character Count"), is("92"));
-        assertThat(rawMetadata.get("Page-Count"), is("1"));
-        assertThat(rawMetadata.get("Revision-Number"), is("22"));
-        assertThat(rawMetadata.get("Application-Version"), is("15.0000"));
-        assertThat(rawMetadata.get("extended-properties:Template"), is("Normal.dotm"));
-        assertThat(rawMetadata.get("Author"), is("Windows User"));
-        assertThat(rawMetadata.get("publisher"), is("JDI"));
-        assertThat(rawMetadata.get("meta:page-count"), is("1"));
-        assertThat(rawMetadata.get("dc:publisher"), is("JDI"));
+
+        assertThat(rawMetadata, hasEntry("date", "2015-02-20T11:36:00Z"));
+        assertThat(rawMetadata, hasEntry("cp:revision", "22"));
+        assertThat(rawMetadata, hasEntry("Total-Time", "6"));
+        assertThat(rawMetadata, hasEntry("extended-properties:AppVersion", "15.0000"));
+        assertThat(rawMetadata, hasEntry("meta:paragraph-count", "1"));
+        assertThat(rawMetadata, hasEntry("meta:word-count", "15"));
+        assertThat(rawMetadata, hasEntry("dc:creator", "Windows User"));
+        assertThat(rawMetadata, hasEntry("extended-properties:Company", "JDI"));
+        assertThat(rawMetadata, hasEntry("Word-Count", "15"));
+        assertThat(rawMetadata, hasEntry("dcterms:created", "2012-10-12T11:17:00Z"));
+        assertThat(rawMetadata, hasEntry("meta:line-count", "1"));
+        assertThat(rawMetadata, hasEntry("Last-Modified", "2015-02-20T11:36:00Z"));
+        assertThat(rawMetadata, hasEntry("dcterms:modified", "2015-02-20T11:36:00Z"));
+        assertThat(rawMetadata, hasEntry("Last-Save-Date", "2015-02-20T11:36:00Z"));
+        assertThat(rawMetadata, hasEntry("meta:character-count", "92"));
+        assertThat(rawMetadata, hasEntry("Template", "Normal.dotm"));
+        assertThat(rawMetadata, hasEntry("Line-Count", "1"));
+        assertThat(rawMetadata, hasEntry("Paragraph-Count", "1"));
+        assertThat(rawMetadata, hasEntry("meta:save-date", "2015-02-20T11:36:00Z"));
+        assertThat(rawMetadata, hasEntry("meta:character-count-with-spaces", "106"));
+        assertThat(rawMetadata, hasEntry("Application-Name", "Microsoft Office Word"));
+        assertThat(rawMetadata, hasEntry("extended-properties:TotalTime", "6"));
+        assertThat(rawMetadata, hasEntry("modified", "2015-02-20T11:36:00Z"));
+        assertThat(rawMetadata, hasEntry("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"));
+        assertThat(rawMetadata, hasEntry("X-Parsed-By", "org.apache.tika.parser.microsoft.ooxml.OOXMLParser"));
+        assertThat(rawMetadata, hasEntry("creator", "Windows User"));
+        assertThat(rawMetadata, hasEntry("meta:author", "Windows User"));
+        assertThat(rawMetadata, hasEntry("meta:creation-date", "2012-10-12T11:17:00Z"));
+        assertThat(rawMetadata, hasEntry("extended-properties:Application", "Microsoft Office Word"));
+        assertThat(rawMetadata, hasEntry("meta:last-author", "Luka Lampret"));
+        assertThat(rawMetadata, hasEntry("Creation-Date", "2012-10-12T11:17:00Z"));
+        assertThat(rawMetadata, hasEntry("xmpTPg:NPages", "1"));
+        assertThat(rawMetadata, hasEntry("Character-Count-With-Spaces", "106"));
+        assertThat(rawMetadata, hasEntry("Last-Author", "Luka Lampret"));
+        assertThat(rawMetadata, hasEntry("Character Count", "92"));
+        assertThat(rawMetadata, hasEntry("Page-Count", "1"));
+        assertThat(rawMetadata, hasEntry("Revision-Number", "22"));
+        assertThat(rawMetadata, hasEntry("Application-Version", "15.0000"));
+        assertThat(rawMetadata, hasEntry("extended-properties:Template", "Normal.dotm"));
+        assertThat(rawMetadata, hasEntry("Author", "Windows User"));
+        assertThat(rawMetadata, hasEntry("publisher", "JDI"));
+        assertThat(rawMetadata, hasEntry("meta:page-count", "1"));
+        assertThat(rawMetadata, hasEntry("dc:publisher", "JDI"));
     }
 
     public void testRawMetadataFromPdf() throws Exception {
@@ -326,30 +327,29 @@ public class AttachmentProcessorTests extends ESTestCase {
             "pdf:docinfo:creator_tool", "access_permission:fill_in_form", "pdf:encrypted", "producer", "access_permission:can_modify",
             "pdf:docinfo:producer", "pdf:docinfo:created", "Content-Type"));
 
-        assertThat(rawMetadata.get("pdf:PDFVersion"), is("1.4"));
-        assertThat(rawMetadata.get("X-Parsed-By"), is("org.apache.tika.parser.pdf.PDFParser"));
-        assertThat(rawMetadata.get("xmp:CreatorTool"), is("Writer"));
-        assertThat(rawMetadata.get("access_permission:modify_annotations"), is("true"));
-        assertThat(rawMetadata.get("access_permission:can_print_degraded"), is("true"));
-        assertThat(rawMetadata.get("meta:creation-date"), is("2016-09-30T13:19:58Z"));
-        // "created" is different depending on the JVM Locale. We just test that it's not null
-        assertThat(rawMetadata.get("created"), is(notNullValue()));
-        assertThat(rawMetadata.get("access_permission:extract_for_accessibility"), is("true"));
-        assertThat(rawMetadata.get("access_permission:assemble_document"), is("true"));
-        assertThat(rawMetadata.get("xmpTPg:NPages"), is("1"));
-        assertThat(rawMetadata.get("Creation-Date"), is("2016-09-30T13:19:58Z"));
-        assertThat(rawMetadata.get("dcterms:created"), is("2016-09-30T13:19:58Z"));
-        assertThat(rawMetadata.get("dc:format"), is("application/pdf; version=1.4"));
-        assertThat(rawMetadata.get("access_permission:extract_content"), is("true"));
-        assertThat(rawMetadata.get("access_permission:can_print"), is("true"));
-        assertThat(rawMetadata.get("pdf:docinfo:creator_tool"), is("Writer"));
-        assertThat(rawMetadata.get("access_permission:fill_in_form"), is("true"));
-        assertThat(rawMetadata.get("pdf:encrypted"), is("false"));
-        assertThat(rawMetadata.get("producer"), is("LibreOffice 5.2"));
-        assertThat(rawMetadata.get("access_permission:can_modify"), is("true"));
-        assertThat(rawMetadata.get("pdf:docinfo:producer"), is("LibreOffice 5.2"));
-        assertThat(rawMetadata.get("pdf:docinfo:created"), is("2016-09-30T13:19:58Z"));
-        assertThat(rawMetadata.get("Content-Type"), is("application/pdf"));
+        // "created" is different depending on the JVM Locale. We skip testing its content
+        assertThat(rawMetadata, hasEntry("pdf:PDFVersion", "1.4"));
+        assertThat(rawMetadata, hasEntry("X-Parsed-By", "org.apache.tika.parser.pdf.PDFParser"));
+        assertThat(rawMetadata, hasEntry("xmp:CreatorTool", "Writer"));
+        assertThat(rawMetadata, hasEntry("access_permission:modify_annotations", "true"));
+        assertThat(rawMetadata, hasEntry("access_permission:can_print_degraded", "true"));
+        assertThat(rawMetadata, hasEntry("meta:creation-date", "2016-09-30T13:19:58Z"));
+        assertThat(rawMetadata, hasEntry("access_permission:extract_for_accessibility", "true"));
+        assertThat(rawMetadata, hasEntry("access_permission:assemble_document", "true"));
+        assertThat(rawMetadata, hasEntry("xmpTPg:NPages", "1"));
+        assertThat(rawMetadata, hasEntry("Creation-Date", "2016-09-30T13:19:58Z"));
+        assertThat(rawMetadata, hasEntry("dcterms:created", "2016-09-30T13:19:58Z"));
+        assertThat(rawMetadata, hasEntry("dc:format", "application/pdf; version=1.4"));
+        assertThat(rawMetadata, hasEntry("access_permission:extract_content", "true"));
+        assertThat(rawMetadata, hasEntry("access_permission:can_print", "true"));
+        assertThat(rawMetadata, hasEntry("pdf:docinfo:creator_tool", "Writer"));
+        assertThat(rawMetadata, hasEntry("access_permission:fill_in_form", "true"));
+        assertThat(rawMetadata, hasEntry("pdf:encrypted", "false"));
+        assertThat(rawMetadata, hasEntry("producer", "LibreOffice 5.2"));
+        assertThat(rawMetadata, hasEntry("access_permission:can_modify", "true"));
+        assertThat(rawMetadata, hasEntry("pdf:docinfo:producer", "LibreOffice 5.2"));
+        assertThat(rawMetadata, hasEntry("pdf:docinfo:created", "2016-09-30T13:19:58Z"));
+        assertThat(rawMetadata, hasEntry("Content-Type", "application/pdf"));
     }
 
     public void testRawMetadataFromRtf() throws Exception {
@@ -364,8 +364,8 @@ public class AttachmentProcessorTests extends ESTestCase {
 
         assertThat(rawMetadata.keySet(), containsInAnyOrder("X-Parsed-By", "Content-Type"));
 
-        assertThat(rawMetadata.get("X-Parsed-By"), is("org.apache.tika.parser.rtf.RTFParser"));
-        assertThat(rawMetadata.get("Content-Type"), is("application/rtf"));
+        assertThat(rawMetadata, hasEntry("X-Parsed-By", "org.apache.tika.parser.rtf.RTFParser"));
+        assertThat(rawMetadata, hasEntry("Content-Type", "application/rtf"));
     }
 
     private Map<String, Object> parseDocument(String file, AttachmentProcessor processor) throws Exception {

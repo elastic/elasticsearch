@@ -17,7 +17,7 @@ setting `size=0`. For example:
 
 [source,js]
 --------------------------------------------------
-$ curl -XGET 'http://localhost:9200/twitter/tweet/_search' -d '{
+$ curl -XPOST 'http://localhost:9200/twitter/tweet/_search' -d '{
   "size": 0,
   "aggregations": {
     "my_agg": {

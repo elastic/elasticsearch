@@ -942,8 +942,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                                 @Nullable ActionListener<SnapshotInfo> listener) {
         clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
 
-            private long repositoryStateId = -1L;
-
             @Override
             public ClusterState execute(ClusterState currentState) {
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
@@ -953,7 +951,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     for (SnapshotsInProgress.Entry entry : snapshots.entries()) {
                         if (entry.snapshot().equals(snapshot)) {
                             changed = true;
-                            repositoryStateId = entry.getRepositoryStateId();
                         } else {
                             entries.add(entry);
                         }
@@ -1181,13 +1178,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
         SnapshotDeletionsInProgress deletionsInProgress = clusterState.custom(SnapshotDeletionsInProgress.TYPE);
-        if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
-            return true;
-        }
-        RestoreInProgress restoreInProgress = clusterState.custom(RestoreInProgress.TYPE);
-        if (restoreInProgress != null) {
-            for (RestoreInProgress.Entry restore : restoreInProgress.entries()) {
-                if (restore.snapshot().getRepository().equals(repository)) {
+        if (deletionsInProgress != null) {
+            for (SnapshotDeletionsInProgress.Entry entry : deletionsInProgress.getEntries()) {
+                if (entry.getSnapshot().getRepository().equals(repository)) {
                     return true;
                 }
             }

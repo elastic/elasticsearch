@@ -8,9 +8,6 @@ package org.elasticsearch.xpack.security.authc.esnative;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-
-import com.google.common.base.Charsets;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -53,6 +50,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -164,7 +162,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             conn.connect();
             if (bodyString != null) {
                 try (OutputStream out = conn.getOutputStream()) {
-                    out.write(bodyString.getBytes(Charsets.UTF_8));
+                    out.write(bodyString.getBytes(StandardCharsets.UTF_8));
                 } catch (Exception e) {
                     try {
                         conn.disconnect();
@@ -174,7 +172,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
                     throw e;
                 }
             }
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), Charsets.UTF_8))) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
                 StringBuilder sb = new StringBuilder();
                 String line = null;
                 while ((line = reader.readLine()) != null) {
@@ -182,7 +180,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
                 }
                 return sb.toString();
             } catch (IOException e) {
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getErrorStream(), Charsets.UTF_8))) {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getErrorStream(), StandardCharsets.UTF_8))) {
                     StringBuilder sb = new StringBuilder();
                     String line = null;
                     while ((line = reader.readLine()) != null) {

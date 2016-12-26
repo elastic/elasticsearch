@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.test.http;
 
-import com.google.common.base.Charsets;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
@@ -28,6 +27,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
@@ -109,7 +109,7 @@ public class MockWebServer implements Closeable {
                 if (Strings.isEmpty(response.getBody())) {
                     s.sendResponseHeaders(response.getStatusCode(), 0);
                 } else {
-                    byte[] responseAsBytes = response.getBody().getBytes(Charsets.UTF_8);
+                    byte[] responseAsBytes = response.getBody().getBytes(StandardCharsets.UTF_8);
                     s.sendResponseHeaders(response.getStatusCode(), responseAsBytes.length);
                     sleepIfNeeded(response.getBodyDelay());
                     try (OutputStream responseBody = s.getResponseBody()) {

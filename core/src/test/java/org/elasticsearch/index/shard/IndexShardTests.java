@@ -1490,7 +1490,7 @@ public class IndexShardTests extends IndexShardTestCase {
         public RepositoryData getRepositoryData() {
             Map<IndexId, Set<SnapshotId>> map = new HashMap<>();
             map.put(new IndexId(indexName, "blah"), emptySet());
-            return new RepositoryData(Collections.emptyList(), map);
+            return RepositoryData.initRepositoryData(Collections.emptyList(), map);
         }
 
         @Override
@@ -1498,12 +1498,13 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         @Override
-        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures) {
+        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
+                                             List<SnapshotShardFailure> shardFailures, long repositoryStateId) {
             return null;
         }
 
         @Override
-        public void deleteSnapshot(SnapshotId snapshotId) {
+        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId) {
         }
 
         @Override

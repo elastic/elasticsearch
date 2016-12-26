@@ -39,6 +39,7 @@ import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
@@ -324,7 +325,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public void deleteSnapshot(SnapshotId snapshotId) {
+    public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId) {
         if (isReadOnly()) {
             throw new RepositoryException(metadata.name(), "cannot delete snapshot from a readonly repository");
         }
@@ -352,7 +353,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try {
             // Delete snapshot from the index file, since it is the maintainer of truth of active snapshots
             final RepositoryData updatedRepositoryData = repositoryData.removeSnapshot(snapshotId);
-            writeIndexGen(updatedRepositoryData);
+            writeIndexGen(updatedRepositoryData, repositoryStateId);
 
             // delete the snapshot file
             safeSnapshotBlobDelete(snapshot, snapshotId.getUUID());
@@ -454,7 +455,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                          final long startTime,
                                          final String failure,
                                          final int totalShards,
-                                         final List<SnapshotShardFailure> shardFailures) {
+                                         final List<SnapshotShardFailure> shardFailures,
+                                         final long repositoryStateId) {
         try {
             SnapshotInfo blobStoreSnapshot = new SnapshotInfo(snapshotId,
                                                               indices.stream().map(IndexId::getName).collect(Collectors.toList()),
@@ -467,7 +469,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final RepositoryData repositoryData = getRepositoryData();
             List<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
             if (!snapshotIds.contains(snapshotId)) {
-                writeIndexGen(repositoryData.addSnapshot(snapshotId, indices));
+                writeIndexGen(repositoryData.addSnapshot(snapshotId, indices), repositoryStateId);
             }
             return blobStoreSnapshot;
         } catch (IOException ex) {
@@ -628,7 +630,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 Streams.copy(blob, out);
                 // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
                 try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes())) {
-                    repositoryData = RepositoryData.fromXContent(parser);
+                    repositoryData = RepositoryData.fromXContent(parser, indexGen);
                 }
             }
             return repositoryData;
@@ -654,8 +656,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return snapshotsBlobContainer;
     }
 
-    protected void writeIndexGen(final RepositoryData repositoryData) throws IOException {
+    protected void writeIndexGen(final RepositoryData repositoryData, final long repositoryStateId) throws IOException {
         assert isReadOnly() == false; // can not write to a read only repository
+        final long currentGen = latestIndexBlobId();
+        if (repositoryStateId != SnapshotsInProgress.UNDEFINED_REPOSITORY_STATE_ID && currentGen != repositoryStateId) {
+            // the index file was updated by a concurrent operation, so we were operating on stale
+            // repository data
+            throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +
+                                              repositoryStateId + "], actual current generation [" + currentGen +
+                                              "] - possibly due to simultaneous snapshot deletion requests");
+        }
+        final long newGen = currentGen + 1;
         final BytesReference snapshotsBytes;
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
             try (StreamOutput stream = new OutputStreamStreamOutput(bStream)) {
@@ -665,12 +676,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             snapshotsBytes = bStream.bytes();
         }
-        final long gen = latestIndexBlobId() + 1;
         // write the index file
-        writeAtomic(INDEX_FILE_PREFIX + Long.toString(gen), snapshotsBytes);
+        writeAtomic(INDEX_FILE_PREFIX + Long.toString(newGen), snapshotsBytes);
         // delete the N-2 index file if it exists, keep the previous one around as a backup
-        if (isReadOnly() == false && gen - 2 >= 0) {
-            final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(gen - 2);
+        if (isReadOnly() == false && newGen - 2 >= 0) {
+            final String oldSnapshotIndexFile = INDEX_FILE_PREFIX + Long.toString(newGen - 2);
             if (snapshotsBlobContainer.blobExists(oldSnapshotIndexFile)) {
                 snapshotsBlobContainer.deleteBlob(oldSnapshotIndexFile);
             }
@@ -683,7 +693,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // write the current generation to the index-latest file
         final BytesReference genBytes;
         try (BytesStreamOutput bStream = new BytesStreamOutput()) {
-            bStream.writeLong(gen);
+            bStream.writeLong(newGen);
             genBytes = bStream.bytes();
         }
         if (snapshotsBlobContainer.blobExists(INDEX_LATEST_BLOB)) {
@@ -719,7 +729,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 //      index-latest blob
                 // in a read-only repository, we can't know which of the two scenarios it is,
                 // but we will assume (1) because we can't do anything about (2) anyway
-                return -1;
+                return RepositoryData.EMPTY_REPO_GEN;
             }
         }
     }

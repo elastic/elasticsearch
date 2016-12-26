@@ -271,6 +271,9 @@ public final class AnalysisRegistry implements Closeable {
             Settings currentSettings = entry.getValue();
             String typeName = currentSettings.get("type");
             if (analyzer) {
+                if(defaultInstance.containsKey(name)) {
+                    throw new IllegalArgumentException("do not allow custom analyzers to have the same names [" + name + "] as built-in analyzers");
+                }
                 T factory;
                 if (typeName == null) {
                     if (currentSettings.get("tokenizer") != null) {

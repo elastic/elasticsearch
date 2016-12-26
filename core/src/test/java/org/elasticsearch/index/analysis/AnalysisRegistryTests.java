@@ -233,4 +233,15 @@ public class AnalysisRegistryTests extends ESTestCase {
         indexAnalyzers.close();
         indexAnalyzers.close();
     }
+
+    public void testSameAnalyzerNameWithBuiltInAnalyzer() throws IOException {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
+        Settings indexSettings = Settings.builder()
+                .put("index.analysis.analyzer.standard.tokenizer", "standard").build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
+        AnalysisRegistry registry = new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap());
+        Exception e = expectThrows(IllegalArgumentException.class, () -> registry.buildAnalyzerFactories(idxSettings));
+        assertThat(e.getMessage(), equalTo("do not allow custom analyzers to have the same names [standard] as built-in analyzers"));
+
+    }
 }

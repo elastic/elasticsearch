@@ -255,6 +255,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Before
     public final void before()  {
         logger.info("[{}]: before test", getTestName());
+        assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             DeprecationLogger.setThreadContext(threadContext);
@@ -272,8 +273,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     @After
     public final void after() throws Exception {
         checkStaticState();
-        if (enableWarningsCheck()) {
+        // We check threadContext != null rather than enableWarningsCheck()
+        // because after methods are still called in the event that before
+        // methods failed, in which case threadContext might not have been
+        // initialized
+        if (threadContext != null) {
             ensureNoWarnings();
+            threadContext = null;
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();

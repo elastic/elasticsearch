@@ -1368,7 +1368,9 @@ public class IndexShardTests extends IndexShardTestCase {
         try {
             indexShard = newStartedShard();
             final long numDocs = randomIntBetween(2, 32); // at least two documents so we have docs to delete
-            final long numDocsToDelete = randomIntBetween(1, Math.toIntExact(numDocs));
+            // Delete at least numDocs/10 documents otherwise the number of deleted docs will be below 10%
+            // and forceMerge will refuse to expunge deletes
+            final long numDocsToDelete = randomIntBetween((int) Math.ceil(numDocs / 10.0), Math.toIntExact(numDocs));
             for (int i = 0; i < numDocs; i++) {
                 final String id = Integer.toString(i);
                 final ParsedDocument doc =

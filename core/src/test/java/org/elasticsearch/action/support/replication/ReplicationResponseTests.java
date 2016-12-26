@@ -84,7 +84,8 @@ public class ReplicationResponseTests extends ESTestCase {
             List<Supplier<ReplicationResponse.ShardInfo.Failure>> mutations = new ArrayList<>();
 
             final Index index = failure.fullShardId().getIndex();
-            final Set<String> indexNamePool = new HashSet<>(Arrays.asList(randomUnicodeOfCodepointLength(5), randomUnicodeOfCodepointLength(6)));
+            final Set<String> indexNamePool = new HashSet<>(Arrays.asList(
+                    randomUnicodeOfCodepointLength(5), randomUnicodeOfCodepointLength(6)));
             indexNamePool.remove(index.getName());
             final ShardId randomIndex = new ShardId(randomFrom(indexNamePool), index.getUUID(), failure.shardId());
             mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(randomIndex, failure.nodeId(), (Exception) failure.getCause(),
@@ -106,7 +107,8 @@ public class ReplicationResponseTests extends ESTestCase {
             mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(failure.fullShardId(), randomNode, (Exception) failure.getCause(),
                     failure.status(), failure.primary()));
 
-            final Set<Exception> exceptionPool = new HashSet<>(Arrays.asList(new IllegalStateException("a"), new IllegalArgumentException("b")));
+            final Set<Exception> exceptionPool = new HashSet<>(Arrays.asList(
+                    new IllegalStateException("a"), new IllegalArgumentException("b")));
             exceptionPool.remove(failure.getCause());
             final Exception randomException = randomFrom(exceptionPool);
             mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(failure.fullShardId(), failure.nodeId(), randomException,

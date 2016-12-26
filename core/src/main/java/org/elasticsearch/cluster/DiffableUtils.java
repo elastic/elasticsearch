@@ -214,10 +214,15 @@ public final class DiffableUtils {
      *
      * @param <T> the object type
      */
-    private static class ImmutableOpenMapDiff<K, T> extends MapDiff<K, T, ImmutableOpenMap<K, T>> {
+    public static class ImmutableOpenMapDiff<K, T> extends MapDiff<K, T, ImmutableOpenMap<K, T>> {
 
         protected ImmutableOpenMapDiff(StreamInput in, KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) throws IOException {
             super(in, keySerializer, valueSerializer);
+        }
+
+        private ImmutableOpenMapDiff(KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer,
+                                     List<K> deletes, Map<K, Diff<T>> diffs, Map<K, T> upserts) {
+            super(keySerializer, valueSerializer, deletes, diffs, upserts);
         }
 
         public ImmutableOpenMapDiff(ImmutableOpenMap<K, T> before, ImmutableOpenMap<K, T> after,
@@ -243,6 +248,21 @@ public final class DiffableUtils {
                     }
                 }
             }
+        }
+
+        /**
+         * Returns a new diff map with the given key removed, does not modify the invoking instance.
+         * If the key does not exist in the diff map, the same instance is returned.
+         */
+        public ImmutableOpenMapDiff<K, T> withKeyRemoved(K key) {
+            if (this.diffs.containsKey(key) == false && this.upserts.containsKey(key) == false) {
+                return this;
+            }
+            Map<K, Diff<T>> newDiffs = new HashMap<>(this.diffs);
+            newDiffs.remove(key);
+            Map<K, T> newUpserts = new HashMap<>(this.upserts);
+            newUpserts.remove(key);
+            return new ImmutableOpenMapDiff<>(this.keySerializer, this.valueSerializer, this.deletes, newDiffs, newUpserts);
         }
 
         @Override
@@ -344,6 +364,15 @@ public final class DiffableUtils {
             deletes = new ArrayList<>();
             diffs = new HashMap<>();
             upserts = new HashMap<>();
+        }
+
+        protected MapDiff(KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer,
+                          List<K> deletes, Map<K, Diff<T>> diffs, Map<K, T> upserts) {
+            this.keySerializer = keySerializer;
+            this.valueSerializer = valueSerializer;
+            this.deletes = deletes;
+            this.diffs = diffs;
+            this.upserts = upserts;
         }
 
         protected MapDiff(StreamInput in, KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) throws IOException {

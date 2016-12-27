@@ -25,7 +25,6 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.MockServerSocket;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;

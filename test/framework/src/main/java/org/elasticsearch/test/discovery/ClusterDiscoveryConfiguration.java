@@ -20,13 +20,13 @@ package org.elasticsearch.test.discovery;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.MockServerSocket;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.transport.TransportSettings;

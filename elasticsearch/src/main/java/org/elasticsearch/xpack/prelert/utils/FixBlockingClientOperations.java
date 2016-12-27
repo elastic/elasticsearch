@@ -42,7 +42,7 @@ public class FixBlockingClientOperations {
             Thread.currentThread().interrupt();
         }
         if (exception.get() != null) {
-            throw new RuntimeException(exception.get());
+            throw org.elasticsearch.ExceptionsHelper.convertToElastic(exception.get());
         } else {
             return response.get();
         }

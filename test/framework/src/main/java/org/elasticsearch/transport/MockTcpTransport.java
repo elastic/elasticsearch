@@ -19,8 +19,6 @@
 package org.elasticsearch.transport;
 
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.MockServerSocket;
-import org.elasticsearch.MockSocket;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,6 +35,8 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.mocksocket.MockServerSocket;
+import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.BufferedInputStream;

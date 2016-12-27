@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugin.example;
 
-import org.elasticsearch.MockSocket;
+import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedReader;

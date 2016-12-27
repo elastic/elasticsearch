@@ -29,6 +29,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -87,7 +88,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     }
 
     private static HttpServer createHttpServer() throws Exception {
-        HttpServer httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         //returns a different status code depending on the path
         for (int statusCode : getAllStatusCodes()) {

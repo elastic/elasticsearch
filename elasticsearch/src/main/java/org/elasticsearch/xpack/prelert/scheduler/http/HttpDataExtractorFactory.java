@@ -7,6 +7,8 @@ package org.elasticsearch.xpack.prelert.scheduler.http;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
@@ -22,6 +24,7 @@ import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractorFactory;
 import org.elasticsearch.xpack.prelert.scheduler.SchedulerConfig;
+import org.elasticsearch.xpack.prelert.utils.FixBlockingClientOperations;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,7 +58,8 @@ public class HttpDataExtractorFactory implements DataExtractorFactory {
     }
 
     private String getBaseUrl() {
-        NodesInfoResponse nodesInfoResponse = client.admin().cluster().prepareNodesInfo().get();
+        NodesInfoRequest request = new NodesInfoRequest();
+        NodesInfoResponse nodesInfoResponse = FixBlockingClientOperations.executeBlocking(client, NodesInfoAction.INSTANCE, request);
         TransportAddress address = nodesInfoResponse.getNodes().get(0).getHttp().getAddress().publishAddress();
         String baseUrl = "http://" + address.getAddress() + ":" + address.getPort() + "/";
         LOGGER.info("Base URL: " + baseUrl);

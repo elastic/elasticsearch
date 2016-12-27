@@ -36,12 +36,9 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -49,7 +46,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
@@ -64,7 +60,6 @@ import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.verify;
@@ -80,8 +75,6 @@ public class MockClientBuilder {
     private ClusterAdminClient clusterAdminClient;
     @Mock
     private IndicesAdminClient indicesAdminClient;
-    @Mock
-    private ActionFuture<IndicesExistsResponse> indexNotExistsResponseFuture;
 
     public MockClientBuilder(String clusterName) {
         client = mock(Client.class);
@@ -94,24 +87,6 @@ public class MockClientBuilder {
         when(adminClient.indices()).thenReturn(indicesAdminClient);
         Settings settings = Settings.builder().put("cluster.name", clusterName).build();
         when(client.settings()).thenReturn(settings);
-    }
-
-    public MockClientBuilder addClusterStatusYellowResponse(String index, TimeValue timeout)
-            throws InterruptedException, ExecutionException {
-        ClusterHealthRequestBuilder clusterHealthRequestBuilder = mock(ClusterHealthRequestBuilder.class);
-        when(clusterAdminClient.prepareHealth(index)).thenReturn(clusterHealthRequestBuilder);
-        when(clusterHealthRequestBuilder.get(timeout)).thenReturn(mock(ClusterHealthResponse.class));
-        return this;
-    }
-
-    public MockClientBuilder addClusterStatusYellowResponse(String index, TimeValue timeout, Exception e)
-            throws InterruptedException, ExecutionException {
-        ClusterHealthRequestBuilder clusterHealthRequestBuilder = mock(ClusterHealthRequestBuilder.class);
-        when(clusterAdminClient.prepareHealth(index)).thenReturn(clusterHealthRequestBuilder);
-        doAnswer(invocation -> {
-            throw e;
-        }).when(clusterHealthRequestBuilder).get(eq(timeout));
-        return this;
     }
 
     @SuppressWarnings({ "unchecked" })
@@ -135,20 +110,6 @@ public class MockClientBuilder {
         when(clusterHealthRequestBuilder.setWaitForYellowStatus()).thenReturn(clusterHealthRequestBuilder);
         when(clusterHealthRequestBuilder.execute()).thenReturn(actionFuture);
         when(actionFuture.actionGet()).thenReturn(mock(ClusterHealthResponse.class));
-        return this;
-    }
-
-    @SuppressWarnings({ "unchecked" })
-    public MockClientBuilder addClusterStatusRedResponse() throws InterruptedException, ExecutionException {
-        ListenableActionFuture<ClusterHealthResponse> actionFuture = mock(ListenableActionFuture.class);
-        ClusterHealthRequestBuilder clusterHealthRequestBuilder = mock(ClusterHealthRequestBuilder.class);
-
-        when(clusterAdminClient.prepareHealth()).thenReturn(clusterHealthRequestBuilder);
-        when(clusterHealthRequestBuilder.setWaitForYellowStatus()).thenReturn(clusterHealthRequestBuilder);
-        when(clusterHealthRequestBuilder.execute()).thenReturn(actionFuture);
-        ClusterHealthResponse response = mock(ClusterHealthResponse.class);
-        when(response.getStatus()).thenReturn(ClusterHealthStatus.RED);
-        when(actionFuture.actionGet()).thenReturn(response);
         return this;
     }
 
@@ -199,16 +160,6 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder prepareGet(String index, String type, String id, Exception exception) {
-        GetRequestBuilder getRequestBuilder = mock(GetRequestBuilder.class);
-        doAnswer(invocation -> {
-            throw exception;
-        }).when(getRequestBuilder).get();
-        when(getRequestBuilder.setFetchSource(false)).thenReturn(getRequestBuilder);
-        when(client.prepareGet(index, type, id)).thenReturn(getRequestBuilder);
-        return this;
-    }
-
     public MockClientBuilder prepareCreate(String index) {
         CreateIndexRequestBuilder createIndexRequestBuilder = mock(CreateIndexRequestBuilder.class);
         CreateIndexResponse response = mock(CreateIndexResponse.class);
@@ -226,40 +177,6 @@ public class MockClientBuilder {
             ((ActionListener) invocation.getArguments()[1]).onResponse(mock(CreateIndexResponse.class));
             return null;
         }).when(indicesAdminClient).create(requestCapture.capture(), any(ActionListener.class));
-        return this;
-    }
-
-    public MockClientBuilder prepareCreate(String index, RuntimeException e) {
-        CreateIndexRequestBuilder createIndexRequestBuilder = mock(CreateIndexRequestBuilder.class);
-        when(createIndexRequestBuilder.setSettings(any(Settings.Builder.class))).thenReturn(createIndexRequestBuilder);
-        when(createIndexRequestBuilder.addMapping(any(String.class), any(XContentBuilder.class))).thenReturn(createIndexRequestBuilder);
-        doThrow(e).when(createIndexRequestBuilder).get();
-        when(indicesAdminClient.prepareCreate(eq(index))).thenReturn(createIndexRequestBuilder);
-        return this;
-    }
-
-    public MockClientBuilder prepareCreate(String index, Exception e) {
-        CreateIndexRequestBuilder createIndexRequestBuilder = mock(CreateIndexRequestBuilder.class);
-        when(createIndexRequestBuilder.setSettings(any(Settings.Builder.class))).thenReturn(createIndexRequestBuilder);
-        when(createIndexRequestBuilder.addMapping(any(String.class), any(XContentBuilder.class))).thenReturn(createIndexRequestBuilder);
-        doAnswer(invocation -> {
-            throw e;
-        }).when(createIndexRequestBuilder).get();
-        when(indicesAdminClient.prepareCreate(eq(index))).thenReturn(createIndexRequestBuilder);
-        return this;
-    }
-
-    public MockClientBuilder prepareSearch(String index, String type, SearchResponse response) {
-        SearchRequestBuilder searchRequestBuilder = mock(SearchRequestBuilder.class);
-        when(searchRequestBuilder.get()).thenReturn(response);
-        when(searchRequestBuilder.setTypes(eq(type))).thenReturn(searchRequestBuilder);
-        when(searchRequestBuilder.setFrom(anyInt())).thenReturn(searchRequestBuilder);
-        when(searchRequestBuilder.setSize(anyInt())).thenReturn(searchRequestBuilder);
-        when(searchRequestBuilder.addSort(any(SortBuilder.class))).thenReturn(searchRequestBuilder);
-        when(searchRequestBuilder.setQuery(any())).thenReturn(searchRequestBuilder);
-        when(searchRequestBuilder.setFetchSource(anyBoolean())).thenReturn(searchRequestBuilder);
-        when(searchRequestBuilder.setScroll(anyString())).thenReturn(searchRequestBuilder);
-        when(client.prepareSearch(eq(index))).thenReturn(searchRequestBuilder);
         return this;
     }
 
@@ -343,32 +260,6 @@ public class MockClientBuilder {
     }
 
     @SuppressWarnings("unchecked")
-    public MockClientBuilder prepareIndex(String index, String source) {
-        IndexRequestBuilder builder = mock(IndexRequestBuilder.class);
-        ListenableActionFuture<IndexResponse> actionFuture = mock(ListenableActionFuture.class);
-
-        when(client.prepareIndex(eq(index), any(), any())).thenReturn(builder);
-        when(builder.setSource(eq(source))).thenReturn(builder);
-        when(builder.setRefreshPolicy(eq(RefreshPolicy.IMMEDIATE))).thenReturn(builder);
-        when(builder.execute()).thenReturn(actionFuture);
-        when(actionFuture.actionGet()).thenReturn(mock(IndexResponse.class));
-        return this;
-    }
-
-    @SuppressWarnings("unchecked")
-    public MockClientBuilder prepareIndex(String index, ArgumentCaptor<String> getSource) {
-        IndexRequestBuilder builder = mock(IndexRequestBuilder.class);
-        ListenableActionFuture<IndexResponse> actionFuture = mock(ListenableActionFuture.class);
-
-        when(client.prepareIndex(eq(index), any(), any())).thenReturn(builder);
-        when(builder.setSource(getSource.capture())).thenReturn(builder);
-        when(builder.setRefreshPolicy(eq(RefreshPolicy.IMMEDIATE))).thenReturn(builder);
-        when(builder.execute()).thenReturn(actionFuture);
-        when(actionFuture.actionGet()).thenReturn(mock(IndexResponse.class));
-        return this;
-    }
-
-    @SuppressWarnings("unchecked")
     public MockClientBuilder prepareIndex(String index, String type, String responseId, ArgumentCaptor<XContentBuilder> getSource) {
         IndexRequestBuilder builder = mock(IndexRequestBuilder.class);
         ListenableActionFuture<IndexResponse> actionFuture = mock(ListenableActionFuture.class);
@@ -411,43 +302,6 @@ public class MockClientBuilder {
         return this;
     }
 
-    @SuppressWarnings("unchecked")
-    public MockClientBuilder prepareBulkExecuteListener(BulkResponse response) {
-        BulkRequestBuilder builder = mock(BulkRequestBuilder.class);
-        when(client.prepareBulk()).thenReturn(builder);
-
-        doAnswer(new Answer<Void>() {
-            @Override
-            public Void answer(InvocationOnMock invocationOnMock) throws Throwable {
-                ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocationOnMock.getArguments()[0];
-                listener.onResponse(response);
-                return null;
-            }
-        }).when(builder).execute(any());
-        return this;
-    }
-
-    public MockClientBuilder prepareUpdate(String index, String type, String id, ArgumentCaptor<Map<String, Object>> getSource) {
-        UpdateRequestBuilder builder = mock(UpdateRequestBuilder.class);
-        when(client.prepareUpdate(index, type, id)).thenReturn(builder);
-        when(builder.setDoc(getSource.capture())).thenReturn(builder);
-        when(builder.setRetryOnConflict(any(int.class))).thenReturn(builder);
-        when(builder.get()).thenReturn(mock(UpdateResponse.class));
-        return this;
-    }
-
-    public MockClientBuilder prepareUpdate(String index, String type, String id, ArgumentCaptor<Map<String, Object>> getSource,
-            Exception e) {
-        UpdateRequestBuilder builder = mock(UpdateRequestBuilder.class);
-        when(client.prepareUpdate(index, type, id)).thenReturn(builder);
-        when(builder.setDoc(getSource.capture())).thenReturn(builder);
-        when(builder.setRetryOnConflict(any(int.class))).thenReturn(builder);
-        doAnswer(invocation -> {
-            throw e;
-        }).when(builder).get();
-        return this;
-    }
-
     public MockClientBuilder prepareUpdateScript(String index, String type, String id, ArgumentCaptor<Script> getSource,
             ArgumentCaptor<Map<String, Object>> getParams) {
         UpdateRequestBuilder builder = mock(UpdateRequestBuilder.class);
@@ -469,11 +323,6 @@ public class MockClientBuilder {
         doAnswer(invocation -> {
             throw e;
         }).when(builder).get();
-        return this;
-    }
-
-    public MockClientBuilder throwMissingIndexOnPrepareGet(String index, String type, String id) {
-        doThrow(new IndexNotFoundException(index)).when(client).prepareGet(index, type, id);
         return this;
     }
 

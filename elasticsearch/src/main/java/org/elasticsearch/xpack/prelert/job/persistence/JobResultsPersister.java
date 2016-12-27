@@ -6,9 +6,13 @@
 package org.elasticsearch.xpack.prelert.job.persistence;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -26,6 +30,7 @@ import org.elasticsearch.xpack.prelert.job.results.Influencer;
 import org.elasticsearch.xpack.prelert.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.job.results.Result;
+import org.elasticsearch.xpack.prelert.utils.FixBlockingClientOperations;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -65,14 +70,14 @@ public class JobResultsPersister extends AbstractComponent {
     }
 
     public class Builder {
-        private BulkRequestBuilder bulkRequest;
+        private BulkRequest bulkRequest;
         private final String jobId;
         private final String indexName;
 
         private Builder(String jobId) {
             this.jobId = Objects.requireNonNull(jobId);
             indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
-            bulkRequest = client.prepareBulk();
+            bulkRequest = new BulkRequest();
         }
 
         /**
@@ -95,8 +100,8 @@ public class JobResultsPersister extends AbstractComponent {
                 logger.trace("[{}] ES API CALL: index result type {} to index {} at epoch {}",
                         jobId, Bucket.RESULT_TYPE_VALUE, indexName, bucketWithoutRecords.getEpoch());
 
-                bulkRequest.add(client.prepareIndex(indexName, Result.TYPE.getPreferredName(),
-                        bucketWithoutRecords.getId()).setSource(content));
+                bulkRequest.add(new IndexRequest(indexName, Result.TYPE.getPreferredName(),
+                        bucketWithoutRecords.getId()).source(content));
 
                 persistBucketInfluencersStandalone(jobId, bucketWithoutRecords.getBucketInfluencers());
             } catch (IOException e) {
@@ -115,7 +120,7 @@ public class JobResultsPersister extends AbstractComponent {
                     String id = bucketInfluencer.getId();
                     logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
                             jobId, BucketInfluencer.RESULT_TYPE_VALUE, indexName, id);
-                    bulkRequest.add(client.prepareIndex(indexName, Result.TYPE.getPreferredName(), id).setSource(content));
+                    bulkRequest.add(new IndexRequest(indexName, Result.TYPE.getPreferredName(), id).source(content));
                 }
             }
         }
@@ -133,8 +138,7 @@ public class JobResultsPersister extends AbstractComponent {
                     XContentBuilder content = toXContentBuilder(record);
                     logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
                             jobId, AnomalyRecord.RESULT_TYPE_VALUE, indexName, record.getId());
-                    bulkRequest.add(
-                            client.prepareIndex(indexName, Result.TYPE.getPreferredName(), record.getId()).setSource(content));
+                    bulkRequest.add(new IndexRequest(indexName, Result.TYPE.getPreferredName(), record.getId()).source(content));
                 }
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising records", new Object [] {jobId}), e);
@@ -156,8 +160,7 @@ public class JobResultsPersister extends AbstractComponent {
                     XContentBuilder content = toXContentBuilder(influencer);
                     logger.trace("[{}] ES BULK ACTION: index result type {} to index {} with ID {}",
                             jobId, Influencer.RESULT_TYPE_VALUE, indexName, influencer.getId());
-                    bulkRequest.add(
-                            client.prepareIndex(indexName, Result.TYPE.getPreferredName(), influencer.getId()).setSource(content));
+                    bulkRequest.add(new IndexRequest(indexName, Result.TYPE.getPreferredName(), influencer.getId()).source(content));
                 }
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error serialising influencers", new Object[] {jobId}), e);
@@ -178,8 +181,8 @@ public class JobResultsPersister extends AbstractComponent {
                 logger.trace("[{}] ES API CALL: index result type {} to index {} at timestamp {} with ID {}",
                         jobId, PerPartitionMaxProbabilities.RESULT_TYPE_VALUE, indexName, partitionProbabilities.getTimestamp(),
                         partitionProbabilities.getId());
-                bulkRequest.add(client.prepareIndex(indexName, Result.TYPE.getPreferredName(), partitionProbabilities.getId())
-                        .setSource(builder));
+                bulkRequest.add(
+                        new IndexRequest(indexName, Result.TYPE.getPreferredName(), partitionProbabilities.getId()).source(builder));
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] error serialising bucket per partition max normalized scores",
                         new Object[]{jobId}), e);
@@ -197,7 +200,7 @@ public class JobResultsPersister extends AbstractComponent {
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
 
-            BulkResponse addRecordsResponse = bulkRequest.execute().actionGet();
+            BulkResponse addRecordsResponse = FixBlockingClientOperations.executeBlocking(client, BulkAction.INSTANCE, bulkRequest);
             if (addRecordsResponse.hasFailures()) {
                 logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
             }
@@ -319,7 +322,8 @@ public class JobResultsPersister extends AbstractComponent {
         String indexName = AnomalyDetectorsIndex.jobStateIndexName();
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
-        client.admin().indices().refresh(new RefreshRequest(indexName)).actionGet();
+        RefreshRequest refreshRequest = new RefreshRequest(indexName);
+        FixBlockingClientOperations.executeBlocking(client, RefreshAction.INSTANCE, refreshRequest);
         return true;
     }
 
@@ -358,9 +362,9 @@ public class JobResultsPersister extends AbstractComponent {
             logCall(indexName);
 
             try {
-                client.prepareIndex(indexName, type, id)
-                .setSource(toXContentBuilder(object))
-                .execute().actionGet();
+                IndexRequest indexRequest = new IndexRequest(indexName, type, id)
+                        .source(toXContentBuilder(object));
+                FixBlockingClientOperations.executeBlocking(client, IndexAction.INSTANCE, indexRequest);
                 return true;
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error writing {}", new Object[]{jobId, type}), e);

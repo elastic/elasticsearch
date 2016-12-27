@@ -5,14 +5,14 @@
  */
 package org.elasticsearch.xpack.prelert.job.persistence;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.prelert.job.results.Result;
-import org.mockito.ArgumentCaptor;
-
 import org.elasticsearch.xpack.prelert.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.job.results.BucketInfluencer;
@@ -23,7 +23,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 
@@ -33,15 +36,8 @@ public class JobResultsPersisterTests extends ESTestCase {
     private static final String JOB_ID = "foo";
 
     public void testPersistBucket_OneRecord() throws IOException {
-        ArgumentCaptor<XContentBuilder> captor = ArgumentCaptor.forClass(XContentBuilder.class);
-        BulkResponse response = mock(BulkResponse.class);
-        String responseId = "abcXZY54321";
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
-                .prepareIndex(AnomalyDetectorsIndex.jobResultsIndexName(JOB_ID), Result.TYPE.getPreferredName(), responseId, captor)
-                .prepareIndex(AnomalyDetectorsIndex.jobResultsIndexName(JOB_ID), Result.TYPE.getPreferredName(), "", captor)
-                .prepareBulk(response);
-
-        Client client = clientBuilder.build();
+        AtomicReference<BulkRequest> reference = new AtomicReference<>();
+        Client client = mockClient(reference);
         Bucket bucket = new Bucket("foo", new Date(), 123456);
         bucket.setAnomalyScore(99.9);
         bucket.setEventCount(57);
@@ -65,10 +61,10 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
         persister.bulkPersisterBuilder(JOB_ID).persistBucket(bucket).executeRequest();
-        List<XContentBuilder> list = captor.getAllValues();
-        assertEquals(2, list.size());
+        BulkRequest bulkRequest = reference.get();
+        assertEquals(2, bulkRequest.numberOfActions());
 
-        String s = list.get(0).string();
+        String s = ((IndexRequest)bulkRequest.requests().get(0)).source().utf8ToString();
         assertTrue(s.matches(".*anomaly_score.:99\\.9.*"));
         assertTrue(s.matches(".*initial_anomaly_score.:88\\.8.*"));
         assertTrue(s.matches(".*max_normalized_probability.:42\\.0.*"));
@@ -79,7 +75,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         // There should NOT be any nested records
         assertFalse(s.matches(".*records*"));
 
-        s = list.get(1).string();
+        s = ((IndexRequest)bulkRequest.requests().get(1)).source().utf8ToString();
         assertTrue(s.matches(".*probability.:0\\.0054.*"));
         assertTrue(s.matches(".*influencer_field_name.:.biOne.*"));
         assertTrue(s.matches(".*initial_anomaly_score.:18\\.12.*"));
@@ -88,12 +84,8 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistRecords() throws IOException {
-        ArgumentCaptor<XContentBuilder> captor = ArgumentCaptor.forClass(XContentBuilder.class);
-        BulkResponse response = mock(BulkResponse.class);
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
-                .prepareIndex(AnomalyDetectorsIndex.jobResultsIndexName(JOB_ID), Result.TYPE.getPreferredName(), "", captor)
-                .prepareBulk(response);
-        Client client = clientBuilder.build();
+        AtomicReference<BulkRequest> reference = new AtomicReference<>();
+        Client client = mockClient(reference);
 
         List<AnomalyRecord> records = new ArrayList<>();
         AnomalyRecord r1 = new AnomalyRecord(JOB_ID, new Date(), 42, 1);
@@ -124,10 +116,10 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
         persister.bulkPersisterBuilder(JOB_ID).persistRecords(records).executeRequest();
-        List<XContentBuilder> captured = captor.getAllValues();
-        assertEquals(1, captured.size());
+        BulkRequest bulkRequest = reference.get();
+        assertEquals(1, bulkRequest.numberOfActions());
 
-        String s = captured.get(0).string();
+        String s = ((IndexRequest) bulkRequest.requests().get(0)).source().utf8ToString();
         assertTrue(s.matches(".*detector_index.:3.*"));
         assertTrue(s.matches(".*\"probability\":0\\.1.*"));
         assertTrue(s.matches(".*\"anomaly_score\":99\\.8.*"));
@@ -149,12 +141,8 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistInfluencers() throws IOException {
-        ArgumentCaptor<XContentBuilder> captor = ArgumentCaptor.forClass(XContentBuilder.class);
-        BulkResponse response = mock(BulkResponse.class);
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME)
-                .prepareIndex(AnomalyDetectorsIndex.jobResultsIndexName(JOB_ID), Result.TYPE.getPreferredName(), "", captor)
-                .prepareBulk(response);
-        Client client = clientBuilder.build();
+        AtomicReference<BulkRequest> reference = new AtomicReference<>();
+        Client client = mockClient(reference);
 
         List<Influencer> influencers = new ArrayList<>();
         Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1", new Date(), 600, 1);
@@ -165,14 +153,26 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
         persister.bulkPersisterBuilder(JOB_ID).persistInfluencers(influencers).executeRequest();
-        List<XContentBuilder> captured = captor.getAllValues();
-        assertEquals(1, captured.size());
+        BulkRequest bulkRequest = reference.get();
+        assertEquals(1, bulkRequest.numberOfActions());
 
-        String s = captured.get(0).string();
+        String s = ((IndexRequest) bulkRequest.requests().get(0)).source().utf8ToString();
         assertTrue(s.matches(".*probability.:0\\.4.*"));
         assertTrue(s.matches(".*influencer_field_name.:.infName1.*"));
         assertTrue(s.matches(".*influencer_field_value.:.infValue1.*"));
         assertTrue(s.matches(".*initial_anomaly_score.:55\\.5.*"));
         assertTrue(s.matches(".*anomaly_score.:16\\.0.*"));
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Client mockClient(AtomicReference reference) {
+        Client client = mock(Client.class);
+        doAnswer(invocationOnMock -> {
+            reference.set((BulkRequest) invocationOnMock.getArguments()[1]);
+            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
+            listener.onResponse(new BulkResponse(new BulkItemResponse[0], 0L));
+            return null;
+        }).when(client).execute(any(), any(), any());
+        return client;
     }
 }

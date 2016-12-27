@@ -5,16 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.job.persistence;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Deque;
-import java.util.List;
-import java.util.NoSuchElementException;
-
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.ClearScrollRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -29,6 +20,17 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Deque;
+import java.util.List;
+import java.util.NoSuchElementException;
+
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
 public class ElasticsearchBatchedDocumentsIteratorTests extends ESTestCase {
     private static final String INDEX_NAME = ".ml-anomalies-foo";
     private static final String SCROLL_ID = "someScrollId";

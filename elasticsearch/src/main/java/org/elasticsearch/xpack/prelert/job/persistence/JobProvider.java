@@ -16,7 +16,11 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
@@ -40,6 +44,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
@@ -67,6 +72,7 @@ import org.elasticsearch.xpack.prelert.job.results.Result;
 import org.elasticsearch.xpack.prelert.job.usage.Usage;
 import org.elasticsearch.xpack.prelert.lists.ListDocument;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.prelert.utils.FixBlockingClientOperations;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -333,8 +339,8 @@ public class JobProvider {
         String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
 
         try {
-            GetResponse response = client.prepareGet(indexName, DataCounts.TYPE.getPreferredName(),
-                    jobId + DataCounts.DOCUMENT_SUFFIX).get();
+            GetRequest getRequest = new GetRequest(indexName, DataCounts.TYPE.getPreferredName(), jobId + DataCounts.DOCUMENT_SUFFIX);
+            GetResponse response = FixBlockingClientOperations.executeBlocking(client, GetAction.INSTANCE, getRequest);
             if (response.isExists() == false) {
                 return new DataCounts(jobId);
             } else {
@@ -426,12 +432,15 @@ public class JobProvider {
             LOGGER.trace("ES API CALL: search all of result type {}  from index {} with filter from {} size {}",
                     Bucket.RESULT_TYPE_VALUE, indexName, from, size);
 
-            searchResponse = client.prepareSearch(indexName)
-                    .setTypes(Result.TYPE.getPreferredName())
-                    .addSort(sb)
-                    .setQuery(new ConstantScoreQueryBuilder(boolQuery))
-                    .setFrom(from).setSize(size)
-                    .get();
+            SearchRequest searchRequest = new SearchRequest(indexName);
+            searchRequest.types(Result.TYPE.getPreferredName());
+            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+            searchSourceBuilder.sort(sb);
+            searchSourceBuilder.query(new ConstantScoreQueryBuilder(boolQuery));
+            searchSourceBuilder.from(from);
+            searchSourceBuilder.size(size);
+            searchRequest.source(searchSourceBuilder);
+            searchResponse = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
         } catch (IndexNotFoundException e) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
@@ -475,11 +484,13 @@ public class JobProvider {
                     .filter(matchQuery)
                     .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE));
 
-            SearchResponse searchResponse = client.prepareSearch(indexName)
-                    .setTypes(Result.TYPE.getPreferredName())
-                    .setQuery(boolQuery)
-                    .addSort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC))
-                    .get();
+            SearchRequest searchRequest = new SearchRequest(indexName);
+            searchRequest.types(Result.TYPE.getPreferredName());
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+            sourceBuilder.query(boolQuery);
+            sourceBuilder.sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC));
+            searchRequest.source(sourceBuilder);
+            SearchResponse searchResponse = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
             hits = searchResponse.getHits();
         } catch (IndexNotFoundException e) {
             throw ExceptionsHelper.missingJobException(jobId);
@@ -678,14 +689,13 @@ public class JobProvider {
         LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} from {} size {}",
                 CategoryDefinition.TYPE.getPreferredName(), indexName, CategoryDefinition.CATEGORY_ID.getPreferredName(), from, size);
 
-        SearchRequestBuilder searchBuilder = client.prepareSearch(indexName)
-                .setTypes(CategoryDefinition.TYPE.getPreferredName())
-                .setFrom(from).setSize(size)
-                .addSort(new FieldSortBuilder(CategoryDefinition.CATEGORY_ID.getPreferredName()).order(SortOrder.ASC));
-
+        SearchRequest searchRequest = new SearchRequest(indexName);
+        searchRequest.types(CategoryDefinition.TYPE.getPreferredName());
+        searchRequest.source(new SearchSourceBuilder().from(from).size(size)
+                .sort(new FieldSortBuilder(CategoryDefinition.CATEGORY_ID.getPreferredName()).order(SortOrder.ASC)));
         SearchResponse searchResponse;
         try {
-            searchResponse = searchBuilder.get();
+            searchResponse = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
         } catch (IndexNotFoundException e) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
@@ -721,7 +731,8 @@ public class JobProvider {
             LOGGER.trace("ES API CALL: get ID {} type {} from index {}",
                     categoryId, CategoryDefinition.TYPE, indexName);
 
-            response = client.prepareGet(indexName, CategoryDefinition.TYPE.getPreferredName(), categoryId).get();
+            GetRequest getRequest = new GetRequest(indexName, CategoryDefinition.TYPE.getPreferredName(), categoryId);
+            response = FixBlockingClientOperations.executeBlocking(client, GetAction.INSTANCE, getRequest);
         } catch (IndexNotFoundException e) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
@@ -787,15 +798,18 @@ public class JobProvider {
                 .filter(recordFilter)
                 .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), AnomalyRecord.RESULT_TYPE_VALUE));
 
-        SearchRequestBuilder searchBuilder = client.prepareSearch(indexName)
-                .setTypes(Result.TYPE.getPreferredName())
-                .setQuery(recordFilter)
-                .setFrom(from).setSize(size)
-                .addSort(sb == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC) : sb)
-                .setFetchSource(true);  // the field option turns off source so request it explicitly
+        SearchRequest searchRequest = new SearchRequest(indexName);
+        searchRequest.types(Result.TYPE.getPreferredName());
+        searchRequest.source(new SearchSourceBuilder()
+                .from(from)
+                .size(size)
+                .query(recordFilter)
+                .sort(sb == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC) : sb)
+                .fetchSource(true)
+        );
 
         for (String sortField : secondarySort) {
-            searchBuilder.addSort(sortField, descending ? SortOrder.DESC : SortOrder.ASC);
+            searchRequest.source().sort(sortField, descending ? SortOrder.DESC : SortOrder.ASC);
         }
 
         SearchResponse searchResponse;
@@ -804,7 +818,7 @@ public class JobProvider {
                     AnomalyRecord.RESULT_TYPE_VALUE, indexName, (sb != null) ? " with sort"  : "",
                     secondarySort.isEmpty() ? "" : " with secondary sort", from, size);
 
-            searchResponse = searchBuilder.get();
+            searchResponse = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
         } catch (IndexNotFoundException e) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
@@ -846,7 +860,7 @@ public class JobProvider {
                 query.isSortDescending());
     }
 
-    private QueryPage<Influencer> influencers(String jobId, int from, int size, QueryBuilder filterBuilder, String sortField,
+    private QueryPage<Influencer> influencers(String jobId, int from, int size, QueryBuilder queryBuilder, String sortField,
                                               boolean sortDescending) throws ResourceNotFoundException {
         String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         LOGGER.trace("ES API CALL: search all of result type {} from index {}{}  with filter from {} size {}",
@@ -855,22 +869,19 @@ public class JobProvider {
                         " with sort " + (sortDescending ? "descending" : "ascending") + " on field " + sortField : "",
                 () -> from, () -> size);
 
-        filterBuilder = new BoolQueryBuilder()
-                .filter(filterBuilder)
+        queryBuilder = new BoolQueryBuilder()
+                .filter(queryBuilder)
                 .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), Influencer.RESULT_TYPE_VALUE));
 
-        SearchRequestBuilder searchRequestBuilder = client.prepareSearch(indexName)
-                .setTypes(Result.TYPE.getPreferredName())
-                .setQuery(filterBuilder)
-                .setFrom(from).setSize(size);
-
+        SearchRequest searchRequest = new SearchRequest(indexName);
+        searchRequest.types(Result.TYPE.getPreferredName());
         FieldSortBuilder sb = sortField == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)
                 : new FieldSortBuilder(sortField).order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
-        searchRequestBuilder.addSort(sb);
+        searchRequest.source(new SearchSourceBuilder().query(queryBuilder).from(from).size(size).sort(sb));
 
         SearchResponse response;
         try {
-            response = searchRequestBuilder.get();
+            response = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
         } catch (IndexNotFoundException e) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
@@ -933,7 +944,8 @@ public class JobProvider {
             String quantilesId = Quantiles.quantilesId(jobId);
 
             LOGGER.trace("ES API CALL: get ID {} type {} from index {}", quantilesId, Quantiles.TYPE.getPreferredName(), indexName);
-            GetResponse response = client.prepareGet(indexName, Quantiles.TYPE.getPreferredName(), quantilesId).get();
+            GetRequest getRequest = new GetRequest(indexName, Quantiles.TYPE.getPreferredName(), quantilesId);
+            GetResponse response = FixBlockingClientOperations.executeBlocking(client, GetAction.INSTANCE, getRequest);
             if (!response.isExists()) {
                 LOGGER.info("There are currently no quantiles for job " + jobId);
                 return Optional.empty();
@@ -998,13 +1010,13 @@ public class JobProvider {
     }
 
     private QueryPage<ModelSnapshot> modelSnapshots(String jobId, int from, int size,
-                                                    String sortField, boolean sortDescending, QueryBuilder fb) {
+                                                    String sortField, boolean sortDescending, QueryBuilder qb) {
         FieldSortBuilder sb = new FieldSortBuilder(sortField)
                 .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
 
         // Wrap in a constant_score because we always want to
         // run it as a filter
-        fb = new ConstantScoreQueryBuilder(fb);
+        qb = new ConstantScoreQueryBuilder(qb);
 
         SearchResponse searchResponse;
         try {
@@ -1012,12 +1024,15 @@ public class JobProvider {
             LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} with filter after sort from {} size {}",
                 ModelSnapshot.TYPE, indexName, sortField, from, size);
 
-            searchResponse = client.prepareSearch(indexName)
-                    .setTypes(ModelSnapshot.TYPE.getPreferredName())
-                    .addSort(sb)
-                    .setQuery(fb)
-                    .setFrom(from).setSize(size)
-                    .get();
+            SearchRequest searchRequest = new SearchRequest(indexName);
+            searchRequest.types(ModelSnapshot.TYPE.getPreferredName());
+            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+            sourceBuilder.sort(sb);
+            sourceBuilder.query(qb);
+            sourceBuilder.from(from);
+            sourceBuilder.size(size);
+            searchRequest.source(sourceBuilder);
+            searchResponse = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
         } catch (IndexNotFoundException e) {
             LOGGER.error("Failed to read modelSnapshots", e);
             throw e;
@@ -1163,8 +1178,9 @@ public class JobProvider {
             LOGGER.trace("ES API CALL: get result type {} ID {} from index {}",
                     ModelSizeStats.RESULT_TYPE_VALUE, ModelSizeStats.RESULT_TYPE_FIELD, indexName);
 
-            GetResponse modelSizeStatsResponse = client.prepareGet(
-                    indexName, Result.TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName()).get();
+            GetRequest getRequest =
+                    new GetRequest(indexName, Result.TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
+            GetResponse modelSizeStatsResponse = FixBlockingClientOperations.executeBlocking(client, GetAction.INSTANCE, getRequest);
 
             if (!modelSizeStatsResponse.isExists()) {
                 String msg = "No memory usage details for job with id " + jobId;
@@ -1194,7 +1210,8 @@ public class JobProvider {
      * @return the matching list if it exists
      */
     public Optional<ListDocument> getList(String listId) {
-        GetResponse response = client.prepareGet(PRELERT_INFO_INDEX, ListDocument.TYPE.getPreferredName(), listId).get();
+        GetRequest getRequest = new GetRequest(PRELERT_INFO_INDEX, ListDocument.TYPE.getPreferredName(), listId);
+        GetResponse response = FixBlockingClientOperations.executeBlocking(client, GetAction.INSTANCE, getRequest);
         if (!response.isExists()) {
             return Optional.empty();
         }

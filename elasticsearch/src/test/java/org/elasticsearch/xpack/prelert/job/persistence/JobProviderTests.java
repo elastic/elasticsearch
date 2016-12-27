@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.job.persistence;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -38,7 +39,6 @@ import org.elasticsearch.xpack.prelert.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.prelert.job.results.Result;
 import org.elasticsearch.xpack.prelert.job.usage.Usage;
 import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -63,13 +63,11 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
 public class JobProviderTests extends ESTestCase {
     private static final String CLUSTER_NAME = "myCluster";
     private static final String JOB_ID = "foo";
     private static final String STATE_INDEX_NAME = ".ml-state";
-
-    @Captor
-    private ArgumentCaptor<Map<String, Object>> mapCaptor;
 
     public void testGetQuantiles_GivenNoQuantilesForJob() throws Exception {
         GetResponse getResponse = createGetResponse(false, null);

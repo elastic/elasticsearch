@@ -287,6 +287,10 @@ setup:
 
 ---
 "Scaled float test":
+  - skip:
+    version: " - 5.2.0"
+    reason:  scaled_float were considered as longs in aggregations, this was fixed in 5.2.0
+
   - do:
       index:
         index: test_1

@@ -266,7 +266,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                 // this can also come from the source wrapped in a RemoteTransportException
-                onGoingRecoveries.failRecovery(request.recoveryId(), new RecoveryFailedException(request,
+                onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request,
                     "source has canceled the recovery", cause), false);
                 return;
             }
@@ -286,13 +286,13 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             if (cause instanceof IllegalIndexShardStateException || cause instanceof IndexNotFoundException ||
                 cause instanceof ShardNotFoundException) {
                 // if the target is not ready yet, retry
-                retryRecovery(request.recoveryId(), "remote shard not ready", recoverySettings.retryDelayStateSync(),
+                retryRecovery(recoveryId, "remote shard not ready", recoverySettings.retryDelayStateSync(),
                     recoverySettings.activityTimeout());
                 return;
             }
 
             if (cause instanceof DelayRecoveryException) {
-                retryRecovery(request.recoveryId(), cause, recoverySettings.retryDelayStateSync(),
+                retryRecovery(recoveryId, cause, recoverySettings.retryDelayStateSync(),
                     recoverySettings.activityTimeout());
                 return;
             }
@@ -300,17 +300,17 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             if (cause instanceof ConnectTransportException) {
                 logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", request.shardId(),
                     recoverySettings.retryDelayNetwork(), cause.getMessage());
-                retryRecovery(request.recoveryId(), cause.getMessage(), recoverySettings.retryDelayNetwork(),
+                retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(),
                     recoverySettings.activityTimeout());
                 return;
             }
 
             if (cause instanceof AlreadyClosedException) {
-                onGoingRecoveries.failRecovery(request.recoveryId(),
+                onGoingRecoveries.failRecovery(recoveryId,
                     new RecoveryFailedException(request, "source shard is closed", cause), false);
                 return;
             }
-            onGoingRecoveries.failRecovery(request.recoveryId(), new RecoveryFailedException(request, e), true);
+            onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, e), true);
         }
     }
 

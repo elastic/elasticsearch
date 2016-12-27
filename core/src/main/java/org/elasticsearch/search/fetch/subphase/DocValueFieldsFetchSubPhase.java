@@ -73,18 +73,18 @@ public final class DocValueFieldsFetchSubPhase implements FetchSubPhase {
             }
             MappedFieldType fieldType = context.mapperService().fullName(field.getName());
             if (fieldType != null) {
+                DocValueFormat format;
                 final List<Object> values;
                 String formatName = field.getFormat();
-                if (USE_DEFAULT_FORMAT.equals(formatName)) {
-                    // 5.0 and 5.1 did not format doc values fields, so we exposed the ability to
-                    // use the format associated with the field with a special format name
-                    // `use_field_mapping`, which we are keeping in 6.x to ease the transition from
-                    // 5.x to 6.x
-                    DEPRECATION_LOGGER.deprecated("Format [{}] is deprecated, just omit the format or set it to null in order to use "
-                            + "the field defaults", USE_DEFAULT_FORMAT);
-                    formatName = null;
+                if (formatName == null) {
+                    format = DocValueFormat.RAW;
+                } else {
+                    if (USE_DEFAULT_FORMAT.equals(formatName)) {
+                        // only useful to opt-in for the fieldtype format rather than RAW
+                        formatName = null;
+                    }
+                    format = fieldType.docValueFormat(formatName, null);
                 }
-                final DocValueFormat format = fieldType.docValueFormat(formatName, null);
                 final IndexFieldData<?> fieldData = context.fieldData().getForField(fieldType);
                 if (fieldData instanceof IndexNumericFieldData) {
                     IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;

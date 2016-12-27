@@ -160,12 +160,15 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
     }
 
     private void doRecovery(final long recoveryId) {
-        RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId);
-        if (recoveryRef == null) {
-            logger.trace("not running recovery with id [{}] - can't find it (probably finished)", recoveryId);
-            return;
-        }
-        try {
+        final StartRecoveryRequest request;
+        final CancellableThreads cancellableThreads;
+        final RecoveryState.Timer timer;
+
+        try (RecoveryRef recoveryRef = onGoingRecoveries.getRecovery(recoveryId)) {
+            if (recoveryRef == null) {
+                logger.trace("not running recovery with id [{}] - can't find it (probably finished)", recoveryId);
+                return;
+            }
             RecoveryTarget recoveryTarget = recoveryRef.target();
             assert recoveryTarget.sourceNode() != null : "can't do a recovery without a source node";
 
@@ -179,8 +182,10 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 } else {
                     metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
                 }
+                logger.trace("{} local file count: [{}]", recoveryTarget, metadataSnapshot.size());
             } catch (org.apache.lucene.index.IndexNotFoundException e) {
                 // happens on an empty folder. no need to log
+                logger.trace("{} shard folder empty, recover all files", recoveryTarget);
                 metadataSnapshot = Store.MetadataSnapshot.EMPTY;
             } catch (IOException e) {
                 logger.warn("error while listing local files, recover as if there are none", e);
@@ -189,115 +194,123 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 // this will be logged as warning later on...
                 logger.trace("unexpected error while listing local files, failing recovery", e);
                 onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(),
-                        new RecoveryFailedException(recoveryTarget.state(), "failed to list local files", e), true);
+                    new RecoveryFailedException(recoveryTarget.state(), "failed to list local files", e), true);
                 return;
             }
-            logger.trace("{} local file count: [{}]", recoveryTarget, metadataSnapshot.size());
-            final StartRecoveryRequest request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
-                    clusterService.localNode(), metadataSnapshot, recoveryTarget.state().getPrimary(), recoveryTarget.recoveryId());
 
-            final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
             try {
-                logger.trace("[{}][{}] starting recovery from {}", request.shardId().getIndex().getName(), request.shardId().id(), request
-                        .sourceNode());
+                logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                 recoveryTarget.indexShard().prepareForIndexRecovery();
-                recoveryTarget.CancellableThreads().execute(() -> responseHolder.set(
-                        transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
-                                new FutureTransportResponseHandler<RecoveryResponse>() {
-                                    @Override
-                                    public RecoveryResponse newInstance() {
-                                        return new RecoveryResponse();
-                                    }
-                                }).txGet()));
-                final RecoveryResponse recoveryResponse = responseHolder.get();
-                assert responseHolder != null;
-                final TimeValue recoveryTime = new TimeValue(recoveryTarget.state().getTimer().time());
-                // do this through ongoing recoveries to remove it from the collection
-                onGoingRecoveries.markRecoveryAsDone(recoveryTarget.recoveryId());
-                if (logger.isTraceEnabled()) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append('[').append(request.shardId().getIndex().getName()).append(']').append('[').append(request.shardId().id())
-                            .append("] ");
-                    sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(recoveryTime).append("]\n");
-                    sb.append("   phase1: recovered_files [").append(recoveryResponse.phase1FileNames.size()).append("]").append(" with " +
-                            "total_size of [").append(new ByteSizeValue(recoveryResponse.phase1TotalSize)).append("]")
-                            .append(", took [").append(timeValueMillis(recoveryResponse.phase1Time)).append("], throttling_wait [").append
-                            (timeValueMillis(recoveryResponse.phase1ThrottlingWaitTime)).append(']')
-                            .append("\n");
-                    sb.append("         : reusing_files   [").append(recoveryResponse.phase1ExistingFileNames.size()).append("] with " +
-                            "total_size of [").append(new ByteSizeValue(recoveryResponse.phase1ExistingTotalSize)).append("]\n");
-                    sb.append("   phase2: start took [").append(timeValueMillis(recoveryResponse.startTime)).append("]\n");
-                    sb.append("         : recovered [").append(recoveryResponse.phase2Operations).append("]").append(" transaction log " +
-                            "operations")
-                            .append(", took [").append(timeValueMillis(recoveryResponse.phase2Time)).append("]")
-                            .append("\n");
-                    logger.trace("{}", sb);
-                } else {
-                    logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), recoveryTarget.sourceNode(), recoveryTime);
-                }
-            } catch (CancellableThreads.ExecutionCancelledException e) {
-                logger.trace("recovery cancelled", e);
+
+                request = new StartRecoveryRequest(recoveryTarget.shardId(), recoveryTarget.sourceNode(),
+                    clusterService.localNode(), metadataSnapshot, recoveryTarget.state().getPrimary(), recoveryTarget.recoveryId());
+                cancellableThreads = recoveryTarget.CancellableThreads();
+                timer = recoveryTarget.state().getTimer();
             } catch (Exception e) {
-                recoveryRef.close(); // close early so that retry can wait for shard to be finished processing
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        (Supplier<?>) () -> new ParameterizedMessage(
-                            "[{}][{}] Got exception on recovery",
-                            request.shardId().getIndex().getName(),
-                            request.shardId().id()),
-                        e);
-                }
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof CancellableThreads.ExecutionCancelledException) {
-                    // this can also come from the source wrapped in a RemoteTransportException
-                    onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request,
-                        "source has canceled the recovery", cause), false);
-                    return;
-                }
-                if (cause instanceof RecoveryEngineException) {
-                    // unwrap an exception that was thrown as part of the recovery
-                    cause = cause.getCause();
-                }
-                // do it twice, in case we have double transport exception
-                cause = ExceptionsHelper.unwrapCause(cause);
-                if (cause instanceof RecoveryEngineException) {
-                    // unwrap an exception that was thrown as part of the recovery
-                    cause = cause.getCause();
-                }
-
-                // here, we would add checks against exception that need to be retried (and not removeAndClean in this case)
-
-                if (cause instanceof IllegalIndexShardStateException || cause instanceof IndexNotFoundException ||
-                    cause instanceof ShardNotFoundException) {
-                    // if the target is not ready yet, retry
-                    retryRecovery(recoveryTarget.recoveryId(), "remote shard not ready", recoverySettings.retryDelayNetwork(),
-                        recoverySettings.activityTimeout());
-                    return;
-                }
-
-                if (cause instanceof DelayRecoveryException) {
-                    retryRecovery(recoveryTarget.recoveryId(), cause, recoverySettings.retryDelayNetwork(),
-                        recoverySettings.activityTimeout());
-                    return;
-                }
-
-                if (cause instanceof ConnectTransportException) {
-                    logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", recoveryTarget.shardId(),
-                        recoverySettings.retryDelayNetwork(), cause.getMessage());
-                    retryRecovery(recoveryTarget.recoveryId(), cause.getMessage(), recoverySettings.retryDelayNetwork(),
-                        recoverySettings.activityTimeout());
-                    return;
-                }
-
-                if (cause instanceof AlreadyClosedException) {
-                    onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(),
-                        new RecoveryFailedException(request, "source shard is closed", cause), false);
-                    return;
-                }
-                onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(), new RecoveryFailedException(request, e), true);
+                // this will be logged as warning later on...
+                logger.trace("unexpected error while preparing shard for peer recovery, failing recovery", e);
+                onGoingRecoveries.failRecovery(recoveryTarget.recoveryId(),
+                    new RecoveryFailedException(recoveryTarget.state(), "failed to prepare shard for recovery", e), true);
+                return;
             }
-        } finally {
-            recoveryRef.close();
+        }
+
+        try {
+            logger.trace("{} starting recovery from {}", request.shardId(), request.sourceNode());
+            final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
+            cancellableThreads.execute(() -> responseHolder.set(
+                    transportService.submitRequest(request.sourceNode(), PeerRecoverySourceService.Actions.START_RECOVERY, request,
+                            new FutureTransportResponseHandler<RecoveryResponse>() {
+                                @Override
+                                public RecoveryResponse newInstance() {
+                                    return new RecoveryResponse();
+                                }
+                            }).txGet()));
+            final RecoveryResponse recoveryResponse = responseHolder.get();
+            assert responseHolder != null;
+            final TimeValue recoveryTime = new TimeValue(timer.time());
+            // do this through ongoing recoveries to remove it from the collection
+            onGoingRecoveries.markRecoveryAsDone(recoveryId);
+            if (logger.isTraceEnabled()) {
+                StringBuilder sb = new StringBuilder();
+                sb.append('[').append(request.shardId().getIndex().getName()).append(']').append('[').append(request.shardId().id())
+                        .append("] ");
+                sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(recoveryTime).append("]\n");
+                sb.append("   phase1: recovered_files [").append(recoveryResponse.phase1FileNames.size()).append("]").append(" with " +
+                        "total_size of [").append(new ByteSizeValue(recoveryResponse.phase1TotalSize)).append("]")
+                        .append(", took [").append(timeValueMillis(recoveryResponse.phase1Time)).append("], throttling_wait [").append
+                        (timeValueMillis(recoveryResponse.phase1ThrottlingWaitTime)).append(']')
+                        .append("\n");
+                sb.append("         : reusing_files   [").append(recoveryResponse.phase1ExistingFileNames.size()).append("] with " +
+                        "total_size of [").append(new ByteSizeValue(recoveryResponse.phase1ExistingTotalSize)).append("]\n");
+                sb.append("   phase2: start took [").append(timeValueMillis(recoveryResponse.startTime)).append("]\n");
+                sb.append("         : recovered [").append(recoveryResponse.phase2Operations).append("]").append(" transaction log " +
+                        "operations")
+                        .append(", took [").append(timeValueMillis(recoveryResponse.phase2Time)).append("]")
+                        .append("\n");
+                logger.trace("{}", sb);
+            } else {
+                logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), request.sourceNode(), recoveryTime);
+            }
+        } catch (CancellableThreads.ExecutionCancelledException e) {
+            logger.trace("recovery cancelled", e);
+        } catch (Exception e) {
+            if (logger.isTraceEnabled()) {
+                logger.trace(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "[{}][{}] Got exception on recovery",
+                        request.shardId().getIndex().getName(),
+                        request.shardId().id()),
+                    e);
+            }
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof CancellableThreads.ExecutionCancelledException) {
+                // this can also come from the source wrapped in a RemoteTransportException
+                onGoingRecoveries.failRecovery(request.recoveryId(), new RecoveryFailedException(request,
+                    "source has canceled the recovery", cause), false);
+                return;
+            }
+            if (cause instanceof RecoveryEngineException) {
+                // unwrap an exception that was thrown as part of the recovery
+                cause = cause.getCause();
+            }
+            // do it twice, in case we have double transport exception
+            cause = ExceptionsHelper.unwrapCause(cause);
+            if (cause instanceof RecoveryEngineException) {
+                // unwrap an exception that was thrown as part of the recovery
+                cause = cause.getCause();
+            }
+
+            // here, we would add checks against exception that need to be retried (and not removeAndClean in this case)
+
+            if (cause instanceof IllegalIndexShardStateException || cause instanceof IndexNotFoundException ||
+                cause instanceof ShardNotFoundException) {
+                // if the target is not ready yet, retry
+                retryRecovery(request.recoveryId(), "remote shard not ready", recoverySettings.retryDelayStateSync(),
+                    recoverySettings.activityTimeout());
+                return;
+            }
+
+            if (cause instanceof DelayRecoveryException) {
+                retryRecovery(request.recoveryId(), cause, recoverySettings.retryDelayStateSync(),
+                    recoverySettings.activityTimeout());
+                return;
+            }
+
+            if (cause instanceof ConnectTransportException) {
+                logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", request.shardId(),
+                    recoverySettings.retryDelayNetwork(), cause.getMessage());
+                retryRecovery(request.recoveryId(), cause.getMessage(), recoverySettings.retryDelayNetwork(),
+                    recoverySettings.activityTimeout());
+                return;
+            }
+
+            if (cause instanceof AlreadyClosedException) {
+                onGoingRecoveries.failRecovery(request.recoveryId(),
+                    new RecoveryFailedException(request, "source shard is closed", cause), false);
+                return;
+            }
+            onGoingRecoveries.failRecovery(request.recoveryId(), new RecoveryFailedException(request, e), true);
         }
     }
 

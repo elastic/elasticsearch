@@ -183,10 +183,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     /**
-     * Closes the current recovery target and waits up to a certain timeout for resources to be freed
+     * Closes the current recovery target and waits up to a certain timeout for resources to be freed.
+     * Returns true if resetting the recovery was successful, false if the recovery target is already cancelled / failed or marked as done.
      */
-    void resetRecovery() throws InterruptedException {
-        ensureRefCount();
+    boolean resetRecovery() throws InterruptedException, IOException {
         if (finished.compareAndSet(false, true)) {
             logger.debug("reset of recovery with shard {} and id [{}]", shardId, recoveryId);
             // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
@@ -201,12 +201,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 assert stage != RecoveryState.Stage.DONE : "recovery should not have completed when it's being reset";
                 throw new IllegalStateException("cannot reset recovery as previous attempt made it past finalization step");
             }
-            try {
-                indexShard.performRecoveryRestart();
-            } catch (IOException ioe) {
-                throw new UncheckedIOException(ioe);
-            }
+            indexShard.performRecoveryRestart();
+            return true;
         }
+        return false;
     }
 
     /**

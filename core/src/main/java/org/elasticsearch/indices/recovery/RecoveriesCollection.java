@@ -107,11 +107,16 @@ public class RecoveriesCollection {
 
             // Closes the current recovery target
             final RecoveryTarget finalOldRecoveryTarget = oldRecoveryTarget;
-            newRecoveryTarget.CancellableThreads().execute(finalOldRecoveryTarget::resetRecovery);
-
-            logger.trace("{} restarted recovery from {}, id [{}], previous id [{}]", newRecoveryTarget.shardId(),
-                newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(), oldRecoveryTarget.recoveryId());
-            return newRecoveryTarget;
+            final AtomicBoolean successfulReset = new AtomicBoolean();
+            newRecoveryTarget.CancellableThreads().executeIO(() -> successfulReset.set(finalOldRecoveryTarget.resetRecovery()));
+            if (successfulReset.get() == false) {
+                cancelRecovery(newRecoveryTarget.recoveryId(), "failed to reset recovery");
+                return null;
+            } else {
+                logger.trace("{} restarted recovery from {}, id [{}], previous id [{}]", newRecoveryTarget.shardId(),
+                    newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(), oldRecoveryTarget.recoveryId());
+                return newRecoveryTarget;
+            }
         } catch (Exception e) {
             // fail shard to be safe
             oldRecoveryTarget.notifyListener(new RecoveryFailedException(oldRecoveryTarget.state(), "failed to retry recovery", e), true);

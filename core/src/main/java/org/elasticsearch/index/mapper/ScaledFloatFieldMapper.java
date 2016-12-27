@@ -507,7 +507,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             /**
              * {@link ScaledFloatLeafFieldData#getDoubleValues()} transforms the raw long values in `scaled` floats.
              */
-            return NumericType.FLOAT;
+            return NumericType.DOUBLE;
         }
 
     }

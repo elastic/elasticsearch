@@ -31,7 +31,6 @@ public class SchedulerStatusObserver {
         this.clusterService = clusterService;
     }
 
-
     public void waitForStatus(String schedulerId, TimeValue waitTimeout, SchedulerStatus expectedStatus, Consumer<Exception> handler) {
         ClusterStateObserver observer =
                 new ClusterStateObserver(clusterService, LOGGER, threadPool.getThreadContext());

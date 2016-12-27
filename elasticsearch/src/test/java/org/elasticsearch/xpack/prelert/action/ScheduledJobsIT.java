@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -17,6 +19,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.job.AnalysisConfig;
@@ -35,6 +38,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -215,31 +219,28 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         PrelertMetadata prelertMetadata = metaData.custom(PrelertMetadata.TYPE);
         for (Scheduler scheduler : prelertMetadata.getSchedulers().values()) {
             String schedulerId = scheduler.getId();
-            String jobId = scheduler.getJobId();
             try {
-                StopSchedulerAction.Response response =
+                StopSchedulerAction.Response stopResponse =
                         client.execute(StopSchedulerAction.INSTANCE, new StopSchedulerAction.Request(schedulerId)).get();
-                assertTrue(response.isAcknowledged());
-                assertBusy(() -> {
-                    GetSchedulersStatsAction.Response r = null;
-                    try {
-                        GetSchedulersStatsAction.Request request = new GetSchedulersStatsAction.Request(jobId);
-                        r = client.execute(GetSchedulersStatsAction.INSTANCE, request).get();
-                    } catch (Exception e) {
-                        fail();
-                    }
+                assertTrue(stopResponse.isAcknowledged());
+            } catch (ExecutionException e) {
+                // CONFLICT is ok, as it means the scheduler has already stopped, which isn't an issue at all.
+                if (RestStatus.CONFLICT != ExceptionsHelper.status(e.getCause())) {
+                    throw new RuntimeException(e);
+                }
+            }
+            assertBusy(() -> {
+                try {
+                    GetSchedulersStatsAction.Request request = new GetSchedulersStatsAction.Request(schedulerId);
+                    GetSchedulersStatsAction.Response r = client.execute(GetSchedulersStatsAction.INSTANCE, request).get();
                     assertThat(r.getResponse().results().get(0).getSchedulerStatus(), equalTo(SchedulerStatus.STOPPED));
-                });
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                DeleteSchedulerAction.Response response =
-                        client.execute(DeleteSchedulerAction.INSTANCE, new DeleteSchedulerAction.Request(schedulerId)).get();
-                assertTrue(response.isAcknowledged());
-            } catch (Exception e) {
-                // ignore
-            }
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+            DeleteSchedulerAction.Response deleteResponse =
+                    client.execute(DeleteSchedulerAction.INSTANCE, new DeleteSchedulerAction.Request(schedulerId)).get();
+            assertTrue(deleteResponse.isAcknowledged());
         }
     }
 

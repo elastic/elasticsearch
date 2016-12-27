@@ -125,7 +125,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
     public static final String NAME = "prelert";
     public static final String BASE_PATH = "/_xpack/prelert/";
     public static final String THREAD_POOL_NAME = NAME;
-    public static final String SCHEDULER_THREAD_POOL_NAME = NAME + "_scheduler";
+    public static final String SCHEDULED_RUNNER_THREAD_POOL_NAME = NAME + "_scheduled_runner";
     public static final String AUTODETECT_PROCESS_THREAD_POOL_NAME = NAME + "_autodetect_process";
 
     // NORELEASE - temporary solution
@@ -313,7 +313,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
 
         // TODO: if scheduled and non scheduled jobs are considered more equal and the scheduler and
         // autodetect process are created at the same time then these two different TPs can merge.
-        FixedExecutorBuilder scheduler = new FixedExecutorBuilder(settings, SCHEDULER_THREAD_POOL_NAME,
+        FixedExecutorBuilder scheduler = new FixedExecutorBuilder(settings, SCHEDULED_RUNNER_THREAD_POOL_NAME,
                 maxNumberOfJobs, 1, "xpack.prelert.scheduler_thread_pool");
         return Arrays.asList(prelert, autoDetect, scheduler);
     }

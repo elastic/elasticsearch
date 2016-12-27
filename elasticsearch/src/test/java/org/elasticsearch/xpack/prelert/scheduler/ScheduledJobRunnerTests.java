@@ -96,7 +96,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
             ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executorService).submit(any(Runnable.class));
-        when(threadPool.executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME)).thenReturn(executorService);
+        when(threadPool.executor(PrelertPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME)).thenReturn(executorService);
         when(client.execute(same(JobDataAction.INSTANCE), any())).thenReturn(jobDataFuture);
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
 
@@ -133,7 +133,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         scheduledJobRunner.run("scheduler1", 0L, 60000L, task, handler);
 
         verify(dataExtractor).newSearch(eq(0L), eq(60000L), any());
-        verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME);
+        verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client).execute(same(JobDataAction.INSTANCE), eq(new JobDataAction.Request("foo")));
         verify(client).execute(same(FlushJobAction.INSTANCE), any());
@@ -167,14 +167,14 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         scheduledJobRunner.run("scheduler1", 0L, null, task, handler);
 
         verify(dataExtractor).newSearch(eq(0L), eq(60000L), any());
-        verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME);
+        verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME);
         if (cancelled) {
             task.stop();
             verify(client).execute(same(INSTANCE), eq(new Request("scheduler1", SchedulerStatus.STOPPED)), any());
         } else {
             verify(client).execute(same(JobDataAction.INSTANCE), eq(new JobDataAction.Request("foo")));
             verify(client).execute(same(FlushJobAction.INSTANCE), any());
-            verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME), any());
+            verify(threadPool, times(1)).schedule(eq(new TimeValue(480100)), eq(PrelertPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME), any());
         }
     }
 

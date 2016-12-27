@@ -32,7 +32,6 @@ import static org.mockito.Mockito.mock;
 
 public class JobResultsPersisterTests extends ESTestCase {
 
-    private static final String CLUSTER_NAME = "myCluster";
     private static final String JOB_ID = "foo";
 
     public void testPersistBucket_OneRecord() throws IOException {
@@ -168,7 +167,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     private Client mockClient(AtomicReference reference) {
         Client client = mock(Client.class);
         doAnswer(invocationOnMock -> {
-            reference.set((BulkRequest) invocationOnMock.getArguments()[1]);
+            reference.set(invocationOnMock.getArguments()[1]);
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
             listener.onResponse(new BulkResponse(new BulkItemResponse[0], 0L));
             return null;

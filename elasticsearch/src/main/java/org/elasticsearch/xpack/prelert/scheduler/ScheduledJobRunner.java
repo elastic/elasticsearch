@@ -66,18 +66,23 @@ public class ScheduledJobRunner extends AbstractComponent {
         validate(schedulerId, prelertMetadata);
 
         setJobSchedulerStatus(schedulerId, SchedulerStatus.STARTED, error -> {
+            if (error != null) {
+                handler.accept(error);
+                return;
+            }
+
             Scheduler scheduler = prelertMetadata.getScheduler(schedulerId);
             logger.info("Starting scheduler [{}] for job [{}]", schedulerId, scheduler.getJobId());
             Job job = prelertMetadata.getJobs().get(scheduler.getJobId());
             Holder holder = createJobScheduler(scheduler, job, handler);
             task.setHolder(holder);
-            holder.future = threadPool.executor(PrelertPlugin.SCHEDULER_THREAD_POOL_NAME).submit(() -> {
+            holder.future = threadPool.executor(PrelertPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME).submit(() -> {
                 try {
                     Long next = holder.scheduledJob.runLookBack(startTime, endTime);
                     if (next != null) {
                         doScheduleRealtime(next, job.getId(), holder);
                     } else {
-                        holder.stop();
+                        holder.stop(null);
                     }
                 } catch (ScheduledJob.ExtractionProblemException e) {
                     holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
@@ -85,11 +90,11 @@ public class ScheduledJobRunner extends AbstractComponent {
                     holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
                 } catch (ScheduledJob.EmptyDataCountException e) {
                     if (holder.problemTracker.updateEmptyDataCount(true)) {
-                        holder.stop();
+                        holder.stop(e);
                     }
                 } catch (Exception e) {
                     logger.error("Failed lookback import for job [" + job.getId() + "]", e);
-                    holder.stop();
+                    holder.stop(e);
                 }
                 holder.problemTracker.finishReport();
             });
@@ -100,7 +105,7 @@ public class ScheduledJobRunner extends AbstractComponent {
         if (holder.isRunning()) {
             TimeValue delay = computeNextDelay(delayInMsSinceEpoch);
             logger.debug("Waiting [{}] before executing next realtime import for job [{}]", delay, jobId);
-            holder.future = threadPool.schedule(delay, PrelertPlugin.SCHEDULER_THREAD_POOL_NAME, () -> {
+            holder.future = threadPool.schedule(delay, PrelertPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME, () -> {
                 long nextDelayInMsSinceEpoch;
                 try {
                     nextDelayInMsSinceEpoch = holder.scheduledJob.runRealtime();
@@ -114,19 +119,19 @@ public class ScheduledJobRunner extends AbstractComponent {
                     nextDelayInMsSinceEpoch = e.nextDelayInMsSinceEpoch;
                     if (holder.problemTracker.updateEmptyDataCount(true)) {
                         holder.problemTracker.finishReport();
-                        holder.stop();
+                        holder.stop(e);
                         return;
                     }
                 } catch (Exception e) {
                     logger.error("Unexpected scheduler failure for job [" + jobId + "] stopping...", e);
-                    holder.stop();
+                    holder.stop(e);
                     return;
                 }
                 holder.problemTracker.finishReport();
                 doScheduleRealtime(nextDelayInMsSinceEpoch, jobId, holder);
             });
         } else {
-            holder.stop();
+            holder.stop(null);
         }
     }
 
@@ -245,11 +250,11 @@ public class ScheduledJobRunner extends AbstractComponent {
             return scheduledJob.isRunning();
         }
 
-        public void stop() {
+        public void stop(Exception e) {
             logger.info("Stopping scheduler [{}] for job [{}]", scheduler.getId(), scheduler.getJobId());
             scheduledJob.stop();
             FutureUtils.cancel(future);
-            setJobSchedulerStatus(scheduler.getId(), SchedulerStatus.STOPPED, error -> handler.accept(null));
+            setJobSchedulerStatus(scheduler.getId(), SchedulerStatus.STOPPED, error -> handler.accept(e));
         }
 
     }

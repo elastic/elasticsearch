@@ -198,7 +198,7 @@ public class StartSchedulerAction
         /* public for testing */
         public void stop() {
             if (holder != null) {
-                holder.stop();
+                holder.stop(null);
             }
         }
     }

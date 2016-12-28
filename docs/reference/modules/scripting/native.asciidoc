@@ -36,6 +36,10 @@ public class MyNativeScriptPlugin extends Plugin implements ScriptPlugin {
         public boolean needsScores() {
             return false;
         }
+        @Override
+        public String getName() {
+            return "my_script";
+        }        
     }
 
     public static class MyNativeScript extends AbstractDoubleSearchScript {
@@ -66,7 +70,7 @@ curl -XPOST localhost:9200/_search -d '{
         {
           "script_score": {
             "script": {
-                "id": "my_script",
+                "inline": "my_script",
                 "lang" : "native"
             }
           }

@@ -62,6 +62,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.VersionType;
@@ -139,7 +140,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndexShardTests extends IndexShardTestCase {
 
     public static ShardStateMetaData load(Logger logger, Path... shardPaths) throws IOException {
-        return ShardStateMetaData.FORMAT.loadLatestState(logger, shardPaths);
+        return ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPaths);
     }
 
     public static void write(ShardStateMetaData shardStateMetaData,

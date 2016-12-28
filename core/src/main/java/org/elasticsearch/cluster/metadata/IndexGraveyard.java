@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
@@ -67,7 +68,6 @@ public final class IndexGraveyard implements MetaData.Custom {
                                                                                      500, // the default maximum number of tombstones
                                                                                      Setting.Property.NodeScope);
 
-    public static final IndexGraveyard PROTO = new IndexGraveyard(new ArrayList<>());
     public static final String TYPE = "index-graveyard";
     private static final ParseField TOMBSTONES_FIELD = new ParseField("tombstones");
     private static final ObjectParser<List<Tombstone>, ParseFieldMatcherSupplier> GRAVEYARD_PARSER;
@@ -83,7 +83,7 @@ public final class IndexGraveyard implements MetaData.Custom {
         tombstones = Collections.unmodifiableList(list);
     }
 
-    private IndexGraveyard(final StreamInput in) throws IOException {
+    public IndexGraveyard(final StreamInput in) throws IOException {
         final int queueSize = in.readVInt();
         List<Tombstone> tombstones = new ArrayList<>(queueSize);
         for (int i = 0; i < queueSize; i++) {
@@ -92,12 +92,8 @@ public final class IndexGraveyard implements MetaData.Custom {
         this.tombstones = Collections.unmodifiableList(tombstones);
     }
 
-    public static IndexGraveyard fromStream(final StreamInput in) throws IOException {
-        return new IndexGraveyard(in);
-    }
-
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 
@@ -144,7 +140,7 @@ public final class IndexGraveyard implements MetaData.Custom {
         return builder.endArray();
     }
 
-    public IndexGraveyard fromXContent(final XContentParser parser) throws IOException {
+    public static IndexGraveyard fromXContent(final XContentParser parser) throws IOException {
         return new IndexGraveyard(GRAVEYARD_PARSER.parse(parser, () -> ParseFieldMatcher.STRICT));
     }
 
@@ -162,18 +158,12 @@ public final class IndexGraveyard implements MetaData.Custom {
     }
 
     @Override
-    public IndexGraveyard readFrom(final StreamInput in) throws IOException {
-        return new IndexGraveyard(in);
-    }
-
-    @Override
     @SuppressWarnings("unchecked")
     public Diff<MetaData.Custom> diff(final MetaData.Custom previous) {
         return new IndexGraveyardDiff((IndexGraveyard) previous, this);
     }
 
-    @Override
-    public Diff<MetaData.Custom> readDiffFrom(final StreamInput in) throws IOException {
+    public static NamedDiff<MetaData.Custom> readDiffFrom(final StreamInput in) throws IOException {
         return new IndexGraveyardDiff(in);
     }
 
@@ -273,7 +263,7 @@ public final class IndexGraveyard implements MetaData.Custom {
     /**
      * A class representing a diff of two IndexGraveyard objects.
      */
-    public static final class IndexGraveyardDiff implements Diff<MetaData.Custom> {
+    public static final class IndexGraveyardDiff implements NamedDiff<MetaData.Custom> {
 
         private final List<Tombstone> added;
         private final int removedCount;
@@ -348,6 +338,11 @@ public final class IndexGraveyard implements MetaData.Custom {
         /** The number of index tombstones that were removed between two states */
         public int getRemovedCount() {
             return removedCount;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
         }
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -39,8 +40,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenien
  * Mapping configuration for a type.
  */
 public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
-
-    public static final MappingMetaData PROTO = new MappingMetaData();
 
     public static class Routing {
 
@@ -228,11 +227,11 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
         return result;
     }
 
-    public MappingMetaData readFrom(StreamInput in) throws IOException {
-        String type = in.readString();
-        CompressedXContent source = CompressedXContent.readCompressedString(in);
+    public MappingMetaData(StreamInput in) throws IOException {
+        type = in.readString();
+        source = CompressedXContent.readCompressedString(in);
         // routing
-        Routing routing = new Routing(in.readBoolean());
+        routing = new Routing(in.readBoolean());
         if (in.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
             // timestamp
             boolean enabled = in.readBoolean();
@@ -243,9 +242,11 @@ public class MappingMetaData extends AbstractDiffable<MappingMetaData> {
             in.readOptionalString(); // defaultTimestamp
             in.readOptionalBoolean(); // ignoreMissing
         }
+        hasParentField = in.readBoolean();
+    }
 
-        final boolean hasParentField = in.readBoolean();
-        return new MappingMetaData(type, source, routing, hasParentField);
+    public static Diff<MappingMetaData> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(MappingMetaData::new, in);
     }
 
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.index.snapshots.blobstore;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,9 +43,7 @@ import static java.util.Collections.unmodifiableMap;
  * This class is used to find files that were already snapshotted and clear out files that no longer referenced by any
  * snapshots
  */
-public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, ToXContent, FromXContentBuilder<BlobStoreIndexShardSnapshots> {
-
-    public static final BlobStoreIndexShardSnapshots PROTO = new BlobStoreIndexShardSnapshots();
+public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, ToXContent {
 
     private final List<SnapshotFiles> shardSnapshots;
     private final Map<String, FileInfo> files;
@@ -156,6 +153,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         static final ParseField FILES = new ParseField("files");
         static final ParseField SNAPSHOTS = new ParseField("snapshots");
     }
+    private static final ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
 
     /**
      * Writes index file for the shard in the following format.
@@ -232,8 +230,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         return builder;
     }
 
-    @Override
-    public BlobStoreIndexShardSnapshots fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public static BlobStoreIndexShardSnapshots fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) { // New parser
             token = parser.nextToken();

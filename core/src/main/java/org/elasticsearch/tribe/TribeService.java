@@ -44,6 +44,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.hash.MurmurHash3;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.regex.Regex;
@@ -61,6 +65,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -207,10 +212,13 @@ public class TribeService extends AbstractLifecycleComponent {
 
     private final List<Node> nodes = new CopyOnWriteArrayList<>();
 
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
     public TribeService(Settings settings, ClusterService clusterService, final String tribeNodeId,
-                        Function<Settings, Node> clientNodeBuilder) {
+                        NamedWriteableRegistry namedWriteableRegistry, Function<Settings, Node> clientNodeBuilder) {
         super(settings);
         this.clusterService = clusterService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         Map<String, Settings> nodesSettings = new HashMap<>(settings.getGroups("tribe", true));
         nodesSettings.remove("blocks"); // remove prefix settings that don't indicate a client
         nodesSettings.remove("on_conflict"); // remove prefix settings that don't indicate a client
@@ -512,7 +520,7 @@ public class TribeService extends AbstractLifecycleComponent {
                             .map(ClusterState::metaData)
                             .map(clusterMetaData -> ((MetaData.Custom) clusterMetaData.custom(customMetaDataType)))
                             .filter(custom1 -> custom1 != null && custom1 instanceof MergableCustomMetaData)
-                            .map(custom2 -> (MergableCustomMetaData) custom2)
+                            .map(custom2 -> (MergableCustomMetaData) marshal(custom2))
                             .collect(Collectors.toList())
             );
             for (String changedCustomMetaDataType : changedCustomMetaDataTypeSet) {
@@ -576,5 +584,22 @@ public class TribeService extends AbstractLifecycleComponent {
                             changedCustomMetaDataMap.put(customMetaDataType, ((MetaData.Custom) mergedCustomMetaData)));
         }
         return changedCustomMetaDataMap;
+    }
+
+    /**
+     * Since custom metadata can be loaded by a plugin class loader that resides in a sub-node, we need to
+     * marshal this object into something the tribe node can work with
+     */
+    private MetaData.Custom marshal(MetaData.Custom custom)  {
+        try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()){
+            bytesStreamOutput.writeNamedWriteable(custom);
+            try(StreamInput input = bytesStreamOutput.bytes().streamInput()) {
+                StreamInput namedInput = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);
+                MetaData.Custom marshaled = namedInput.readNamedWriteable(MetaData.Custom.class);
+                return marshaled;
+            }
+        } catch (IOException ex) {
+            throw new IllegalStateException("cannot marshal object with type " + custom.getWriteableName() + " to tribe node");
+        }
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.serialization;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -29,8 +30,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -52,7 +56,8 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();
 
-        ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), newNode("node1"));
+        ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), newNode("node1"),
+            new NamedWriteableRegistry(ClusterModule.getNamedWriteables()));
 
         assertThat(serializedClusterState.getClusterName().value(), equalTo(clusterState.getClusterName().value()));
 
@@ -79,7 +84,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         BytesStreamOutput outStream = new BytesStreamOutput();
         source.writeTo(outStream);
         StreamInput inStream = outStream.bytes().streamInput();
-        RoutingTable target = RoutingTable.Builder.readFrom(inStream);
+        RoutingTable target = RoutingTable.readFrom(inStream);
 
         assertThat(target.toString(), equalTo(source.toString()));
     }

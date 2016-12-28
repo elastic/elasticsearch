@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -27,51 +28,57 @@ import java.io.IOException;
 
 /**
  * Abstract diffable object with simple diffs implementation that sends the entire object if object has changed or
- * nothing is object remained the same.
+ * nothing is object remained the same. Comparing to AbstractDiffable, this class also works with NamedWriteables
  */
-public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffable<T> {
+public abstract class AbstractNamedDiffable<T extends Diffable<T> & NamedWriteable> implements Diffable<T>, NamedWriteable {
 
     @Override
     public Diff<T> diff(T previousState) {
         if (this.get().equals(previousState)) {
-            return new CompleteDiff<>();
+            return new CompleteNamedDiff<>(previousState.getWriteableName());
         } else {
-            return new CompleteDiff<>(get());
+            return new CompleteNamedDiff<>(get());
         }
     }
 
-    public static <T extends Diffable<T>> Diff<T> readDiffFrom(Reader<T> reader, StreamInput in) throws IOException {
-        return new CompleteDiff<T>(reader, in);
+    public static <T extends Diffable<T> & NamedWriteable> NamedDiff<T> readDiffFrom(Class<? extends T> tClass, String name, StreamInput in)
+        throws IOException {
+        return new CompleteNamedDiff<>(tClass, name, in);
     }
 
-    private static class CompleteDiff<T extends Diffable<T>> implements Diff<T> {
+    private static class CompleteNamedDiff<T extends Diffable<T> & NamedWriteable> implements NamedDiff<T> {
 
         @Nullable
         private final T part;
 
+        private final String name;
+
         /**
          * Creates simple diff with changes
          */
-        public CompleteDiff(T part) {
+        public CompleteNamedDiff(T part) {
             this.part = part;
+            this.name = part.getWriteableName();
         }
 
         /**
          * Creates simple diff without changes
          */
-        public CompleteDiff() {
+        public CompleteNamedDiff(String name) {
             this.part = null;
+            this.name = name;
         }
 
         /**
          * Read simple diff from the stream
          */
-        public CompleteDiff(Reader<T> reader, StreamInput in) throws IOException {
+        public CompleteNamedDiff(Class<? extends T> tClass, String name, StreamInput in) throws IOException {
             if (in.readBoolean()) {
-                this.part = reader.read(in);
+                this.part = in.readNamedWriteable(tClass, name);
             } else {
                 this.part = null;
             }
+            this.name = name;
         }
 
         @Override
@@ -92,11 +99,16 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
                 return part;
             }
         }
+
+        @Override
+        public String getWriteableName() {
+            return name;
+        }
     }
 
     @SuppressWarnings("unchecked")
     public T get() {
         return (T) this;
     }
-}
 
+}

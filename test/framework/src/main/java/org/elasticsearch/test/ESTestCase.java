@@ -46,7 +46,9 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -978,7 +980,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * The {@link NamedXContentRegistry} to use for this test. Subclasses should override and use liberally.
      */
     protected NamedXContentRegistry xContentRegistry() {
-        return NamedXContentRegistry.EMPTY;
+        return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
     }
 
     /** Returns the suite failure marker: internal use only! */

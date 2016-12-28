@@ -45,7 +45,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Numbers;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -168,6 +167,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     protected final RepositoryMetaData metadata;
 
+    protected final NamedXContentRegistry namedXContentRegistry;
+
     private static final int BUFFER_SIZE = 4096;
 
     private static final String SNAPSHOT_PREFIX = "snap-";
@@ -214,8 +215,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final boolean readOnly;
 
-    private final ParseFieldMatcher parseFieldMatcher;
-
     private final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshot> indexShardSnapshotFormat;
 
     private final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshots> indexShardSnapshotsFormat;
@@ -226,25 +225,29 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param metadata       The metadata for this repository including name and settings
      * @param globalSettings Settings for the node this repository object is created on
      */
-    protected BlobStoreRepository(RepositoryMetaData metadata, Settings globalSettings) {
+    protected BlobStoreRepository(RepositoryMetaData metadata, Settings globalSettings, NamedXContentRegistry namedXContentRegistry) {
         super(globalSettings);
         this.metadata = metadata;
-        parseFieldMatcher = new ParseFieldMatcher(settings);
+        this.namedXContentRegistry = namedXContentRegistry;
         snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
         readOnly = metadata.settings().getAsBoolean("readonly", false);
-        indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT, BlobStoreIndexShardSnapshot.PROTO, parseFieldMatcher, isCompress());
-        indexShardSnapshotsFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_INDEX_CODEC, SNAPSHOT_INDEX_NAME_FORMAT, BlobStoreIndexShardSnapshots.PROTO, parseFieldMatcher, isCompress());
+        indexShardSnapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
+            BlobStoreIndexShardSnapshot::fromXContent, namedXContentRegistry, isCompress());
+        indexShardSnapshotsFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_INDEX_CODEC, SNAPSHOT_INDEX_NAME_FORMAT,
+            BlobStoreIndexShardSnapshots::fromXContent, namedXContentRegistry, isCompress());
 
     }
 
     @Override
     protected void doStart() {
         this.snapshotsBlobContainer = blobStore().blobContainer(basePath());
-        ParseFieldMatcher parseFieldMatcher = new ParseFieldMatcher(settings);
-        globalMetaDataFormat = new ChecksumBlobStoreFormat<>(METADATA_CODEC, METADATA_NAME_FORMAT, MetaData.PROTO, parseFieldMatcher, isCompress());
-        indexMetaDataFormat = new ChecksumBlobStoreFormat<>(INDEX_METADATA_CODEC, METADATA_NAME_FORMAT, IndexMetaData.PROTO, parseFieldMatcher, isCompress());
-        snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT, SnapshotInfo.PROTO, parseFieldMatcher, isCompress());
+        globalMetaDataFormat = new ChecksumBlobStoreFormat<>(METADATA_CODEC, METADATA_NAME_FORMAT,
+            MetaData::fromXContent, namedXContentRegistry, isCompress());
+        indexMetaDataFormat = new ChecksumBlobStoreFormat<>(INDEX_METADATA_CODEC, METADATA_NAME_FORMAT,
+            IndexMetaData::fromXContent, namedXContentRegistry, isCompress());
+        snapshotFormat = new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT,
+            SnapshotInfo::fromXContent, namedXContentRegistry, isCompress());
     }
 
     @Override

@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -273,8 +274,9 @@ public class S3Repository extends BlobStoreRepository {
     /**
      * Constructs an s3 backed repository
      */
-    public S3Repository(RepositoryMetaData metadata, Settings settings, AwsS3Service s3Service) throws IOException {
-        super(metadata, settings);
+    public S3Repository(RepositoryMetaData metadata, Settings settings,
+                        NamedXContentRegistry namedXContentRegistry, AwsS3Service s3Service) throws IOException {
+        super(metadata, settings, namedXContentRegistry);
 
         String bucket = getValue(metadata.settings(), settings, Repository.BUCKET_SETTING, Repositories.BUCKET_SETTING);
         if (bucket == null) {

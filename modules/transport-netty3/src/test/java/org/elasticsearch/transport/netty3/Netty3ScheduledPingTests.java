@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -31,6 +32,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportChannel;
@@ -84,8 +86,23 @@ public class Netty3ScheduledPingTests extends ESTestCase {
         DiscoveryNode nodeB =
             new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
-        serviceA.connectToNode(nodeB);
-        serviceB.connectToNode(nodeA);
+        if (randomBoolean()) {
+            // use connection profile with different connect timeout
+            final ConnectionProfile connectionProfile = new ConnectionProfile.Builder()
+                .addConnections(1,
+                    TransportRequestOptions.Type.BULK,
+                    TransportRequestOptions.Type.PING,
+                    TransportRequestOptions.Type.RECOVERY,
+                    TransportRequestOptions.Type.REG,
+                    TransportRequestOptions.Type.STATE)
+                .setConnectTimeout(TimeValue.timeValueSeconds(42))
+                .build();
+            serviceA.connectToNode(nodeB, connectionProfile);
+            serviceB.connectToNode(nodeA, connectionProfile);
+        } else {
+            serviceA.connectToNode(nodeB);
+            serviceB.connectToNode(nodeA);
+        }
 
         assertBusy(new Runnable() {
             @Override

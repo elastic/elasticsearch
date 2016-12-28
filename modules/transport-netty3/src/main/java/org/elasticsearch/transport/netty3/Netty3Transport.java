@@ -340,6 +340,7 @@ public class Netty3Transport extends TcpTransport<Channel> {
         return channels == null ? 0 : channels.numberOfOpenChannels();
     }
 
+    @Override
     protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) {
         final Channel[] channels = new Channel[profile.getNumConnections()];
         final NodeChannels nodeChannels = new NodeChannels(node, channels, profile);
@@ -350,6 +351,8 @@ public class Netty3Transport extends TcpTransport<Channel> {
             final TimeValue defaultConnectTimeout = defaultConnectionProfile.getConnectTimeout();
             if (profile.getConnectTimeout() != null && profile.getConnectTimeout().equals(defaultConnectTimeout) == false) {
                 clientBootstrap = new ClientBootstrap(this.clientBootstrap.getFactory());
+                clientBootstrap.setPipelineFactory(this.clientBootstrap.getPipelineFactory());
+                clientBootstrap.setOptions(this.clientBootstrap.getOptions());
                 clientBootstrap.setOption("connectTimeoutMillis", Math.toIntExact(profile.getConnectTimeout().millis()));
                 connectTimeout = profile.getConnectTimeout();
             } else {

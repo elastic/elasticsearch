@@ -82,21 +82,23 @@ public final class ConnectionProfile {
         /**
          * Sets a connect timeout for this connection profile
          */
-        public void setConnectTimeout(TimeValue connectTimeout) {
+        public Builder setConnectTimeout(TimeValue connectTimeout) {
             if (connectTimeout.millis() < 0) {
                 throw new IllegalArgumentException("connectTimeout must be non-negative but was: " + connectTimeout);
             }
             this.connectTimeout = connectTimeout;
+            return this;
         }
 
         /**
          * Sets a handshake timeout for this connection profile
          */
-        public void setHandshakeTimeout(TimeValue handshakeTimeout) {
+        public Builder setHandshakeTimeout(TimeValue handshakeTimeout) {
             if (handshakeTimeout.millis() < 0) {
                 throw new IllegalArgumentException("handshakeTimeout must be non-negative but was: " + handshakeTimeout);
             }
             this.handshakeTimeout = handshakeTimeout;
+            return this;
         }
 
         /**
@@ -104,7 +106,7 @@ public final class ConnectionProfile {
          * @param numConnections the number of connections to use in the pool for the given connection types
          * @param types a set of types that should share the given number of connections
          */
-        public void addConnections(int numConnections, TransportRequestOptions.Type... types) {
+        public Builder addConnections(int numConnections, TransportRequestOptions.Type... types) {
             if (types == null || types.length == 0) {
                 throw new IllegalArgumentException("types must not be null");
             }
@@ -116,6 +118,7 @@ public final class ConnectionProfile {
             addedTypes.addAll(Arrays.asList(types));
             handles.add(new ConnectionTypeHandle(offset, numConnections, EnumSet.copyOf(Arrays.asList(types))));
             offset += numConnections;
+            return this;
         }
 
         /**

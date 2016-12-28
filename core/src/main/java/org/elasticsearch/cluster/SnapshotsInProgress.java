@@ -44,10 +44,8 @@ import java.util.Map;
 /**
  * Meta data about snapshots that are currently executing
  */
-public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Custom {
+public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
     public static final String TYPE = "snapshots";
-
-    public static final SnapshotsInProgress PROTO = new SnapshotsInProgress();
 
     // denotes an undefined repository state id, which will happen when receiving a cluster state with
     // a snapshot in progress from a pre 5.2.x node
@@ -377,12 +375,15 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
     }
 
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 
-    @Override
-    public SnapshotsInProgress readFrom(StreamInput in) throws IOException {
+    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Custom.class, TYPE, in);
+    }
+
+    public SnapshotsInProgress(StreamInput in) throws IOException {
         Entry[] entries = new Entry[in.readVInt()];
         for (int i = 0; i < entries.length; i++) {
             Snapshot snapshot = new Snapshot(in);
@@ -416,7 +417,7 @@ public class SnapshotsInProgress extends AbstractDiffable<Custom> implements Cus
                                    repositoryStateId,
                                    builder.build());
         }
-        return new SnapshotsInProgress(entries);
+        this.entries = Arrays.asList(entries);
     }
 
     @Override

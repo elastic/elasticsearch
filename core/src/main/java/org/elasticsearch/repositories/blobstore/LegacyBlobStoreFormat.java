@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 
 import java.io.IOException;
@@ -37,8 +36,9 @@ public class LegacyBlobStoreFormat<T extends ToXContent> extends BlobStoreFormat
      * @param blobNameFormat format of the blobname in {@link String#format} format
      * @param reader the prototype object that can deserialize objects with type T
      */
-    public LegacyBlobStoreFormat(String blobNameFormat, FromXContentBuilder<T> reader, ParseFieldMatcher parseFieldMatcher) {
-        super(blobNameFormat, reader, parseFieldMatcher);
+    public LegacyBlobStoreFormat(String blobNameFormat, NamedXContentRegistry.FromXContent<T> reader,
+                                 NamedXContentRegistry namedXContentRegistry) {
+        super(blobNameFormat, reader, namedXContentRegistry);
     }
 
     /**

@@ -52,7 +52,7 @@ public class GetIndexTemplatesResponse extends ActionResponse implements ToXCont
         int size = in.readVInt();
         indexTemplates = new ArrayList<>(size);
         for (int i = 0 ; i < size ; i++) {
-            indexTemplates.add(0, IndexTemplateMetaData.Builder.readFrom(in));
+            indexTemplates.add(0, IndexTemplateMetaData.readFrom(in));
         }
     }
 

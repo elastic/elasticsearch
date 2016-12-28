@@ -45,6 +45,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
@@ -60,8 +61,9 @@ public final class HdfsRepository extends BlobStoreRepository {
     // TODO: why 100KB?
     private static final ByteSizeValue DEFAULT_BUFFER_SIZE = new ByteSizeValue(100, ByteSizeUnit.KB);
 
-    public HdfsRepository(RepositoryMetaData metadata, Environment environment) throws IOException {
-        super(metadata, environment.settings());
+    public HdfsRepository(RepositoryMetaData metadata, Environment environment,
+                          NamedXContentRegistry namedXContentRegistry) throws IOException {
+        super(metadata, environment.settings(), namedXContentRegistry);
 
         this.chunkSize = metadata.settings().getAsBytesSize("chunk_size", null);
         this.compress = metadata.settings().getAsBoolean("compress", false);
@@ -88,7 +90,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         if (pathSetting == null) {
             throw new IllegalArgumentException("No 'path' defined for hdfs snapshot/restore");
         }
-        
+
         int bufferSize = getMetadata().settings().getAsBytesSize("buffer_size", DEFAULT_BUFFER_SIZE).bytesAsInt();
 
         try {
@@ -110,7 +112,7 @@ public final class HdfsRepository extends BlobStoreRepository {
         }
         super.doStart();
     }
-    
+
     // create hadoop filecontext
     @SuppressForbidden(reason = "lesser of two evils (the other being a bunch of JNI/classloader nightmares)")
     private static FileContext createContext(URI uri, Settings repositorySettings)  {

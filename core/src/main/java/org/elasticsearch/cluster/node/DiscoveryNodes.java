@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -47,7 +48,6 @@ import java.util.Set;
 public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements Iterable<DiscoveryNode> {
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
-    public static final DiscoveryNodes PROTO = EMPTY_NODES;
 
     private final ImmutableOpenMap<String, DiscoveryNode> nodes;
     private final ImmutableOpenMap<String, DiscoveryNode> dataNodes;
@@ -534,7 +534,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
     }
 
-    private DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
+    public static DiscoveryNodes readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
         Builder builder = new Builder();
         if (in.readBoolean()) {
             builder.masterNodeId(in.readString());
@@ -557,9 +557,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         return builder.build();
     }
 
-    @Override
-    public DiscoveryNodes readFrom(StreamInput in) throws IOException {
-        return readFrom(in, getLocalNode());
+    public static Diff<DiscoveryNodes> readDiffFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
+        return AbstractDiffable.readDiffFrom(in1 -> readFrom(in1, localNode), in);
     }
 
     public static Builder builder() {
@@ -687,10 +686,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                 nodes.build(), dataNodesBuilder.build(), masterNodesBuilder.build(), ingestNodesBuilder.build(),
                 masterNodeId, localNodeId, minNonClientNodeVersion, maxNodeVersion, minNodeVersion
             );
-        }
-
-        public static DiscoveryNodes readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
-            return PROTO.readFrom(in, localNode);
         }
 
         public boolean isLocalNodeElectedMaster() {

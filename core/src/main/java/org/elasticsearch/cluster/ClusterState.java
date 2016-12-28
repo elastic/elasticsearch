@@ -43,8 +43,12 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -86,36 +90,10 @@ import java.util.Set;
  */
 public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
-    public static final ClusterState PROTO = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
+    public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
-    public interface Custom extends Diffable<Custom>, ToXContent {
+    public interface Custom extends Diffable<Custom>, ToXContent, NamedWriteable {
 
-        String type();
-    }
-
-    private static final Map<String, Custom> customPrototypes = new HashMap<>();
-
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerPrototype(String type, Custom proto) {
-        customPrototypes.put(type, proto);
-    }
-
-    static {
-        // register non plugin custom parts
-        registerPrototype(SnapshotsInProgress.TYPE, SnapshotsInProgress.PROTO);
-        registerPrototype(RestoreInProgress.TYPE, RestoreInProgress.PROTO);
-        registerPrototype(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.PROTO);
-    }
-
-    public static <T extends Custom> T lookupPrototype(String type) {
-        @SuppressWarnings("unchecked")
-        T proto = (T) customPrototypes.get(type);
-        if (proto == null) {
-            throw new IllegalArgumentException("No custom state prototype registered for type [" + type + "], node likely missing plugins");
-        }
-        return proto;
     }
 
     public static final String UNKNOWN_UUID = "_na_";
@@ -659,51 +637,37 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
          * @param data      input bytes
          * @param localNode used to set the local node in the cluster state.
          */
-        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
-            return readFrom(StreamInput.wrap(data), localNode);
+        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode, NamedWriteableRegistry registry) throws IOException {
+            StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(data), registry);
+            return readFrom(in, localNode);
 
-        }
-
-        /**
-         * @param in        input stream
-         * @param localNode used to set the local node in the cluster state. can be null.
-         */
-        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
-            return PROTO.readFrom(in, localNode);
         }
     }
 
     @Override
-    public Diff diff(ClusterState previousState) {
+    public Diff<ClusterState> diff(ClusterState previousState) {
         return new ClusterStateDiff(previousState, this);
     }
 
-    @Override
-    public Diff<ClusterState> readDiffFrom(StreamInput in) throws IOException {
-        return new ClusterStateDiff(in, this);
+    public static Diff<ClusterState> readDiffFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
+        return new ClusterStateDiff(in, localNode);
     }
 
-    public ClusterState readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
+    public static ClusterState readFrom(StreamInput in, DiscoveryNode localNode) throws IOException {
         ClusterName clusterName = new ClusterName(in);
         Builder builder = new Builder(clusterName);
         builder.version = in.readLong();
         builder.uuid = in.readString();
-        builder.metaData = MetaData.Builder.readFrom(in);
-        builder.routingTable = RoutingTable.Builder.readFrom(in);
-        builder.nodes = DiscoveryNodes.Builder.readFrom(in, localNode);
-        builder.blocks = ClusterBlocks.Builder.readClusterBlocks(in);
+        builder.metaData = MetaData.readFrom(in);
+        builder.routingTable = RoutingTable.readFrom(in);
+        builder.nodes = DiscoveryNodes.readFrom(in, localNode);
+        builder.blocks = new ClusterBlocks(in);
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
-            String type = in.readString();
-            Custom customIndexMetaData = lookupPrototype(type).readFrom(in);
-            builder.putCustom(type, customIndexMetaData);
+            Custom customIndexMetaData = in.readNamedWriteable(Custom.class);
+            builder.putCustom(customIndexMetaData.getWriteableName(), customIndexMetaData);
         }
         return builder.build();
-    }
-
-    @Override
-    public ClusterState readFrom(StreamInput in) throws IOException {
-        return readFrom(in, nodes.getLocalNode());
     }
 
     @Override
@@ -727,8 +691,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             if (omitSnapshotDeletions && cursor.key.equals(SnapshotDeletionsInProgress.TYPE)) {
                 continue;
             }
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
+            out.writeNamedWriteable(cursor.value);
         }
     }
 
@@ -764,25 +727,26 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
         }
 
-        public ClusterStateDiff(StreamInput in, ClusterState proto) throws IOException {
+        public ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {
             clusterName = new ClusterName(in);
             fromUuid = in.readString();
             toUuid = in.readString();
             toVersion = in.readLong();
-            routingTable = proto.routingTable.readDiffFrom(in);
-            nodes = proto.nodes.readDiffFrom(in);
-            metaData = proto.metaData.readDiffFrom(in);
-            blocks = proto.blocks.readDiffFrom(in);
+            routingTable = RoutingTable.readDiffFrom(in);
+            nodes = DiscoveryNodes.readDiffFrom(in, localNode);
+            metaData = MetaData.readDiffFrom(in);
+            blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
                 new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                     @Override
                     public Custom read(StreamInput in, String key) throws IOException {
-                        return lookupPrototype(key).readFrom(in);
+                        return in.readNamedWriteable(Custom.class, key);
                     }
 
+                    @SuppressWarnings("unchecked")
                     @Override
                     public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                        return lookupPrototype(key).readDiffFrom(in);
+                        return in.readNamedWriteable(NamedDiff.class, key);
                     }
                 });
         }

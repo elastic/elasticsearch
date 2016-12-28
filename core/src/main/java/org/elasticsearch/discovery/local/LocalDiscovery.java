@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -69,6 +70,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
     private final ClusterName clusterName;
 
     private final DiscoverySettings discoverySettings;
+    private final NamedWriteableRegistry namedWriteableRegistry;
 
     private volatile boolean master = false;
 
@@ -77,11 +79,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
     private volatile ClusterState lastProcessedClusterState;
 
     @Inject
-    public LocalDiscovery(Settings settings, ClusterService clusterService, ClusterSettings clusterSettings) {
+    public LocalDiscovery(Settings settings, ClusterService clusterService, ClusterSettings clusterSettings, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
         this.clusterName = clusterService.getClusterName();
         this.clusterService = clusterService;
         this.discoverySettings = new DiscoverySettings(settings, clusterSettings);
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
@@ -306,7 +309,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                             clusterStateDiffBytes = BytesReference.toBytes(os.bytes());
                         }
                         try {
-                            newNodeSpecificClusterState = discovery.lastProcessedClusterState.readDiffFrom(StreamInput.wrap(clusterStateDiffBytes)).apply(discovery.lastProcessedClusterState);
+                            newNodeSpecificClusterState = ClusterState.readDiffFrom(StreamInput.wrap(clusterStateDiffBytes), discovery.localNode()).apply(discovery.lastProcessedClusterState);
                             logger.trace("sending diff cluster state version [{}] with size {} to [{}]", clusterState.version(), clusterStateDiffBytes.length, discovery.localNode().getName());
                         } catch (IncompatibleClusterStateVersionException ex) {
                             logger.warn((Supplier<?>) () -> new ParameterizedMessage("incompatible cluster state version [{}] - resending complete cluster state", clusterState.version()), ex);
@@ -316,7 +319,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent implements Discov
                         if (clusterStateBytes == null) {
                             clusterStateBytes = Builder.toBytes(clusterState);
                         }
-                        newNodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode());
+                        newNodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode(), namedWriteableRegistry);
                     }
                     discovery.lastProcessedClusterState = newNodeSpecificClusterState;
                 }

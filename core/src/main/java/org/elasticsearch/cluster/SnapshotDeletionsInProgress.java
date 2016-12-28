@@ -36,10 +36,9 @@ import java.util.Objects;
 /**
  * A class that represents the snapshot deletions that are in progress in the cluster.
  */
-public class SnapshotDeletionsInProgress extends AbstractDiffable<Custom> implements Custom {
+public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> implements Custom {
 
     public static final String TYPE = "snapshot_deletions";
-    public static final SnapshotDeletionsInProgress PROTO = new SnapshotDeletionsInProgress(Collections.emptyList());
     // the version where SnapshotDeletionsInProgress was introduced
     public static final Version VERSION_INTRODUCED = Version.V_5_2_0_UNRELEASED;
 
@@ -98,7 +97,7 @@ public class SnapshotDeletionsInProgress extends AbstractDiffable<Custom> implem
     }
 
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 
@@ -121,13 +120,12 @@ public class SnapshotDeletionsInProgress extends AbstractDiffable<Custom> implem
     }
 
     @Override
-    public Custom readFrom(StreamInput in) throws IOException {
-        return new SnapshotDeletionsInProgress(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(entries);
+    }
+
+    public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(Custom.class, TYPE, in);
     }
 
     @Override

@@ -28,6 +28,7 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
@@ -94,7 +95,7 @@ public class S3RepositoryTests extends ESTestCase {
         RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
             .put(Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
             .put(Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
-        new S3Repository(metadata, Settings.EMPTY, new DummyS3Service());
+        new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service());
     }
 
     private void assertInvalidBuffer(int bufferMB, int chunkMB, Class<? extends Exception> clazz, String msg) throws IOException {
@@ -102,20 +103,21 @@ public class S3RepositoryTests extends ESTestCase {
             .put(Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(bufferMB, ByteSizeUnit.MB))
             .put(Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunkMB, ByteSizeUnit.MB)).build());
 
-        Exception e = expectThrows(clazz, () -> new S3Repository(metadata, Settings.EMPTY, new DummyS3Service()));
+        Exception e = expectThrows(clazz, () -> new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY,
+            new DummyS3Service()));
         assertThat(e.getMessage(), containsString(msg));
     }
 
     public void testBasePathSetting() throws IOException {
         RepositoryMetaData metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.builder()
             .put(Repository.BASE_PATH_SETTING.getKey(), "/foo/bar").build());
-        S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, new DummyS3Service());
+        S3Repository s3repo = new S3Repository(metadata, Settings.EMPTY, NamedXContentRegistry.EMPTY, new DummyS3Service());
         assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
         assertWarnings("S3 repository base_path" +
                 " trimming the leading `/`, and leading `/` will not be supported for the S3 repository in future releases");
         metadata = new RepositoryMetaData("dummy-repo", "mock", Settings.EMPTY);
         Settings settings = Settings.builder().put(Repositories.BASE_PATH_SETTING.getKey(), "/foo/bar").build();
-        s3repo = new S3Repository(metadata, settings, new DummyS3Service());
+        s3repo = new S3Repository(metadata, settings, NamedXContentRegistry.EMPTY, new DummyS3Service());
         assertEquals("foo/bar/", s3repo.basePath().buildAsString()); // make sure leading `/` is removed and trailing is added
         assertWarnings("S3 repository base_path" +
                 " trimming the leading `/`, and leading `/` will not be supported for the S3 repository in future releases");

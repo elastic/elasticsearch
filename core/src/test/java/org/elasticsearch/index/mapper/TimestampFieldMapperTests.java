@@ -278,7 +278,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
             out.close();
             BytesReference bytes = out.bytes();
 
-            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(bytes.streamInput());
+            MappingMetaData metaData = new MappingMetaData(bytes.streamInput());
 
             assertThat(metaData, is(expected));
         }
@@ -295,7 +295,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
             out.close();
             BytesReference bytes = out.bytes();
 
-            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(bytes.streamInput());
+            MappingMetaData metaData = new MappingMetaData(bytes.streamInput());
 
             assertThat(metaData, is(expected));
         }
@@ -312,7 +312,7 @@ public class TimestampFieldMapperTests extends ESSingleNodeTestCase {
             out.close();
             BytesReference bytes = out.bytes();
 
-            MappingMetaData metaData = MappingMetaData.PROTO.readFrom(bytes.streamInput());
+            MappingMetaData metaData = new MappingMetaData(bytes.streamInput());
 
             assertThat(metaData, is(expected));
         }

@@ -682,7 +682,7 @@ Here is the same exact search above using the alternative request body method:
 
 [source,js]
 --------------------------------------------------
-GET /bank/_search
+POST /bank/_search
 {
   "query": { "match_all": {} },
   "sort": [

@@ -184,9 +184,14 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      */
     boolean resetRecovery() throws InterruptedException, IOException {
         if (finished.compareAndSet(false, true)) {
-            logger.debug("reset of recovery with shard {} and id [{}]", shardId, recoveryId);
-            // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-            decRef();
+            try {
+                // yes, this is just a logger call in a try-finally block. The reason for this is that resetRecovery is called from
+                // CancellableThreads and we have to make sure that all references to IndexShard are cleaned up before exiting this method
+                logger.debug("reset of recovery with shard {} and id [{}]", shardId, recoveryId);
+            } finally {
+                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now.
+                decRef();
+            }
             closedLatch.await();
             RecoveryState.Stage stage = indexShard.recoveryState().getStage();
             if (indexShard.recoveryState().getPrimary() && (stage == RecoveryState.Stage.FINALIZE || stage == RecoveryState.Stage.DONE)) {

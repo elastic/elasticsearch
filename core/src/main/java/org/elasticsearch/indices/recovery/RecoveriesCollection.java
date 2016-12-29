@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
@@ -106,9 +107,18 @@ public class RecoveriesCollection {
             }
 
             // Closes the current recovery target
-            final RecoveryTarget finalOldRecoveryTarget = oldRecoveryTarget;
             final AtomicBoolean successfulReset = new AtomicBoolean();
-            newRecoveryTarget.CancellableThreads().executeIO(() -> successfulReset.set(finalOldRecoveryTarget.resetRecovery()));
+            try {
+                final RecoveryTarget finalOldRecoveryTarget = oldRecoveryTarget;
+                newRecoveryTarget.CancellableThreads().executeIO(() -> successfulReset.set(finalOldRecoveryTarget.resetRecovery()));
+            } catch (CancellableThreads.ExecutionCancelledException e) {
+                // new recovery target is already cancelled (probably due to shard closing or recovery source changing)
+                assert onGoingRecoveries.containsKey(newRecoveryTarget.recoveryId()) == false;
+                logger.trace("{} recovery reset cancelled, recovery from {}, id [{}], previous id [{}]", newRecoveryTarget.shardId(),
+                    newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(), oldRecoveryTarget.recoveryId());
+                oldRecoveryTarget.cancel("recovery reset cancelled"); // if finalOldRecoveryTarget.resetRecovery did not even get to execute
+                return null;
+            }
             if (successfulReset.get() == false) {
                 cancelRecovery(newRecoveryTarget.recoveryId(), "failed to reset recovery");
                 return null;

@@ -26,6 +26,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
 
 /** Configures the build to have a rest integration test.  */
@@ -40,7 +41,7 @@ public class StandaloneTestBasePlugin implements Plugin<Project> {
         BuildPlugin.configureRepositories(project)
 
         // only setup tests to build
-        project.sourceSets.create('test')
+        project.sourceSets.maybeCreate('test')
         project.dependencies.add('testCompile', "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}")
 
         project.eclipse.classpath.sourceSets = [project.sourceSets.test]
@@ -48,7 +49,10 @@ public class StandaloneTestBasePlugin implements Plugin<Project> {
         project.idea.module.testSourceDirs += project.sourceSets.test.java.srcDirs
         project.idea.module.scopes['TEST'] = [plus: [project.configurations.testRuntime]]
 
-        PrecommitTasks.create(project, false)
-        project.check.dependsOn(project.precommit)
+        Task precommitTask = project.tasks.findByName('precommit')
+        if (precommitTask == null) {
+            PrecommitTasks.create(project, false)
+            project.check.dependsOn(project.precommit)
+        }
     }
 }

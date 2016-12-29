@@ -25,12 +25,11 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 /**
  * Diff that also support NamedWriteable interface
  */
-public interface NamedDiff<T extends Diffable<T>> extends Diff<T>, NamedWriteable {
+public interface NamedDiffable<T> extends Diffable<T>, NamedWriteable {
     /**
      * The minimal version of the recipient this custom object can be sent to
      */
     default Version getMinimalSupportedVersion() {
         return Version.CURRENT.minimumCompatibilityVersion();
     }
-
 }

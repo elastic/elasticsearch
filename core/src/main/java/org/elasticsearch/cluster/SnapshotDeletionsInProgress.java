@@ -129,6 +129,11 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     @Override
+    public Version getMinimalSupportedVersion() {
+        return VERSION_INTRODUCED;
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(TYPE);
         for (Entry entry : entries) {

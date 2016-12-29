@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,23 +31,23 @@ import java.io.IOException;
  * Abstract diffable object with simple diffs implementation that sends the entire object if object has changed or
  * nothing is object remained the same. Comparing to AbstractDiffable, this class also works with NamedWriteables
  */
-public abstract class AbstractNamedDiffable<T extends Diffable<T> & NamedWriteable> implements Diffable<T>, NamedWriteable {
+public abstract class AbstractNamedDiffable<T extends NamedDiffable<T>> implements Diffable<T>, NamedWriteable {
 
     @Override
     public Diff<T> diff(T previousState) {
         if (this.get().equals(previousState)) {
-            return new CompleteNamedDiff<>(previousState.getWriteableName());
+            return new CompleteNamedDiff<>(previousState.getWriteableName(), previousState.getMinimalSupportedVersion());
         } else {
             return new CompleteNamedDiff<>(get());
         }
     }
 
-    public static <T extends Diffable<T> & NamedWriteable> NamedDiff<T> readDiffFrom(Class<? extends T> tClass, String name, StreamInput in)
+    public static <T extends NamedDiffable<T>> NamedDiff<T> readDiffFrom(Class<? extends T> tClass, String name, StreamInput in)
         throws IOException {
         return new CompleteNamedDiff<>(tClass, name, in);
     }
 
-    private static class CompleteNamedDiff<T extends Diffable<T> & NamedWriteable> implements NamedDiff<T> {
+    private static class CompleteNamedDiff<T extends NamedDiffable<T>> implements NamedDiff<T> {
 
         @Nullable
         private final T part;
@@ -54,19 +55,28 @@ public abstract class AbstractNamedDiffable<T extends Diffable<T> & NamedWriteab
         private final String name;
 
         /**
+         * A non-null value is only required for write operation, if the diff was just read from the stream the version
+         * is unnecessary.
+         */
+        @Nullable
+        private final Version minimalSupportedVersion;
+
+        /**
          * Creates simple diff with changes
          */
         public CompleteNamedDiff(T part) {
             this.part = part;
             this.name = part.getWriteableName();
+            this.minimalSupportedVersion = part.getMinimalSupportedVersion();
         }
 
         /**
          * Creates simple diff without changes
          */
-        public CompleteNamedDiff(String name) {
+        public CompleteNamedDiff(String name, Version minimalSupportedVersion) {
             this.part = null;
             this.name = name;
+            this.minimalSupportedVersion = minimalSupportedVersion;
         }
 
         /**
@@ -75,14 +85,17 @@ public abstract class AbstractNamedDiffable<T extends Diffable<T> & NamedWriteab
         public CompleteNamedDiff(Class<? extends T> tClass, String name, StreamInput in) throws IOException {
             if (in.readBoolean()) {
                 this.part = in.readNamedWriteable(tClass, name);
+                this.minimalSupportedVersion = part.getMinimalSupportedVersion();
             } else {
                 this.part = null;
+                this.minimalSupportedVersion = null; // We just read this diff, so it's not going to be written
             }
             this.name = name;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            assert minimalSupportedVersion != null : "shouldn't be called on diff that was de-serialized from the stream";
             if (part != null) {
                 out.writeBoolean(true);
                 part.writeTo(out);
@@ -103,6 +116,12 @@ public abstract class AbstractNamedDiffable<T extends Diffable<T> & NamedWriteab
         @Override
         public String getWriteableName() {
             return name;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            assert minimalSupportedVersion != null : "shouldn't be called on the diff that was de-serialized from the stream";
+            return minimalSupportedVersion;
         }
     }
 

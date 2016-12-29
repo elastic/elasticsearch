@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -37,16 +38,13 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -92,9 +90,10 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
     public static final ClusterState EMPTY_STATE = builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
 
-    public interface Custom extends Diffable<Custom>, ToXContent, NamedWriteable {
-
+    public interface Custom extends NamedDiffable<Custom>, ToXContent {
     }
+
+    private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
 
     public static final String UNKNOWN_UUID = "_na_";
 
@@ -679,19 +678,18 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         routingTable.writeTo(out);
         nodes.writeTo(out);
         blocks.writeTo(out);
-        boolean omitSnapshotDeletions = false;
-        if (out.getVersion().before(SnapshotDeletionsInProgress.VERSION_INTRODUCED)
-                && customs.containsKey(SnapshotDeletionsInProgress.TYPE)) {
-            // before the stated version, there were no SnapshotDeletionsInProgress, so
-            // don't transfer over the wire protocol
-            omitSnapshotDeletions = true;
-        }
-        out.writeVInt(omitSnapshotDeletions ? customs.size() - 1 : customs.size());
-        for (ObjectObjectCursor<String, Custom> cursor : customs) {
-            if (omitSnapshotDeletions && cursor.key.equals(SnapshotDeletionsInProgress.TYPE)) {
-                continue;
+        // filter out custom states not supported by the other node
+        int numberOfCustoms = 0;
+        for (ObjectCursor<Custom> cursor : customs.values()) {
+            if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
+                numberOfCustoms++;
             }
-            out.writeNamedWriteable(cursor.value);
+        }
+        out.writeVInt(numberOfCustoms);
+        for (ObjectCursor<Custom> cursor : customs.values()) {
+            if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
+                out.writeNamedWriteable(cursor.value);
+            }
         }
     }
 
@@ -724,7 +722,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             nodes = after.nodes.diff(before.nodes);
             metaData = after.metaData.diff(before.metaData);
             blocks = after.blocks.diff(before.blocks);
-            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
+            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
         public ClusterStateDiff(StreamInput in, DiscoveryNode localNode) throws IOException {
@@ -736,19 +734,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
             metaData = MetaData.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                new DiffableUtils.DiffableValueSerializer<String, Custom>() {
-                    @Override
-                    public Custom read(StreamInput in, String key) throws IOException {
-                        return in.readNamedWriteable(Custom.class, key);
-                    }
-
-                    @SuppressWarnings("unchecked")
-                    @Override
-                    public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                        return in.readNamedWriteable(NamedDiff.class, key);
-                    }
-                });
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
         @Override
@@ -761,21 +747,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             nodes.writeTo(out);
             metaData.writeTo(out);
             blocks.writeTo(out);
-            Diff<ImmutableOpenMap<String, Custom>> customsDiff = customs;
-            if (out.getVersion().before(SnapshotDeletionsInProgress.VERSION_INTRODUCED)) {
-                customsDiff = removeSnapshotDeletionsCustomDiff(customsDiff);
-            }
-            customsDiff.writeTo(out);
-        }
-
-        private Diff<ImmutableOpenMap<String, Custom>> removeSnapshotDeletionsCustomDiff(Diff<ImmutableOpenMap<String, Custom>> customs) {
-            if (customs instanceof DiffableUtils.ImmutableOpenMapDiff) {
-                @SuppressWarnings("unchecked")
-                DiffableUtils.ImmutableOpenMapDiff customsDiff = ((DiffableUtils.ImmutableOpenMapDiff) customs)
-                                                                     .withKeyRemoved(SnapshotDeletionsInProgress.TYPE);
-                return customsDiff;
-            }
-            return customs;
+            customs.writeTo(out);
         }
 
         @Override

@@ -33,6 +33,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
@@ -646,7 +647,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
             if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
                 logger.info("--> preventing {} request", action);
                 requestBlocked.countDown();
@@ -702,9 +703,9 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             private final AtomicInteger count = new AtomicInteger();
 
             @Override
-            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
                                        TransportRequestOptions options) throws IOException {
-                logger.info("--> sending request {} on {}", action, connection.getNode());
+                logger.info("--> sending request {} on {}", action, node);
                 if (PeerRecoverySourceService.Actions.START_RECOVERY.equals(action) && count.incrementAndGet() == 1) {
                     // ensures that it's considered as valid recovery attempt by source
                     try {
@@ -713,15 +714,15 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                     } catch (InterruptedException e) {
                         throw new RuntimeException(e);
                     }
-                    super.sendRequest(connection, requestId, action, request, options);
+                    super.sendRequest(node, requestId, action, request, options);
                     try {
                         Thread.sleep(disconnectAfterDelay.millis());
                     } catch (InterruptedException e) {
                         throw new RuntimeException(e);
                     }
-                    throw new ConnectTransportException(connection.getNode(), "DISCONNECT: simulation disconnect after successfully sending " + action + " request");
+                    throw new ConnectTransportException(node, "DISCONNECT: simulation disconnect after successfully sending " + action + " request");
                 } else {
-                    super.sendRequest(connection, requestId, action, request, options);
+                    super.sendRequest(node, requestId, action, request, options);
                 }
             }
         });
@@ -729,26 +730,26 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         final AtomicBoolean seenWaitForClusterState = new AtomicBoolean();
         blueMockTransportService.addDelegate(redMockTransportService, new MockTransportService.DelegateTransport(blueMockTransportService.original()) {
             @Override
-            protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
-                                       TransportRequestOptions options) throws IOException {
-                logger.info("--> sending request {} on {}", action, connection.getNode());
+            public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
+                                    TransportRequestOptions options) throws IOException {
+                logger.info("--> sending request {} on {}", action, node);
                 if (action.equals(PeerRecoveryTargetService.Actions.WAIT_CLUSTERSTATE)) {
                     seenWaitForClusterState.set(true);
                 }
-                super.sendRequest(connection, requestId, action, request, options);
+                super.sendRequest(node, requestId, action, request, options);
             }
         });
 
         for (MockTransportService mockTransportService : Arrays.asList(redMockTransportService, blueMockTransportService)) {
             mockTransportService.addDelegate(masterTransportService, new MockTransportService.DelegateTransport(mockTransportService.original()) {
                 @Override
-                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
                                            TransportRequestOptions options) throws IOException {
-                    logger.info("--> sending request {} on {}", action, connection.getNode());
+                    logger.info("--> sending request {} on {}", action, node);
                     if (primaryRelocation == false || seenWaitForClusterState.get() == false) {
                         assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
                     }
-                    super.sendRequest(connection, requestId, action, request, options);
+                    super.sendRequest(node, requestId, action, request, options);
                 }
             });
         }

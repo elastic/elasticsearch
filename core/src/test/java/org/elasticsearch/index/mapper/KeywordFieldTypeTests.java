@@ -32,16 +32,29 @@ import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
+
+    @Before
+    public void setupProperties() {
+        addModifier(new Modifier("normalizer", false) {
+            @Override
+            public void modify(MappedFieldType ft) {
+                ((KeywordFieldType) ft).setNormalizer(Lucene.KEYWORD_ANALYZER);
+            }
+        });
+    }
+
     @Override
     protected MappedFieldType createDefaultFieldType() {
         return new KeywordFieldMapper.KeywordFieldType();

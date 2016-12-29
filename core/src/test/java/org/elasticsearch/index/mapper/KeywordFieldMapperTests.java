@@ -337,12 +337,12 @@ public class KeywordFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("field")
                 .field("type", "keyword").field("normalizer", "my_asciifolding").endObject().endObject()
                 .endObject().endObject().string();
-        indexService.mapperService().merge("type", new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, randomBoolean());
-
-        DocumentMapper mapper = indexService.mapperService().documentMapper("type");
-        KeywordFieldMapper fieldMapper = (KeywordFieldMapper) mapper.root().getMapper("field");
-        assertEquals("my_asciifolding", fieldMapper.normalizer.name());
-        assertEquals("my_asciifolding", fieldMapper.fieldType().searchAnalyzer().name());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> indexService.mapperService().merge("type",
+                        new CompressedXContent(mapping2), MergeReason.MAPPING_UPDATE, randomBoolean()));
+        assertEquals(
+                "Mapper for [field] conflicts with existing mapping in other types:\n[mapper [field] has different [normalizer]]",
+                e.getMessage());
     }
 
     public void testEmptyName() throws IOException {

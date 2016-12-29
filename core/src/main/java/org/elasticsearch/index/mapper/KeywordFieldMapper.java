@@ -40,6 +40,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.index.mapper.TypeParsers.parseField;
 
@@ -68,11 +69,15 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         protected String nullValue = Defaults.NULL_VALUE;
         protected int ignoreAbove = Defaults.IGNORE_ABOVE;
-        private NamedAnalyzer normalizer;
 
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
             builder = this;
+        }
+
+        @Override
+        public KeywordFieldType fieldType() {
+            return (KeywordFieldType) super.fieldType();
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -98,8 +103,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public Builder normalizer(NamedAnalyzer normalizer) {
-            fieldType.setSearchAnalyzer(normalizer);
-            this.normalizer = normalizer;
+            fieldType().setNormalizer(normalizer);
+            fieldType().setSearchAnalyzer(normalizer);
             return builder;
         }
 
@@ -107,14 +112,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         public KeywordFieldMapper build(BuilderContext context) {
             setupFieldType(context);
             return new KeywordFieldMapper(
-                    name, fieldType, defaultFieldType, ignoreAbove, includeInAll, normalizer,
+                    name, fieldType, defaultFieldType, ignoreAbove, includeInAll,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             KeywordFieldMapper.Builder builder = new KeywordFieldMapper.Builder(name);
             parseField(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -153,6 +158,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     public static final class KeywordFieldType extends StringFieldType {
 
+        private NamedAnalyzer normalizer = null;
+
         public KeywordFieldType() {
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             setSearchAnalyzer(Lucene.KEYWORD_ANALYZER);
@@ -160,6 +167,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         protected KeywordFieldType(KeywordFieldType ref) {
             super(ref);
+            this.normalizer = ref.normalizer;
         }
 
         public KeywordFieldType clone() {
@@ -167,8 +175,39 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public boolean equals(Object o) {
+            if (super.equals(o) == false) {
+                return false;
+            }
+            return Objects.equals(normalizer, ((KeywordFieldType) o).normalizer);
+        }
+
+        @Override
+        public void checkCompatibility(MappedFieldType otherFT, List<String> conflicts, boolean strict) {
+            super.checkCompatibility(otherFT, conflicts, strict);
+            KeywordFieldType other = (KeywordFieldType) otherFT;
+            if (Objects.equals(normalizer, other.normalizer) == false) {
+                conflicts.add("mapper [" + name() + "] has different [normalizer]");
+            }
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * super.hashCode() + Objects.hashCode(normalizer);
+        }
+
+        @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        public NamedAnalyzer normalizer() {
+            return normalizer;
+        }
+
+        public void setNormalizer(NamedAnalyzer normalizer) {
+            checkIfFrozen();
+            this.normalizer = normalizer;
         }
 
         @Override
@@ -209,16 +248,14 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private Boolean includeInAll;
     private int ignoreAbove;
-    NamedAnalyzer normalizer; // pkg-private for testing
 
     protected KeywordFieldMapper(String simpleName, MappedFieldType fieldType, MappedFieldType defaultFieldType,
-                                int ignoreAbove, Boolean includeInAll, NamedAnalyzer normalizer,
+                                int ignoreAbove, Boolean includeInAll,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.ignoreAbove = ignoreAbove;
         this.includeInAll = includeInAll;
-        this.normalizer = normalizer;
     }
 
     /** Values that have more chars than the return value of this method will
@@ -231,6 +268,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     protected KeywordFieldMapper clone() {
         return (KeywordFieldMapper) super.clone();
+    }
+
+    @Override
+    public KeywordFieldType fieldType() {
+        return (KeywordFieldType) super.fieldType();
     }
 
     // pkg-private for testing
@@ -256,6 +298,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
+        final NamedAnalyzer normalizer = fieldType().normalizer();
         if (normalizer != null) {
             try (final TokenStream ts = normalizer.tokenStream(name(), value)) {
                 final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
@@ -301,7 +344,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         super.doMerge(mergeWith, updateAllTypes);
         this.includeInAll = ((KeywordFieldMapper) mergeWith).includeInAll;
         this.ignoreAbove = ((KeywordFieldMapper) mergeWith).ignoreAbove;
-        this.normalizer = ((KeywordFieldMapper) mergeWith).normalizer;
     }
 
     @Override
@@ -322,8 +364,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             builder.field("ignore_above", ignoreAbove);
         }
 
-        if (normalizer != null) {
-            builder.field("normalizer", normalizer.name());
+        if (fieldType().normalizer() != null) {
+            builder.field("normalizer", fieldType().normalizer().name());
         } else if (includeDefaults) {
             builder.nullField("normalizer");
         }

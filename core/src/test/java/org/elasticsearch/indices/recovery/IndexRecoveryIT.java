@@ -596,8 +596,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 PeerRecoveryTargetService.Actions.CLEAN_FILES,
                 //RecoveryTarget.Actions.TRANSLOG_OPS, <-- may not be sent if already flushed
                 PeerRecoveryTargetService.Actions.PREPARE_TRANSLOG,
-                PeerRecoveryTargetService.Actions.FINALIZE,
-                PeerRecoveryTargetService.Actions.WAIT_CLUSTERSTATE
+                PeerRecoveryTargetService.Actions.FINALIZE
         };
         final String recoveryActionToBlock = randomFrom(recoveryActions);
         final boolean dropRequests = randomBoolean();

@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
@@ -31,7 +32,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-public class GetPipelineResponse extends ActionResponse implements StatusToXContent {
+public class GetPipelineResponse extends ActionResponse implements StatusToXContent, ToXContentObject {
 
     private List<PipelineConfiguration> pipelines;
 
@@ -76,9 +77,11 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         for (PipelineConfiguration pipeline : pipelines) {
             builder.field(pipeline.getId(), pipeline.getConfigAsMap());
         }
+        builder.endObject();
         return builder;
     }
 }

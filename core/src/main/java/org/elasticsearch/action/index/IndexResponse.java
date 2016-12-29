@@ -57,7 +57,7 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",id=").append(getId());
         builder.append(",version=").append(getVersion());
         builder.append(",result=").append(getResult().getLowercase());
-        builder.append(",shards=").append(Strings.toString(getShardInfo(), true));
+        builder.append(",shards=").append(Strings.toString(getShardInfo()));
         return builder.append("]").toString();
     }
 

@@ -194,6 +194,6 @@ public class GetResponse extends ActionResponse implements Iterable<GetField>, T
 
     @Override
     public String toString() {
-        return Strings.toString(this, true);
+        return Strings.toString(this);
     }
 }

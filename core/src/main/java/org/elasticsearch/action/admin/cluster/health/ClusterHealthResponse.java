@@ -28,6 +28,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
@@ -36,7 +37,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
 
-public class ClusterHealthResponse extends ActionResponse implements StatusToXContent {
+public class ClusterHealthResponse extends ActionResponse implements StatusToXContent, ToXContentObject {
     private String clusterName;
     private int numberOfPendingTasks = 0;
     private int numberOfInFlightFetch = 0;
@@ -240,6 +241,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field(CLUSTER_NAME, getClusterName());
         builder.field(STATUS, getStatus().name().toLowerCase(Locale.ROOT));
         builder.field(TIMED_OUT, isTimedOut());
@@ -268,6 +270,7 @@ public class ClusterHealthResponse extends ActionResponse implements StatusToXCo
             }
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 }

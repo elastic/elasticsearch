@@ -79,7 +79,7 @@ public class SearchSortValuesTests extends ESTestCase {
         parser.nextToken();
         if (sortValues.sortValues().length > 0) {
             SearchSortValues parsed = SearchSortValues.fromXContent(parser);
-            assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType, true), xcontentType);
+            assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
             parser.nextToken();
         }
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

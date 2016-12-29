@@ -30,7 +30,7 @@ import java.util.function.Function;
 /**
  * Content listener that extracts that {@link RestStatus} from the response.
  */
-public class RestStatusToXContentListener<Response extends StatusToXContent> extends RestResponseListener<Response> {
+public class RestStatusToXContentListener<Response extends StatusToXContent> extends RestToXContentListener<Response> {
     private final Function<Response, String> extractLocation;
 
     /**
@@ -52,15 +52,9 @@ public class RestStatusToXContentListener<Response extends StatusToXContent> ext
     }
 
     @Override
-    public final RestResponse buildResponse(Response response) throws Exception {
-        return buildResponse(response, channel.newBuilder());
-    }
-
-    public final RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-        builder.startObject();
-        response.toXContent(builder, channel.request());
-        builder.endObject();
-        BytesRestResponse restResponse = new BytesRestResponse(response.status(), builder);
+    public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
+        toXContent(response, builder);
+        RestResponse restResponse = new BytesRestResponse(response.status(), builder);
         if (RestStatus.CREATED == restResponse.status()) {
             String location = extractLocation.apply(response);
             if (location != null) {

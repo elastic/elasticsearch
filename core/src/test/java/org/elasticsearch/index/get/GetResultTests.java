@@ -48,7 +48,7 @@ public class GetResultTests extends ESTestCase {
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
         GetResult getResult = tuple.v1();
         GetResult expectedGetResult = tuple.v2();
-        BytesReference originalBytes = toXContent(getResult, xContentType, false);
+        BytesReference originalBytes = toXContent(getResult, xContentType);
         //test that we can parse what we print out
         GetResult parsedGetResult;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -57,7 +57,7 @@ public class GetResultTests extends ESTestCase {
         }
         assertEquals(expectedGetResult, parsedGetResult);
         //print the parsed object out and test that the output is the same as the original output
-        BytesReference finalBytes = toXContent(parsedGetResult, xContentType, false);
+        BytesReference finalBytes = toXContent(parsedGetResult, xContentType);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
         //check that the source stays unchanged, no shuffling of keys nor anything like that
         assertEquals(expectedGetResult.sourceAsString(), parsedGetResult.sourceAsString());

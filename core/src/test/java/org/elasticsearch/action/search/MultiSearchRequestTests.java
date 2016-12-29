@@ -25,9 +25,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.RestRequest;
@@ -143,11 +140,6 @@ public class MultiSearchRequestTests extends ESTestCase {
                     new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))
         });
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
         assertEquals("{\"responses\":["
                         + "{"
                         + "\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}],"
@@ -158,7 +150,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                         + "\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"},\"status\":500"
                         + "}"
                         + "]}",
-                builder.string());
+                Strings.toString(response));
     }
 
     public void testMaxConcurrentSearchRequests() {

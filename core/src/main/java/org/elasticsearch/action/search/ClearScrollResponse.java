@@ -92,5 +92,4 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
         static final String SUCCEEDED = "succeeded";
         static final String NUMFREED = "num_freed";
     }
-
 }

@@ -66,13 +66,13 @@ public class GetResponseTests extends ESTestCase {
             GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " +
                     "\"value1\", \"field2\":\"value2\"}"), Collections.singletonMap("field1", new GetField("field1",
                     Collections.singletonList("value1")))));
-            String output = Strings.toString(getResponse, false);
+            String output = Strings.toString(getResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"found\":true,\"_source\":{ \"field1\" " +
                     ": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", output);
         }
         {
             GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 1, false, null, null));
-            String output = Strings.toString(getResponse, false);
+            String output = Strings.toString(getResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
     }

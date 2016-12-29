@@ -6,14 +6,33 @@
 package org.elasticsearch.xpack.security.test;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.authz.store.NativeRolesStoreTests;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
+
+import static org.elasticsearch.cluster.routing.RecoverySource.StoreRecoverySource.EXISTING_STORE_INSTANCE;
 
 public class SecurityTestUtils {
 
@@ -48,5 +67,37 @@ public class SecurityTestUtils {
 
     public static String writeFile(Path folder, String name, String content) {
         return writeFile(folder, name, content.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public static ClusterState getClusterStateWithSecurityIndex() {
+        Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .build();
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder(SecurityTemplateService.SECURITY_INDEX_NAME).settings(settings)).build();
+        RoutingTable routingTable = buildSecurityIndexRoutingTable();
+
+        return ClusterState.builder(new ClusterName(NativeRolesStoreTests.class.getName()))
+                .metaData(metaData)
+                .routingTable(routingTable)
+                .build();
+    }
+
+    public static RoutingTable buildSecurityIndexRoutingTable() {
+        Index index = new Index(SecurityTemplateService.SECURITY_INDEX_NAME, UUID.randomUUID().toString());
+        ShardRouting shardRouting = ShardRouting.newUnassigned(new ShardId(index, 0), true, EXISTING_STORE_INSTANCE,
+                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, ""));
+        String nodeId = ESTestCase.randomAsciiOfLength(8);
+        IndexShardRoutingTable table = new IndexShardRoutingTable.Builder(new ShardId(index, 0))
+                .addShard(shardRouting.initialize(nodeId, null, shardRouting.getExpectedShardSize()).moveToStarted())
+                .build();
+        return RoutingTable.builder()
+                .add(IndexRoutingTable
+                        .builder(index)
+                        .addIndexShard(table)
+                        .build())
+                .build();
     }
 }

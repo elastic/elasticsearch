@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -32,11 +33,16 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
 import org.elasticsearch.xpack.template.TemplateUtils;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
@@ -52,13 +58,20 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
     static final String SECURITY_INDEX_TEMPLATE_VERSION_PATTERN = Pattern.quote("${security.template.version}");
     static final Version MIN_READ_VERSION = Version.V_5_0_0;
 
+    enum UpgradeState {
+        NOT_STARTED, IN_PROGRESS, COMPLETE, FAILED
+    }
+
     private final InternalClient client;
     final AtomicBoolean templateCreationPending = new AtomicBoolean(false);
     final AtomicBoolean updateMappingPending = new AtomicBoolean(false);
+    final AtomicReference upgradeDataState = new AtomicReference<>(UpgradeState.NOT_STARTED);
+    private final NativeRealmMigrator nativeRealmMigrator;
 
-    public SecurityTemplateService(Settings settings, InternalClient client) {
+    public SecurityTemplateService(Settings settings, InternalClient client, NativeRealmMigrator nativeRealmMigrator) {
         super(settings);
         this.client = client;
+        this.nativeRealmMigrator = nativeRealmMigrator;
     }
 
     @Override
@@ -79,9 +92,23 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
         // make sure mapping is up to date
         if (state.metaData().getIndices() != null) {
             if (securityIndexMappingUpToDate(state, logger) == false) {
-                updateSecurityMapping();
+                if (securityIndexAvailable(state, logger)) {
+                    upgradeSecurityData(state, this::updateSecurityMapping);
+                }
             }
         }
+    }
+
+    private boolean securityIndexAvailable(ClusterState state, Logger logger) {
+        final IndexRoutingTable routingTable = getSecurityIndexRoutingTable(state);
+        if (routingTable == null) {
+            throw new IllegalStateException("Security index does not exist");
+        }
+        if (routingTable.allPrimaryShardsActive() == false) {
+            logger.debug("Security index is not yet active");
+            return false;
+        }
+        return true;
     }
 
     private void updateSecurityTemplate() {
@@ -90,6 +117,33 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
             putSecurityTemplate();
         }
     }
+
+    private boolean upgradeSecurityData(ClusterState state, Runnable andThen) {
+        // only update the data if this is not already in progress
+        if (upgradeDataState.compareAndSet(UpgradeState.NOT_STARTED, UpgradeState.IN_PROGRESS) ) {
+            final Version previousVersion = oldestSecurityIndexMappingVersion(state, logger);
+            nativeRealmMigrator.performUpgrade(previousVersion, new ActionListener<Boolean>() {
+
+                @Override
+                public void onResponse(Boolean upgraded) {
+                    upgradeDataState.set(UpgradeState.COMPLETE);
+                    andThen.run();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    upgradeDataState.set(UpgradeState.FAILED);
+                    logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to upgrade security data from version [{}] ",
+                            previousVersion), e);
+                }
+            });
+            return true;
+        } else {
+            andThen.run();
+            return false;
+        }
+    }
+
 
     private void updateSecurityMapping() {
         // only update the mapping if this is not already in progress
@@ -182,6 +236,24 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
     }
 
     static boolean securityIndexMappingVersionMatches(ClusterState clusterState, Logger logger, Predicate<Version> predicate) {
+        return securityIndexMappingVersions(clusterState, logger).stream().allMatch(predicate);
+    }
+
+    public static Version oldestSecurityIndexMappingVersion(ClusterState clusterState, Logger logger) {
+        final Set<Version> versions = securityIndexMappingVersions(clusterState, logger);
+        return versions.stream().min((o1, o2) -> {
+            if(o1.before(o2)) {
+                return -1;
+            }
+            if(o1.after(o2)) {
+                return +1;
+            }
+            return 0;
+        }).orElse(null);
+    }
+
+    private static Set<Version> securityIndexMappingVersions(ClusterState clusterState, Logger logger) {
+        Set<Version> versions = new HashSet<>();
         IndexMetaData indexMetaData = clusterState.metaData().getIndices().get(SECURITY_INDEX_NAME);
         if (indexMetaData != null) {
             for (Object object : indexMetaData.getMappings().values().toArray()) {
@@ -189,19 +261,23 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
                 if (mappingMetaData.type().equals(MapperService.DEFAULT_MAPPING)) {
                     continue;
                 }
-                try {
-                    if (containsCorrectVersion(mappingMetaData.sourceAsMap(), predicate) == false) {
-                        return false;
-                    }
-                } catch (IOException e) {
-                    logger.error("Cannot parse the mapping for security index.", e);
-                    throw new ElasticsearchException("Cannot parse the mapping for security index.", e);
-                }
+                versions.add(readMappingVersion(mappingMetaData, logger));
             }
-            return true;
-        } else {
-            // index does not exist so when we create it it will be up to date
-            return true;
+        }
+        return versions;
+    }
+
+    private static Version readMappingVersion(MappingMetaData mappingMetaData, Logger logger) {
+        try {
+            Map<String, Object> meta = (Map<String, Object>) mappingMetaData.sourceAsMap().get("_meta");
+            if (meta == null) {
+                // something pre-5.0, but we don't know what. Use 2.3.0 as a placeholder for "old"
+                return Version.V_2_3_0;
+            }
+            return Version.fromString((String) meta.get(SECURITY_VERSION_STRING));
+        } catch (IOException e) {
+            logger.error("Cannot parse the mapping for security index.", e);
+            throw new ElasticsearchException("Cannot parse the mapping for security index.", e);
         }
     }
 
@@ -247,6 +323,18 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
             return false;
         }
         return predicate.test(Version.fromString((String) meta.get(SECURITY_VERSION_STRING)));
+    }
+
+    /**
+     * Returns the routing-table for the security index, or <code>null</code> if the security index does not exist.
+     */
+    public static IndexRoutingTable getSecurityIndexRoutingTable(ClusterState clusterState) {
+        IndexMetaData metaData = clusterState.metaData().index(SECURITY_INDEX_NAME);
+        if (metaData == null) {
+            return null;
+        } else {
+            return clusterState.routingTable().index(SECURITY_INDEX_NAME);
+        }
     }
 
     public static boolean securityIndexMappingAndTemplateUpToDate(ClusterState clusterState, Logger logger) {

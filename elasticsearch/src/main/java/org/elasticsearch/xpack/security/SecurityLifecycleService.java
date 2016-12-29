@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.audit.index.IndexAuditTrail;
+import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
@@ -52,7 +53,7 @@ public class SecurityLifecycleService extends AbstractComponent implements Clust
         clusterService.addListener(this);
         clusterService.addListener(nativeUserStore);
         clusterService.addListener(nativeRolesStore);
-        clusterService.addListener(new SecurityTemplateService(settings, client));
+        clusterService.addListener(new SecurityTemplateService(settings, client, new NativeRealmMigrator(settings, nativeUserStore)));
         clusterService.addLifecycleListener(new LifecycleListener() {
 
             @Override

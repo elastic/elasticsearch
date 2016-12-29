@@ -14,21 +14,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
+import org.elasticsearch.xpack.security.authz.permission.LogstashSystemRole;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
+import org.elasticsearch.xpack.security.user.LogstashSystemUser;
+import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -55,21 +55,15 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore(context));
+                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 
-        final boolean isKibanaUser = randomBoolean();
-        if (isKibanaUser) {
-            when(context.getUser()).thenReturn(new KibanaUser(true));
-        } else {
-            when(context.getUser()).thenReturn(new ElasticUser(true));
-        }
+        final User executingUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
+        when(context.getUser()).thenReturn(executingUser);
+
         final int size = randomIntBetween(1, ReservedRolesStore.names().size());
         final List<String> names = randomSubsetOf(size, ReservedRolesStore.names());
 
         final List<String> expectedNames = new ArrayList<>(names);
-        if (isKibanaUser == false) {
-            expectedNames.remove(KibanaRole.NAME);
-        }
 
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
@@ -98,15 +92,10 @@ public class TransportGetRolesActionTests extends ESTestCase {
 
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
-        if (isKibanaUser && expectedNames.isEmpty()) {
-                assertThat(responseRef.get().roles(), is(emptyArray()));
-                verify(rolesStore, times(1)).getRoleDescriptors(eq(Strings.EMPTY_ARRAY), any(ActionListener.class));
-        } else {
-            List<String> retrievedRoleNames =
-                    Arrays.asList(responseRef.get().roles()).stream().map(RoleDescriptor::getName).collect(Collectors.toList());
-            assertThat(retrievedRoleNames, containsInAnyOrder(expectedNames.toArray(Strings.EMPTY_ARRAY)));
-            verifyZeroInteractions(rolesStore);
-        }
+        List<String> retrievedRoleNames =
+                Arrays.asList(responseRef.get().roles()).stream().map(RoleDescriptor::getName).collect(Collectors.toList());
+        assertThat(retrievedRoleNames, containsInAnyOrder(expectedNames.toArray(Strings.EMPTY_ARRAY)));
+        verifyZeroInteractions(rolesStore);
     }
 
     public void testStoreRoles() {
@@ -116,14 +105,10 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore(context));
+                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 
-        final boolean isKibanaUser = randomBoolean();
-        if (isKibanaUser) {
-            when(context.getUser()).thenReturn(new KibanaUser(true));
-        } else {
-            when(context.getUser()).thenReturn(new ElasticUser(true));
-        }
+        final User executingUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
+        when(context.getUser()).thenReturn(executingUser);
 
         GetRolesRequest request = new GetRolesRequest();
         request.names(storeRoleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY));
@@ -176,22 +161,17 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore(context));
+                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 
-        final boolean isKibanaUser = randomBoolean();
+        final User executingUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
+        when(context.getUser()).thenReturn(executingUser);
+
         final List<String> expectedNames = new ArrayList<>();
         if (all) {
             expectedNames.addAll(reservedRoleNames);
             expectedNames.addAll(storeNames);
         } else {
             expectedNames.addAll(requestedNames);
-        }
-
-        if (isKibanaUser) {
-            when(context.getUser()).thenReturn(new KibanaUser(true));
-        } else {
-            expectedNames.remove(KibanaRole.NAME);
-            when(context.getUser()).thenReturn(new ElasticUser(true));
         }
 
         GetRolesRequest request = new GetRolesRequest();
@@ -249,7 +229,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore(context));
+                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 
         GetRolesRequest request = new GetRolesRequest();
         request.names(storeRoleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY));

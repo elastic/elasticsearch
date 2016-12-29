@@ -17,6 +17,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
+import org.elasticsearch.xpack.security.authz.permission.LogstashSystemRole;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 
@@ -52,13 +53,8 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
             for (String role : requestedRoles) {
                 if (ReservedRolesStore.isReserved(role)) {
                     RoleDescriptor rd = reservedRolesStore.roleDescriptor(role);
-                    if (rd != null) {
-                        roles.add(rd);
-                    } else {
-                        // the kibana role name is reseved but is only visible to the Kibana user, so this should be the only null
-                        // descriptor. More details in the ReservedRolesStore
-                        assert KibanaRole.NAME.equals(role);
-                    }
+                    assert rd != null  : "No descriptor for role " + role;
+                    roles.add(rd);
                 } else {
                     rolesToSearchFor.add(role);
                 }

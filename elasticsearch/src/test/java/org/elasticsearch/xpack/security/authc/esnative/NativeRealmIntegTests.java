@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
+import org.elasticsearch.xpack.security.authz.permission.LogstashSystemRole;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
@@ -561,7 +562,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testOperationsOnReservedRoles() throws Exception {
-        final String name = randomFrom(SuperuserRole.NAME, KibanaRole.NAME);
+        final String name = randomFrom(SuperuserRole.NAME, KibanaRole.NAME, LogstashSystemRole.NAME);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
                 () -> securityClient().preparePutRole(name).cluster("monitor").get());
         assertThat(exception.getMessage(), containsString("role [" + name + "] is reserved"));
@@ -572,12 +573,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         // get role is allowed
         GetRolesResponse response = securityClient().prepareGetRoles(name).get();
-        if (KibanaRole.NAME.equals(name)) {
-            assertThat(response.hasRoles(), is(false));
-        } else {
-            assertThat(response.hasRoles(), is(true));
-            assertThat(response.roles()[0].getName(), is(name));
-        }
+        assertThat(response.hasRoles(), is(true));
+        assertThat(response.roles()[0].getName(), is(name));
     }
 
     public void testCreateAndChangePassword() throws Exception {

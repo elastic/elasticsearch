@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.security.support.Exceptions;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
+import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
 import java.util.ArrayList;
@@ -28,6 +30,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * A realm for predefined users. These users can only be modified in terms of changing their passwords; no other modifications are allowed.
@@ -38,6 +41,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     public static final String TYPE = "reserved";
     static final char[] DEFAULT_PASSWORD_HASH = Hasher.BCRYPT.hash(new SecuredString("changeme".toCharArray()));
     private static final ReservedUserInfo DEFAULT_USER_INFO = new ReservedUserInfo(DEFAULT_PASSWORD_HASH, true);
+    private static final ReservedUserInfo DISABLED_USER_INFO = new ReservedUserInfo(DEFAULT_PASSWORD_HASH, false);
 
     private final NativeUsersStore nativeUsersStore;
     private final AnonymousUser anonymousUser;
@@ -113,6 +117,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         switch (username) {
             case ElasticUser.NAME:
             case KibanaUser.NAME:
+            case LogstashSystemUser.NAME:
                 return XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
             default:
                 return AnonymousUser.isAnonymousUsername(username, settings);
@@ -126,6 +131,8 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 return new ElasticUser(userInfo.enabled);
             case KibanaUser.NAME:
                 return new KibanaUser(userInfo.enabled);
+            case LogstashSystemUser.NAME:
+                return new LogstashSystemUser(userInfo.enabled);
             default:
                 if (anonymousEnabled && anonymousUser.principal().equals(username)) {
                     return anonymousUser;
@@ -140,14 +147,21 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
             listener.onResponse(anonymousEnabled ? Collections.singletonList(anonymousUser) : Collections.emptyList());
         } else {
             nativeUsersStore.getAllReservedUserInfo(ActionListener.wrap((reservedUserInfos) -> {
-                List<User> users = new ArrayList<>(3);
+                List<User> users = new ArrayList<>(4);
+
                 ReservedUserInfo userInfo = reservedUserInfos.get(ElasticUser.NAME);
                 users.add(new ElasticUser(userInfo == null || userInfo.enabled));
+
                 userInfo = reservedUserInfos.get(KibanaUser.NAME);
                 users.add(new KibanaUser(userInfo == null || userInfo.enabled));
+
+                userInfo = reservedUserInfos.get(LogstashSystemUser.NAME);
+                users.add(new LogstashSystemUser(userInfo == null || userInfo.enabled));
+
                 if (anonymousEnabled) {
                     users.add(anonymousUser);
                 }
+
                 listener.onResponse(users);
             }, (e) -> {
                 logger.error("failed to retrieve reserved users", e);
@@ -160,6 +174,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         if (nativeUsersStore.started() == false) {
             // we need to be able to check for the user store being started...
             listener.onResponse(null);
+        } else if (userIsDefinedForCurrentSecurityMapping(username) == false) {
+            logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
+            listener.onResponse(DISABLED_USER_INFO);
         } else if (nativeUsersStore.securityIndexExists() == false) {
             listener.onResponse(DEFAULT_USER_INFO);
         } else {
@@ -174,6 +191,20 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                         new ParameterizedMessage("failed to retrieve password hash for reserved user [{}]", username), e);
                 listener.onResponse(null);
             }));
+        }
+    }
+
+    private boolean userIsDefinedForCurrentSecurityMapping(String username) {
+        final Version requiredVersion = getDefinedVersion(username);
+        return nativeUsersStore.checkMappingVersion(requiredVersion::onOrBefore);
+    }
+
+    private Version getDefinedVersion(String username) {
+        switch (username) {
+            case LogstashSystemUser.NAME:
+                return LogstashSystemUser.DEFINED_SINCE;
+            default:
+                return Version.V_5_0_0;
         }
     }
 }

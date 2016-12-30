@@ -134,17 +134,17 @@ public class RangeAggregator extends BucketsAggregator {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (parseFieldMatcher.match(currentFieldName, FROM_FIELD)) {
+                    if (FROM_FIELD.match(currentFieldName)) {
                         from = parser.doubleValue();
-                    } else if (parseFieldMatcher.match(currentFieldName, TO_FIELD)) {
+                    } else if (TO_FIELD.match(currentFieldName)) {
                         to = parser.doubleValue();
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (parseFieldMatcher.match(currentFieldName, FROM_FIELD)) {
+                    if (FROM_FIELD.match(currentFieldName)) {
                         fromAsStr = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, TO_FIELD)) {
+                    } else if (TO_FIELD.match(currentFieldName)) {
                         toAsStr = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, KEY_FIELD)) {
+                    } else if (KEY_FIELD.match(currentFieldName)) {
                         key = parser.text();
                     }
                 }

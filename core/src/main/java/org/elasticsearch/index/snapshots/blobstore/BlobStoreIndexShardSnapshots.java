@@ -245,7 +245,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 String currentFieldName = parser.currentName();
                 token = parser.nextToken();
                 if (token == XContentParser.Token.START_ARRAY) {
-                    if (parseFieldMatcher.match(currentFieldName, ParseFields.FILES) == false) {
+                    if (ParseFields.FILES.match(currentFieldName) == false) {
                         throw new ElasticsearchParseException("unknown array [{}]", currentFieldName);
                     }
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -253,7 +253,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                         files.put(fileInfo.name(), fileInfo);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (parseFieldMatcher.match(currentFieldName, ParseFields.SNAPSHOTS) == false) {
+                    if (ParseFields.SNAPSHOTS.match(currentFieldName) == false) {
                         throw new ElasticsearchParseException("unknown object [{}]", currentFieldName);
                     }
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -268,7 +268,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                             if (token == XContentParser.Token.FIELD_NAME) {
                                 currentFieldName = parser.currentName();
                                 if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                    if (parseFieldMatcher.match(currentFieldName, ParseFields.FILES) == false) {
+                                    if (ParseFields.FILES.match(currentFieldName) == false) {
                                         throw new ElasticsearchParseException("unknown array [{}]", currentFieldName);
                                     }
                                     List<String> fileNames = new ArrayList<>();

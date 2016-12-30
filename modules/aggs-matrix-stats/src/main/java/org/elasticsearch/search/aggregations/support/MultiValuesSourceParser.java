@@ -111,7 +111,7 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
                     while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         parseMissingAndAdd(aggregationName, currentFieldName, parser, missingMap);
                     }
-                } else if (context.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
+                } else if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
                     throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
                             "Multi-field aggregations do not support scripts.");
@@ -121,7 +121,7 @@ public abstract class MultiValuesSourceParser<VS extends ValuesSource> implement
                             "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (context.getParseFieldMatcher().match(currentFieldName, Script.SCRIPT_PARSE_FIELD)) {
+                if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
                     throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
                             "Multi-field aggregations do not support scripts.");

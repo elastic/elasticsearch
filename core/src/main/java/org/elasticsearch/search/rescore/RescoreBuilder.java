@@ -85,7 +85,7 @@ public abstract class RescoreBuilder<RB extends RescoreBuilder<RB>> extends ToXC
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(fieldName, WINDOW_SIZE_FIELD)) {
+                if (WINDOW_SIZE_FIELD.match(fieldName)) {
                     windowSize = parser.intValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "rescore doesn't support [" + fieldName + "]");

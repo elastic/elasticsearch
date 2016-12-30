@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.VerificationMode;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -54,10 +55,19 @@ public class OpenLdapTests extends ESTestCase {
         if (useGlobalSSL) {
             builder.put("xpack.ssl.keystore.path", keystore)
                     .put("xpack.ssl.keystore.password", "changeit");
+
+            // fake realm to load config with certificate verification mode
+            builder.put("xpack.security.authc.realms.bar.ssl.keystore.path", keystore);
+            builder.put("xpack.security.authc.realms.bar.ssl.keystore.password", "changeit");
+            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         } else {
-            // fake a realm so ssl will get loaded
+            // fake realms so ssl will get loaded
             builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", keystore);
             builder.put("xpack.security.authc.realms.foo.ssl.truststore.password", "changeit");
+            builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
+            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", keystore);
+            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
+            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         }
         globalSettings = builder.build();
         Environment environment = new Environment(globalSettings);
@@ -120,7 +130,7 @@ public class OpenLdapTests extends ESTestCase {
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("group_search.filter", "(objectClass=*)")
-                .put(SessionFactory.HOSTNAME_VERIFICATION_SETTING, false)
+                .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "1ms") //1 millisecond
                 .build();
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings);
@@ -137,7 +147,7 @@ public class OpenLdapTests extends ESTestCase {
         String userTemplate = "uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
         Settings settings = Settings.builder()
                 .put(buildLdapSettings(OPEN_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.ONE_LEVEL))
-                .put(LdapSessionFactory.HOSTNAME_VERIFICATION_SETTING, true)
+                .put("ssl.verification_mode", VerificationMode.FULL)
                 .build();
 
         RealmConfig config = new RealmConfig("oldap-test", settings, globalSettings);

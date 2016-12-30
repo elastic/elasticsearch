@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSession.GroupsRes
 import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.VerificationMode;
 import org.junit.After;
 import org.junit.Before;
 
@@ -44,10 +45,19 @@ public abstract class GroupsResolverTestCase extends ESTestCase {
         if (useGlobalSSL) {
             builder.put("xpack.ssl.keystore.path", keystore)
                     .put("xpack.ssl.keystore.password", "changeit");
+
+            // fake realm to load config with certificate verification mode
+            builder.put("xpack.security.authc.realms.bar.ssl.keystore.path", keystore);
+            builder.put("xpack.security.authc.realms.bar.ssl.keystore.password", "changeit");
+            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         } else {
-            // fake a realm so ssl will get loaded
+            // fake realms so ssl will get loaded
             builder.put("xpack.security.authc.realms.foo.ssl.keystore.path", keystore);
             builder.put("xpack.security.authc.realms.foo.ssl.keystore.password", "changeit");
+            builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
+            builder.put("xpack.security.authc.realms.bar.ssl.keystore.path", keystore);
+            builder.put("xpack.security.authc.realms.bar.ssl.keystore.password", "changeit");
+            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         }
         Settings settings = builder.build();
         Environment env = new Environment(settings);

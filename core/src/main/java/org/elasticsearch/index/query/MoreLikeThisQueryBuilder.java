@@ -359,15 +359,15 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (currentFieldName != null) {
-                    if (parseFieldMatcher.match(currentFieldName, Field.INDEX)) {
+                    if (Field.INDEX.match(currentFieldName)) {
                         item.index = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, Field.TYPE)) {
+                    } else if (Field.TYPE.match(currentFieldName)) {
                         item.type = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, Field.ID)) {
+                    } else if (Field.ID.match(currentFieldName)) {
                         item.id = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, Field.DOC)) {
+                    } else if (Field.DOC.match(currentFieldName)) {
                         item.doc = jsonBuilder().copyCurrentStructure(parser).bytes();
-                    } else if (parseFieldMatcher.match(currentFieldName, Field.FIELDS)) {
+                    } else if (Field.FIELDS.match(currentFieldName)) {
                         if (token == XContentParser.Token.START_ARRAY) {
                             List<String> fields = new ArrayList<>();
                             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -378,7 +378,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                             throw new ElasticsearchParseException(
                                     "failed to parse More Like This item. field [fields] must be an array");
                         }
-                    } else if (parseFieldMatcher.match(currentFieldName, Field.PER_FIELD_ANALYZER)) {
+                    } else if (Field.PER_FIELD_ANALYZER.match(currentFieldName)) {
                         item.perFieldAnalyzer(TermVectorsRequest.readPerFieldAnalyzer(parser.map()));
                     } else if ("_routing".equals(currentFieldName) || "routing".equals(currentFieldName)) {
                         item.routing = parser.text();

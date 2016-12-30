@@ -132,7 +132,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
         public static SubAggCollectionMode parse(String value, ParseFieldMatcher parseFieldMatcher) {
             SubAggCollectionMode[] modes = SubAggCollectionMode.values();
             for (SubAggCollectionMode mode : modes) {
-                if (parseFieldMatcher.match(value, mode.parseField)) {
+                if (mode.parseField.match(value)) {
                     return mode;
                 }
             }

@@ -308,7 +308,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
 
         public static ExecutionMode fromString(String value, ParseFieldMatcher parseFieldMatcher) {
             for (ExecutionMode mode : values()) {
-                if (parseFieldMatcher.match(value, mode.parseField)) {
+                if (mode.parseField.match(value)) {
                     return mode;
                 }
             }

@@ -101,7 +101,7 @@ public class ParentFieldMapperTests extends ESSingleNodeTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
         NamedAnalyzer namedAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, namedAnalyzer, namedAnalyzer, namedAnalyzer,
-            Collections.emptyMap());
+            Collections.emptyMap(), Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
         MapperService mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry(), similarityService,
             new IndicesModule(emptyList()).getMapperRegistry(), () -> null);

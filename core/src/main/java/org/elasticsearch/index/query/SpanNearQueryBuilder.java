@@ -161,7 +161,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, CLAUSES_FIELD)) {
+                if (CLAUSES_FIELD.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         Optional<QueryBuilder> query = parseContext.parseInnerQueryBuilder();
                         if (query.isPresent() == false || query.get() instanceof SpanQueryBuilder == false) {
@@ -173,15 +173,15 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, IN_ORDER_FIELD)) {
+                if (IN_ORDER_FIELD.match(currentFieldName)) {
                     inOrder = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, COLLECT_PAYLOADS_FIELD)) {
-                    // Deprecated in 3.0.0
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, SLOP_FIELD)) {
+                } else if (COLLECT_PAYLOADS_FIELD.match(currentFieldName)) {
+                    // Deprecated in 5.0.0
+                } else if (SLOP_FIELD.match(currentFieldName)) {
                     slop = parser.intValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");

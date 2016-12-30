@@ -679,6 +679,12 @@ final class DocumentParser {
                             if (builder == null) {
                                 builder = newDateBuilder(currentFieldName, dateTimeFormatter, Version.indexCreated(context.indexSettings()));
                             }
+                            if (builder instanceof DateFieldMapper.Builder) {
+                                DateFieldMapper.Builder dateBuilder = (DateFieldMapper.Builder) builder;
+                                if (dateBuilder.isDateTimeFormatterSet() == false) {
+                                    dateBuilder.dateTimeFormatter(dateTimeFormatter);
+                                }
+                            }
                             return builder;
                         } catch (Exception e) {
                             // failure to parse this, continue

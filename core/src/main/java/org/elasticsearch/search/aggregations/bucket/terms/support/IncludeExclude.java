@@ -112,11 +112,11 @@ public class IncludeExclude implements Writeable, ToXContent {
                 } else
                 // This "include":{"pattern":"foo.*"} syntax is undocumented since 2.0
                 // Regexes should be "include":"foo.*"
-                if (parseFieldMatcher.match(currentFieldName, PATTERN_FIELD)) {
+                if (PATTERN_FIELD.match(currentFieldName)) {
                     return new IncludeExclude(parser.text(), null);
-                } else if (parseFieldMatcher.match(currentFieldName, NUM_PARTITIONS_FIELD)) {
+                } else if (NUM_PARTITIONS_FIELD.match(currentFieldName)) {
                     numPartitions = parser.intValue();
-                } else if (parseFieldMatcher.match(currentFieldName, PARTITION_FIELD)) {
+                } else if (PARTITION_FIELD.match(currentFieldName)) {
                     partition = parser.intValue();
                 } else {
                     throw new ElasticsearchParseException(

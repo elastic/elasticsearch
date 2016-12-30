@@ -24,11 +24,14 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTimeZone;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.TimeZone;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -529,5 +532,18 @@ public class SettingTests extends ESTestCase {
         setting = Setting.timeSetting("foo", (s) -> TimeValue.timeValueMillis(random.getMillis() * factor), TimeValue.ZERO);
         assertThat(setting.get(Settings.builder().put("foo", "12h").build()), equalTo(TimeValue.timeValueHours(12)));
         assertThat(setting.get(Settings.EMPTY).getMillis(), equalTo(random.getMillis() * factor));
+    }
+
+    public void testOptionalOfDateTimeZone() {
+        final Setting<Optional<DateTimeZone>> setting = Setting.optional("foo-tz", DateTimeZone::forID);
+
+        assertThat(setting.get(Settings.EMPTY).isPresent(), equalTo(false));
+
+        final DateTimeZone tz = randomDateTimeZone();
+        final Settings settings = Settings.builder().put("foo-tz", tz.getID()).build();
+        final Optional<DateTimeZone> optTimeZone = setting.get(settings);
+        assertThat(optTimeZone.isPresent(), equalTo(true));
+        assertThat(optTimeZone.get(), equalTo(tz));
+
     }
 }

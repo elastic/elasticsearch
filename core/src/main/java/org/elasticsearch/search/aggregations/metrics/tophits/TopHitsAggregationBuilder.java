@@ -643,8 +643,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
                                 } else if (token.isValue()) {
                                     if (SearchSourceBuilder.SCRIPT_FIELD.match(currentFieldName)) {
                                         script = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
-                                    } else if (context.getParseFieldMatcher().match(currentFieldName,
-                                            SearchSourceBuilder.IGNORE_FAILURE_FIELD)) {
+                                    } else if (SearchSourceBuilder.IGNORE_FAILURE_FIELD.match(currentFieldName)) {
                                         ignoreFailure = parser.booleanValue();
                                     } else {
                                         throw new ParsingException(parser.getTokenLocation(),

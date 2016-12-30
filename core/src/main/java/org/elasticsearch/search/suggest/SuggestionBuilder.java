@@ -269,11 +269,11 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parsefieldMatcher.match(currentFieldName, TEXT_FIELD)) {
+                if (TEXT_FIELD.match(currentFieldName)) {
                     suggestText = parser.text();
-                } else if (parsefieldMatcher.match(currentFieldName, PREFIX_FIELD)) {
+                } else if (PREFIX_FIELD.match(currentFieldName)) {
                     prefix = parser.text();
-                } else if (parsefieldMatcher.match(currentFieldName, REGEX_FIELD)) {
+                } else if (PREFIX_FIELD.match(currentFieldName)) {
                     regex = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "suggestion does not support [" + currentFieldName + "]");

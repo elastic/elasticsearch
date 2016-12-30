@@ -88,36 +88,5 @@ public class IndicesAccessControl {
         public Set<BytesReference> getQueries() {
             return queries;
         }
-
-        public IndexAccessControl merge(IndexAccessControl other) {
-            if (other.isGranted() == false) {
-                // nothing to merge
-                return this;
-            }
-
-            final boolean granted = this.granted;
-            if (granted == false) {
-                // we do not support negatives, so if the current isn't granted - just return other
-                assert other.isGranted();
-                return other;
-            }
-
-            FieldPermissions newPermissions = FieldPermissions.merge(this.fieldPermissions, other.fieldPermissions);
-
-            Set<BytesReference> queries = null;
-            if (this.queries != null && other.getQueries() != null) {
-                queries = new HashSet<>();
-                if (this.queries != null) {
-                    queries.addAll(this.queries);
-                }
-                if (other.getQueries() != null) {
-                    queries.addAll(other.getQueries());
-                }
-                queries = unmodifiableSet(queries);
-            }
-            return new IndexAccessControl(granted, newPermissions, queries);
-        }
-
-
     }
 }

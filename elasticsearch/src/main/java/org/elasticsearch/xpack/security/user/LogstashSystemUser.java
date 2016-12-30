@@ -6,8 +6,6 @@
 package org.elasticsearch.xpack.security.user;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
-import org.elasticsearch.xpack.security.authz.permission.LogstashSystemRole;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 /**
@@ -16,7 +14,7 @@ import org.elasticsearch.xpack.security.support.MetadataUtils;
 public class LogstashSystemUser extends User {
 
     public static final String NAME = "logstash_system";
-    public static final String ROLE_NAME = LogstashSystemRole.NAME;
+    private static final String ROLE_NAME = "logstash_system";
     public static final Version DEFINED_SINCE = Version.V_5_2_0_UNRELEASED;
 
     public LogstashSystemUser(boolean enabled) {

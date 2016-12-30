@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
@@ -318,10 +319,9 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore);
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser);
-        components.add(fileRolesStore); // has lifecycle
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
-        components.add(allRolesStore); // for SecurityFeatureSet
+        components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache
         components.add(authzService);
 
         components.add(new SecurityLifecycleService(settings, clusterService, threadPool, indexAuditTrail,
@@ -404,6 +404,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         NativeRolesStore.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
+        settingsList.add(CompositeRolesStore.CACHE_SIZE_SETTING);
+        settingsList.add(FieldPermissionsCache.CACHE_SIZE_SETTING);
 
         // encryption settings
         CryptoService.addSettings(settingsList);

@@ -7,30 +7,33 @@ package org.elasticsearch.xpack.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.security.support.Automatons;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.security.support.Automatons.minusAndDeterminize;
+import static org.elasticsearch.xpack.security.support.Automatons.minusAndMinimize;
 import static org.elasticsearch.xpack.security.support.Automatons.patterns;
 
-public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivilege> {
+public final class ClusterPrivilege extends Privilege {
 
     // shared automatons
     private static final Automaton MANAGE_SECURITY_AUTOMATON = patterns("cluster:admin/xpack/security/*");
     private static final Automaton MONITOR_AUTOMATON = patterns("cluster:monitor/*");
     private static final Automaton ALL_CLUSTER_AUTOMATON = patterns("cluster:*", "indices:admin/template/*");
-    private static final Automaton MANAGE_AUTOMATON = minusAndDeterminize(ALL_CLUSTER_AUTOMATON, MANAGE_SECURITY_AUTOMATON);
+    private static final Automaton MANAGE_AUTOMATON = minusAndMinimize(ALL_CLUSTER_AUTOMATON, MANAGE_SECURITY_AUTOMATON);
     private static final Automaton TRANSPORT_CLIENT_AUTOMATON = patterns("cluster:monitor/nodes/liveness", "cluster:monitor/state");
     private static final Automaton MANAGE_IDX_TEMPLATE_AUTOMATON = patterns("indices:admin/template/*");
     private static final Automaton MANAGE_INGEST_PIPELINE_AUTOMATON = patterns("cluster:admin/ingest/pipeline/*");
 
-    public static final ClusterPrivilege NONE =                  new ClusterPrivilege(Name.NONE,                Automatons.EMPTY);
-    public static final ClusterPrivilege ALL =                   new ClusterPrivilege(Name.ALL,                 ALL_CLUSTER_AUTOMATON);
+    public static final ClusterPrivilege NONE =                  new ClusterPrivilege("none",                Automatons.EMPTY);
+    public static final ClusterPrivilege ALL =                   new ClusterPrivilege("all",                 ALL_CLUSTER_AUTOMATON);
     public static final ClusterPrivilege MONITOR =               new ClusterPrivilege("monitor",                MONITOR_AUTOMATON);
     public static final ClusterPrivilege MANAGE =                new ClusterPrivilege("manage",                 MANAGE_AUTOMATON);
     public static final ClusterPrivilege MANAGE_IDX_TEMPLATES =
@@ -43,89 +46,69 @@ public class ClusterPrivilege extends AbstractAutomatonPrivilege<ClusterPrivileg
 
     public static final Predicate<String> ACTION_MATCHER = ClusterPrivilege.ALL.predicate();
 
-    private static final Set<ClusterPrivilege> values = new CopyOnWriteArraySet<>();
+    private static final Map<String, ClusterPrivilege> VALUES = MapBuilder.<String, ClusterPrivilege>newMapBuilder()
+            .put("none", NONE)
+            .put("all", ALL)
+            .put("monitor", MONITOR)
+            .put("manage", MANAGE)
+            .put("manage_index_templates", MANAGE_IDX_TEMPLATES)
+            .put("manage_ingest_pipelines", MANAGE_INGEST_PIPELINES)
+            .put("transport_client", TRANSPORT_CLIENT)
+            .put("manage_security", MANAGE_SECURITY)
+            .put("manage_pipeline", MANAGE_PIPELINE)
+            .immutableMap();
 
-    static {
-        values.add(NONE);
-        values.add(ALL);
-        values.add(MONITOR);
-        values.add(MANAGE);
-        values.add(MANAGE_IDX_TEMPLATES);
-        values.add(MANAGE_INGEST_PIPELINES);
-        values.add(TRANSPORT_CLIENT);
-        values.add(MANAGE_SECURITY);
-        values.add(MANAGE_PIPELINE);
-    }
-
-    static Set<ClusterPrivilege> values() {
-        return values;
-    }
-
-    private static final ConcurrentHashMap<Name, ClusterPrivilege> cache = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<Set<String>, ClusterPrivilege> CACHE = new ConcurrentHashMap<>();
 
     private ClusterPrivilege(String name, String... patterns) {
         super(name, patterns);
     }
 
     private ClusterPrivilege(String name, Automaton automaton) {
-        super(new Name(name), automaton);
+        super(Collections.singleton(name), automaton);
     }
 
-    private ClusterPrivilege(Name name, Automaton automaton) {
+    private ClusterPrivilege(Set<String> name, Automaton automaton) {
         super(name, automaton);
     }
 
-    public static void addCustom(String name, String... actionPatterns) {
-        for (String pattern : actionPatterns) {
-            if (!ClusterPrivilege.ACTION_MATCHER.test(pattern)) {
-                throw new IllegalArgumentException("cannot register custom cluster privilege [" + name + "]. " +
-                        "cluster action must follow the 'cluster:*' format");
+    public static ClusterPrivilege get(Set<String> name) {
+        if (name == null || name.isEmpty()) {
+            return NONE;
+        }
+        return CACHE.computeIfAbsent(name, ClusterPrivilege::resolve);
+    }
+
+    private static ClusterPrivilege resolve(Set<String> name) {
+        final int size = name.size();
+        if (size == 0) {
+            throw new IllegalArgumentException("empty set should not be used");
+        }
+
+        Set<String> actions = new HashSet<>();
+        Set<Automaton> automata = new HashSet<>();
+        for (String part : name) {
+            part = part.toLowerCase(Locale.ROOT);
+            if (ACTION_MATCHER.test(part)) {
+                actions.add(actionToPattern(part));
+            } else {
+                ClusterPrivilege privilege = VALUES.get(part);
+                if (privilege != null && size == 1) {
+                    return privilege;
+                } else if (privilege != null) {
+                    automata.add(privilege.automaton);
+                } else {
+                    throw new IllegalArgumentException("unknown cluster privilege [" + name + "]. a privilege must be either " +
+                            "one of the predefined fixed cluster privileges [" +
+                            Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available " +
+                            "cluster actions");
+                }
             }
         }
-        ClusterPrivilege custom = new ClusterPrivilege(name, actionPatterns);
-        if (values.contains(custom)) {
-            throw new IllegalArgumentException("cannot register custom cluster privilege [" + name + "] as it already exists.");
+
+        if (actions.isEmpty() == false) {
+            automata.add(patterns(actions));
         }
-        values.add(custom);
-    }
-
-    @Override
-    protected ClusterPrivilege create(Name name, Automaton automaton) {
-        return new ClusterPrivilege(name, automaton);
-    }
-
-    @Override
-    protected ClusterPrivilege none() {
-        return NONE;
-    }
-
-    public static ClusterPrivilege action(String action) {
-        String pattern = actionToPattern(action);
-        return new ClusterPrivilege(action, pattern);
-    }
-
-    public static ClusterPrivilege get(Name name) {
-        return cache.computeIfAbsent(name, (theName) -> {
-            ClusterPrivilege cluster = NONE;
-            for (String part : theName.parts) {
-                cluster = cluster == NONE ? resolve(part) : cluster.plus(resolve(part));
-            }
-            return cluster;
-        });
-    }
-
-    private static ClusterPrivilege resolve(String name) {
-        name = name.toLowerCase(Locale.ROOT);
-        if (ACTION_MATCHER.test(name)) {
-            return action(name);
-        }
-        for (ClusterPrivilege cluster : values) {
-            if (name.equals(cluster.name.toString())) {
-                return cluster;
-            }
-        }
-        throw new IllegalArgumentException("unknown cluster privilege [" + name + "]. a privilege must be either " +
-                "one of the predefined fixed cluster privileges [" + Strings.collectionToCommaDelimitedString(values) +
-                "] or a pattern over one of the available cluster actions");
+        return new ClusterPrivilege(name, Automatons.unionAndMinimize(automata));
     }
 }

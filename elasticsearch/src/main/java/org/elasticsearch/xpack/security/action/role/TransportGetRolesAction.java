@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.security.action.role;
 
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -16,15 +14,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
-import org.elasticsearch.xpack.security.authz.permission.LogstashSystemRole;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.common.Strings.arrayToDelimitedString;
 
 public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequest, GetRolesResponse> {
 
@@ -53,8 +47,12 @@ public class TransportGetRolesAction extends HandledTransportAction<GetRolesRequ
             for (String role : requestedRoles) {
                 if (ReservedRolesStore.isReserved(role)) {
                     RoleDescriptor rd = reservedRolesStore.roleDescriptor(role);
-                    assert rd != null  : "No descriptor for role " + role;
-                    roles.add(rd);
+                    if (rd != null) {
+                        roles.add(rd);
+                    } else {
+                        listener.onFailure(new IllegalStateException("unable to obtain reserved role [" + role + "]"));
+                        return;
+                    }
                 } else {
                     rolesToSearchFor.add(role);
                 }

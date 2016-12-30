@@ -39,7 +39,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 RoleDescriptor.IndicesPrivileges.builder()
                         .indices("i1", "i2")
                         .privileges("read")
-                        .fieldPermissions(new FieldPermissions(new String[]{"body", "title"}, null))
+                        .grantedFields("body", "title")
                         .query("{\"query\": {\"match_all\": {}}}")
                         .build()
         };
@@ -54,7 +54,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 RoleDescriptor.IndicesPrivileges.builder()
                         .indices("i1", "i2")
                         .privileges("read")
-                        .fieldPermissions(new FieldPermissions(new String[]{"body", "title"}, null))
+                        .grantedFields("body", "title")
                         .query("{\"query\": {\"match_all\": {}}}")
                         .build()
         };
@@ -119,7 +119,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 RoleDescriptor.IndicesPrivileges.builder()
                         .indices("i1", "i2")
                         .privileges("read")
-                        .fieldPermissions(new FieldPermissions(new String[]{"body", "title"}, null))
+                        .grantedFields("body", "title")
                         .query("{\"query\": {\"match_all\": {}}}")
                         .build()
         };

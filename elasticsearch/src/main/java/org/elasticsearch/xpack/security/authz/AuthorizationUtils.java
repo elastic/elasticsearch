@@ -10,18 +10,15 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.support.AutomatonPredicate;
 import org.elasticsearch.xpack.security.support.Automatons;
 import org.elasticsearch.xpack.security.user.SystemUser;
 
-import java.util.Collection;
-import java.util.Collections;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
 public final class AuthorizationUtils {
 
-    private static final Predicate<String> INTERNAL_PREDICATE = new AutomatonPredicate(Automatons.patterns("internal:*"));
+    private static final Predicate<String> INTERNAL_PREDICATE = Automatons.predicate("internal:*");
 
     private AuthorizationUtils() {}
 
@@ -72,14 +69,13 @@ public final class AuthorizationUtils {
     public static class AsyncAuthorizer {
 
         private final ActionListener listener;
-        private final BiConsumer<Collection<Role>, Collection<Role>> consumer;
+        private final BiConsumer<Role, Role> consumer;
         private final Authentication authentication;
-        private volatile Collection<Role> userRoles;
-        private volatile Collection<Role> runAsRoles;
+        private volatile Role userRoles;
+        private volatile Role runAsRoles;
         private CountDown countDown = new CountDown(2); // we expect only two responses!!
 
-        public AsyncAuthorizer(Authentication authentication, ActionListener listener, BiConsumer<Collection<Role>,
-                Collection<Role>> consumer) {
+        public AsyncAuthorizer(Authentication authentication, ActionListener listener, BiConsumer<Role, Role> consumer) {
             this.consumer = consumer;
             this.listener = listener;
             this.authentication = authentication;
@@ -87,25 +83,25 @@ public final class AuthorizationUtils {
 
         public void authorize(AuthorizationService service) {
             if (SystemUser.is(authentication.getUser())) {
-                setUserRoles(Collections.emptyList()); // we can inform the listener immediately - nothing to fetch for us on system user
-                setRunAsRoles(Collections.emptyList());
+                setUserRoles(null); // we can inform the listener immediately - nothing to fetch for us on system user
+                setRunAsRoles(null);
             } else {
                 service.roles(authentication.getUser(), ActionListener.wrap(this::setUserRoles, listener::onFailure));
                 if (authentication.isRunAs()) {
                     assert authentication.getRunAsUser() != null : "runAs user is null but shouldn't";
                     service.roles(authentication.getRunAsUser(), ActionListener.wrap(this::setRunAsRoles, listener::onFailure));
                 } else {
-                    setRunAsRoles(Collections.emptyList());
+                    setRunAsRoles(null);
                 }
             }
         }
 
-        private void setUserRoles(Collection<Role> roles) {
+        private void setUserRoles(Role roles) {
             this.userRoles = roles;
             maybeRun();
         }
 
-        private void setRunAsRoles(Collection<Role> roles) {
+        private void setRunAsRoles(Role roles) {
             this.runAsRoles = roles;
             maybeRun();
         }

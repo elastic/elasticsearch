@@ -109,19 +109,19 @@ public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPac
         RoleDescriptor.IndicesPrivileges indicesPrivileges = role.getIndicesPrivileges()[0];
         assertThat(indicesPrivileges.getIndices(), arrayWithSize(2));
         assertArrayEquals(new String[] { "index1", "index2" }, indicesPrivileges.getIndices());
-        assertTrue(indicesPrivileges.getFieldPermissions().grantsAccessTo("title"));
-        assertTrue(indicesPrivileges.getFieldPermissions().grantsAccessTo("body"));
+        final FieldPermissions fieldPermissions =
+                new FieldPermissions(indicesPrivileges.getGrantedFields(), indicesPrivileges.getDeniedFields());
+        assertTrue(fieldPermissions.grantsAccessTo("title"));
+        assertTrue(fieldPermissions.grantsAccessTo("body"));
         assertArrayEquals(new String[] { "all" }, indicesPrivileges.getPrivileges());
-        assertEquals("{\"match\": {\"title\": \"foo\"}}", indicesPrivileges.getQuery().utf8ToString());
+        assertEquals("{\"match\": {\"title\": \"foo\"}}", indicesPrivileges.getQuery().iterator().next().utf8ToString());
         assertArrayEquals(new String[] { "all" }, role.getClusterPrivileges());
         assertArrayEquals(new String[] { "other_user" }, role.getRunAs());
         assertEquals("bwc_test_role", role.getName());
         // check x-content is rendered in new format although it comes from an old index
         XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        indicesPrivileges.getFieldPermissions().toXContent(builder, null);
-        builder.endObject();
-        assertThat(builder.string(), equalTo("{\"field_security\":{\"grant\":[\"title\",\"body\"]}}"));
+        indicesPrivileges.toXContent(builder, null);
+        assertThat(builder.string(), containsString("\"field_security\":{\"grant\":[\"title\",\"body\"]}"));
 
         logger.info("Getting users...");
         assertBusy(() -> {
@@ -167,7 +167,8 @@ public class OldSecurityIndexBackwardsCompatibilityTests extends AbstractOldXPac
         PutRoleResponse roleResponse = securityClient.preparePutRole("test_role").addIndices(
                 new String[] { "index3" },
                 new String[] { "all" },
-                new FieldPermissions(new String[]{"title", "body"}, null),
+                new String[] { "title", "body" },
+                null,
                 new BytesArray("{\"term\": {\"title\":\"not\"}}")).cluster("all")
                 .get();
         assertTrue(roleResponse.isCreated());

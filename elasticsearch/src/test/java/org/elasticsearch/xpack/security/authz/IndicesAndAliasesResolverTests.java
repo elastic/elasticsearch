@@ -41,19 +41,19 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.DefaultAuthenticationFailureHandler;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
-import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
@@ -77,7 +77,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     private AuthorizationService authzService;
     private IndicesAndAliasesResolver defaultIndicesResolver;
     private IndexNameExpressionResolver indexNameExpressionResolver;
-    private Map<String, Role> roleMap;
+    private Map<String, RoleDescriptor> roleMap;
 
     @Before
     public void setup() {
@@ -113,16 +113,33 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed"};
         String[] dashIndices = new String[]{"-index10", "-index11", "-index20", "-index21"};
         roleMap = new HashMap<>();
-        roleMap.put("role", Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
-        roleMap.put("dash", Role.builder("dash").add(IndexPrivilege.ALL, dashIndices).build());
-        roleMap.put("test", Role.builder("test").cluster(ClusterPrivilege.MONITOR).build());
-        roleMap.put(SuperuserRole.NAME, Role.builder(SuperuserRole.DESCRIPTOR).build());
+        roleMap.put("role", new RoleDescriptor("role", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() }, null));
+        roleMap.put("dash", new RoleDescriptor("dash", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(dashIndices).privileges("all").build() }, null));
+        roleMap.put("test", new RoleDescriptor("role", new String[] { "monitor" }, null, null));
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
         doAnswer((i) -> {
                 ActionListener callback =
-                        (ActionListener) i.getArguments()[1];
-                callback.onResponse(roleMap.get(i.getArguments()[0]));
+                        (ActionListener) i.getArguments()[2];
+                Set<String> names = (Set<String>) i.getArguments()[0];
+                assertNotNull(names);
+                Set<RoleDescriptor> roleDescriptors = new HashSet<>();
+                for (String name : names) {
+                    RoleDescriptor descriptor = roleMap.get(name);
+                    if (descriptor != null) {
+                        roleDescriptors.add(descriptor);
+                    }
+                }
+
+                if (roleDescriptors.isEmpty()) {
+                    callback.onResponse(Role.EMPTY);
+                } else {
+                    callback.onResponse(CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache));
+                }
                 return Void.TYPE;
-            }).when(rolesStore).roles(any(String.class), any(ActionListener.class));
+            }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));
 
         ClusterService clusterService = mock(ClusterService.class);
         authzService = new AuthorizationService(settings, rolesStore, clusterService,
@@ -1048,8 +1065,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
     public void testNonXPackUserAccessingSecurityIndex() {
         User allAccessUser = new User("all_access", "all_access");
-        roleMap.put("all_access",
-                Role.builder("all_access").add(IndexPrivilege.ALL, "*").cluster(ClusterPrivilege.ALL).build());
+        roleMap.put("all_access", new RoleDescriptor("all_access", new String[] { "all" },
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("all").build() }, null));
 
         {
             SearchRequest request = new SearchRequest();
@@ -1093,7 +1110,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // make the user authorized
         String dateTimeIndex = indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>");
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed", dateTimeIndex};
-        roleMap.put("role", Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
+        roleMap.put("role", new RoleDescriptor("role", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() }, null));
 
         SearchRequest request = new SearchRequest("<datetime-{now/M}>");
         if (randomBoolean()) {
@@ -1130,7 +1148,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // make the user authorized
         String[] authorizedIndices = new String[] { "bar", "bar-closed", "foofoobar", "foofoo", "missing", "foofoo-closed",
                 indexNameExpressionResolver.resolveDateMathExpression("<datetime-{now/M}>")};
-        roleMap.put("role", Role.builder("role").add(IndexPrivilege.ALL, authorizedIndices).build());
+        roleMap.put("role", new RoleDescriptor("role", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices(authorizedIndices).privileges("all").build() }, null));
         GetAliasesRequest request = new GetAliasesRequest("<datetime-{now/M}>").indices("foo", "foofoo");
         Set<String> indices = defaultIndicesResolver.resolve(request, metaData, buildAuthorizedIndices(user, GetAliasesAction.NAME));
         //the union of all indices and aliases gets returned
@@ -1144,7 +1163,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     // TODO with the removal of DeleteByQuery is there another way to test resolving a write action?
 
     private AuthorizedIndices buildAuthorizedIndices(User user, String action) {
-        PlainActionFuture<Collection<Role>> rolesListener = new PlainActionFuture<>();
+        PlainActionFuture<Role> rolesListener = new PlainActionFuture<>();
         authzService.roles(user, rolesListener);
         return new AuthorizedIndices(user, rolesListener.actionGet(), action, metaData);
     }

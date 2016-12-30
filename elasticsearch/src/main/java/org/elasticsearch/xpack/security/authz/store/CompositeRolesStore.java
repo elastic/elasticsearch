@@ -6,12 +6,40 @@
 package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.internal.Nullable;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
+import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
+import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.security.authz.privilege.Privilege;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.security.Security.setting;
 
 /**
  * A composite roles store that combines built in roles, file-based roles, and index-based roles. Checks the built in roles first, then the
@@ -19,49 +47,238 @@ import java.util.Map;
  */
 public class CompositeRolesStore extends AbstractComponent {
 
+    // the lock is used in an odd manner; when iterating over the cache we cannot have modifiers other than deletes using
+    // the iterator but when not iterating we can modify the cache without external locking. When making normal modifications to the cache
+    // the read lock is obtained so that we can allow concurrent modifications; however when we need to iterate over the keys or values of
+    // the cache the write lock must obtained to prevent any modifications
+    private final ReleasableLock readLock;
+    private final ReleasableLock writeLock;
+
+    {
+        final ReadWriteLock iterationLock = new ReentrantReadWriteLock();
+        readLock = new ReleasableLock(iterationLock.readLock());
+        writeLock = new ReleasableLock(iterationLock.writeLock());
+    }
+
+    public static final Setting<Integer> CACHE_SIZE_SETTING =
+            Setting.intSetting(setting("authz.store.roles.cache.max_size"), 10000, Property.NodeScope);
+
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;
     private final ReservedRolesStore reservedRolesStore;
+    private final Cache<Set<String>, Role> roleCache;
+    private final Set<String> negativeLookupCache;
+    private final AtomicLong numInvalidation = new AtomicLong();
 
     public CompositeRolesStore(Settings settings, FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore,
                                ReservedRolesStore reservedRolesStore) {
         super(settings);
         this.fileRolesStore = fileRolesStore;
+        // invalidating all on a file based role update is heavy handed to say the least, but in general this should be infrequent so the
+        // impact isn't really worth the added complexity of only clearing the changed values
+        fileRolesStore.addListener(this::invalidateAll);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
-    }
-    
-    private Role getBuildInRole(String role) {
-        // builtins first
-        Role builtIn = reservedRolesStore.role(role);
-        if (builtIn != null) {
-            logger.trace("loaded role [{}] from reserved roles store", role);
-            return builtIn;
+        CacheBuilder<Set<String>, Role> builder = CacheBuilder.builder();
+        final int cacheSize = CACHE_SIZE_SETTING.get(settings);
+        if (cacheSize >= 0) {
+            builder.setMaximumWeight(cacheSize);
         }
-
-        // Try the file next, then the index if it isn't there
-        Role fileRole = fileRolesStore.role(role);
-        if (fileRole != null) {
-            logger.trace("loaded role [{}] from file roles store", role);
-            return fileRole;
-        }
-        return null;
+        this.roleCache = builder.build();
+        this.negativeLookupCache = ConcurrentCollections.newConcurrentSet();
     }
 
-    public void roles(String role, ActionListener<Role> roleActionListener) {
-        Role storedRole = getBuildInRole(role);
-        if (storedRole == null) {
-            nativeRolesStore.role(role, roleActionListener);
+    public void roles(Set<String> roleNames, FieldPermissionsCache fieldPermissionsCache, ActionListener<Role> roleActionListener) {
+        Role existing = roleCache.get(roleNames);
+        if (existing != null) {
+            roleActionListener.onResponse(existing);
         } else {
-            roleActionListener.onResponse(storedRole);
+            final long invalidationCounter = numInvalidation.get();
+            roleDescriptors(roleNames, ActionListener.wrap(
+                    (descriptors) -> {
+                        final Role role = buildRoleFromDescriptors(descriptors, fieldPermissionsCache);
+                        if (role != null) {
+                            try (ReleasableLock ignored = readLock.acquire()) {
+                                /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold the write
+                                 * lock (fetching stats for instance - which is kinda overkill?) but since we fetching stuff in an async
+                                 * fashion we need to make sure that if the cache got invalidated since we started the request we don't
+                                 * put a potential stale result in the cache, hence the numInvalidation.get() comparison to the number of
+                                 * invalidation when we started. we just try to be on the safe side and don't cache potentially stale
+                                 * results*/
+                                if (invalidationCounter == numInvalidation.get()) {
+                                    roleCache.computeIfAbsent(roleNames, (s) -> role);
+                                }
+                            }
+                        }
+                        roleActionListener.onResponse(role);
+                    },
+                    roleActionListener::onFailure));
         }
     }
 
+    private void roleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> roleDescriptorActionListener) {
+        final Set<String> filteredRoleNames =
+                roleNames.stream().filter((s) -> negativeLookupCache.contains(s) == false).collect(Collectors.toSet());
+        final Set<RoleDescriptor> builtInRoleDescriptors = getBuiltInRoleDescriptors(filteredRoleNames);
+        Set<String> remainingRoleNames = difference(filteredRoleNames, builtInRoleDescriptors);
+        if (remainingRoleNames.isEmpty()) {
+            roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
+        } else {
+            nativeRolesStore.getRoleDescriptors(remainingRoleNames.toArray(Strings.EMPTY_ARRAY), ActionListener.wrap((descriptors) -> {
+                builtInRoleDescriptors.addAll(descriptors);
+                if (builtInRoleDescriptors.size() != filteredRoleNames.size()) {
+                    final Set<String> missing = difference(filteredRoleNames, builtInRoleDescriptors);
+                    assert missing.isEmpty() == false : "the missing set should not be empty if the sizes didn't match";
+                    negativeLookupCache.addAll(missing);
+                }
+                roleDescriptorActionListener.onResponse(Collections.unmodifiableSet(builtInRoleDescriptors));
+            }, roleDescriptorActionListener::onFailure));
+        }
+    }
+
+    private Set<RoleDescriptor> getBuiltInRoleDescriptors(Set<String> roleNames) {
+        final Set<RoleDescriptor> descriptors = reservedRolesStore.roleDescriptors().stream()
+                .filter((rd) -> roleNames.contains(rd.getName()))
+                .collect(Collectors.toCollection(HashSet::new));
+
+        final Set<String> difference = difference(roleNames, descriptors);
+        if (difference.isEmpty() == false) {
+            descriptors.addAll(fileRolesStore.roleDescriptors(difference));
+        }
+
+        return descriptors;
+    }
+
+    private Set<String> difference(Set<String> roleNames, Set<RoleDescriptor> descriptors) {
+        Set<String> foundNames = descriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toSet());
+        return Sets.difference(roleNames, foundNames);
+    }
+
+    public static Role buildRoleFromDescriptors(Set<RoleDescriptor> roleDescriptors, FieldPermissionsCache fieldPermissionsCache) {
+        if (roleDescriptors.isEmpty()) {
+            return Role.EMPTY;
+        }
+        StringBuilder nameBuilder = new StringBuilder();
+        Set<String> clusterPrivileges = new HashSet<>();
+        Set<String> runAs = new HashSet<>();
+        Map<Set<String>, MergableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
+        for (RoleDescriptor descriptor : roleDescriptors) {
+            nameBuilder.append(descriptor.getName());
+            nameBuilder.append('_');
+            if (descriptor.getClusterPrivileges() != null) {
+                clusterPrivileges.addAll(Arrays.asList(descriptor.getClusterPrivileges()));
+            }
+            if (descriptor.getRunAs() != null) {
+                runAs.addAll(Arrays.asList(descriptor.getRunAs()));
+            }
+            IndicesPrivileges[] indicesPrivileges = descriptor.getIndicesPrivileges();
+            for (IndicesPrivileges indicesPrivilege : indicesPrivileges) {
+                Set<String> key = Sets.newHashSet(indicesPrivilege.getIndices());
+                // if a index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
+                // merging
+                final boolean isExplicitDenial =
+                        indicesPrivileges.length == 1 && "none".equalsIgnoreCase(indicesPrivilege.getPrivileges()[0]);
+                if (isExplicitDenial == false) {
+                    indicesPrivilegesMap.compute(key, (k, value) -> {
+                        if (value == null) {
+                            return new MergableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
+                                    indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery());
+                        } else {
+                            value.merge(new MergableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
+                                    indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery()));
+                            return value;
+                        }
+                    });
+                }
+            }
+        }
+
+        final Set<String> clusterPrivs = clusterPrivileges.isEmpty() ? null : clusterPrivileges;
+        final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
+        Role.Builder builder = Role.builder(nameBuilder.toString(), fieldPermissionsCache)
+                .cluster(ClusterPrivilege.get(clusterPrivs))
+                .runAs(runAsPrivilege);
+        indicesPrivilegesMap.entrySet().forEach((entry) -> {
+            MergableIndicesPrivilege privilege = entry.getValue();
+            builder.add(fieldPermissionsCache.getFieldPermissions(privilege.grantedFields, privilege.deniedFields), privilege.query,
+                    IndexPrivilege.get(privilege.privileges), privilege.indices.toArray(Strings.EMPTY_ARRAY));
+        });
+        return builder.build();
+    }
+
+    public void invalidateAll() {
+        numInvalidation.incrementAndGet();
+        negativeLookupCache.clear();
+        try (ReleasableLock ignored = readLock.acquire()) {
+            roleCache.invalidateAll();
+        }
+    }
+
+    public void invalidate(String role) {
+        numInvalidation.incrementAndGet();
+
+        // the cache cannot be modified while doing this operation per the terms of the cache iterator
+        try (ReleasableLock ignored = writeLock.acquire()) {
+            Iterator<Set<String>> keyIter = roleCache.keys().iterator();
+            while (keyIter.hasNext()) {
+                Set<String> key = keyIter.next();
+                if (key.contains(role)) {
+                    keyIter.remove();
+                }
+            }
+        }
+        negativeLookupCache.remove(role);
+    }
 
     public Map<String, Object> usageStats() {
         Map<String, Object> usage = new HashMap<>(2);
         usage.put("file", fileRolesStore.usageStats());
         usage.put("native", nativeRolesStore.usageStats());
         return usage;
+    }
+
+    /**
+     * A mutable class that can be used to represent the combination of one or more {@link IndicesPrivileges}
+     */
+    private static class MergableIndicesPrivilege {
+        private Set<String> indices;
+        private Set<String> privileges;
+        private Set<String> grantedFields = null;
+        private Set<String> deniedFields = null;
+        private Set<BytesReference> query = null;
+
+        MergableIndicesPrivilege(String[] indices, String[] privileges, @Nullable String[] grantedFields, @Nullable String[] deniedFields,
+                                 @Nullable BytesReference query) {
+            this.indices = Sets.newHashSet(Objects.requireNonNull(indices));
+            this.privileges = Sets.newHashSet(Objects.requireNonNull(privileges));
+            this.grantedFields = grantedFields == null ? null : Sets.newHashSet(grantedFields);
+            this.deniedFields = deniedFields == null ? null : Sets.newHashSet(deniedFields);
+            if (query != null) {
+                this.query = Sets.newHashSet(query);
+            }
+        }
+
+        void merge(MergableIndicesPrivilege other) {
+            assert indices.equals(other.indices) : "index names must be equivalent in order to merge";
+            this.grantedFields = combineFieldSets(this.grantedFields, other.grantedFields);
+            this.deniedFields = combineFieldSets(this.deniedFields, other.deniedFields);
+            this.privileges.addAll(other.privileges);
+
+            if (this.query == null || other.query == null) {
+                this.query = null;
+            } else {
+                this.query.addAll(other.query);
+            }
+        }
+
+        private static Set<String> combineFieldSets(Set<String> set, Set<String> other) {
+            if (set == null || other == null) {
+                // null = grant all so it trumps others
+                return null;
+            } else {
+                set.addAll(other);
+                return set;
+            }
+        }
     }
 }

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
@@ -105,9 +106,8 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                 client().filterWithHeader(headers).admin().indices().prepareAliases().addAlias("test_1", "test_alias")::get,
                 IndicesAliasesAction.NAME, "create_only");
 
-        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
-                client().filterWithHeader(headers).admin().indices().prepareAliases().addAlias("test_*", "test_alias")::get);
-        assertThat(indexNotFoundException.toString(), containsString("[test_*]"));
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareAliases()
+                .addAlias("test_*", "test_alias")::get, IndicesAliasesAction.NAME, "create_only");
     }
 
     public void testCreateIndexAndAliasesCreateOnlyPermission() {
@@ -130,13 +130,11 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
                 client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "alias_1")::get,
                 IndicesAliasesAction.NAME, "create_only");
 
-        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class,
-                client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "alias_*")::get);
-        assertThat(indexNotFoundException.toString(), containsString("[alias_*"));
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareAliases()
+                .removeAlias("test_1", "alias_*")::get, IndicesAliasesAction.NAME, "create_only");
 
-        indexNotFoundException = expectThrows(IndexNotFoundException.class,
-                client().filterWithHeader(headers).admin().indices().prepareAliases().removeAlias("test_1", "_all")::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareAliases()
+                .removeAlias("test_1", "_all")::get, IndicesAliasesAction.NAME, "create_only");
     }
 
     public void testGetAliasesCreateOnlyPermissionStrict() {
@@ -147,24 +145,21 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_1")
                 .setIndices("test_1").setIndicesOptions(IndicesOptions.strictExpand())::get, GetAliasesAction.NAME, "create_only");
 
-        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class, client().filterWithHeader(headers)
+        assertThrowsAuthorizationException(client().filterWithHeader(headers)
                 .admin().indices().prepareGetAliases("_all")
-                .setIndices("test_1").setIndicesOptions(IndicesOptions.strictExpand())::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
+                .setIndices("test_1").setIndicesOptions(IndicesOptions.strictExpand())::get, GetAliasesAction.NAME, "create_only");
 
-        indexNotFoundException = expectThrows(IndexNotFoundException.class, client().filterWithHeader(headers).admin().indices()
-                .prepareGetAliases().setIndices("test_1").setIndicesOptions(IndicesOptions.strictExpand())::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices()
+                .prepareGetAliases().setIndices("test_1").setIndicesOptions(IndicesOptions.strictExpand())::get,
+                GetAliasesAction.NAME, "create_only");
 
-        GetAliasesResponse getAliasesResponse = client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias")
-                .setIndices("test_*").setIndicesOptions(IndicesOptions.strictExpand()).get();
-        assertEquals(0, getAliasesResponse.getAliases().size());
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias")
+                .setIndices("test_*").setIndicesOptions(IndicesOptions.strictExpand())::get, GetAliasesAction.NAME, "create_only");
 
         //this throws exception no matter what the indices options are because the aliases part cannot be resolved to any alias
         //and there is no way to "allow_no_aliases" like we can do with indices.
-        indexNotFoundException = expectThrows(IndexNotFoundException.class,
-                client().filterWithHeader(headers).admin().indices().prepareGetAliases()::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareGetAliases()::get,
+                GetAliasesAction.NAME, "create_only");
     }
 
     public void testGetAliasesCreateOnlyPermissionIgnoreUnavailable() {
@@ -172,28 +167,23 @@ public class IndexAliasesTests extends SecurityIntegTestCase {
         Map<String, String> headers = Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("create_only",
                 new SecuredString("test123".toCharArray())));
 
-        GetAliasesResponse getAliasesResponse = client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_1")
-                .setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-        assertEquals(0, getAliasesResponse.getAliases().size());
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_1")
+                .setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get, GetAliasesAction.NAME, "create_only");
 
-        IndexNotFoundException indexNotFoundException = expectThrows(IndexNotFoundException.class, client().filterWithHeader(headers)
-                .admin().indices().prepareGetAliases("_all")
-                .setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareGetAliases("_all")
+                .setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get, GetAliasesAction.NAME, "create_only");
 
-        indexNotFoundException = expectThrows(IndexNotFoundException.class, client().filterWithHeader(headers).admin().indices()
-                .prepareGetAliases().setIndices("test_1").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices().prepareGetAliases().setIndices("test_1")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())::get, GetAliasesAction.NAME, "create_only");
 
-        getAliasesResponse = client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias")
-                .setIndices("test_*").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-        assertEquals(0, getAliasesResponse.getAliases().size());
+        assertThrowsAuthorizationException(
+                client().filterWithHeader(headers).admin().indices().prepareGetAliases("test_alias")
+                .setIndices("test_*").setIndicesOptions(IndicesOptions.lenientExpandOpen())::get, GetAliasesAction.NAME, "create_only");
 
         //this throws exception no matter what the indices options are because the aliases part cannot be resolved to any alias
         //and there is no way to "allow_no_aliases" like we can do with indices.
-        indexNotFoundException = expectThrows(IndexNotFoundException.class, client().filterWithHeader(headers).admin().indices()
-                .prepareGetAliases().setIndicesOptions(IndicesOptions.lenientExpandOpen())::get);
-        assertThat(indexNotFoundException.toString(), containsString("[_all]"));
+        assertThrowsAuthorizationException(client().filterWithHeader(headers).admin().indices()
+                .prepareGetAliases().setIndicesOptions(IndicesOptions.lenientExpandOpen())::get, GetAliasesAction.NAME, "create_only");
     }
 
     public void testCreateIndexThenAliasesCreateAndAliasesPermission() {

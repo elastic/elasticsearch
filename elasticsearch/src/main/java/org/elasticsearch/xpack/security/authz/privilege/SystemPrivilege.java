@@ -5,35 +5,29 @@
  */
 package org.elasticsearch.xpack.security.authz.privilege;
 
-import org.elasticsearch.xpack.security.support.AutomatonPredicate;
+import org.elasticsearch.xpack.security.support.Automatons;
 
+import java.util.Collections;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.xpack.security.support.Automatons.patterns;
-
-public class SystemPrivilege extends Privilege<SystemPrivilege> {
+public final class SystemPrivilege extends Privilege {
 
     public static SystemPrivilege INSTANCE = new SystemPrivilege();
 
-    protected static final Predicate<String> PREDICATE = new AutomatonPredicate(patterns(
+    private static final Predicate<String> PREDICATE = Automatons.predicate(
             "internal:*",
             "indices:monitor/*", // added for monitoring
             "cluster:monitor/*",  // added for monitoring
             "cluster:admin/reroute", // added for DiskThresholdDecider.DiskListener
             "indices:admin/mapping/put" // needed for recovery and shrink api
-    ));
+    );
 
-    SystemPrivilege() {
-        super(new Name("internal"));
+    private SystemPrivilege() {
+        super(Collections.singleton("internal"));
     }
 
     @Override
     public Predicate<String> predicate() {
         return PREDICATE;
-    }
-
-    @Override
-    public boolean implies(SystemPrivilege other) {
-        return true;
     }
 }

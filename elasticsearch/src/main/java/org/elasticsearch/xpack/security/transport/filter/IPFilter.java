@@ -10,7 +10,6 @@ import io.netty.handler.ipfilter.IpFilterRuleType;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -22,7 +21,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Arrays;

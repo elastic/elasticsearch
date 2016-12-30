@@ -11,16 +11,9 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
-import org.elasticsearch.xpack.security.authz.permission.LogstashSystemRole;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.security.user.ElasticUser;
-import org.elasticsearch.xpack.security.user.KibanaUser;
-import org.elasticsearch.xpack.security.user.LogstashSystemUser;
-import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -33,32 +26,25 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.when;
 
 public class TransportGetRolesActionTests extends ESTestCase {
 
     public void testReservedRoles() {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        SecurityContext context = mock(SecurityContext.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
-
-        final User executingUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
-        when(context.getUser()).thenReturn(executingUser);
 
         final int size = randomIntBetween(1, ReservedRolesStore.names().size());
         final List<String> names = randomSubsetOf(size, ReservedRolesStore.names());
@@ -101,14 +87,10 @@ public class TransportGetRolesActionTests extends ESTestCase {
     public void testStoreRoles() {
         final List<RoleDescriptor> storeRoleDescriptors = randomRoleDescriptors();
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        SecurityContext context = mock(SecurityContext.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
-
-        final User executingUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
-        when(context.getUser()).thenReturn(executingUser);
 
         GetRolesRequest request = new GetRolesRequest();
         request.names(storeRoleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY));
@@ -157,14 +139,10 @@ public class TransportGetRolesActionTests extends ESTestCase {
         }
 
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        SecurityContext context = mock(SecurityContext.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
-
-        final User executingUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
-        when(context.getUser()).thenReturn(executingUser);
 
         final List<String> expectedNames = new ArrayList<>();
         if (all) {
@@ -225,7 +203,6 @@ public class TransportGetRolesActionTests extends ESTestCase {
         final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
         final List<RoleDescriptor> storeRoleDescriptors = randomRoleDescriptors();
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        SecurityContext context = mock(SecurityContext.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),

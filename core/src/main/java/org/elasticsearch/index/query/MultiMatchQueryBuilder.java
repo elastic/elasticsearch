@@ -43,7 +43,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.TreeMap;
 
 /**
@@ -152,7 +151,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             MultiMatchQueryBuilder.Type[] values = MultiMatchQueryBuilder.Type.values();
             Type type = null;
             for (MultiMatchQueryBuilder.Type t : values) {
-                if (parseFieldMatcher.match(value, t.parseField())) {
+                if (t.parseField().match(value)) {
                     type = t;
                     break;
                 }

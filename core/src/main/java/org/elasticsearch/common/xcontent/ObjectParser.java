@@ -417,7 +417,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
         }
 
         public void assertSupports(String parserName, XContentParser.Token token, String currentFieldName, ParseFieldMatcher matcher) {
-            if (matcher.match(currentFieldName, parseField) == false) {
+            if (parseField.match(currentFieldName) == false) {
                 throw new IllegalStateException("[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }
             if (supportedTokens.contains(token) == false) {

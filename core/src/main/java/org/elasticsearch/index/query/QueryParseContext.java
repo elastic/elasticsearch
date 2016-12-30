@@ -55,7 +55,7 @@ public class QueryParseContext implements ParseFieldMatcherSupplier {
     }
 
     public boolean isDeprecatedSetting(String setting) {
-        return this.CACHE.match(setting) || this.CACHE_KEY.match(setting);
+        return CACHE.match(setting) || CACHE_KEY.match(setting);
     }
 
     /**

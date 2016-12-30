@@ -94,13 +94,13 @@ public final class IpRangeAggregationBuilder
             if (parser.currentToken() == Token.FIELD_NAME) {
                 continue;
             }
-            if (parseFieldMatcher.match(parser.currentName(), RangeAggregator.Range.KEY_FIELD)) {
+            if (RangeAggregator.Range.KEY_FIELD.match(parser.currentName())) {
                 key = parser.text();
-            } else if (parseFieldMatcher.match(parser.currentName(), RangeAggregator.Range.FROM_FIELD)) {
+            } else if (RangeAggregator.Range.FROM_FIELD.match(parser.currentName())) {
                 from = parser.textOrNull();
-            } else if (parseFieldMatcher.match(parser.currentName(), RangeAggregator.Range.TO_FIELD)) {
+            } else if (RangeAggregator.Range.TO_FIELD.match(parser.currentName())) {
                 to = parser.textOrNull();
-            } else if (parseFieldMatcher.match(parser.currentName(), MASK_FIELD)) {
+            } else if (MASK_FIELD.match(parser.currentName())) {
                 mask = parser.text();
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected ip range parameter: [" + parser.currentName() + "]");

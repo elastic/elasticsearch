@@ -99,21 +99,21 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptType.INLINE.getParseField())) {
+            } else if (ScriptType.INLINE.getParseField().match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.INLINE;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptType.FILE.getParseField())) {
+            } else if (ScriptType.FILE.getParseField().match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.FILE;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptType.STORED.getParseField())) {
+            } else if (ScriptType.STORED.getParseField().match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.STORED;

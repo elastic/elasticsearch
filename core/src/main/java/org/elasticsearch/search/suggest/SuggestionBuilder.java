@@ -273,7 +273,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
                     suggestText = parser.text();
                 } else if (PREFIX_FIELD.match(currentFieldName)) {
                     prefix = parser.text();
-                } else if (PREFIX_FIELD.match(currentFieldName)) {
+                } else if (REGEX_FIELD.match(currentFieldName)) {
                     regex = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "suggestion does not support [" + currentFieldName + "]");

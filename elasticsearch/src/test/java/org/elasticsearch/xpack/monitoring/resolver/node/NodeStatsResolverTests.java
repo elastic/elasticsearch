@@ -82,7 +82,7 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
             return;
         }
 
-        // we only report IoStats and spins on Linux
+        // we only report IoStats on Linux
         if (Constants.LINUX == false) {
             if (field.startsWith("node_stats.fs.io_stats")) {
                 return;
@@ -91,6 +91,11 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
 
         // node_stats.fs.data.spins can be null and it's only reported on Linux
         if (field.startsWith("node_stats.fs.data.spins")) {
+            return;
+        }
+
+        // cgroups can be null, and it's only reported on Linux
+        if (field.startsWith("node_stats.os.cgroup")) {
             return;
         }
 

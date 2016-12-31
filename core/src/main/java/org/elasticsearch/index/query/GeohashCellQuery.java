@@ -305,7 +305,7 @@ public class GeohashCellQuery {
 
                     if (parseContext.isDeprecatedSetting(field)) {
                         // skip
-                    } else if (parseContext.getParseFieldMatcher().match(field, PRECISION_FIELD)) {
+                    } else if (PRECISION_FIELD.match(field)) {
                         token = parser.nextToken();
                         if (token == Token.VALUE_NUMBER) {
                             levels = parser.intValue();
@@ -313,16 +313,16 @@ public class GeohashCellQuery {
                             double meters = DistanceUnit.parse(parser.text(), DistanceUnit.DEFAULT, DistanceUnit.METERS);
                             levels = GeoUtils.geoHashLevelsForPrecision(meters);
                         }
-                    } else if (parseContext.getParseFieldMatcher().match(field, NEIGHBORS_FIELD)) {
+                    } else if (NEIGHBORS_FIELD.match(field)) {
                         parser.nextToken();
                         neighbors = parser.booleanValue();
-                    } else if (parseContext.getParseFieldMatcher().match(field, AbstractQueryBuilder.NAME_FIELD)) {
+                    } else if (AbstractQueryBuilder.NAME_FIELD.match(field)) {
                         parser.nextToken();
                         queryName = parser.text();
-                    } else if (parseContext.getParseFieldMatcher().match(field, IGNORE_UNMAPPED_FIELD)) {
+                    } else if (IGNORE_UNMAPPED_FIELD.match(field)) {
                         parser.nextToken();
                         ignoreUnmapped = parser.booleanValue();
-                    } else if (parseContext.getParseFieldMatcher().match(field, AbstractQueryBuilder.BOOST_FIELD)) {
+                    } else if (AbstractQueryBuilder.BOOST_FIELD.match(field)) {
                         parser.nextToken();
                         boost = parser.floatValue();
                     } else {

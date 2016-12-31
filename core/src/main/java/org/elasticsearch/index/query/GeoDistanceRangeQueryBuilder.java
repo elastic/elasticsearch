@@ -439,27 +439,27 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                             "] field name already set to [" + fieldName + "] but found [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, FROM_FIELD)) {
+                if (FROM_FIELD.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_NULL) {
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         vFrom = parser.text(); // a String
                     } else {
                         vFrom = parser.numberValue(); // a Number
                     }
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, TO_FIELD)) {
+                } else if (TO_FIELD.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_NULL) {
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         vTo = parser.text(); // a String
                     } else {
                         vTo = parser.numberValue(); // a Number
                     }
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INCLUDE_LOWER_FIELD)) {
+                } else if (INCLUDE_LOWER_FIELD.match(currentFieldName)) {
                     includeLower = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, INCLUDE_UPPER_FIELD)) {
+                } else if (INCLUDE_UPPER_FIELD.match(currentFieldName)) {
                     includeUpper = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_UNMAPPED_FIELD)) {
+                } else if (IGNORE_UNMAPPED_FIELD.match(currentFieldName)) {
                     ignoreUnmapped = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, GT_FIELD)) {
+                } else if (GT_FIELD.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_NULL) {
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         vFrom = parser.text(); // a String
@@ -467,7 +467,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                         vFrom = parser.numberValue(); // a Number
                     }
                     includeLower = false;
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, GTE_FIELD)) {
+                } else if (GTE_FIELD.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_NULL) {
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         vFrom = parser.text(); // a String
@@ -475,7 +475,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                         vFrom = parser.numberValue(); // a Number
                     }
                     includeLower = true;
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LT_FIELD)) {
+                } else if (LT_FIELD.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_NULL) {
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         vTo = parser.text(); // a String
@@ -483,7 +483,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                         vTo = parser.numberValue(); // a Number
                     }
                     includeUpper = false;
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, LTE_FIELD)) {
+                } else if (LTE_FIELD.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_NULL) {
                     } else if (token == XContentParser.Token.VALUE_STRING) {
                         vTo = parser.text(); // a String
@@ -491,9 +491,9 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                         vTo = parser.numberValue(); // a Number
                     }
                     includeUpper = true;
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, UNIT_FIELD)) {
+                } else if (UNIT_FIELD.match(currentFieldName)) {
                     unit = DistanceUnit.fromString(parser.text());
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, DISTANCE_TYPE_FIELD)) {
+                } else if (DISTANCE_TYPE_FIELD.match(currentFieldName)) {
                     geoDistance = GeoDistance.fromString(parser.text());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LAT_SUFFIX)) {
                     String maybeFieldName = currentFieldName.substring(0,
@@ -521,17 +521,17 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                         point = new GeoPoint();
                     }
                     point.resetLon(parser.doubleValue());
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
+                } else if (NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, BOOST_FIELD)) {
+                } else if (BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, OPTIMIZE_BBOX_FIELD)) {
+                } else if (OPTIMIZE_BBOX_FIELD.match(currentFieldName)) {
                     optimizeBbox = parser.textOrNull();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, COERCE_FIELD)) {
+                } else if (COERCE_FIELD.match(currentFieldName)) {
                     coerce = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
+                } else if (IGNORE_MALFORMED_FIELD.match(currentFieldName)) {
                     ignoreMalformed = parser.booleanValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, VALIDATION_METHOD)) {
+                } else if (VALIDATION_METHOD.match(currentFieldName)) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
                     if (fieldName == null) {

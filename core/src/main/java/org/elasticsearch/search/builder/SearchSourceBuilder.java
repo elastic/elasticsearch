@@ -1008,8 +1008,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         if (token == XContentParser.Token.FIELD_NAME) {
                             extSectionName = parser.currentName();
                         } else {
-                            SearchExtParser searchExtParser = searchExtRegistry.lookup(extSectionName,
-                                    context.getParseFieldMatcher(), parser.getTokenLocation());
+                            SearchExtParser searchExtParser = searchExtRegistry.lookup(extSectionName, parser.getTokenLocation());
                             SearchExtBuilder searchExtBuilder = searchExtParser.fromXContent(parser);
                             if (searchExtBuilder.getWriteableName().equals(extSectionName) == false) {
                                 throw new IllegalStateException("The parsed [" + searchExtBuilder.getClass().getName() + "] object has a "

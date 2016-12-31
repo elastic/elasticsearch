@@ -37,8 +37,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -53,7 +51,7 @@ import java.util.Set;
 public class RestClusterRerouteAction extends BaseRestHandler {
     private static final ObjectParser<ClusterRerouteRequest, ParseContext> PARSER = new ObjectParser<>("cluster_reroute");
     static {
-        PARSER.declareField((p, v, c) -> v.commands(AllocationCommands.fromXContent(p, c.getParseFieldMatcher(), c.registry)),
+        PARSER.declareField((p, v, c) -> v.commands(AllocationCommands.fromXContent(p, c.registry)),
                 new ParseField("commands"), ValueType.OBJECT_ARRAY);
         PARSER.declareBoolean(ClusterRerouteRequest::dryRun, new ParseField("dry_run"));
     }

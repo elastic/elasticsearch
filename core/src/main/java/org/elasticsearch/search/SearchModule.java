@@ -94,8 +94,8 @@ import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtensionSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
@@ -268,10 +268,6 @@ public class SearchModule {
     private final boolean transportClient;
     private final Map<String, Highlighter> highlighters;
     private final Map<String, Suggester<?>> suggesters;
-    private final ParseFieldRegistry<Aggregator.Parser> aggregationParserRegistry = new ParseFieldRegistry<>("aggregation");
-    private final ParseFieldRegistry<PipelineAggregator.Parser> pipelineAggregationParserRegistry = new ParseFieldRegistry<>(
-            "pipline_aggregation");
-    private final AggregatorParsers aggregatorParsers = new AggregatorParsers(aggregationParserRegistry, pipelineAggregationParserRegistry);
     private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry = new ParseFieldRegistry<>(
             "significance_heuristic");
     private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
@@ -301,7 +297,7 @@ public class SearchModule {
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
         registerShapes();
-        searchRequestParsers = new SearchRequestParsers(aggregatorParsers, getSuggesters());
+        searchRequestParsers = new SearchRequestParsers(getSuggesters());
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -339,13 +335,6 @@ public class SearchModule {
      */
     public ParseFieldRegistry<MovAvgModel.AbstractModelParser> getMovingAverageModelParserRegistry() {
         return movingAverageModelParserRegistry;
-    }
-
-    /**
-     * Parsers for {@link AggregationBuilder}s and {@link PipelineAggregationBuilder}s.
-     */
-    public AggregatorParsers getAggregatorParsers() {
-        return aggregatorParsers;
     }
 
     private void registerAggregations(List<SearchPlugin> plugins) {
@@ -433,7 +422,10 @@ public class SearchModule {
 
     private void registerAggregation(AggregationSpec spec) {
         if (false == transportClient) {
-            aggregationParserRegistry.register(spec.getParser(), spec.getName());
+            namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
+                AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
+                return spec.getParser().parse(context.name, context.queryParseContext);
+            }));
         }
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
@@ -527,7 +519,10 @@ public class SearchModule {
 
     private void registerPipelineAggregation(PipelineAggregationSpec spec) {
         if (false == transportClient) {
-            pipelineAggregationParserRegistry.register(spec.getParser(), spec.getName());
+            namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
+                AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
+                return spec.getParser().parse(context.name, context.queryParseContext);
+            }));
         }
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));

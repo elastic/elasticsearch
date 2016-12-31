@@ -32,6 +32,7 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
@@ -74,8 +75,10 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasSize;
 
 public class SearchModuleTests extends ModuleTestCase {
 
@@ -149,8 +152,8 @@ public class SearchModuleTests extends ModuleTestCase {
                         TermsAggregationBuilder::parse));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupeAggregation)));
+        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false,
+                singletonList(registersDupeAggregation)).getNamedXContents()));
 
         SearchPlugin registersDupePipelineAggregation = new SearchPlugin() {
             public List<PipelineAggregationSpec> getPipelineAggregations() {
@@ -162,8 +165,8 @@ public class SearchModuleTests extends ModuleTestCase {
                             .addResultReader(InternalDerivative::new));
             }
         };
-        expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false,
-                singletonList(registersDupePipelineAggregation)));
+        expectThrows(IllegalArgumentException.class, () -> new NamedXContentRegistry(new SearchModule(Settings.EMPTY, false,
+                singletonList(registersDupePipelineAggregation)).getNamedXContents()));
     }
 
     public void testRegisterSuggester() {
@@ -221,7 +224,11 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         }));
 
-        assertNotNull(module.getAggregatorParsers().parser("test"));
+        assertThat(
+                module.getNamedXContents().stream()
+                    .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) && entry.name.match("test"))
+                    .collect(toList()),
+                hasSize(1));
     }
 
     public void testRegisterPipelineAggregation() {
@@ -232,7 +239,11 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         }));
 
-        assertNotNull(module.getAggregatorParsers().pipelineParser("test"));
+        assertThat(
+                module.getNamedXContents().stream()
+                    .filter(entry -> entry.categoryClass.equals(BaseAggregationBuilder.class) && entry.name.match("test"))
+                    .collect(toList()),
+                hasSize(1));
     }
 
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {

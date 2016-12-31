@@ -82,7 +82,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
         PARSER.declareString(TermsAggregationBuilder::executionHint, EXECUTION_HINT_FIELD_NAME);
 
         PARSER.declareField(TermsAggregationBuilder::collectMode,
-                (p, c) -> SubAggCollectionMode.parse(p.text(), c.getParseFieldMatcher()),
+                (p, c) -> SubAggCollectionMode.parse(p.text()),
                 SubAggCollectionMode.KEY, ObjectParser.ValueType.STRING);
 
         PARSER.declareObjectArray(TermsAggregationBuilder::order, TermsAggregationBuilder::parseOrderParam,

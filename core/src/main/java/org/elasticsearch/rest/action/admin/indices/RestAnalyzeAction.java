@@ -124,9 +124,9 @@ public class RestAnalyzeAction extends BaseRestHandler {
                         "this feature will be removed in the next major release. Please use the text param in JSON");
                 }
             } else {
-                // NOTE: if rest request with xcontent body has request parameters, the parameters does not override xcontent values
+                // NOTE: if rest request with xcontent body has request parameters, the parameters do not override xcontent values
                 try (XContentParser parser = request.contentOrSourceParamParser()) {
-                    buildFromContent(parser, analyzeRequest, parseFieldMatcher);
+                    buildFromContent(parser, analyzeRequest);
                 } catch (IOException e) {
                     throw new IllegalArgumentException("Failed to parse request body", e);
                 }
@@ -134,8 +134,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         }
     }
 
-    static void buildFromContent(XContentParser parser, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher)
-            throws IOException {
+    static void buildFromContent(XContentParser parser, AnalyzeRequest analyzeRequest) throws IOException {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("Malformed content, must start with an object");
         } else {
@@ -213,5 +212,4 @@ public class RestAnalyzeAction extends BaseRestHandler {
             }
         }
     }
-
 }

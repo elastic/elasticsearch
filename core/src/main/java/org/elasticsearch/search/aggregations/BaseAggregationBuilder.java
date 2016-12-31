@@ -19,10 +19,15 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 
 import java.util.Map;
 
+/**
+ * Interface shared by {@link AggregationBuilder} and {@link PipelineAggregationBuilder} so they can conveniently share the same namespace
+ * for {@link XContentParser#namedObject(Class, String, Object)}.
+ */
 public interface BaseAggregationBuilder {
     /**
      * The name of the type of aggregation built by this builder. 

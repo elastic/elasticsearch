@@ -53,7 +53,7 @@ public class AggregatorParsers {
      * @return The parser associated with the given aggregation type or null if it wasn't found.
      */
     public Aggregator.Parser parser(String type, ParseFieldMatcher parseFieldMatcher) {
-        return aggregationParserRegistry.lookupReturningNullIfNotFound(type, parseFieldMatcher);
+        return aggregationParserRegistry.lookupReturningNullIfNotFound(type);
     }
 
     /**
@@ -64,7 +64,7 @@ public class AggregatorParsers {
      * @return The parser associated with the given pipeline aggregator type or null if it wasn't found.
      */
     public PipelineAggregator.Parser pipelineParser(String type, ParseFieldMatcher parseFieldMatcher) {
-        return pipelineAggregationParserRegistry.lookupReturningNullIfNotFound(type, parseFieldMatcher);
+        return pipelineAggregationParserRegistry.lookupReturningNullIfNotFound(type);
     }
 
     /**

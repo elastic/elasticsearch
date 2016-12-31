@@ -16,14 +16,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.common.text.TextTemplate;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -269,7 +265,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                     String typesStr = parser.text();
                     types.addAll(Arrays.asList(Strings.delimitedListToStringArray(typesStr, ",", " \t")));
                 } else if (SEARCH_TYPE_FIELD.match(currentFieldName)) {
-                    searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT), ParseFieldMatcher.EMPTY);
+                    searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT));
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected string field [" +
                             currentFieldName + "]");

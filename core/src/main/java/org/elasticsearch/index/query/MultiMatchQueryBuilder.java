@@ -23,7 +23,6 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -147,7 +146,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             return parseField;
         }
 
-        public static Type parse(String value, ParseFieldMatcher parseFieldMatcher) {
+        public static Type parse(String value) {
             MultiMatchQueryBuilder.Type[] values = MultiMatchQueryBuilder.Type.values();
             Type type = null;
             for (MultiMatchQueryBuilder.Type t : values) {
@@ -303,7 +302,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         if (type == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires type to be non-null");
         }
-        this.type = Type.parse(type.toString().toLowerCase(Locale.ROOT), ParseFieldMatcher.EMPTY);
+        this.type = Type.parse(type.toString().toLowerCase(Locale.ROOT));
         return this;
     }
 
@@ -598,7 +597,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
                 if (QUERY_FIELD.match(currentFieldName)) {
                     value = parser.objectText();
                 } else if (TYPE_FIELD.match(currentFieldName)) {
-                    type = MultiMatchQueryBuilder.Type.parse(parser.text(), parseContext.getParseFieldMatcher());
+                    type = MultiMatchQueryBuilder.Type.parse(parser.text());
                 } else if (ANALYZER_FIELD.match(currentFieldName)) {
                     analyzer = parser.text();
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {

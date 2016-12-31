@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -104,7 +103,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint, context.parseFieldMatcher());
+                execution = ExecutionMode.fromString(executionHint);
             }
 
             // In some cases, using ordinals is just not supported: override it
@@ -306,7 +305,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             }
         };
 
-        public static ExecutionMode fromString(String value, ParseFieldMatcher parseFieldMatcher) {
+        public static ExecutionMode fromString(String value) {
             for (ExecutionMode mode : values()) {
                 if (mode.parseField.match(value)) {
                     return mode;

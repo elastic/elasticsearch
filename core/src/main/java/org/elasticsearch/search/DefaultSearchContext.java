@@ -30,7 +30,6 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -152,9 +151,7 @@ final class DefaultSearchContext extends SearchContext {
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
                          IndexService indexService, IndexShard indexShard,
-                         BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
-                         FetchPhase fetchPhase) {
-        super(parseFieldMatcher);
+                         BigArrays bigArrays, Counter timeEstimateCounter, TimeValue timeout, FetchPhase fetchPhase) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;

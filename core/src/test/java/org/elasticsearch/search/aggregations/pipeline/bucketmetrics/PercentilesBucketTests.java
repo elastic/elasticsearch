@@ -56,7 +56,7 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
         parser.nextToken(); // skip object start
 
         PercentilesBucketPipelineAggregationBuilder builder = (PercentilesBucketPipelineAggregationBuilder) aggParsers
-            .pipelineParser(PercentilesBucketPipelineAggregationBuilder.NAME, parseFieldMatcher)
+            .pipelineParser(PercentilesBucketPipelineAggregationBuilder.NAME)
             .parse("test", parseContext);
 
         assertThat(builder.percents(), equalTo(new double[]{0.0, 20.0, 50.0, 75.99}));

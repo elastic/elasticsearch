@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -130,7 +129,7 @@ public class AllocationCommands extends ToXContentToBytes {
      * @return {@link AllocationCommands} read
      * @throws IOException if something bad happens while reading the stream
      */
-    public static AllocationCommands fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher, AllocationCommandRegistry registry) throws IOException {
+    public static AllocationCommands fromXContent(XContentParser parser, AllocationCommandRegistry registry) throws IOException {
         AllocationCommands commands = new AllocationCommands();
 
         XContentParser.Token token = parser.currentToken();

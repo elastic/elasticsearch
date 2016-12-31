@@ -89,7 +89,7 @@ public class DailySchedule extends CronnableSchedule {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, AT_FIELD)) {
+                } else if (AT_FIELD.match(currentFieldName)) {
                     if (token != XContentParser.Token.START_ARRAY) {
                         try {
                             times.add(DayTimes.parse(parser, token));

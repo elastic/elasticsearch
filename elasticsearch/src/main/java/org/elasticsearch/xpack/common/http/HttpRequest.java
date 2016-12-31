@@ -256,17 +256,17 @@ public class HttpRequest implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PROXY)) {
+                } else if (Field.PROXY.match(currentFieldName)) {
                     try {
                         builder.proxy(HttpProxy.parse(parser));
                     } catch (Exception e) {
                         throw new ElasticsearchParseException("could not parse http request. could not parse [{}] field", currentFieldName);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.AUTH)) {
+                } else if (Field.AUTH.match(currentFieldName)) {
                     builder.auth(httpAuthRegistry.parse(parser));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.CONNECTION_TIMEOUT)) {
+                } else if (HttpRequest.Field.CONNECTION_TIMEOUT.match(currentFieldName)) {
                     builder.connectionTimeout(TimeValue.timeValueMillis(parser.longValue()));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN)) {
+                } else if (HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.match(currentFieldName)) {
                     // Users and 2.x specify the timeout this way
                     try {
                         builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser,
@@ -275,9 +275,9 @@ public class HttpRequest implements ToXContent {
                         throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
                                 pe, currentFieldName);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.READ_TIMEOUT)) {
+                } else if (HttpRequest.Field.READ_TIMEOUT.match(currentFieldName)) {
                     builder.readTimeout(TimeValue.timeValueMillis(parser.longValue()));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.READ_TIMEOUT_HUMAN)) {
+                } else if (HttpRequest.Field.READ_TIMEOUT_HUMAN.match(currentFieldName)) {
                     // Users and 2.x specify the timeout this way
                     try {
                         builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.READ_TIMEOUT.toString()));
@@ -286,35 +286,35 @@ public class HttpRequest implements ToXContent {
                                 pe, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.HEADERS)) {
+                    if (Field.HEADERS.match(currentFieldName)) {
                         builder.setHeaders((Map) WatcherUtils.flattenModel(parser.map()));
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PARAMS)) {
+                    } else if (Field.PARAMS.match(currentFieldName)) {
                         builder.setParams((Map) WatcherUtils.flattenModel(parser.map()));
-                    }  else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
+                    }  else if (Field.BODY.match(currentFieldName)) {
                         builder.body(parser.text());
                     } else {
                         throw new ElasticsearchParseException("could not parse http request. unexpected object field [{}]",
                                 currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.SCHEME)) {
+                    if (Field.SCHEME.match(currentFieldName)) {
                         builder.scheme(Scheme.parse(parser.text()));
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.METHOD)) {
+                    } else if (Field.METHOD.match(currentFieldName)) {
                         builder.method(HttpMethod.parse(parser.text()));
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.HOST)) {
+                    } else if (Field.HOST.match(currentFieldName)) {
                         builder.host = parser.text();
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PATH)) {
+                    } else if (Field.PATH.match(currentFieldName)) {
                         builder.path(parser.text());
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
+                    } else if (Field.BODY.match(currentFieldName)) {
                         builder.body(parser.text());
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.URL)) {
+                    } else if (Field.URL.match(currentFieldName)) {
                         builder.fromUrl(parser.text());
                     } else {
                         throw new ElasticsearchParseException("could not parse http request. unexpected string field [{}]",
                                 currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PORT)) {
+                    if (Field.PORT.match(currentFieldName)) {
                         builder.port = parser.intValue();
                     } else {
                         throw new ElasticsearchParseException("could not parse http request. unexpected numeric field [{}]",

@@ -61,11 +61,11 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CONTENT_TYPE)) {
+            } else if (Fields.CONTENT_TYPE.match(currentFieldName)) {
                 contentType = parser.text();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.INLINE)) {
+            } else if (Fields.INLINE.match(currentFieldName)) {
                 inline = parser.booleanValue();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.REQUEST)) {
+            } else if (Fields.REQUEST.match(currentFieldName)) {
                 requestTemplate = requestTemplateParser.parse(parser);
             } else {
                 String msg = "Unknown field name [" + currentFieldName + "] in http request attachment configuration";

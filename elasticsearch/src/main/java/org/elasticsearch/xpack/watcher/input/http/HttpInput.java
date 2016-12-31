@@ -81,7 +81,7 @@ public class HttpInput implements Input {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REQUEST)) {
+            } else if (Field.REQUEST.match(currentFieldName)) {
                 try {
                     request = requestParser.parse(parser);
                 } catch (ElasticsearchParseException pe) {
@@ -104,7 +104,7 @@ public class HttpInput implements Input {
                             watchId, currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.RESPONSE_CONTENT_TYPE)) {
+                if (Field.RESPONSE_CONTENT_TYPE.match(currentFieldName)) {
                     expectedResponseBodyType = HttpContentType.resolve(parser.text());
                     if (expectedResponseBodyType == null) {
                         throw new ElasticsearchParseException("could not parse [{}] input for watch [{}]. unknown content type [{}]",

@@ -137,24 +137,24 @@ public class EmailAction implements Action {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ATTACH_DATA)) {
+            } else if (Field.ATTACH_DATA.match(currentFieldName)) {
                 try {
                     dataAttachment = DataAttachment.parse(parser);
                 } catch (IOException ioe) {
                     throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed to parse data attachment field " +
                             "[{}]", ioe, TYPE, watchId, actionId, currentFieldName);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ATTACHMENTS)) {
+            } else if (Field.ATTACHMENTS.match(currentFieldName)) {
                 attachments = emailAttachmentsParser.parse(parser);
             } else if (!emailParser.handle(currentFieldName, parser)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
-                    if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACCOUNT)) {
+                    if (Field.ACCOUNT.match(currentFieldName)) {
                         account = parser.text();
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.USER)) {
+                    } else if (Field.USER.match(currentFieldName)) {
                         user = parser.text();
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PASSWORD)) {
+                    } else if (Field.PASSWORD.match(currentFieldName)) {
                         password = WatcherXContentParser.secretOrNull(parser);
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PROFILE)) {
+                    } else if (Field.PROFILE.match(currentFieldName)) {
                         try {
                             profile = Profile.resolve(parser.text());
                         } catch (IllegalArgumentException iae) {

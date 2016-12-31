@@ -161,12 +161,12 @@ public class JiraIssue implements ToXContent {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ERRORS)) {
+                    } else if (Field.ERRORS.match(currentFieldName)) {
                         Map<String, Object> fieldErrors = parser.mapOrdered();
                         for (Map.Entry<String, Object> entry : fieldErrors.entrySet()) {
                             errors.add("Field [" + entry.getKey() + "] has error [" + String.valueOf(entry.getValue()) + "]");
                         }
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ERROR_MESSAGES)) {
+                    } else if (Field.ERROR_MESSAGES.match(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             errors.add(parser.text());
                         }

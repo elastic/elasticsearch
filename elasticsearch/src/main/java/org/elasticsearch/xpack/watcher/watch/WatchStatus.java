@@ -235,35 +235,35 @@ public class WatchStatus implements ToXContent, Streamable {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.STATE)) {
+            } else if (Field.STATE.match(currentFieldName)) {
                 try {
                     state = State.parse(parser, clock);
                 } catch (ElasticsearchParseException e) {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. failed to parse field [{}]",
                             e, watchId, currentFieldName);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.VERSION)) {
+            } else if (Field.VERSION.match(currentFieldName)) {
                 if (token.isValue()) {
                     version = parser.longValue();
                 } else {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a long " +
                             "value, found [{}] instead", watchId, currentFieldName, token);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LAST_CHECKED)) {
+            } else if (Field.LAST_CHECKED.match(currentFieldName)) {
                 if (token.isValue()) {
                     lastChecked = parseDate(currentFieldName, parser, UTC);
                 } else {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
                             "value, found [{}] instead", watchId, currentFieldName, token);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LAST_MET_CONDITION)) {
+            } else if (Field.LAST_MET_CONDITION.match(currentFieldName)) {
                 if (token.isValue()) {
                     lastMetCondition = parseDate(currentFieldName, parser, UTC);
                 } else {
                     throw new ElasticsearchParseException("could not parse watch status for [{}]. expecting field [{}] to hold a date " +
                             "value, found [{}] instead", watchId, currentFieldName, token);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIONS)) {
+            } else if (Field.ACTIONS.match(currentFieldName)) {
                 actions = new HashMap<>();
                 if (token == XContentParser.Token.START_OBJECT) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -329,9 +329,9 @@ public class WatchStatus implements ToXContent, Streamable {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIVE)) {
+                } else if (Field.ACTIVE.match(currentFieldName)) {
                     active = parser.booleanValue();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMESTAMP)) {
+                } else if (Field.TIMESTAMP.match(currentFieldName)) {
                     timestamp = parseDate(currentFieldName, parser, UTC);
                 }
             }

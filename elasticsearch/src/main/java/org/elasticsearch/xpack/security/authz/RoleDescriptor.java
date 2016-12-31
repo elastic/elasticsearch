@@ -190,13 +190,13 @@ public class RoleDescriptor implements ToXContent {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.INDICES)) {
+            } else if (Fields.INDICES.match(currentFieldName)) {
                 indicesPrivileges = parseIndices(name, parser, allow2xFormat);
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.RUN_AS)) {
+            } else if (Fields.RUN_AS.match(currentFieldName)) {
                 runAsUsers = readStringArray(name, parser, true);
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CLUSTER)) {
+            } else if (Fields.CLUSTER.match(currentFieldName)) {
                 clusterPrivileges = readStringArray(name, parser, true);
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.METADATA)) {
+            } else if (Fields.METADATA.match(currentFieldName)) {
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchParseException(
                             "expected field [{}] to be of type object, but found [{}] instead", currentFieldName, token);
@@ -247,7 +247,7 @@ public class RoleDescriptor implements ToXContent {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.NAMES)) {
+            } else if (Fields.NAMES.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     names = new String[] { parser.text() };
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -260,7 +260,7 @@ public class RoleDescriptor implements ToXContent {
                     throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] " +
                             "value to be a string or an array of strings, but found [{}] instead", roleName, currentFieldName, token);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.QUERY)) {
+            } else if (Fields.QUERY.match(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     XContentBuilder builder = JsonXContent.contentBuilder();
                     XContentHelper.copyCurrentStructure(builder.generator(), parser);
@@ -275,20 +275,20 @@ public class RoleDescriptor implements ToXContent {
                             "value to be null, a string, an array, or an object, but found [{}] instead", roleName, currentFieldName,
                             token);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.FIELD_PERMISSIONS)) {
+            } else if (Fields.FIELD_PERMISSIONS.match(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     token = parser.nextToken();
                     do {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
-                            if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.GRANT_FIELDS)) {
+                            if (Fields.GRANT_FIELDS.match(currentFieldName)) {
                                 parser.nextToken();
                                 grantedFields = readStringArray(roleName, parser, true);
                                 if (grantedFields == null) {
                                     throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. {} must not " +
                                             "be null.", roleName, Fields.GRANT_FIELDS);
                                 }
-                            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.EXCEPT_FIELDS)) {
+                            } else if (Fields.EXCEPT_FIELDS.match(currentFieldName)) {
                                 parser.nextToken();
                                 deniedFields = readStringArray(roleName, parser, true);
                                 if (deniedFields == null) {
@@ -317,9 +317,9 @@ public class RoleDescriptor implements ToXContent {
                             " in \"{}\".", roleName, XContentParser.Token.START_OBJECT,
                             XContentParser.Token.START_ARRAY, token, Fields.FIELD_PERMISSIONS);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.PRIVILEGES)) {
+            } else if (Fields.PRIVILEGES.match(currentFieldName)) {
                 privileges = readStringArray(roleName, parser, true);
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.FIELD_PERMISSIONS_2X)) {
+            } else if (Fields.FIELD_PERMISSIONS_2X.match(currentFieldName)) {
                 if (allow2xFormat) {
                     grantedFields = readStringArray(roleName, parser, true);
                 } else {

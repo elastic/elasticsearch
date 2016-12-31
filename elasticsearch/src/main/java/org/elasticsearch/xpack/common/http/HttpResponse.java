@@ -189,13 +189,13 @@ public class HttpResponse implements ToXContent {
             } else if (currentFieldName == null) {
                 throw new ElasticsearchParseException("could not parse http response. expected a field name but found [{}] instead", token);
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.STATUS)) {
+                if (Field.STATUS.match(currentFieldName)) {
                     status = parser.intValue();
                 } else {
                     throw new ElasticsearchParseException("could not parse http response. unknown numeric field [{}]", currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
+                if (Field.BODY.match(currentFieldName)) {
                     body = parser.text();
                 } else {
                     throw new ElasticsearchParseException("could not parse http response. unknown string field [{}]", currentFieldName);

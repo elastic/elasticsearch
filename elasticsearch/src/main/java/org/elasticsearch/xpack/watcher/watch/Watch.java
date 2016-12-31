@@ -291,17 +291,17 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     currentFieldName = parser.currentName();
                 } else if (token == null || currentFieldName == null) {
                     throw new ElasticsearchParseException("could not parse watch [{}], unexpected token [{}]", id, token);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGER)) {
+                } else if (Field.TRIGGER.match(currentFieldName)) {
                     trigger = triggerService.parseTrigger(id, parser);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.INPUT)) {
+                } else if (Field.INPUT.match(currentFieldName)) {
                     input = inputRegistry.parse(id, parser);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CONDITION)) {
+                } else if (Field.CONDITION.match(currentFieldName)) {
                     condition = actionRegistry.getConditionRegistry().parseExecutable(id, parser);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRANSFORM)) {
+                } else if (Field.TRANSFORM.match(currentFieldName)) {
                     transform = actionRegistry.getTransformRegistry().parse(id, parser);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD)) {
+                } else if (Field.THROTTLE_PERIOD.match(currentFieldName)) {
                     throttlePeriod = timeValueMillis(parser.longValue());
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD_HUMAN)) {
+                } else if (Field.THROTTLE_PERIOD_HUMAN.match(currentFieldName)) {
                     // Parser for human specified and 2.x backwards compatible throttle period
                     try {
                         throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Field.THROTTLE_PERIOD_HUMAN.toString());
@@ -309,11 +309,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                         throw new ElasticsearchParseException("could not parse watch [{}]. failed to parse time value for field [{}]",
                                 pe, id, currentFieldName);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIONS)) {
+                } else if (Field.ACTIONS.match(currentFieldName)) {
                     actions = actionRegistry.parseActions(id, parser);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.METADATA)) {
+                } else if (Field.METADATA.match(currentFieldName)) {
                     metatdata = parser.map();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.STATUS)) {
+                } else if (Field.STATUS.match(currentFieldName)) {
                     if (includeStatus) {
                         status = WatchStatus.parse(id, parser, clock);
                     } else {

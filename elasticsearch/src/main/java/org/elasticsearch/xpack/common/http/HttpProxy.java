@@ -96,9 +96,9 @@ public class HttpProxy implements ToXContent, Streamable {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.HOST)) {
+            } else if (Field.HOST.match(currentFieldName)) {
                 host = parser.text();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PORT)) {
+            } else if (Field.PORT.match(currentFieldName)) {
                 port = parser.intValue();
                 if (port <= 0 || port >= 65535) {
                     throw new ElasticsearchParseException("Proxy port must be between 1 and 65534, but was " + port);

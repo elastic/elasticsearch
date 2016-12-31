@@ -277,21 +277,21 @@ public class HttpRequestTemplate implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.PROXY)) {
+                } else if (HttpRequest.Field.PROXY.match(currentFieldName)) {
                     builder.proxy(HttpProxy.parse(parser));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.PATH)) {
+                } else if (HttpRequest.Field.PATH.match(currentFieldName)) {
                     builder.path(parseFieldTemplate(currentFieldName, parser));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.HEADERS)) {
+                } else if (HttpRequest.Field.HEADERS.match(currentFieldName)) {
                     builder.putHeaders(parseFieldTemplates(currentFieldName, parser));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.PARAMS)) {
+                } else if (HttpRequest.Field.PARAMS.match(currentFieldName)) {
                     builder.putParams(parseFieldTemplates(currentFieldName, parser));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.BODY)) {
+                } else if (HttpRequest.Field.BODY.match(currentFieldName)) {
                     builder.body(parseFieldTemplate(currentFieldName, parser));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.URL)) {
+                } else if (HttpRequest.Field.URL.match(currentFieldName)) {
                     builder.fromUrl(parser.text());
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.CONNECTION_TIMEOUT)) {
+                } else if (HttpRequest.Field.CONNECTION_TIMEOUT.match(currentFieldName)) {
                     builder.connectionTimeout(TimeValue.timeValueMillis(parser.longValue()));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN)) {
+                } else if (HttpRequest.Field.CONNECTION_TIMEOUT_HUMAN.match(currentFieldName)) {
                     // Users and 2.x specify the timeout this way
                     try {
                         builder.connectionTimeout(WatcherDateTimeUtils.parseTimeValue(parser,
@@ -300,9 +300,9 @@ public class HttpRequestTemplate implements ToXContent {
                         throw new ElasticsearchParseException("could not parse http request template. invalid time value for [{}] field",
                                 pe, currentFieldName);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.READ_TIMEOUT)) {
+                } else if (HttpRequest.Field.READ_TIMEOUT.match(currentFieldName)) {
                     builder.readTimeout(TimeValue.timeValueMillis(parser.longValue()));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.READ_TIMEOUT_HUMAN)) {
+                } else if (HttpRequest.Field.READ_TIMEOUT_HUMAN.match(currentFieldName)) {
                     // Users and 2.x specify the timeout this way
                     try {
                         builder.readTimeout(WatcherDateTimeUtils.parseTimeValue(parser, HttpRequest.Field.READ_TIMEOUT.toString()));
@@ -311,25 +311,25 @@ public class HttpRequestTemplate implements ToXContent {
                                 pe, currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.AUTH)) {
+                    if (HttpRequest.Field.AUTH.match(currentFieldName)) {
                         builder.auth(httpAuthRegistry.parse(parser));
                     }  else {
                         throw new ElasticsearchParseException("could not parse http request template. unexpected object field [{}]",
                                 currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.SCHEME)) {
+                    if (HttpRequest.Field.SCHEME.match(currentFieldName)) {
                         builder.scheme(Scheme.parse(parser.text()));
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.METHOD)) {
+                    } else if (HttpRequest.Field.METHOD.match(currentFieldName)) {
                         builder.method(HttpMethod.parse(parser.text()));
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.HOST)) {
+                    } else if (HttpRequest.Field.HOST.match(currentFieldName)) {
                         builder.host = parser.text();
                     } else {
                         throw new ElasticsearchParseException("could not parse http request template. unexpected string field [{}]",
                                 currentFieldName);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    if (ParseFieldMatcher.STRICT.match(currentFieldName, HttpRequest.Field.PORT)) {
+                    if (HttpRequest.Field.PORT.match(currentFieldName)) {
                         builder.port = parser.intValue();
                     } else {
                         throw new ElasticsearchParseException("could not parse http request template. unexpected numeric field [{}]",

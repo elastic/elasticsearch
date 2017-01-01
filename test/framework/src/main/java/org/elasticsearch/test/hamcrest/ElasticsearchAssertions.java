@@ -665,7 +665,7 @@ public class ElasticsearchAssertions {
             BytesReference orig;
             try {
                 orig = serialize(version, streamable);
-            } catch (IllegalArgumentException | IllegalStateException e) {
+            } catch (IllegalArgumentException e) {
                 // Can't serialize with this version so skip this test.
                 return;
             }

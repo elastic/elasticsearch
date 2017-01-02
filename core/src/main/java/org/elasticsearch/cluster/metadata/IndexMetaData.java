@@ -973,20 +973,26 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
                     filledInSyncAllocationIds.put(i, Collections.emptySet());
                 }
             }
-            final Map<String, String> requireMap = INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(settings).getAsMap();
+            final Settings requireGroupSettings = INDEX_ROUTING_REQUIRE_GROUP_SETTING.get(settings);
+            DiscoveryNodeFilters.IP_VALIDATOR.accept(requireGroupSettings);
+            final Map<String, String> requireMap = requireGroupSettings.getAsMap();
             final DiscoveryNodeFilters requireFilters;
             if (requireMap.isEmpty()) {
                 requireFilters = null;
             } else {
                 requireFilters = DiscoveryNodeFilters.buildFromKeyValue(AND, requireMap);
             }
-            Map<String, String> includeMap = INDEX_ROUTING_INCLUDE_GROUP_SETTING.get(settings).getAsMap();
+            final Settings includeGroupSettings = INDEX_ROUTING_INCLUDE_GROUP_SETTING.get(settings);
+            DiscoveryNodeFilters.IP_VALIDATOR.accept(includeGroupSettings);
+            Map<String, String> includeMap = includeGroupSettings.getAsMap();
             final DiscoveryNodeFilters includeFilters;
             if (includeMap.isEmpty()) {
                 includeFilters = null;
             } else {
                 includeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, includeMap);
             }
+            final Settings excludeGroupSettings = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.get(settings);
+            DiscoveryNodeFilters.IP_VALIDATOR.accept(excludeGroupSettings);
             Map<String, String> excludeMap = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.get(settings).getAsMap();
             final DiscoveryNodeFilters excludeFilters;
             if (excludeMap.isEmpty()) {

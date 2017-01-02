@@ -21,11 +21,14 @@ package org.elasticsearch.cluster.allocation;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -143,6 +146,17 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         logger.info("--> verify that there are shards allocated on both nodes now");
         clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         assertThat(clusterState.routingTable().index("test").numberOfNodesShardsAreAllocatedOn(), equalTo(2));
+    }
+
+    public void testInvalidIPFilterClusterSettings() {
+        String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
+        Setting<Settings> filterSetting = randomFrom(FilterAllocationDecider.CLUSTER_ROUTING_REQUIRE_GROUP_SETTING,
+            FilterAllocationDecider.CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
+            .execute().actionGet());
+        assertEquals("illegal value can't update [" + filterSetting.getKey() + "] from [{}] to [{" + ipKey + "=192.168.1.1.}]",
+            e.getMessage());
     }
 }
 

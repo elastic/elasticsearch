@@ -1,7 +1,8 @@
 ---
 "cluster shard allocation explanation test":
   - skip:
-      version: " - 5.1.99"
+      # Set to 6.0.0 for now because the 5.2 snapshot builds are failing, causing these tests to run against an old 5.2 build
+      version: " - 6.0.0"
       reason: allocation explain api format is different in versions < 5.2.0
 
   - do:
@@ -39,7 +40,8 @@
 ---
 "cluster shard allocation explanation test with empty request":
   - skip:
-      version: " - 5.1.99"
+      # Set to 6.0.0 for now because the 5.2 snapshot builds are failing, causing these tests to run against an old 5.2 build
+      version: " - 6.0.0"
       reason: allocation explain api format is different in versions < 5.2.0
 
   - do:

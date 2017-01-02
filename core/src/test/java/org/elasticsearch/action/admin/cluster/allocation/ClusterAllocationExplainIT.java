@@ -111,8 +111,13 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertFalse(moveDecision.isDecisionTaken());
         assertTrue(allocateDecision.getAllocationDecision() == AllocationDecision.NO_VALID_SHARD_COPY
                        || allocateDecision.getAllocationDecision() == AllocationDecision.AWAITING_INFO);
-        assertEquals("cannot allocate because a previous copy of the primary shard existed but can no longer be " +
-                         "found on the nodes in the cluster", allocateDecision.getExplanation());
+        if (allocateDecision.getAllocationDecision() == AllocationDecision.NO_VALID_SHARD_COPY) {
+            assertEquals("cannot allocate because a previous copy of the primary shard existed but can no longer be " +
+                             "found on the nodes in the cluster", allocateDecision.getExplanation());
+        } else {
+            assertEquals("cannot allocate because information about existing shard data is still being retrieved from some of the nodes",
+                allocateDecision.getExplanation());
+        }
         assertNull(allocateDecision.getAllocationId());
         assertNull(allocateDecision.getTargetNode());
         assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());

@@ -48,21 +48,21 @@ public class AllocationDecisionTests extends ESTestCase {
      */
     public void testValuesOrder() {
         assertEquals(0, AllocationDecision.YES.ordinal());
-        assertEquals(1, AllocationDecision.THROTTLE.ordinal());
+        assertEquals(1, AllocationDecision.THROTTLED.ordinal());
         assertEquals(2, AllocationDecision.NO.ordinal());
         assertEquals(3, AllocationDecision.WORSE_BALANCE.ordinal());
-        assertEquals(4, AllocationDecision.FETCH_PENDING.ordinal());
-        assertEquals(5, AllocationDecision.DELAYED_ALLOCATION.ordinal());
+        assertEquals(4, AllocationDecision.AWAITING_INFO.ordinal());
+        assertEquals(5, AllocationDecision.ALLOCATION_DELAYED.ordinal());
         assertEquals(6, AllocationDecision.NO_VALID_SHARD_COPY.ordinal());
         assertEquals(7, AllocationDecision.NO_ATTEMPT.ordinal());
         AllocationDecision[] decisions = AllocationDecision.values();
         Arrays.sort(decisions);
         assertEquals(AllocationDecision.YES, decisions[0]);
-        assertEquals(AllocationDecision.THROTTLE, decisions[1]);
+        assertEquals(AllocationDecision.THROTTLED, decisions[1]);
         assertEquals(AllocationDecision.NO, decisions[2]);
         assertEquals(AllocationDecision.WORSE_BALANCE, decisions[3]);
-        assertEquals(AllocationDecision.FETCH_PENDING, decisions[4]);
-        assertEquals(AllocationDecision.DELAYED_ALLOCATION, decisions[5]);
+        assertEquals(AllocationDecision.AWAITING_INFO, decisions[4]);
+        assertEquals(AllocationDecision.ALLOCATION_DELAYED, decisions[5]);
         assertEquals(AllocationDecision.NO_VALID_SHARD_COPY, decisions[6]);
         assertEquals(AllocationDecision.NO_ATTEMPT, decisions[7]);
     }
@@ -74,7 +74,7 @@ public class AllocationDecisionTests extends ESTestCase {
         Type type = randomFrom(Type.values());
         AllocationDecision allocationDecision = AllocationDecision.fromDecisionType(type);
         AllocationDecision expected = type == Type.NO ? AllocationDecision.NO :
-                                          type == Type.THROTTLE ? AllocationDecision.THROTTLE : AllocationDecision.YES;
+                                          type == Type.THROTTLE ? AllocationDecision.THROTTLED : AllocationDecision.YES;
         assertEquals(expected, allocationDecision);
     }
 
@@ -88,11 +88,11 @@ public class AllocationDecisionTests extends ESTestCase {
         if (allocationStatus == null) {
             expected = AllocationDecision.YES;
         } else if (allocationStatus == AllocationStatus.DECIDERS_THROTTLED) {
-            expected = AllocationDecision.THROTTLE;
+            expected = AllocationDecision.THROTTLED;
         } else if (allocationStatus == AllocationStatus.FETCHING_SHARD_DATA) {
-            expected = AllocationDecision.FETCH_PENDING;
+            expected = AllocationDecision.AWAITING_INFO;
         } else if (allocationStatus == AllocationStatus.DELAYED_ALLOCATION) {
-            expected = AllocationDecision.DELAYED_ALLOCATION;
+            expected = AllocationDecision.ALLOCATION_DELAYED;
         } else if (allocationStatus == AllocationStatus.NO_VALID_SHARD_COPY) {
             expected = AllocationDecision.NO_VALID_SHARD_COPY;
         } else if (allocationStatus == AllocationStatus.NO_ATTEMPT) {

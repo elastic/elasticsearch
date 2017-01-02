@@ -74,6 +74,10 @@ public class BasicExpressionTests extends ScriptTestCase {
         // We don't break native escapes like new line
         assertEquals("\nstring", exec("\"\nstring\""));
         assertEquals("\nstring", exec("'\nstring'"));
+
+        // And we're ok with strings with multiple escape sequences
+        assertEquals("\\str\"in\\g", exec("\"\\\\str\\\"in\\\\g\""));
+        assertEquals("st\\r'i\\ng", exec("'st\\\\r\\'i\\\\ng'"));
     }
 
     public void testStringTermination() {

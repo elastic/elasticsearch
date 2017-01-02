@@ -799,21 +799,25 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
 
     @Override
     public ANode visitString(StringContext ctx) {
-        String string = ctx.STRING().getText();
-        boolean doubleQuoted = string.charAt(0) == '"';
+        StringBuilder string = new StringBuilder(ctx.STRING().getText());
 
-        // Strip the leading and trailing quotes
-        string = string.substring(1, ctx.STRING().getText().length() - 1);
-
-        // Replace the escape sequences with their literal equivalents
-        string = string.replace("\\\\", "\\");
-        if (doubleQuoted) {
-            string = string.replace("\\\"", "\"");
-        } else {
-            string = string.replace("\\\'", "\'");
+        // Strip the leading and trailing quotes and replace the escape sequences with their literal equivalents
+        int src = 1;
+        int dest = 0;
+        int end = string.length() - 1;
+        while (src < end) {
+            char current = string.charAt(src);
+            if (current == '\\') {
+                src++;
+                current = string.charAt(src);
+            }
+            string.setCharAt(dest, current);
+            src++;
+            dest++;
         }
+        string.setLength(dest);
 
-        return new EString(location(ctx), string);
+        return new EString(location(ctx), string.toString());
     }
 
     @Override

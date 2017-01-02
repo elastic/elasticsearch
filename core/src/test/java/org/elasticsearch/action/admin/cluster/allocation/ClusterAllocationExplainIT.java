@@ -284,14 +284,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
-        assertBusy(() -> {
-            if (includeDiskInfo) {
-                // wait till all cluster info is ready
-                assertEquals(3, client().admin().cluster().prepareAllocationExplain()
-                    .setIndex("idx").setShard(0).setPrimary(true).setIncludeDiskInfo(true).get()
-                    .getExplanation().getClusterInfo().getNodeLeastAvailableDiskUsages().size());
-            }
-        });
         ClusterAllocationExplanation explanation = runExplain(false, includeYesDecisions, includeDiskInfo);
 
         ShardId shardId = explanation.getShard();
@@ -928,14 +920,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
-        assertBusy(() -> {
-            if (includeDiskInfo) {
-                // wait till all cluster info is ready
-                assertEquals(3, client().admin().cluster().prepareAllocationExplain()
-                                    .setIndex("idx").setShard(0).setPrimary(true).setIncludeDiskInfo(true).get()
-                                    .getExplanation().getClusterInfo().getNodeLeastAvailableDiskUsages().size());
-            }
-        });
         ClusterAllocationExplanation explanation = runExplain(false, replicaNode().getId(), includeYesDecisions, includeDiskInfo);
 
         ShardId shardId = explanation.getShard();

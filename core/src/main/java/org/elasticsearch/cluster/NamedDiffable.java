@@ -17,18 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.common.xcontent;
+package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.ParseFieldMatcher;
-
-import java.io.IOException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 
 /**
- * Indicates that the class supports XContent deserialization.
+ * Diff that also support NamedWriteable interface
  */
-public interface FromXContentBuilder<T> {
+public interface NamedDiffable<T> extends Diffable<T>, NamedWriteable {
     /**
-     * Parses an object with the type T from parser
+     * The minimal version of the recipient this custom object can be sent to
      */
-    T fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException;
+    default Version getMinimalSupportedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
+    }
 }

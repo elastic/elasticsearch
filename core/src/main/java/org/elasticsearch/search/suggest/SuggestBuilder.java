@@ -154,7 +154,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseFieldMatcher.match(fieldName, GLOBAL_TEXT_FIELD)) {
+                if (GLOBAL_TEXT_FIELD.match(fieldName)) {
                     suggestBuilder.setGlobalText(parser.text());
                 } else {
                     throw new IllegalArgumentException("[suggest] does not support [" + fieldName + "]");

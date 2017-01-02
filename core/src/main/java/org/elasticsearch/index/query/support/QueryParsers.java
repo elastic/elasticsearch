@@ -59,13 +59,13 @@ public final class QueryParsers {
         if (rewriteMethod == null) {
             return defaultRewriteMethod;
         }
-        if (matcher.match(rewriteMethod, CONSTANT_SCORE)) {
+        if (CONSTANT_SCORE.match(rewriteMethod)) {
             return MultiTermQuery.CONSTANT_SCORE_REWRITE;
         }
-        if (matcher.match(rewriteMethod, SCORING_BOOLEAN)) {
+        if (SCORING_BOOLEAN.match(rewriteMethod)) {
             return MultiTermQuery.SCORING_BOOLEAN_REWRITE;
         }
-        if (matcher.match(rewriteMethod, CONSTANT_SCORE_BOOLEAN)) {
+        if (CONSTANT_SCORE_BOOLEAN.match(rewriteMethod)) {
             return MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE;
         }
 
@@ -81,13 +81,13 @@ public final class QueryParsers {
             final int size = Integer.parseInt(rewriteMethod.substring(firstDigit));
             String rewriteMethodName = rewriteMethod.substring(0, firstDigit);
 
-            if (matcher.match(rewriteMethodName, TOP_TERMS)) {
+            if (TOP_TERMS.match(rewriteMethodName)) {
                 return new MultiTermQuery.TopTermsScoringBooleanQueryRewrite(size);
             }
-            if (matcher.match(rewriteMethodName, TOP_TERMS_BOOST)) {
+            if (TOP_TERMS_BOOST.match(rewriteMethodName)) {
                 return new MultiTermQuery.TopTermsBoostOnlyBooleanQueryRewrite(size);
             }
-            if (matcher.match(rewriteMethodName, TOP_TERMS_BLENDED_FREQS)) {
+            if (TOP_TERMS_BLENDED_FREQS.match(rewriteMethodName)) {
                 return new MultiTermQuery.TopTermsBlendedFreqScoringRewrite(size);
             }
         }

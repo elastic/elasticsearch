@@ -504,7 +504,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public NumericType getNumericType() {
-            return scaledFieldData.getNumericType();
+            /**
+             * {@link ScaledFloatLeafFieldData#getDoubleValues()} transforms the raw long values in `scaled` floats.
+             */
+            return NumericType.DOUBLE;
         }
 
     }

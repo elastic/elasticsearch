@@ -36,6 +36,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         return true;
     }
 
+    @Override
+    protected boolean preserveReposUponCompletion() {
+        return true;
+    }
+
     public UpgradeClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }

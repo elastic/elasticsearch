@@ -544,7 +544,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
             Path nodeDir = getNodeDir(indexFile);
             logger.info("Parsing cluster state files from index [{}]", indexName);
-            final MetaData metaData = globalFormat.loadLatestState(logger, nodeDir);
+            final MetaData metaData = globalFormat.loadLatestState(logger, xContentRegistry(), nodeDir);
             assertNotNull(metaData);
 
             final Version version = Version.fromString(indexName.substring("index-".length()));
@@ -555,7 +555,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
                 dataDir = nodeDir.getParent();
             }
             final Path indexDir = getIndexDir(logger, indexName, indexFile, dataDir);
-            assertNotNull(indexFormat.loadLatestState(logger, indexDir));
+            assertNotNull(indexFormat.loadLatestState(logger, xContentRegistry(), indexDir));
         }
     }
 

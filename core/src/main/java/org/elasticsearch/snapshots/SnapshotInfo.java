@@ -27,7 +27,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -42,9 +41,8 @@ import java.util.Objects;
 /**
  * Information about a snapshot
  */
-public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, FromXContentBuilder<SnapshotInfo>, Writeable {
+public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
 
-    public static final SnapshotInfo PROTO = new SnapshotInfo(new SnapshotId("", ""), Collections.emptyList(), 0);
     public static final String CONTEXT_MODE_PARAM = "context_mode";
     public static final String CONTEXT_MODE_SNAPSHOT = "SNAPSHOT";
     private static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("strictDateOptionalTime");
@@ -371,11 +369,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.endArray();
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public SnapshotInfo fromXContent(final XContentParser parser, final ParseFieldMatcher matcher) throws IOException {
-        return fromXContent(parser);
     }
 
     /**

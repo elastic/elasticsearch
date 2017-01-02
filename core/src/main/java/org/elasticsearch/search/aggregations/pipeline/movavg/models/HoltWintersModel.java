@@ -69,7 +69,7 @@ public class HoltWintersModel extends MovAvgModel {
             }
             SeasonalityType result = null;
             for (SeasonalityType policy : values()) {
-                if (parseFieldMatcher.match(text, policy.parseField)) {
+                if (policy.parseField.match(text)) {
                     result = policy;
                     break;
                 }

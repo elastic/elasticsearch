@@ -87,33 +87,33 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
             Map.Entry<String, Object> entry = itr.next();
             String parameterName = entry.getKey();
             Object parameterValue = entry.getValue();
-            if (parseFieldMatcher.match(parameterName, Script.LANG_PARSE_FIELD)) {
+            if (Script.LANG_PARSE_FIELD.match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     lang = (String) parameterValue;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, Script.PARAMS_PARSE_FIELD)) {
+            } else if (Script.PARAMS_PARSE_FIELD.match(parameterName)) {
                 if (parameterValue instanceof Map || parameterValue == null) {
                     params = (Map<String, Object>) parameterValue;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptType.INLINE.getParseField())) {
+            } else if (ScriptType.INLINE.getParseField().match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.INLINE;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptType.FILE.getParseField())) {
+            } else if (ScriptType.FILE.getParseField().match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.FILE;
                 } else {
                     throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                 }
-            } else if (parseFieldMatcher.match(parameterName, ScriptType.STORED.getParseField())) {
+            } else if (ScriptType.STORED.getParseField().match(parameterName)) {
                 if (parameterValue instanceof String || parameterValue == null) {
                     script = (String) parameterValue;
                     type = ScriptType.STORED;

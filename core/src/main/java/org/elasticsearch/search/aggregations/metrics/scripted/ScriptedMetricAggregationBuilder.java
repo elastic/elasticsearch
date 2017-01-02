@@ -254,16 +254,16 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.VALUE_STRING) {
-                if (context.getParseFieldMatcher().match(currentFieldName, INIT_SCRIPT_FIELD)) {
+                if (INIT_SCRIPT_FIELD.match(currentFieldName)) {
                     initScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, MAP_SCRIPT_FIELD)) {
+                } else if (MAP_SCRIPT_FIELD.match(currentFieldName)) {
                     mapScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, COMBINE_SCRIPT_FIELD)) {
+                } else if (COMBINE_SCRIPT_FIELD.match(currentFieldName)) {
                     combineScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, REDUCE_SCRIPT_FIELD)) {
+                } else if (REDUCE_SCRIPT_FIELD.match(currentFieldName)) {
                     reduceScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
                 } else if (token == XContentParser.Token.START_OBJECT &&
-                        context.getParseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
+                        PARAMS_FIELD.match(currentFieldName)) {
                     params = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

@@ -148,7 +148,7 @@ public class FetchSourceContext implements Writeable, ToXContent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (parseFieldMatcher.match(currentFieldName, INCLUDES_FIELD)) {
+                    if (INCLUDES_FIELD.match(currentFieldName)) {
                         List<String> includesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
@@ -159,7 +159,7 @@ public class FetchSourceContext implements Writeable, ToXContent {
                             }
                         }
                         includes = includesList.toArray(new String[includesList.size()]);
-                    } else if (parseFieldMatcher.match(currentFieldName, EXCLUDES_FIELD)) {
+                    } else if (EXCLUDES_FIELD.match(currentFieldName)) {
                         List<String> excludesList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             if (token == XContentParser.Token.VALUE_STRING) {
@@ -175,9 +175,9 @@ public class FetchSourceContext implements Writeable, ToXContent {
                                 + " in [" + currentFieldName + "].", parser.getTokenLocation());
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (parseFieldMatcher.match(currentFieldName, INCLUDES_FIELD)) {
+                    if (INCLUDES_FIELD.match(currentFieldName)) {
                         includes = new String[] {parser.text()};
-                    } else if (parseFieldMatcher.match(currentFieldName, EXCLUDES_FIELD)) {
+                    } else if (EXCLUDES_FIELD.match(currentFieldName)) {
                         excludes = new String[] {parser.text()};
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token

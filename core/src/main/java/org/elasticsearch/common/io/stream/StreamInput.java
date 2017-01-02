@@ -826,6 +826,22 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Reads a {@link NamedWriteable} from the current stream with the given name. It is assumed that the caller obtained the name
+     * from other source, so it's not read from the stream. The name is used for looking for
+     * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+     * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
+     * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
+     *
+     * Prefer {@link StreamInput#readNamedWriteable(Class)} and {@link StreamOutput#writeNamedWriteable(NamedWriteable)} unless you
+     * have a compelling reason to use this method instead.
+     */
+    @Nullable
+    public <C extends NamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass,
+                                                           @SuppressWarnings("unused") String name) throws IOException {
+        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
      * Reads an optional {@link NamedWriteable}.
      */
     @Nullable

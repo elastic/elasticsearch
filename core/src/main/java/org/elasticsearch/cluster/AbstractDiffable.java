@@ -40,12 +40,7 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
         }
     }
 
-    @Override
-    public Diff<T> readDiffFrom(StreamInput in) throws IOException {
-        return new CompleteDiff<>(this, in);
-    }
-
-    public static <T extends Diffable<T>> Diff<T> readDiffFrom(T reader, StreamInput in) throws IOException {
+    public static <T extends Diffable<T>> Diff<T> readDiffFrom(Reader<T> reader, StreamInput in) throws IOException {
         return new CompleteDiff<T>(reader, in);
     }
 
@@ -71,9 +66,9 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
         /**
          * Read simple diff from the stream
          */
-        public CompleteDiff(Diffable<T> reader, StreamInput in) throws IOException {
+        public CompleteDiff(Reader<T> reader, StreamInput in) throws IOException {
             if (in.readBoolean()) {
-                this.part = reader.readFrom(in);
+                this.part = reader.read(in);
             } else {
                 this.part = null;
             }

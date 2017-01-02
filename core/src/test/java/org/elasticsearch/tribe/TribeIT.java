@@ -24,8 +24,8 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -33,6 +33,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -53,6 +55,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -117,9 +120,37 @@ public class TribeIT extends ESIntegTestCase {
                 .build();
     }
 
+    public static class TestCustomMetaDataPlugin extends Plugin {
+
+        private final List<NamedWriteableRegistry.Entry> namedWritables = new ArrayList<>();
+
+        public TestCustomMetaDataPlugin() {
+            registerBuiltinWritables();
+        }
+
+        private <T extends MetaData.Custom> void registerMetaDataCustom(String name, Writeable.Reader<? extends T> reader,
+                                                                        Writeable.Reader<NamedDiff> diffReader) {
+            namedWritables.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, name, reader));
+            namedWritables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, name, diffReader));
+        }
+
+        private void registerBuiltinWritables() {
+            registerMetaDataCustom(MergableCustomMetaData1.TYPE, MergableCustomMetaData1::readFrom, MergableCustomMetaData1::readDiffFrom);
+            registerMetaDataCustom(MergableCustomMetaData2.TYPE, MergableCustomMetaData2::readFrom, MergableCustomMetaData2::readDiffFrom);
+        }
+
+        @Override
+        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+            return namedWritables;
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return getMockPlugins();
+        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>();
+        plugins.addAll(getMockPlugins());
+        plugins.add(TestCustomMetaDataPlugin.class);
+        return plugins;
     }
 
     @Before
@@ -456,7 +487,6 @@ public class TribeIT extends ESIntegTestCase {
     }
 
     public void testMergingRemovedCustomMetaData() throws Exception {
-        MetaData.registerPrototype(MergableCustomMetaData1.TYPE, new MergableCustomMetaData1(""));
         removeCustomMetaData(cluster1, MergableCustomMetaData1.TYPE);
         removeCustomMetaData(cluster2, MergableCustomMetaData1.TYPE);
         MergableCustomMetaData1 customMetaData1 = new MergableCustomMetaData1("a");
@@ -466,13 +496,12 @@ public class TribeIT extends ESIntegTestCase {
             putCustomMetaData(cluster1, customMetaData1);
             putCustomMetaData(cluster2, customMetaData2);
             assertCustomMetaDataUpdated(internalCluster(), customMetaData2);
-            removeCustomMetaData(cluster2, customMetaData2.type());
+            removeCustomMetaData(cluster2, customMetaData2.getWriteableName());
             assertCustomMetaDataUpdated(internalCluster(), customMetaData1);
         }
     }
 
     public void testMergingCustomMetaData() throws Exception {
-        MetaData.registerPrototype(MergableCustomMetaData1.TYPE, new MergableCustomMetaData1(""));
         removeCustomMetaData(cluster1, MergableCustomMetaData1.TYPE);
         removeCustomMetaData(cluster2, MergableCustomMetaData1.TYPE);
         MergableCustomMetaData1 customMetaData1 = new MergableCustomMetaData1(randomAsciiOfLength(10));
@@ -490,8 +519,6 @@ public class TribeIT extends ESIntegTestCase {
     }
 
     public void testMergingMultipleCustomMetaData() throws Exception {
-        MetaData.registerPrototype(MergableCustomMetaData1.TYPE, new MergableCustomMetaData1(""));
-        MetaData.registerPrototype(MergableCustomMetaData2.TYPE, new MergableCustomMetaData2(""));
         removeCustomMetaData(cluster1, MergableCustomMetaData1.TYPE);
         removeCustomMetaData(cluster2, MergableCustomMetaData1.TYPE);
         MergableCustomMetaData1 firstCustomMetaDataType1 = new MergableCustomMetaData1(randomAsciiOfLength(10));
@@ -521,10 +548,10 @@ public class TribeIT extends ESIntegTestCase {
             assertCustomMetaDataUpdated(internalCluster(), mergedCustomMetaDataType2.get(0));
 
             // test removing custom md is propagates to tribe
-            removeCustomMetaData(cluster2, secondCustomMetaDataType1.type());
+            removeCustomMetaData(cluster2, secondCustomMetaDataType1.getWriteableName());
             assertCustomMetaDataUpdated(internalCluster(), firstCustomMetaDataType1);
             assertCustomMetaDataUpdated(internalCluster(), mergedCustomMetaDataType2.get(0));
-            removeCustomMetaData(cluster2, secondCustomMetaDataType2.type());
+            removeCustomMetaData(cluster2, secondCustomMetaDataType2.getWriteableName());
             assertCustomMetaDataUpdated(internalCluster(), firstCustomMetaDataType1);
             assertCustomMetaDataUpdated(internalCluster(), firstCustomMetaDataType2);
         }
@@ -534,7 +561,7 @@ public class TribeIT extends ESIntegTestCase {
                                                     TestCustomMetaData expectedCustomMetaData) throws Exception {
         assertBusy(() -> {
             ClusterState tribeState = cluster.getInstance(ClusterService.class, cluster.getNodeNames()[0]).state();
-            MetaData.Custom custom = tribeState.metaData().custom(expectedCustomMetaData.type());
+            MetaData.Custom custom = tribeState.metaData().custom(expectedCustomMetaData.getWriteableName());
             assertNotNull(custom);
             assertThat(custom, equalTo(expectedCustomMetaData));
         });
@@ -546,9 +573,9 @@ public class TribeIT extends ESIntegTestCase {
     }
 
     private void putCustomMetaData(InternalTestCluster cluster, final TestCustomMetaData customMetaData) {
-        logger.info("putting custom_md type [{}] with data[{}] from [{}]", customMetaData.type(),
+        logger.info("putting custom_md type [{}] with data[{}] from [{}]", customMetaData.getWriteableName(),
                 customMetaData.getData(), cluster.getClusterName());
-        updateMetaData(cluster, builder -> builder.putCustom(customMetaData.type(), customMetaData));
+        updateMetaData(cluster, builder -> builder.putCustom(customMetaData.getWriteableName(), customMetaData));
     }
 
     private static void updateMetaData(InternalTestCluster cluster, UnaryOperator<MetaData.Builder> addCustoms) {

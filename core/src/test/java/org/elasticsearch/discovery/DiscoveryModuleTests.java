@@ -31,6 +31,7 @@ import java.util.function.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -55,6 +56,7 @@ import static org.mockito.Mockito.when;
 public class DiscoveryModuleTests extends ESTestCase {
 
     private TransportService transportService;
+    private NamedWriteableRegistry namedWriteableRegistry;
     private ClusterService clusterService;
     private ThreadPool threadPool;
 
@@ -71,6 +73,7 @@ public class DiscoveryModuleTests extends ESTestCase {
         Map<String, Supplier<Discovery>> impl();
         @Override
         default Map<String, Supplier<Discovery>> getDiscoveryTypes(ThreadPool threadPool, TransportService transportService,
+                                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                                    ClusterService clusterService, UnicastHostsProvider hostsProvider) {
             return impl();
         }
@@ -80,6 +83,7 @@ public class DiscoveryModuleTests extends ESTestCase {
     public void setupDummyServices() {
         transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, null, null);
         clusterService = mock(ClusterService.class);
+        namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         threadPool = mock(ThreadPool.class);
@@ -91,7 +95,7 @@ public class DiscoveryModuleTests extends ESTestCase {
     }
 
     private DiscoveryModule newModule(Settings settings, List<DiscoveryPlugin> plugins) {
-        return new DiscoveryModule(settings, threadPool, transportService, null, clusterService, plugins);
+        return new DiscoveryModule(settings, threadPool, transportService, namedWriteableRegistry, null, clusterService, plugins);
     }
 
     public void testDefaults() {

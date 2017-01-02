@@ -57,8 +57,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private static final String SHOULD = "should";
     private static final String MUST = "must";
     private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord");
-    private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
-    private static final ParseField MINIMUM_NUMBER_SHOULD_MATCH = new ParseField("minimum_number_should_match");
+    private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match", "minimum_number_should_match");
     private static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
 
     private final List<QueryBuilder> mustClauses = new ArrayList<>();
@@ -168,7 +167,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * <tt>MUST</tt> clauses one or more <code>SHOULD</code> clauses must match a document
      * for the BooleanQuery to match. No <tt>null</tt> value allowed.
      *
-     * @see #minimumNumberShouldMatch(int)
+     * @see #minimumShouldMatch(int)
      */
     public BoolQueryBuilder should(QueryBuilder queryBuilder) {
         if (queryBuilder == null) {
@@ -182,7 +181,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * Gets the list of clauses that <b>should</b> be matched by the returned documents.
      *
      * @see #should(QueryBuilder)
-     *  @see #minimumNumberShouldMatch(int)
+     *  @see #minimumShouldMatch(int)
      */
     public List<QueryBuilder> should() {
         return this.shouldClauses;
@@ -204,18 +203,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     /**
-     * Specifies a minimum number of the optional (should) boolean clauses which must be satisfied.
-     * <p>
-     * By default no optional clauses are necessary for a match
-     * (unless there are no required clauses).  If this method is used,
-     * then the specified number of clauses is required.
-     * <p>
-     * Use of this method is totally independent of specifying that
-     * any specific clauses are required (or prohibited).  This number will
-     * only be compared against the number of matching optional clauses.
-     *
-     * @param minimumNumberShouldMatch the number of optional clauses that must match
+     * @deprecated use {@link BoolQueryBuilder#minimumShouldMatch(int)} instead
      */
+    @Deprecated
     public BoolQueryBuilder minimumNumberShouldMatch(int minimumNumberShouldMatch) {
         this.minimumShouldMatch = Integer.toString(minimumNumberShouldMatch);
         return this;
@@ -223,9 +213,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
 
     /**
-     * Specifies a minimum number of the optional (should) boolean clauses which must be satisfied.
-     * @see BoolQueryBuilder#minimumNumberShouldMatch(int)
+     * @deprecated use {@link BoolQueryBuilder#minimumShouldMatch(String)} instead
      */
+    @Deprecated
     public BoolQueryBuilder minimumNumberShouldMatch(String minimumNumberShouldMatch) {
         this.minimumShouldMatch = minimumNumberShouldMatch;
         return this;
@@ -239,10 +229,29 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     /**
-     * Sets the minimum should match using the special syntax (for example, supporting percentage).
+     * Sets the minimum should match parameter using the special syntax (for example, supporting percentage).
+     * @see BoolQueryBuilder#minimumShouldMatch(int)
      */
     public BoolQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
         this.minimumShouldMatch = minimumShouldMatch;
+        return this;
+    }
+
+    /**
+     * Specifies a minimum number of the optional (should) boolean clauses which must be satisfied.
+     * <p>
+     * By default no optional clauses are necessary for a match
+     * (unless there are no required clauses).  If this method is used,
+     * then the specified number of clauses is required.
+     * <p>
+     * Use of this method is totally independent of specifying that
+     * any specific clauses are required (or prohibited).  This number will
+     * only be compared against the number of matching optional clauses.
+     *
+     * @param minimumShouldMatch the number of optional clauses that must match
+     */
+    public BoolQueryBuilder minimumShouldMatch(int minimumShouldMatch) {
+        this.minimumShouldMatch = Integer.toString(minimumShouldMatch);
         return this;
     }
 
@@ -365,8 +374,6 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
                     minimumShouldMatch = parser.textOrNull();
                 } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (MINIMUM_NUMBER_SHOULD_MATCH.match(currentFieldName)) {
-                    minimumShouldMatch = parser.textOrNull();
                 } else if (ADJUST_PURE_NEGATIVE.match(currentFieldName)) {
                     adjustPureNegative = parser.booleanValue();
                 } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
@@ -392,7 +399,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         boolQuery.boost(boost);
         boolQuery.disableCoord(disableCoord);
         boolQuery.adjustPureNegative(adjustPureNegative);
-        boolQuery.minimumNumberShouldMatch(minimumShouldMatch);
+        boolQuery.minimumShouldMatch(minimumShouldMatch);
         boolQuery.queryName(queryName);
         return Optional.of(boolQuery);
     }

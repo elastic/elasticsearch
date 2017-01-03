@@ -17,6 +17,8 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasA
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -41,6 +43,7 @@ import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.security.InternalClient;
@@ -137,126 +140,16 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
 
         // List of distinct templates
-        Map<String, String> templates = StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
+        final Map<String, String> templates = StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
                 .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
 
-
-        // if this is not the master, we'll just look to see if the monitoring templates are installed.
-        // If they all are, we'll be able to start this exporter. Otherwise, we'll just wait for a new cluster state.
-        if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-            for (String template : templates.keySet()) {
-                if (hasTemplate(template, clusterState) == false) {
-                    // the required template is not yet installed in the given cluster state, we'll wait.
-                    logger.debug("monitoring index template [{}] does not exist, so service cannot start", template);
-                    return null;
-                }
-            }
-
-            // if we don't have the ingest pipeline, then it's going to fail anyway
-            if (hasIngestPipelines(clusterState) == false) {
-                logger.debug("monitoring ingest pipeline [{}] does not exist, so service cannot start", EXPORT_PIPELINE_NAME);
+        // if this is not the master, we just need to make sure the master has set things up
+        if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+            if (setupIfElectedMaster(clusterState, templates) == false) {
                 return null;
             }
-
-            if (null != prepareAddAliasesTo2xIndices(clusterState)) {
-                logger.debug("old monitoring indexes exist without aliases, waiting for them to get new aliases");
-                return null;
-            }
-
-            logger.trace("monitoring index templates and pipelines are installed, service can start");
-
-        } else {
-            // we are on the elected master
-            // Check that there is nothing that could block metadata updates
-            if (clusterState.blocks().hasGlobalBlock(ClusterBlockLevel.METADATA_WRITE)) {
-                logger.debug("waiting until metadata writes are unblocked");
-                return null;
-            }
-
-            if (installingSomething.get() == true) {
-                logger.trace("already installing something, waiting for install to complete");
-                return null;
-            }
-
-            // build a list of runnables for everything that is missing, but do not start execution
-            final List<Runnable> asyncActions = new ArrayList<>();
-            final AtomicInteger pendingResponses = new AtomicInteger(0);
-
-            // Check that each required template exist, installing it if needed
-            final List<Entry<String, String>> missingTemplates = templates.entrySet()
-                    .stream()
-                    .filter((e) -> hasTemplate(e.getKey(), clusterState) == false)
-                    .collect(Collectors.toList());
-
-            if (missingTemplates.isEmpty() == false) {
-                logger.debug((Supplier<?>) () -> new ParameterizedMessage("template {} not found",
-                        missingTemplates.stream().map(Map.Entry::getKey).collect(Collectors.toList())));
-                for (Entry<String, String> template : missingTemplates) {
-                    asyncActions.add(() -> putTemplate(template.getKey(), template.getValue(),
-                            new ResponseActionListener<>("template", template.getKey(), pendingResponses)));
-                }
-            }
-
-            // if we don't have the ingest pipeline, then install it
-            if (hasIngestPipelines(clusterState) == false) {
-                logger.debug("pipeline [{}] not found", EXPORT_PIPELINE_NAME);
-                asyncActions.add(() -> putIngestPipeline(new ResponseActionListener<>("pipeline", EXPORT_PIPELINE_NAME, pendingResponses)));
-            } else {
-                logger.trace("pipeline [{}] found", EXPORT_PIPELINE_NAME);
-            }
-
-            IndicesAliasesRequest addAliasesTo2xIndices = prepareAddAliasesTo2xIndices(clusterState);
-            if (addAliasesTo2xIndices == null) {
-                logger.trace("there are no 2.x monitoring indices or they have all the aliases they need");
-            } else {
-                final List<String> monitoringIndices2x =  addAliasesTo2xIndices.getAliasActions().stream()
-                        .flatMap((a) -> Arrays.stream(a.indices()))
-                        .collect(Collectors.toList());
-                logger.debug("there are 2.x monitoring indices {} and they are missing some aliases to make them compatible with 5.x",
-                        monitoringIndices2x);
-                asyncActions.add(() -> client.execute(IndicesAliasesAction.INSTANCE, addAliasesTo2xIndices,
-                        new ActionListener<IndicesAliasesResponse>() {
-                            @Override
-                            public void onResponse(IndicesAliasesResponse response) {
-                                responseReceived();
-                                if (response.isAcknowledged()) {
-                                    logger.info("Added modern aliases to 2.x monitoring indices {}", monitoringIndices2x);
-                                } else {
-                                    logger.info("Unable to add modern aliases to 2.x monitoring indices {}, response not acknowledged.",
-                                            monitoringIndices2x);
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                responseReceived();
-                                logger.error((Supplier<?>)
-                                        () -> new ParameterizedMessage("Unable to add modern aliases to 2.x monitoring indices {}",
-                                                monitoringIndices2x), e);
-                            }
-
-                            private void responseReceived() {
-                                if (pendingResponses.decrementAndGet() <= 0) {
-                                    logger.trace("all installation requests returned a response");
-                                    if (installingSomething.compareAndSet(true, false) == false) {
-                                        throw new IllegalStateException("could not reset installing flag to false");
-                                    }
-                                }
-                            }
-                        }));
-            }
-
-            if (asyncActions.size() > 0) {
-                if (installingSomething.compareAndSet(false, true)) {
-                    pendingResponses.set(asyncActions.size());
-                    asyncActions.forEach(Runnable::run);
-                } else {
-                    // let the cluster catch up since requested installations may be ongoing
-                    return null;
-                }
-            } else {
-                logger.debug("monitoring index templates and pipelines are installed on master node, service can start");
-            }
+        } else if (setupIfNotElectedMaster(clusterState, templates.keySet()) == false) {
+            return null;
         }
 
         if (state.compareAndSet(State.INITIALIZED, State.RUNNING)) {
@@ -264,6 +157,200 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
 
         return new LocalBulk(name(), logger, client, resolvers, config.settings().getAsBoolean(USE_INGEST_PIPELINE_SETTING, true));
+    }
+
+    /**
+     * When not on the elected master, we require all resources (mapping types, templates, and pipelines) to be available before we
+     * attempt to run the exporter. If those resources do not exist, then it means the elected master's exporter has not yet run, so the
+     * monitoring cluster (this one, as the local exporter) is not setup yet.
+     *
+     * @param clusterState The current cluster state.
+     * @param templates All template names that should exist.
+     * @return {@code true} indicates that all resources are available and the exporter can be used. {@code false} to stop and wait.
+     */
+    private boolean setupIfNotElectedMaster(final ClusterState clusterState, final Set<String> templates) {
+        for (final String type : MonitoringTemplateUtils.NEW_DATA_TYPES) {
+            if (hasMappingType(type, clusterState) == false) {
+                // the required type is not yet there in the given cluster state, we'll wait.
+                logger.debug("monitoring index mapping [{}] does not exist in [{}], so service cannot start",
+                        type, MonitoringTemplateUtils.DATA_INDEX);
+                return false;
+            }
+        }
+
+        for (final String template : templates) {
+            if (hasTemplate(template, clusterState) == false) {
+                // the required template is not yet installed in the given cluster state, we'll wait.
+                logger.debug("monitoring index template [{}] does not exist, so service cannot start", template);
+                return false;
+            }
+        }
+
+        // if we don't have the ingest pipeline, then it's going to fail anyway
+        if (hasIngestPipelines(clusterState) == false) {
+            logger.debug("monitoring ingest pipeline [{}] does not exist, so service cannot start", EXPORT_PIPELINE_NAME);
+            return false;
+        }
+
+        if (null != prepareAddAliasesTo2xIndices(clusterState)) {
+            logger.debug("old monitoring indexes exist without aliases, waiting for them to get new aliases");
+            return false;
+        }
+
+        logger.trace("monitoring index templates and pipelines are installed, service can start");
+
+        // everything is setup
+        return true;
+    }
+
+    /**
+     * When on the elected master, we setup all resources (mapping types, templates, and pipelines) before we attempt to run the exporter.
+     * If those resources do not exist, then we will create them.
+     *
+     * @param clusterState The current cluster state.
+     * @param templates All template names that should exist.
+     * @return {@code true} indicates that all resources are "ready" and the exporter can be used. {@code false} to stop and wait.
+     */
+    private boolean setupIfElectedMaster(final ClusterState clusterState, final Map<String, String> templates) {
+        // we are on the elected master
+        // Check that there is nothing that could block metadata updates
+        if (clusterState.blocks().hasGlobalBlock(ClusterBlockLevel.METADATA_WRITE)) {
+            logger.debug("waiting until metadata writes are unblocked");
+            return false;
+        }
+
+        if (installingSomething.get() == true) {
+            logger.trace("already installing something, waiting for install to complete");
+            return false;
+        }
+
+        // build a list of runnables for everything that is missing, but do not start execution
+        final List<Runnable> asyncActions = new ArrayList<>();
+        final AtomicInteger pendingResponses = new AtomicInteger(0);
+
+        // Check that all necessary types exist for _xpack/monitoring/_bulk usage
+        final List<String> missingMappingTypes = Arrays.stream(MonitoringTemplateUtils.NEW_DATA_TYPES)
+                .filter((type) -> hasMappingType(type, clusterState) == false)
+                .collect(Collectors.toList());
+
+        // Check that each required template exist, installing it if needed
+        final List<Entry<String, String>> missingTemplates = templates.entrySet()
+                .stream()
+                .filter((e) -> hasTemplate(e.getKey(), clusterState) == false)
+                .collect(Collectors.toList());
+
+        if (missingMappingTypes.isEmpty() == false) {
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("type {} not found",
+                    missingMappingTypes.stream().collect(Collectors.toList())));
+            for (final String type : missingMappingTypes) {
+                asyncActions.add(() -> putMappingType(type, new ResponseActionListener<>("type", type, pendingResponses)));
+            }
+        }
+
+        if (missingTemplates.isEmpty() == false) {
+            logger.debug((Supplier<?>) () -> new ParameterizedMessage("template {} not found",
+                    missingTemplates.stream().map(Map.Entry::getKey).collect(Collectors.toList())));
+            for (Entry<String, String> template : missingTemplates) {
+                asyncActions.add(() -> putTemplate(template.getKey(), template.getValue(),
+                        new ResponseActionListener<>("template", template.getKey(), pendingResponses)));
+            }
+        }
+
+        // if we don't have the ingest pipeline, then install it
+        if (hasIngestPipelines(clusterState) == false) {
+            logger.debug("pipeline [{}] not found", EXPORT_PIPELINE_NAME);
+            asyncActions.add(() -> putIngestPipeline(new ResponseActionListener<>("pipeline", EXPORT_PIPELINE_NAME, pendingResponses)));
+        } else {
+            logger.trace("pipeline [{}] found", EXPORT_PIPELINE_NAME);
+        }
+
+        IndicesAliasesRequest addAliasesTo2xIndices = prepareAddAliasesTo2xIndices(clusterState);
+        if (addAliasesTo2xIndices == null) {
+            logger.trace("there are no 2.x monitoring indices or they have all the aliases they need");
+        } else {
+            final List<String> monitoringIndices2x =  addAliasesTo2xIndices.getAliasActions().stream()
+                    .flatMap((a) -> Arrays.stream(a.indices()))
+                    .collect(Collectors.toList());
+            logger.debug("there are 2.x monitoring indices {} and they are missing some aliases to make them compatible with 5.x",
+                    monitoringIndices2x);
+            asyncActions.add(() -> client.execute(IndicesAliasesAction.INSTANCE, addAliasesTo2xIndices,
+                    new ActionListener<IndicesAliasesResponse>() {
+                        @Override
+                        public void onResponse(IndicesAliasesResponse response) {
+                            responseReceived();
+                            if (response.isAcknowledged()) {
+                                logger.info("Added modern aliases to 2.x monitoring indices {}", monitoringIndices2x);
+                            } else {
+                                logger.info("Unable to add modern aliases to 2.x monitoring indices {}, response not acknowledged.",
+                                        monitoringIndices2x);
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            responseReceived();
+                            logger.error((Supplier<?>)
+                                    () -> new ParameterizedMessage("Unable to add modern aliases to 2.x monitoring indices {}",
+                                            monitoringIndices2x), e);
+                        }
+
+                        private void responseReceived() {
+                            if (pendingResponses.decrementAndGet() <= 0) {
+                                logger.trace("all installation requests returned a response");
+                                if (installingSomething.compareAndSet(true, false) == false) {
+                                    throw new IllegalStateException("could not reset installing flag to false");
+                                }
+                            }
+                        }
+                    }));
+        }
+
+        if (asyncActions.size() > 0) {
+            if (installingSomething.compareAndSet(false, true)) {
+                pendingResponses.set(asyncActions.size());
+                asyncActions.forEach(Runnable::run);
+            } else {
+                // let the cluster catch up since requested installations may be ongoing
+                return false;
+            }
+        } else {
+            logger.debug("monitoring index templates and pipelines are installed on master node, service can start");
+        }
+
+        // everything is setup (or running)
+        return true;
+    }
+
+    /**
+     * Determine if the mapping {@code type} exists in the {@linkplain MonitoringTemplateUtils#DATA_INDEX data index}.
+     *
+     * @param type The data type to check (e.g., "kibana")
+     * @param clusterState The current cluster state
+     * @return {@code false} if the type mapping needs to be added.
+     */
+    private boolean hasMappingType(final String type, final ClusterState clusterState) {
+        final IndexMetaData dataIndex = clusterState.getMetaData().getIndices().get(MonitoringTemplateUtils.DATA_INDEX);
+
+        // if the index does not exist, then the template will add it and the type; if the index does exist, then we need the type
+        return dataIndex == null || dataIndex.getMappings().containsKey(type);
+    }
+
+    /**
+     * Add the mapping {@code type} to the {@linkplain MonitoringTemplateUtils#DATA_INDEX data index}.
+     *
+     * @param type The data type to check (e.g., "kibana")
+     * @param listener The listener to use for handling the response
+     */
+    private void putMappingType(final String type, final ActionListener<PutMappingResponse> listener) {
+        logger.debug("adding mapping type [{}] to [{}]", type, MonitoringTemplateUtils.DATA_INDEX);
+
+        final PutMappingRequest putMapping = new PutMappingRequest(MonitoringTemplateUtils.DATA_INDEX);
+
+        putMapping.type(type);
+        // avoid mapping at all; we use this index as a data cache rather than for search
+        putMapping.source("{\"enabled\":false}");
+
+        client.admin().indices().putMapping(putMapping, listener);
     }
 
     /**

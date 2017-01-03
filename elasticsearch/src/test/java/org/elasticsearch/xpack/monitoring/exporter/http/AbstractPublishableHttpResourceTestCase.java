@@ -144,13 +144,19 @@ public abstract class AbstractPublishableHttpResourceTestCase extends ESTestCase
         assertThat(parameters.get("filter_path"), is("$NONE"));
     }
 
-    private void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
-                                       final RestStatus status,
-                                       final CheckResponse expected)
+    protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String resourceBasePath, final String resourceName,
+                                         final RestStatus status,
+                                         final CheckResponse expected)
             throws IOException {
         final String endpoint = concatenateEndpoint(resourceBasePath, resourceName);
         final Response response = response("GET", endpoint, status);
 
+        doCheckWithStatusCode(resource, endpoint, expected, response);
+    }
+
+    protected void doCheckWithStatusCode(final PublishableHttpResource resource, final String endpoint, final CheckResponse expected,
+                                         final Response response)
+            throws IOException {
         when(client.performRequest("GET", endpoint, resource.getParameters())).thenReturn(response);
 
         assertThat(resource.doCheck(client), is(expected));

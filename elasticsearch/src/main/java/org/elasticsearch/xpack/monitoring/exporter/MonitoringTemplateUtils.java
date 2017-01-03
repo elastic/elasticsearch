@@ -17,6 +17,14 @@ public final class MonitoringTemplateUtils {
 
     /** Current version of es and data templates **/
     public static final String TEMPLATE_VERSION = "2";
+    /**
+     * The name of the non-timestamped data index.
+     */
+    public static final String DATA_INDEX = ".monitoring-data-" + TEMPLATE_VERSION;
+    /**
+     * Data types that should be supported by the {@linkplain #DATA_INDEX data index} that were not by the initial release.
+     */
+    public static final String[] NEW_DATA_TYPES = { "kibana" };
 
     private MonitoringTemplateUtils() {
     }

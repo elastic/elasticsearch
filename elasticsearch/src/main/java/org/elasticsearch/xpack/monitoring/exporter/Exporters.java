@@ -31,19 +31,15 @@ import static java.util.Collections.emptyMap;
 public class Exporters extends AbstractLifecycleComponent implements Iterable<Exporter> {
 
     private final Map<String, Exporter.Factory> factories;
-    private final ClusterService clusterService;
-
     private final AtomicReference<Map<String, Exporter>> exporters;
 
-    public Exporters(Settings settings, Map<String, Exporter.Factory> factories,
-                     ClusterService clusterService) {
-
+    public Exporters(Settings settings, Map<String, Exporter.Factory> factories, ClusterService clusterService) {
         super(settings);
+
         this.factories = factories;
-        this.clusterService = clusterService;
         this.exporters = new AtomicReference<>(emptyMap());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MonitoringSettings.EXPORTERS_SETTINGS,
-            this::setExportersSetting);
+
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MonitoringSettings.EXPORTERS_SETTINGS, this::setExportersSetting);
     }
 
     private void setExportersSetting(Settings exportersSetting) {
@@ -92,15 +88,10 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
     ExportBulk openBulk() {
         List<ExportBulk> bulks = new ArrayList<>();
         for (Exporter exporter : this) {
-            if (exporter.masterOnly() && clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-                // the exporter is supposed to only run on the master node, but we're not
-                // the master node... so skipping
-                continue;
-            }
             try {
                 ExportBulk bulk = exporter.openBulk();
                 if (bulk == null) {
-                    logger.info("skipping exporter [{}] as it isn't ready yet", exporter.name());
+                    logger.info("skipping exporter [{}] as it is not ready yet", exporter.name());
                 } else {
                     bulks.add(bulk);
                 }
@@ -168,15 +159,14 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
             throw new ExportException("Export service is not started");
         }
         if (docs != null && docs.size() > 0) {
-            ExportBulk bulk = openBulk();
-            if (bulk == null) {
-                throw new ExportException("exporters are either not ready or faulty");
-            }
+            final ExportBulk bulk = openBulk();
 
-            try {
-                bulk.add(docs);
-            } finally {
-                bulk.close(lifecycleState() == Lifecycle.State.STARTED);
+            if (bulk != null) {
+                try {
+                    bulk.add(docs);
+                } finally {
+                    bulk.close(lifecycleState() == Lifecycle.State.STARTED);
+                }
             }
         }
     }

@@ -58,9 +58,9 @@ public class TemplateHttpResource extends PublishableHttpResource {
      */
     @Override
     protected CheckResponse doCheck(final RestClient client) {
-        return checkForResource(client, logger,
-                                "/_template", templateName, "monitoring template",
-                                resourceOwnerName, "monitoring cluster");
+        return simpleCheckForResource(client, logger,
+                                      "/_template", templateName, "monitoring template",
+                                      resourceOwnerName, "monitoring cluster");
     }
 
     /**

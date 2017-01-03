@@ -284,6 +284,10 @@ public class HttpExporterTests extends ESTestCase {
 
         final List<HttpResource> resources = multiResource.getResources();
         final int version = (int)resources.stream().filter((resource) -> resource instanceof VersionHttpResource).count();
+        final List<DataTypeMappingHttpResource> typeMappings =
+                resources.stream().filter((resource) -> resource instanceof DataTypeMappingHttpResource)
+                                  .map(DataTypeMappingHttpResource.class::cast)
+                                  .collect(Collectors.toList());
         final List<TemplateHttpResource> templates =
                 resources.stream().filter((resource) -> resource instanceof TemplateHttpResource)
                                   .map(TemplateHttpResource.class::cast)
@@ -298,8 +302,10 @@ public class HttpExporterTests extends ESTestCase {
                                   .collect(Collectors.toList());
 
         // expected number of resources
-        assertThat(multiResource.getResources().size(), equalTo(version + templates.size() + pipelines.size() + bwc.size()));
+        assertThat(multiResource.getResources().size(),
+                   equalTo(version + typeMappings.size() + templates.size() + pipelines.size() + bwc.size()));
         assertThat(version, equalTo(1));
+        assertThat(typeMappings, hasSize(1));
         assertThat(templates, hasSize(4));
         assertThat(pipelines, hasSize(useIngest ? 1 : 0));
         assertThat(bwc, hasSize(1));

@@ -141,16 +141,20 @@ public class TooManyJobsIT extends ESIntegTestCase {
                 final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                 // Check that the non-master node has the same version of the cluster state as the master and
                 // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
-                if (masterClusterState.version() == localClusterState.version() && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                if (masterClusterState.version() == localClusterState.version() &&
+                        masterId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
-                        assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
+                        assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(),
+                                localClusterState.stateUUID());
                         // We cannot compare serialization bytes since serialization order of maps is not guaranteed
                         // but we can compare serialization sizes - they should be the same
                         assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
                         // Compare JSON serialization
-                        assertNull("clusterstate JSON serialization does not match", differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
+                        assertNull("clusterstate JSON serialization does not match",
+                                differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
                     } catch (AssertionError error) {
-                        fail("Cluster state from master:\n" + masterClusterState.toString() + "\nLocal cluster state:\n" + localClusterState.toString());
+                        fail("Cluster state from master:\n" + masterClusterState.toString() + "\nLocal cluster state:\n" +
+                                localClusterState.toString());
                         throw error;
                     }
                 }

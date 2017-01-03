@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,7 +49,7 @@ public class DynamicTemplateTests extends ESTestCase {
         assertEquals("{\"match_mapping_type\":\"string\",\"mapping\":{\"store\":true}}", builder.string());
     }
 
-    public void testParseUnknownMatchType() throws IOException {
+    public void testParseUnknownMatchType() {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "short");
         templateDef.put("mapping", Collections.singletonMap("store", true));

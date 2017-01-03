@@ -1,19 +1,24 @@
 ---
 "cluster shard allocation explanation test":
+  - skip:
+      # Set to 6.0.0 for now because the 5.2 snapshot builds are failing, causing these tests to run against an old 5.2 build
+      version: " - 6.0.0"
+      reason: allocation explain api format is different in versions < 5.2.0
+
   - do:
       # there aren't any unassigned shards to explain
-      catch: /unable to find any shards to explain/
+      catch: /illegal_state_exception/
       cluster.allocation_explain: {}
 
   - do:
       indices.create:
         index: test
 
+  - match: { acknowledged: true }
+
   - do:
       cluster.state:
         metric: [ master_node ]
-
-  - set: {master_node: node_id}
 
     # This relies on there only being a single node in the test cluster, which
     # is currently true, but if this changes in the future this test will need
@@ -22,24 +27,23 @@
       cluster.allocation_explain:
         body: { "index": "test", "shard": 0, "primary": true }
 
-  - match: { assigned: true }
-  # - match: { assigned_node_id: $node_id }
-  - is_true: assigned_node_id
-  - match: { shard.index: "test" }
-  - match: { shard.id: 0 }
-  - match: { shard.primary: true }
-  # unfortunately can't test these because they break with multi-node backwords
-  # compat REST tests
-  # - is_true: nodes.$node_id.node_name
-  # - match: { nodes.$node_id.node_attributes.testattr: "test" }
-  # - match: { nodes.$node_id.node_attributes.portsfile: "true" }
-  # - match: { nodes.$node_id.final_decision: "CURRENTLY_ASSIGNED" }
-  # - match: { nodes.$node_id.weight: 0.0 }
-  # - match: { nodes.$node_id.decisions.0.decider: "same_shard" }
-  # - match: { nodes.$node_id.decisions.0.decision: "NO" }
+  - match: { current_state: "started" }
+  - is_true: current_node.id
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: true }
+  - match: { can_remain_on_current_node: "yes" }
+  - match: { can_rebalance_cluster: "no" }
+  - match: { can_rebalance_to_other_node: "no" }
+  - match: { rebalance_explanation: "rebalancing is not allowed" }
 
 ---
 "cluster shard allocation explanation test with empty request":
+  - skip:
+      # Set to 6.0.0 for now because the 5.2 snapshot builds are failing, causing these tests to run against an old 5.2 build
+      version: " - 6.0.0"
+      reason: allocation explain api format is different in versions < 5.2.0
+
   - do:
       indices.create:
         index: test
@@ -49,22 +53,16 @@
       cluster.state:
         metric: [ master_node ]
 
-  - set: {master_node: node_id}
-
   - do:
       cluster.allocation_explain:
         include_disk_info: true
 
-  - match: { assigned: false }
+  - match: { current_state: "unassigned" }
   - match: { unassigned_info.reason: "INDEX_CREATED" }
   - is_true: unassigned_info.at
-  - match: { shard.index: "test" }
-  - match: { shard.id: 0 }
-  - match: { shard.primary: false }
+  - match: { index: "test" }
+  - match: { shard: 0 }
+  - match: { primary: false }
   - is_true: cluster_info
-  # - is_true: nodes.$node_id.node_name
-  # - match: { nodes.$node_id.node_attributes.testattr: "test" }
-  # - match: { nodes.$node_id.node_attributes.portsfile: "true" }
-  # - match: { nodes.$node_id.final_decision: "NO" }
-  # - match: { nodes.$node_id.decisions.0.decider: "same_shard" }
-  # - match: { nodes.$node_id.decisions.0.decision: "NO" }
+  - match: { can_allocate: "no" }
+  - match: { allocate_explanation : "cannot allocate because allocation is not permitted to any of the nodes" }

@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -75,7 +76,7 @@ public final class DiffableUtils {
     /**
      * Calculates diff between two ImmutableOpenMaps of non-diffable objects
      */
-    public static <K, T> MapDiff<K, T, ImmutableOpenMap<K, T>> diff(ImmutableOpenMap<K, T> before, ImmutableOpenMap<K, T> after, KeySerializer<K> keySerializer, NonDiffableValueSerializer<K, T> valueSerializer) {
+    public static <K, T> MapDiff<K, T, ImmutableOpenMap<K, T>> diff(ImmutableOpenMap<K, T> before, ImmutableOpenMap<K, T> after, KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) {
         assert after != null && before != null;
         return new ImmutableOpenMapDiff<>(before, after, keySerializer, valueSerializer);
     }
@@ -91,7 +92,7 @@ public final class DiffableUtils {
     /**
      * Calculates diff between two ImmutableOpenIntMaps of non-diffable objects
      */
-    public static <T> MapDiff<Integer, T, ImmutableOpenIntMap<T>> diff(ImmutableOpenIntMap<T> before, ImmutableOpenIntMap<T> after, KeySerializer<Integer> keySerializer, NonDiffableValueSerializer<Integer, T> valueSerializer) {
+    public static <T> MapDiff<Integer, T, ImmutableOpenIntMap<T>> diff(ImmutableOpenIntMap<T> before, ImmutableOpenIntMap<T> after, KeySerializer<Integer> keySerializer, ValueSerializer<Integer, T> valueSerializer) {
         assert after != null && before != null;
         return new ImmutableOpenIntMapDiff<>(before, after, keySerializer, valueSerializer);
     }
@@ -107,7 +108,7 @@ public final class DiffableUtils {
     /**
      * Calculates diff between two Maps of non-diffable objects
      */
-    public static <K, T> MapDiff<K, T, Map<K, T>> diff(Map<K, T> before, Map<K, T> after, KeySerializer<K> keySerializer, NonDiffableValueSerializer<K, T> valueSerializer) {
+    public static <K, T> MapDiff<K, T, Map<K, T>> diff(Map<K, T> before, Map<K, T> after, KeySerializer<K> keySerializer, ValueSerializer<K, T> valueSerializer) {
         assert after != null && before != null;
         return new JdkMapDiff<>(before, after, keySerializer, valueSerializer);
     }
@@ -436,12 +437,29 @@ public final class DiffableUtils {
             for (K delete : deletes) {
                 keySerializer.writeKey(delete, out);
             }
-            out.writeVInt(diffs.size());
-            for (Map.Entry<K, Diff<T>> entry : diffs.entrySet()) {
-                keySerializer.writeKey(entry.getKey(), out);
-                valueSerializer.writeDiff(entry.getValue(), out);
+            Version version = out.getVersion();
+            // filter out custom states not supported by the other node
+            int diffCount = 0;
+            for (Diff<T> diff : diffs.values()) {
+                if(valueSerializer.supportsVersion(diff, version)) {
+                    diffCount++;
+                }
             }
-            out.writeVInt(upserts.size());
+            out.writeVInt(diffCount);
+            for (Map.Entry<K, Diff<T>> entry : diffs.entrySet()) {
+                if(valueSerializer.supportsVersion(entry.getValue(), version)) {
+                    keySerializer.writeKey(entry.getKey(), out);
+                    valueSerializer.writeDiff(entry.getValue(), out);
+                }
+            }
+            // filter out custom states not supported by the other node
+            int upsertsCount = 0;
+            for (T upsert : upserts.values()) {
+                if(valueSerializer.supportsVersion(upsert, version)) {
+                    upsertsCount++;
+                }
+            }
+            out.writeVInt(upsertsCount);
             for (Map.Entry<K, T> entry : upserts.entrySet()) {
                 keySerializer.writeKey(entry.getKey(), out);
                 valueSerializer.write(entry.getValue(), out);
@@ -540,6 +558,20 @@ public final class DiffableUtils {
          * Whether this serializer supports diffable values
          */
         boolean supportsDiffableValues();
+
+        /**
+         * Whether this serializer supports the version of the output stream
+         */
+        default boolean supportsVersion(Diff<V> value, Version version) {
+            return true;
+        }
+
+        /**
+         * Whether this serializer supports the version of the output stream
+         */
+        default boolean supportsVersion(V value, Version version) {
+            return true;
+        }
 
         /**
          * Computes diff if this serializer supports diffable values

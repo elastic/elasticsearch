@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -139,7 +140,7 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
     public XContentBuilder nodeDecisionsToXContent(List<NodeAllocationResult> nodeDecisions, XContentBuilder builder, Params params)
         throws IOException {
 
-        if (nodeDecisions != null) {
+        if (nodeDecisions != null && nodeDecisions.isEmpty() == false) {
             builder.startArray("node_allocation_decisions");
             {
                 for (NodeAllocationResult explanation : nodeDecisions) {
@@ -164,6 +165,23 @@ public abstract class AbstractAllocationDecision implements ToXContent, Writeabl
             }
         }
         return false;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other == null || other instanceof AbstractAllocationDecision == false) {
+            return false;
+        }
+        @SuppressWarnings("unchecked") AbstractAllocationDecision that = (AbstractAllocationDecision) other;
+        return Objects.equals(targetNode, that.targetNode) && Objects.equals(nodeDecisions, that.nodeDecisions);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(targetNode, nodeDecisions);
     }
 
 }

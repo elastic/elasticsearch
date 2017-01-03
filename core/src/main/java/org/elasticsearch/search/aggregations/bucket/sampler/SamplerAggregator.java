@@ -113,7 +113,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
 
         public static ExecutionMode fromString(String value, ParseFieldMatcher parseFieldMatcher) {
             for (ExecutionMode mode : values()) {
-                if (parseFieldMatcher.match(value, mode.parseField)) {
+                if (mode.parseField.match(value)) {
                     return mode;
                 }
             }

@@ -154,15 +154,15 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.ANALYZER_FIELD)) {
+                    if (SuggestionBuilder.ANALYZER_FIELD.match(currentFieldName)) {
                         analyzer = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.FIELDNAME_FIELD)) {
+                    } else if (SuggestionBuilder.FIELDNAME_FIELD.match(currentFieldName)) {
                         fieldname = parser.text();
-                    } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SIZE_FIELD)) {
+                    } else if (SuggestionBuilder.SIZE_FIELD.match(currentFieldName)) {
                         sizeField = parser.intValue();
-                    } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SHARDSIZE_FIELD)) {
+                    } else if (SuggestionBuilder.SHARDSIZE_FIELD.match(currentFieldName)) {
                         shardSize = parser.intValue();
-                    } else if (parseFieldMatcher.match(currentFieldName, RANDOM_SUFFIX_FIELD)) {
+                    } else if (RANDOM_SUFFIX_FIELD.match(currentFieldName)) {
                         suffix = parser.text();
                     }
                 } else {

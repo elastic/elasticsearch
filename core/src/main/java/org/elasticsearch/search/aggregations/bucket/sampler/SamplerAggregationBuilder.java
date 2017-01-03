@@ -98,7 +98,7 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (context.getParseFieldMatcher().match(currentFieldName, SamplerAggregator.SHARD_SIZE_FIELD)) {
+                if (SamplerAggregator.SHARD_SIZE_FIELD.match(currentFieldName)) {
                     shardSize = parser.intValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

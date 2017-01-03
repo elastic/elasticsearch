@@ -160,7 +160,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), containsString("Limit of mapping depth [1] in index [test1] has been exceeded"));
     }
 
-    public void testUnmappedFieldType() throws IOException {
+    public void testUnmappedFieldType() {
         MapperService mapperService = createIndex("index").mapperService();
         assertThat(mapperService.unmappedFieldType("keyword"), instanceOf(KeywordFieldType.class));
         assertThat(mapperService.unmappedFieldType("long"), instanceOf(NumberFieldType.class));

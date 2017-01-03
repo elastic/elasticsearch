@@ -83,19 +83,19 @@ public class RestClearIndicesCacheAction extends BaseRestHandler {
             ParseFieldMatcher parseFieldMatcher) {
 
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
-            if (parseFieldMatcher.match(entry.getKey(), Fields.QUERY)) {
+            if (Fields.QUERY.match(entry.getKey())) {
                 clearIndicesCacheRequest.queryCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.queryCache()));
             }
-            if (parseFieldMatcher.match(entry.getKey(), Fields.REQUEST_CACHE)) {
+            if (Fields.REQUEST_CACHE.match(entry.getKey())) {
                 clearIndicesCacheRequest.requestCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.requestCache()));
             }
-            if (parseFieldMatcher.match(entry.getKey(), Fields.FIELD_DATA)) {
+            if (Fields.FIELD_DATA.match(entry.getKey())) {
                 clearIndicesCacheRequest.fieldDataCache(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.fieldDataCache()));
             }
-            if (parseFieldMatcher.match(entry.getKey(), Fields.RECYCLER)) {
+            if (Fields.RECYCLER.match(entry.getKey())) {
                 clearIndicesCacheRequest.recycler(request.paramAsBoolean(entry.getKey(), clearIndicesCacheRequest.recycler()));
             }
-            if (parseFieldMatcher.match(entry.getKey(), Fields.FIELDS)) {
+            if (Fields.FIELDS.match(entry.getKey())) {
                 clearIndicesCacheRequest.fields(request.paramAsStringArray(entry.getKey(), clearIndicesCacheRequest.fields()));
             }
         }

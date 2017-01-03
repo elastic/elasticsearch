@@ -65,7 +65,7 @@ public class BucketHelpers {
         public static GapPolicy parse(QueryParseContext context, String text, XContentLocation tokenLocation) {
             GapPolicy result = null;
             for (GapPolicy policy : values()) {
-                if (context.getParseFieldMatcher().match(text, policy.parseField)) {
+                if (policy.parseField.match(text)) {
                     if (result == null) {
                         result = policy;
                     } else {

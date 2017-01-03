@@ -24,17 +24,18 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
-import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.NamedDiffable;
+import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.Loggers;
@@ -110,7 +111,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
      */
     public static EnumSet<XContentContext> ALL_CONTEXTS = EnumSet.allOf(XContentContext.class);
 
-    public interface Custom extends Diffable<Custom>, ToXContent, NamedWriteable {
+    public interface Custom extends NamedDiffable<Custom>, ToXContent {
 
         EnumSet<XContentContext> context();
     }
@@ -129,6 +130,8 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
     public static final String CONTEXT_MODE_GATEWAY = XContentContext.GATEWAY.toString();
 
     public static final String GLOBAL_STATE_FILE_PREFIX = "global-";
+
+    private static final NamedDiffableValueSerializer<Custom> CUSTOM_VALUE_SERIALIZER = new NamedDiffableValueSerializer<>(Custom.class);
 
     private final String clusterUUID;
     private final long version;
@@ -604,7 +607,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
             persistentSettings = after.persistentSettings;
             indices = DiffableUtils.diff(before.indices, after.indices, DiffableUtils.getStringKeySerializer());
             templates = DiffableUtils.diff(before.templates, after.templates, DiffableUtils.getStringKeySerializer());
-            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer());
+            customs = DiffableUtils.diff(before.customs, after.customs, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
         public MetaDataDiff(StreamInput in) throws IOException {
@@ -616,19 +619,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
                 IndexMetaData::readDiffFrom);
             templates = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), IndexTemplateMetaData::readFrom,
                 IndexTemplateMetaData::readDiffFrom);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
-                    new DiffableUtils.DiffableValueSerializer<String, Custom>() {
-                @Override
-                public Custom read(StreamInput in, String key) throws IOException {
-                    return in.readNamedWriteable(Custom.class, key);
-                }
-
-                @SuppressWarnings("unchecked")
-                @Override
-                public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
-                    return in.readNamedWriteable(NamedDiff.class, key);
-                }
-            });
+            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
         }
 
         @Override
@@ -692,9 +683,18 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, To
         for (ObjectCursor<IndexTemplateMetaData> cursor : templates.values()) {
             cursor.value.writeTo(out);
         }
-        out.writeVInt(customs.size());
-        for (ObjectObjectCursor<String, Custom> cursor : customs) {
-            out.writeNamedWriteable(cursor.value);
+        // filter out custom states not supported by the other node
+        int numberOfCustoms = 0;
+        for (ObjectCursor<Custom> cursor : customs.values()) {
+            if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
+                numberOfCustoms++;
+            }
+        }
+        out.writeVInt(numberOfCustoms);
+        for (ObjectCursor<Custom> cursor : customs.values()) {
+            if (out.getVersion().onOrAfter(cursor.value.getMinimalSupportedVersion())) {
+                out.writeNamedWriteable(cursor.value);
+            }
         }
     }
 

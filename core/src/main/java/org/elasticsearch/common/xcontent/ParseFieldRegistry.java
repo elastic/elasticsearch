@@ -103,7 +103,7 @@ public class ParseFieldRegistry<T> {
         }
         ParseField parseField = parseFieldAndValue.v1();
         T value = parseFieldAndValue.v2();
-        boolean match = parseFieldMatcher.match(name, parseField);
+        boolean match = parseField.match(name);
         //this is always expected to match, ParseField is useful for deprecation warnings etc. here
         assert match : "ParseField did not match registered name [" + name + "][" + registryName + "]";
         return value;

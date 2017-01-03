@@ -44,7 +44,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
 
     private static final int RELOCATION_COUNT = 25;
 
-    @TestLogging("_root:DEBUG,org.elasticsearch.action.delete:TRACE,org.elasticsearch.action.index:TRACE,index.shard:TRACE,org.elasticsearch.cluster.service:TRACE")
+    @TestLogging("_root:DEBUG,org.elasticsearch.action.delete:TRACE,org.elasticsearch.action.index:TRACE,org.elasticsearch.index.shard:TRACE,cluster.service:TRACE")
     public void testPrimaryRelocationWhileIndexing() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
         client().admin().indices().prepareCreate("test")
@@ -82,7 +82,12 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
                 .add(new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()))
                 .execute().actionGet();
             ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).execute().actionGet();
-            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+            try {
+                assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
+            } catch (AssertionError e) {
+                logger.info("hi", e);
+                throw e;
+            }
             logger.info("--> [iteration {}] relocation complete", i);
             relocationSource = relocationTarget;
             if (indexingThread.isAlive() == false) { // indexing process aborted early, no need for more relocations as test has already failed
@@ -97,4 +102,5 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
         ElasticsearchAssertions.assertHitCount(client().prepareSearch("test")// extra paranoia ;)
             .setQuery(QueryBuilders.termQuery("auto", true)).get(), numAutoGenDocs.get());
     }
+
 }

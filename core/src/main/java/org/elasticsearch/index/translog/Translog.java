@@ -778,6 +778,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         Source getSource();
 
+        long seqNo();
+
         /**
          * Reads the type and the operation from the given stream. The operatino must be written with
          * {@link Operation#writeType(Operation, StreamOutput)}
@@ -922,6 +924,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return this.source;
         }
 
+        @Override
         public long seqNo() {
             return seqNo;
         }
@@ -1072,6 +1075,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return this.uid;
         }
 
+        @Override
         public long seqNo() {
             return seqNo;
         }
@@ -1147,6 +1151,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         private final long primaryTerm;
         private final String reason;
 
+        @Override
         public long seqNo() {
             return seqNo;
         }

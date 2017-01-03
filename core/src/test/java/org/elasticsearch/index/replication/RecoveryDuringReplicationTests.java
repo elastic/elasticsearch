@@ -20,6 +20,7 @@
 package org.elasticsearch.index.replication;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.Store;
@@ -33,6 +34,9 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
+
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestCase {
 
@@ -57,11 +61,71 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
     }
 
+    public void testRecoveryOfDisconnectedReplica() throws Exception {
+        try (final ReplicationGroup shards = createGroup(1)) {
+            shards.startAll();
+            int docs = shards.indexDocs(randomInt(50));
+            shards.flush();
+            shards.getPrimary().updateGlobalCheckpointOnPrimary();
+            final IndexShard originalReplica = shards.getReplicas().get(0);
+            boolean replicaHasDocsSinceLastFlushedCheckpoint = false;
+            for (int i = 0; i < randomInt(2); i++) {
+                final int indexedDocs = shards.indexDocs(randomInt(5));
+                docs += indexedDocs;
+                if (indexedDocs > 0) {
+                    replicaHasDocsSinceLastFlushedCheckpoint = true;
+                }
+
+                final boolean flush = randomBoolean();
+                if (flush) {
+                    originalReplica.flush(new FlushRequest());
+                }
+
+                final boolean sync = randomBoolean();
+                if (sync) {
+                    shards.getPrimary().updateGlobalCheckpointOnPrimary();
+                    if (flush) {
+                        replicaHasDocsSinceLastFlushedCheckpoint = false;
+                    }
+                }
+            }
+
+            shards.removeReplica(originalReplica);
+
+            final int missingOnReplica = shards.indexDocs(randomInt(5));
+            docs += missingOnReplica;
+            replicaHasDocsSinceLastFlushedCheckpoint |= missingOnReplica > 0;
+
+            if (randomBoolean()) {
+                shards.getPrimary().updateGlobalCheckpointOnPrimary();
+            }
+
+            final boolean flushPrimary = randomBoolean();
+            if (flushPrimary) {
+                shards.flush();
+            }
+
+            final IndexShard recoveredReplica = shards.addReplica(originalReplica);
+            shards.recoverReplica(recoveredReplica);
+            if (flushPrimary && replicaHasDocsSinceLastFlushedCheckpoint) {
+                // replica has something to catch up with, but since we flushed the primary, we should fall back to full recovery
+                assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), not(empty()));
+            } else {
+                assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), empty());
+            }
+
+            docs += shards.indexDocs(randomInt(5));
+
+            shards.assertAllEqual(docs);
+        }
+    }
+
     private static class BlockingTarget extends RecoveryTarget {
+
         private final CountDownLatch recoveryBlocked;
         private final CountDownLatch releaseRecovery;
         private final RecoveryState.Stage stageToBlock;
-        public static final EnumSet<RecoveryState.Stage> SUPPORTED_STAGES =
+        static final EnumSet<RecoveryState.Stage> SUPPORTED_STAGES =
             EnumSet.of(RecoveryState.Stage.INDEX, RecoveryState.Stage.TRANSLOG, RecoveryState.Stage.FINALIZE);
         private final Logger logger;
 
@@ -119,4 +183,5 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
         }
 
     }
+
 }

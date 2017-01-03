@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
@@ -31,16 +32,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isOneOf;
 
-public class LocalCheckpointServiceTests extends ESTestCase {
+public class LocalCheckpointTrackerTests extends ESTestCase {
 
-    private LocalCheckpointService checkpointService;
+    private LocalCheckpointTracker tracker;
 
     private final int SMALL_CHUNK_SIZE = 4;
 
@@ -48,45 +51,47 @@ public class LocalCheckpointServiceTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        checkpointService = getCheckpointService();
+        tracker = getTracker();
     }
 
-    private LocalCheckpointService getCheckpointService() {
-        return new LocalCheckpointService(
-                new ShardId("test", "_na_", 0),
-                IndexSettingsModule.newIndexSettings("test",
-                        Settings.builder()
-                                .put(LocalCheckpointService.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
-                                .build()),
-                SequenceNumbersService.NO_OPS_PERFORMED,
-                SequenceNumbersService.NO_OPS_PERFORMED);
+    private LocalCheckpointTracker getTracker() {
+        return new LocalCheckpointTracker(
+            IndexSettingsModule.newIndexSettings(
+                "test",
+                Settings
+                    .builder()
+                    .put(LocalCheckpointTracker.SETTINGS_BIT_ARRAYS_SIZE.getKey(), SMALL_CHUNK_SIZE)
+                    .build()),
+            SequenceNumbersService.NO_OPS_PERFORMED,
+            SequenceNumbersService.NO_OPS_PERFORMED
+        );
     }
 
     public void testSimplePrimary() {
         long seqNo1, seqNo2;
-        assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-        seqNo1 = checkpointService.generateSeqNo();
+        assertThat(tracker.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
+        seqNo1 = tracker.generateSeqNo();
         assertThat(seqNo1, equalTo(0L));
-        checkpointService.markSeqNoAsCompleted(seqNo1);
-        assertThat(checkpointService.getCheckpoint(), equalTo(0L));
-        seqNo1 = checkpointService.generateSeqNo();
-        seqNo2 = checkpointService.generateSeqNo();
+        tracker.markSeqNoAsCompleted(seqNo1);
+        assertThat(tracker.getCheckpoint(), equalTo(0L));
+        seqNo1 = tracker.generateSeqNo();
+        seqNo2 = tracker.generateSeqNo();
         assertThat(seqNo1, equalTo(1L));
         assertThat(seqNo2, equalTo(2L));
-        checkpointService.markSeqNoAsCompleted(seqNo2);
-        assertThat(checkpointService.getCheckpoint(), equalTo(0L));
-        checkpointService.markSeqNoAsCompleted(seqNo1);
-        assertThat(checkpointService.getCheckpoint(), equalTo(2L));
+        tracker.markSeqNoAsCompleted(seqNo2);
+        assertThat(tracker.getCheckpoint(), equalTo(0L));
+        tracker.markSeqNoAsCompleted(seqNo1);
+        assertThat(tracker.getCheckpoint(), equalTo(2L));
     }
 
     public void testSimpleReplica() {
-        assertThat(checkpointService.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
-        checkpointService.markSeqNoAsCompleted(0L);
-        assertThat(checkpointService.getCheckpoint(), equalTo(0L));
-        checkpointService.markSeqNoAsCompleted(2L);
-        assertThat(checkpointService.getCheckpoint(), equalTo(0L));
-        checkpointService.markSeqNoAsCompleted(1L);
-        assertThat(checkpointService.getCheckpoint(), equalTo(2L));
+        assertThat(tracker.getCheckpoint(), equalTo(SequenceNumbersService.NO_OPS_PERFORMED));
+        tracker.markSeqNoAsCompleted(0L);
+        assertThat(tracker.getCheckpoint(), equalTo(0L));
+        tracker.markSeqNoAsCompleted(2L);
+        assertThat(tracker.getCheckpoint(), equalTo(0L));
+        tracker.markSeqNoAsCompleted(1L);
+        assertThat(tracker.getCheckpoint(), equalTo(2L));
     }
 
     public void testSimpleOverFlow() {
@@ -99,11 +104,11 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         }
         Collections.shuffle(seqNoList, random());
         for (Integer seqNo : seqNoList) {
-            checkpointService.markSeqNoAsCompleted(seqNo);
+            tracker.markSeqNoAsCompleted(seqNo);
         }
-        assertThat(checkpointService.checkpoint, equalTo(maxOps - 1L));
-        assertThat(checkpointService.processedSeqNo.size(), equalTo(aligned ? 0 : 1));
-        assertThat(checkpointService.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
+        assertThat(tracker.checkpoint, equalTo(maxOps - 1L));
+        assertThat(tracker.processedSeqNo.size(), equalTo(aligned ? 0 : 1));
+        assertThat(tracker.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
     }
 
     public void testConcurrentPrimary() throws InterruptedException {
@@ -125,10 +130,10 @@ public class LocalCheckpointServiceTests extends ESTestCase {
                 protected void doRun() throws Exception {
                     barrier.await();
                     for (int i = 0; i < opsPerThread; i++) {
-                        long seqNo = checkpointService.generateSeqNo();
+                        long seqNo = tracker.generateSeqNo();
                         logger.info("[t{}] started   [{}]", threadId, seqNo);
                         if (seqNo != unFinishedSeq) {
-                            checkpointService.markSeqNoAsCompleted(seqNo);
+                            tracker.markSeqNoAsCompleted(seqNo);
                             logger.info("[t{}] completed [{}]", threadId, seqNo);
                         }
                     }
@@ -139,12 +144,12 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
-        assertThat(checkpointService.getMaxSeqNo(), equalTo(maxOps - 1L));
-        assertThat(checkpointService.getCheckpoint(), equalTo(unFinishedSeq - 1L));
-        checkpointService.markSeqNoAsCompleted(unFinishedSeq);
-        assertThat(checkpointService.getCheckpoint(), equalTo(maxOps - 1L));
-        assertThat(checkpointService.processedSeqNo.size(), isOneOf(0, 1));
-        assertThat(checkpointService.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
+        assertThat(tracker.getMaxSeqNo(), equalTo(maxOps - 1L));
+        assertThat(tracker.getCheckpoint(), equalTo(unFinishedSeq - 1L));
+        tracker.markSeqNoAsCompleted(unFinishedSeq);
+        assertThat(tracker.getCheckpoint(), equalTo(maxOps - 1L));
+        assertThat(tracker.processedSeqNo.size(), isOneOf(0, 1));
+        assertThat(tracker.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
     }
 
     public void testConcurrentReplica() throws InterruptedException {
@@ -177,7 +182,7 @@ public class LocalCheckpointServiceTests extends ESTestCase {
                     Integer[] ops = seqNoPerThread[threadId];
                     for (int seqNo : ops) {
                         if (seqNo != unFinishedSeq) {
-                            checkpointService.markSeqNoAsCompleted(seqNo);
+                            tracker.markSeqNoAsCompleted(seqNo);
                             logger.info("[t{}] completed [{}]", threadId, seqNo);
                         }
                     }
@@ -188,11 +193,48 @@ public class LocalCheckpointServiceTests extends ESTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
-        assertThat(checkpointService.getMaxSeqNo(), equalTo(maxOps - 1L));
-        assertThat(checkpointService.getCheckpoint(), equalTo(unFinishedSeq - 1L));
-        checkpointService.markSeqNoAsCompleted(unFinishedSeq);
-        assertThat(checkpointService.getCheckpoint(), equalTo(maxOps - 1L));
-        assertThat(checkpointService.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
+        assertThat(tracker.getMaxSeqNo(), equalTo(maxOps - 1L));
+        assertThat(tracker.getCheckpoint(), equalTo(unFinishedSeq - 1L));
+        tracker.markSeqNoAsCompleted(unFinishedSeq);
+        assertThat(tracker.getCheckpoint(), equalTo(maxOps - 1L));
+        assertThat(tracker.firstProcessedSeqNo, equalTo(((long) maxOps / SMALL_CHUNK_SIZE) * SMALL_CHUNK_SIZE));
+    }
+
+    public void testWaitForOpsToComplete() throws BrokenBarrierException, InterruptedException {
+        final int seqNo = randomIntBetween(0, 32);
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final AtomicBoolean complete = new AtomicBoolean();
+        final Thread thread = new Thread(() -> {
+            try {
+                // sychronize starting with the test thread
+                barrier.await();
+                tracker.waitForOpsToComplete(seqNo);
+                complete.set(true);
+                // synchronize with the test thread checking if we are no longer waiting
+                barrier.await();
+            } catch (BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        thread.start();
+
+        // synchronize starting with the waiting thread
+        barrier.await();
+
+        final List<Integer> elements = IntStream.rangeClosed(0, seqNo).boxed().collect(Collectors.toList());
+        Randomness.shuffle(elements);
+        for (int i = 0; i < elements.size() - 1; i++) {
+            tracker.markSeqNoAsCompleted(elements.get(i));
+            assertFalse(complete.get());
+        }
+
+        tracker.markSeqNoAsCompleted(elements.get(elements.size() - 1));
+        // synchronize with the waiting thread to mark that it is complete
+        barrier.await();
+        assertTrue(complete.get());
+
+        thread.join();
     }
 
 }

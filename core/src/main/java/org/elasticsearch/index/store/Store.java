@@ -24,6 +24,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -75,6 +76,8 @@ import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.seqno.SeqNoStats;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -205,6 +208,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             throw new CorruptIndexException("Hit unexpected exception while reading segment infos", "commit(" + commit + ")", ex);
         }
 
+    }
+
+    public SeqNoStats loadSeqNoStats(final long globalCheckpoint) throws IOException {
+        final IndexCommit indexCommit = DirectoryReader.listCommits(directory).get(0);
+        return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(globalCheckpoint, indexCommit.getUserData().entrySet());
     }
 
     final void ensureOpen() {

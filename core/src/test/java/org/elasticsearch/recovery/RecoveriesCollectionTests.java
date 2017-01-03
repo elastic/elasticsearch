@@ -126,10 +126,10 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             IndexShard indexShard = recoveryTarget.indexShard();
             Store store = recoveryTarget.store();
             String tempFileName = recoveryTarget.getTempNameForFile("foobar");
-            RecoveryTarget resetRecovery = collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60));
+            RecoveryTarget resetRecovery = collection.resetRecovery(recoveryId, TimeValue.timeValueMinutes(60), RecoveryTarget::retry);
             final long resetRecoveryId = resetRecovery.recoveryId();
             assertNotSame(recoveryTarget, resetRecovery);
-            assertNotSame(recoveryTarget.CancellableThreads(), resetRecovery.CancellableThreads());
+            assertNotSame(recoveryTarget.cancellableThreads(), resetRecovery.cancellableThreads());
             assertSame(indexShard, resetRecovery.indexShard());
             assertSame(store, resetRecovery.store());
             assertEquals(referencesToStore, resetRecovery.store().refCount());

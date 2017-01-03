@@ -1,5 +1,9 @@
 setup:
   - do:
+      indices.create:
+        index: airline-data
+
+  - do:
       xpack.prelert.put_job:
         body:  >
           {

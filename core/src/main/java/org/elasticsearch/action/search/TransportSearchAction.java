@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -46,6 +47,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -159,7 +161,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         if (remoteIndicesByCluster.isEmpty()) {
             executeSearch((SearchTask)task, startTimeInMillis, searchRequest, localIndices, Collections.emptyList(),
-                    Collections.emptySet(), Collections.emptyMap(), listener);
+                (nodeId) -> null, Collections.emptyMap(), listener);
         } else {
             // nocommit we have to extract this logic to add unittests ideally with manually prepared searchShardsResponses etc.
             searchTransportService.sendSearchShards(searchRequest, remoteIndicesByCluster,
@@ -167,20 +169,24 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     List<ShardIterator> remoteShardIterators = new ArrayList<>();
                     Set<DiscoveryNode> remoteNodes = new HashSet<>();
                     Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
-                    processRemoteShards(searchShardsResponses, remoteShardIterators, remoteNodes, remoteAliasFilters);
+                    Function<String, Transport.Connection> connectionFunction = processRemoteShards(searchShardsResponses,
+                        remoteShardIterators, remoteAliasFilters);
                     executeSearch((SearchTask)task, startTimeInMillis, searchRequest, localIndices, remoteShardIterators,
-                            remoteNodes, remoteAliasFilters, listener);
+                        connectionFunction, remoteAliasFilters, listener);
                 }, listener::onFailure));
         }
     }
 
-    private void processRemoteShards(Map<String, ClusterSearchShardsResponse> searchShardsResponses,
-                                     List<ShardIterator> remoteShardIterators, Set<DiscoveryNode> remoteNodes,
+    private Function<String, Transport.Connection> processRemoteShards(Map<String, ClusterSearchShardsResponse> searchShardsResponses,
+                                     List<ShardIterator> remoteShardIterators,
                                      Map<String, AliasFilter> aliasFilterMap) {
+        Map<String, Supplier<Transport.Connection>> nodeToCluster = new HashMap<>();
         for (Map.Entry<String, ClusterSearchShardsResponse> entry : searchShardsResponses.entrySet()) {
             String clusterName = entry.getKey();
             ClusterSearchShardsResponse searchShardsResponse = entry.getValue();
-            Collections.addAll(remoteNodes, searchShardsResponse.getNodes());
+            for (DiscoveryNode remoteNode : searchShardsResponse.getNodes()) {
+                nodeToCluster.put(remoteNode.getId(), () -> searchTransportService.getRemoteConnection(remoteNode, clusterName));
+            }
             Map<String, AliasFilter> indicesAndFilters = searchShardsResponse.getIndicesAndFilters();
             for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
                 //add the cluster name to the remote index names for indices disambiguation
@@ -205,10 +211,17 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 aliasFilterMap.put(shardId.getIndex().getUUID(), aliasFilter);
             }
         }
+        return (nodeId) -> {
+            Supplier<Transport.Connection> supplier = nodeToCluster.get(nodeId);
+            if (supplier == null) {
+                throw new IllegalArgumentException("unknown remote node: " + nodeId);
+            }
+            return supplier.get();
+        };
     }
 
     private void executeSearch(SearchTask task, long startTimeInMillis, SearchRequest searchRequest, String[] localIndices,
-                               List<ShardIterator> remoteShardIterators, Set<DiscoveryNode> remoteNodes,
+                               List<ShardIterator> remoteShardIterators, Function<String, Transport.Connection> remoteConnections,
                                Map<String, AliasFilter> remoteAliasMap, ActionListener<SearchResponse> listener) {
 
         ClusterState clusterState = clusterService.state();
@@ -255,8 +268,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }
         }
 
-        Function<String, DiscoveryNode> nodesLookup = mergeNodesLookup(clusterState.nodes(), remoteNodes);
-        searchAsyncAction(task, searchRequest, shardIterators, startTimeInMillis, nodesLookup,clusterState.version(),
+        final DiscoveryNodes nodes = clusterState.nodes();
+        Function<String, Transport.Connection> connectionLookup = (nodeId) -> {
+            final DiscoveryNode discoveryNode = nodes.get(nodeId);
+            final Transport.Connection connection;
+            if (discoveryNode != null) {
+                connection = searchTransportService.getConnection(discoveryNode);
+            } else  {
+                connection = remoteConnections.apply(nodeId);
+            }
+            if (connection == null) {
+                throw new IllegalArgumentException("no node found for id: " + nodeId);
+            }
+            return connection;
+        };
+        searchAsyncAction(task, searchRequest, shardIterators, startTimeInMillis, connectionLookup, clusterState.version(),
             Collections.unmodifiableMap(aliasFilter), concreteIndexBoosts, listener).start();
     }
 
@@ -275,26 +301,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return new GroupShardsIterator(shards);
     }
 
-    private Function<String, DiscoveryNode> mergeNodesLookup(DiscoveryNodes nodes, Set<DiscoveryNode> remoteNodes) {
-        if (remoteNodes.isEmpty()) {
-            return nodes::get;
-        }
-        ImmutableOpenMap.Builder<String, DiscoveryNode> builder = ImmutableOpenMap.builder();
-        for (DiscoveryNode remoteNode : remoteNodes) {
-            builder.put(remoteNode.getId(), remoteNode);
-        }
-        ImmutableOpenMap<String, DiscoveryNode> remoteNodesMap = builder.build();
-        return (nodeId) -> {
-            DiscoveryNode discoveryNode = nodes.get(nodeId);
-            if (discoveryNode == null) {
-                discoveryNode = remoteNodesMap.get(nodeId);
-            }
-            if (discoveryNode == null) {
-                throw new IllegalArgumentException("no node found for id: " + nodeId);
-            }
-            return discoveryNode;
-        };
-    }
+
 
     @Override
     protected final void doExecute(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
@@ -302,7 +309,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     private AbstractSearchAsyncAction searchAsyncAction(SearchTask task, SearchRequest searchRequest, GroupShardsIterator shardIterators,
-                                                        long startTime, Function<String, DiscoveryNode> nodesLookup,
+                                                        long startTime, Function<String, Transport.Connection> connectionLookup,
                                                         long clusterStateVersion, Map<String, AliasFilter> aliasFilter,
                                                         Map<String, Float> concreteIndexBoosts,
                                                         ActionListener<SearchResponse> listener) {
@@ -310,22 +317,22 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         AbstractSearchAsyncAction searchAsyncAction;
         switch(searchRequest.searchType()) {
             case DFS_QUERY_THEN_FETCH:
-                searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, nodesLookup,
+                searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                     aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion, task);
                 break;
             case QUERY_THEN_FETCH:
-                searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, nodesLookup,
+                searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
                     aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion, task);
                 break;
             case DFS_QUERY_AND_FETCH:
-                searchAsyncAction = new SearchDfsQueryAndFetchAsyncAction(logger, searchTransportService, nodesLookup,
+                searchAsyncAction = new SearchDfsQueryAndFetchAsyncAction(logger, searchTransportService, connectionLookup,
                     aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion, task);
                 break;
             case QUERY_AND_FETCH:
-                searchAsyncAction = new SearchQueryAndFetchAsyncAction(logger, searchTransportService, nodesLookup,
+                searchAsyncAction = new SearchQueryAndFetchAsyncAction(logger, searchTransportService, connectionLookup,
                     aliasFilter, concreteIndexBoosts, searchPhaseController, executor, searchRequest, listener, shardIterators, startTime,
                     clusterStateVersion, task);
                 break;

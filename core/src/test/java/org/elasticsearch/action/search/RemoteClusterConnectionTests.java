@@ -48,12 +48,13 @@ public class RemoteClusterConnectionTests extends ESIntegTestCase {
 
     public void testConnect() throws InterruptedException {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
-        ImmutableOpenMap<String, DiscoveryNode> dataNodes = clusterStateResponse.getState().getNodes().getDataNodes();
-        DiscoveryNode node = dataNodes.valuesIt().next();
+        ImmutableOpenMap<String, DiscoveryNode> nodes = clusterStateResponse.getState().getNodes().getDataNodes();
+        DiscoveryNode node = nodes.valuesIt().next();
         try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
             service.start();
             service.acceptIncomingRequests();
-            RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster", Arrays.asList(node), service);
+            RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster", Arrays.asList(node), service,
+                Integer.MAX_VALUE, n -> true);
             CountDownLatch latch = new CountDownLatch(1);
             AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
             ActionListener<Void> listener = ActionListener.wrap(x -> latch.countDown(), x -> {
@@ -63,10 +64,39 @@ public class RemoteClusterConnectionTests extends ESIntegTestCase {
             connection.updateSeedNodes(Arrays.asList(node),listener);
             latch.await();
             assertTrue(service.nodeConnected(node));
-            Iterable<DiscoveryNode> nodesIterable = dataNodes::valuesIt;
+            Iterable<DiscoveryNode> nodesIterable = nodes::valuesIt;
             for (DiscoveryNode dataNode : nodesIterable) {
                 assertTrue(service.nodeConnected(dataNode));
+            }
+            assertNull(exceptionAtomicReference.get());
+        }
+    }
 
+    public void testConnectToSingleSeed() throws InterruptedException {
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setNodes(true).get();
+        ImmutableOpenMap<String, DiscoveryNode> nodes = clusterStateResponse.getState().getNodes().getNodes();
+        DiscoveryNode node = nodes.valuesIt().next();
+        try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+            service.start();
+            service.acceptIncomingRequests();
+            RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster", Arrays.asList(node), service,
+                1, n -> true);
+            CountDownLatch latch = new CountDownLatch(1);
+            AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
+            ActionListener<Void> listener = ActionListener.wrap(x -> latch.countDown(), x -> {
+                exceptionAtomicReference.set(x);
+                latch.countDown();
+            });
+            connection.updateSeedNodes(Arrays.asList(node),listener);
+            latch.await();
+            assertTrue(service.nodeConnected(node));
+            Iterable<DiscoveryNode> nodesIterable = nodes::valuesIt;
+            for (DiscoveryNode aNode : nodesIterable) {
+                if (aNode.equals(node)) {
+                    assertTrue(service.nodeConnected(aNode));
+                } else {
+                    assertFalse(service.nodeConnected(aNode));
+                }
             }
             assertNull(exceptionAtomicReference.get());
         }
@@ -82,7 +112,7 @@ public class RemoteClusterConnectionTests extends ESIntegTestCase {
             service.acceptIncomingRequests();
             final boolean hasInitialNodes = randomBoolean();
             RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
-                hasInitialNodes ? Arrays.asList(node) : Collections.emptyList(), service);
+                hasInitialNodes ? Arrays.asList(node) : Collections.emptyList(), service, Integer.MAX_VALUE, n -> true);
             CountDownLatch latch = new CountDownLatch(1);
 
             if (hasInitialNodes == false) {

@@ -508,20 +508,19 @@ public class TransportService extends AbstractLifecycleComponent {
         }
     }
 
-    public <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+    public <T extends TransportResponse> void sendChildRequest(final Transport.Connection connection, final String action,
                                                                final TransportRequest request, final Task parentTask,
                                                                final TransportResponseHandler<T> handler) {
-        sendChildRequest(node, action, request, parentTask, TransportRequestOptions.EMPTY, handler);
+        sendChildRequest(connection, action, request, parentTask, TransportRequestOptions.EMPTY, handler);
     }
 
-    public <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+    public <T extends TransportResponse> void sendChildRequest(final Transport.Connection connection, final String action,
                                                                final TransportRequest request, final Task parentTask,
                                                                final TransportRequestOptions options,
                                                                final TransportResponseHandler<T> handler) {
         request.setParentTask(localNode.getId(), parentTask.getId());
         try {
-            taskManager.registerChildTask(parentTask, node.getId());
-            final Transport.Connection connection = getConnection(node);
+            taskManager.registerChildTask(parentTask, connection.getNode().getId());
             sendRequest(connection, action, request, options, handler);
         } catch (TaskCancelledException ex) {
             // The parent task is already cancelled - just fail the request

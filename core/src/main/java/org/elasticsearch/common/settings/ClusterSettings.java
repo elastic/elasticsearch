@@ -255,6 +255,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                     TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
                     SearchTransportService.REMOTE_CLUSTERS_SEEDS,
+                    SearchTransportService.NUM_REMOTE_CONNECTIONS,
                     TransportService.TRACE_LOG_EXCLUDE_SETTING,
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,

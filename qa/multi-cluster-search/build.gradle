@@ -25,7 +25,7 @@ task remoteClusterTest(type: RestIntegTestTask) {
   mustRunAfter(precommit)
   cluster {
     distribution = 'zip'
-    numNodes = 1
+    numNodes = 2
     clusterName = 'remote-cluster'
   }
   systemProperty 'tests.rest.suite', 'remote_cluster'
@@ -36,10 +36,11 @@ task mixedClusterTest(type: RestIntegTestTask) {
   cluster {
     distribution = 'zip'
     setting 'action.search.remote.my_remote_cluster', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
+    setting 'action.search.num_remote_connections', 1
 
   }
   systemProperty 'tests.rest.suite', 'multi_cluster'
-  finalizedBy 'remoteClusterTest#stop'
+  finalizedBy 'remoteClusterTest#node0.stop','remoteClusterTest#node1.stop'
 }
 
 task integTest {

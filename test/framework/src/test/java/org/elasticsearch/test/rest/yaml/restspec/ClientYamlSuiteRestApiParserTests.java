@@ -19,7 +19,7 @@
 package org.elasticsearch.test.rest.yaml.restspec;
 
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
-import org.elasticsearch.test.rest.yaml.parser.AbstractClientYamlTestFragmentParserTestCase;
+import org.elasticsearch.test.rest.yaml.section.AbstractClientYamlTestFragmentParserTestCase;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;

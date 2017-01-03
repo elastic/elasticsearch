@@ -148,6 +148,8 @@ public class RecoverySourceHandler {
 
             // engine was just started at the end of phase 1
             if (shard.state() == IndexShardState.RELOCATED) {
+                assert request.isPrimaryRelocation() == false :
+                    "recovery target should not retry primary relocation if previous attempt made it past finalization step";
                 /**
                  * The primary shard has been relocated while we copied files. This means that we can't guarantee any more that all
                  * operations that were replicated during the file copy (when the target engine was not yet opened) will be present in the

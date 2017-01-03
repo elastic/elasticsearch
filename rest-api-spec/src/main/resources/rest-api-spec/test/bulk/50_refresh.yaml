@@ -4,14 +4,14 @@
       bulk:
         refresh: true
         body: |
-          {"index": {"_index": "test_index", "_type": "test_type", "_id": "test_id"}}
+          {"index": {"_index": "bulk_50_refresh_1", "_type": "test_type", "_id": "bulk_50_refresh_id1"}}
           {"f1": "v1", "f2": 42}
-          {"index": {"_index": "test_index", "_type": "test_type", "_id": "test_id2"}}
+          {"index": {"_index": "bulk_50_refresh_1", "_type": "test_type", "_id": "bulk_50_refresh_id2"}}
           {"f1": "v2", "f2": 47}
 
   - do:
       count:
-        index: test_index
+        index: bulk_50_refresh_1
   - match: {count: 2}
 
 ---
@@ -20,14 +20,14 @@
       bulk:
         refresh: ""
         body: |
-          {"index": {"_index": "test_index", "_type": "test_type", "_id": "test_id"}}
+          {"index": {"_index": "bulk_50_refresh_2", "_type": "test_type", "_id": "bulk_50_refresh_id3"}}
           {"f1": "v1", "f2": 42}
-          {"index": {"_index": "test_index", "_type": "test_type", "_id": "test_id2"}}
+          {"index": {"_index": "bulk_50_refresh_2", "_type": "test_type", "_id": "bulk_50_refresh_id4"}}
           {"f1": "v2", "f2": 47}
 
   - do:
       count:
-        index: test_index
+        index: bulk_50_refresh_2
   - match: {count: 2}
 
 
@@ -37,12 +37,12 @@
       bulk:
         refresh: wait_for
         body: |
-          {"index": {"_index": "test_index", "_type": "test_type", "_id": "test_id"}}
+          {"index": {"_index": "bulk_50_refresh_3", "_type": "test_type", "_id": "bulk_50_refresh_id5"}}
           {"f1": "v1", "f2": 42}
-          {"index": {"_index": "test_index", "_type": "test_type", "_id": "test_id2"}}
+          {"index": {"_index": "bulk_50_refresh_3", "_type": "test_type", "_id": "bulk_50_refresh_id6"}}
           {"f1": "v2", "f2": 47}
 
   - do:
       count:
-        index: test_index
+        index: bulk_50_refresh_3
   - match: {count: 2}

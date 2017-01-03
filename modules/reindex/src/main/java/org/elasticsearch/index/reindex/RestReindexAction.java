@@ -80,7 +80,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
-            try (XContentParser innerParser = parser.contentType().xContent().createParser(builder.bytes())) {
+            try (XContentParser innerParser = parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.bytes())) {
                 request.getSearchRequest().source().parseXContent(context.queryParseContext(innerParser),
                         context.searchRequestParsers.aggParsers, context.searchRequestParsers.suggesters,
                         context.searchRequestParsers.searchExtParsers);
@@ -104,8 +104,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Inject
-    public RestReindexAction(Settings settings, RestController controller,
-            SearchRequestParsers searchRequestParsers, ClusterService clusterService) {
+    public RestReindexAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers,
+            ClusterService clusterService) {
         super(settings, searchRequestParsers, clusterService, ReindexAction.INSTANCE);
         controller.registerHandler(POST, "/_reindex", this);
     }
@@ -233,7 +233,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         }
 
         QueryParseContext queryParseContext(XContentParser parser) {
-            return new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher);
+            return new QueryParseContext(parser, parseFieldMatcher);
         }
 
         @Override

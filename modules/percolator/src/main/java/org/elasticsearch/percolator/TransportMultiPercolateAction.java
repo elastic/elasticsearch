@@ -37,6 +37,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -54,15 +55,17 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
     private final Client client;
     private final ParseFieldMatcher parseFieldMatcher;
     private final SearchRequestParsers searchRequestParsers;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportMultiPercolateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         Client client, SearchRequestParsers searchRequestParsers) {
+                                         Client client, SearchRequestParsers searchRequestParsers, NamedXContentRegistry xContentRegistry) {
         super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters,
               indexNameExpressionResolver, MultiPercolateRequest::new);
         this.client = client;
         this.searchRequestParsers = searchRequestParsers;
+        this.xContentRegistry = xContentRegistry;
         this.parseFieldMatcher = new ParseFieldMatcher(settings);
     }
 
@@ -157,8 +160,8 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
             BytesReference docSource = getResponseSources.get(i);
             try {
                 SearchRequest searchRequest = TransportPercolateAction.createSearchRequest(
-                    percolateRequest, docSource, searchRequestParsers.queryParsers,
-                    searchRequestParsers.aggParsers, searchRequestParsers.searchExtParsers, parseFieldMatcher);
+                    percolateRequest, docSource,
+                    searchRequestParsers.aggParsers, searchRequestParsers.searchExtParsers, xContentRegistry, parseFieldMatcher);
                 multiSearchRequest.add(searchRequest);
             } catch (Exception e) {
                 preFailures.put(i, new MultiPercolateResponse.Item(e));

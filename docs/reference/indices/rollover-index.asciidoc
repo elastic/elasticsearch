@@ -108,6 +108,8 @@ PUT logs_write/log/1
   "message": "a dummy log"
 }
 
+POST logs_write/_refresh
+
 # Wait for a day to pass
 
 POST /logs_write/_rollover <2>

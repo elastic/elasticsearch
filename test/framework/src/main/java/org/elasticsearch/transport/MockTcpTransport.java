@@ -66,6 +66,23 @@ import java.util.function.Consumer;
  */
 public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel> {
 
+    /**
+     * A pre-built light connection profile that shares a single connection across all
+     * types.
+     */
+    public static final ConnectionProfile LIGHT_PROFILE;
+
+    static  {
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1,
+            TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.PING,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STATE);
+        LIGHT_PROFILE = builder.build();
+    }
+
     private final ExecutorService executor;
     private final Version mockVersion;
 
@@ -159,7 +176,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     @Override
     protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) throws IOException {
         final MockChannel[] mockChannels = new MockChannel[1];
-        final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, ConnectionProfile.LIGHT_PROFILE); // we always use light here
+        final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
         boolean success = false;
         final Socket socket = new Socket();
         try {

@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -87,7 +88,7 @@ public class RestRequestTests extends ESTestCase {
     private static final class ContentRestRequest extends RestRequest {
         private final BytesArray content;
         public ContentRestRequest(String content, Map<String, String> params) {
-            super(params, "not used by this test");
+            super(NamedXContentRegistry.EMPTY, params, "not used by this test");
             this.content = new BytesArray(content);
         }
 

@@ -89,9 +89,10 @@ public class BytesRestResponse extends RestResponse {
             this.content = BytesArray.EMPTY;
             this.contentType = TEXT_CONTENT_TYPE;
         } else {
-            XContentBuilder builder = convert(channel, status, e);
-            this.content = builder.bytes();
-            this.contentType = builder.contentType().mediaType();
+            try (final XContentBuilder builder = convert(channel, status, e)) {
+                this.content = builder.bytes();
+                this.contentType = builder.contentType().mediaType();
+            }
         }
         if (e instanceof ElasticsearchException) {
             copyHeaders(((ElasticsearchException) e));

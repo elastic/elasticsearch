@@ -120,7 +120,8 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
      * Test that {@link Netty4HttpServerTransport} supports the "Expect: 100-continue" HTTP header
      */
     public void testExpectContinueHeader() throws Exception {
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool)) {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
+                xContentRegistry())) {
             transport.httpServerAdapter((request, channel, context) ->
                     channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done"))));
             transport.start();
@@ -143,12 +144,13 @@ public class Netty4HttpServerTransportTests extends ESTestCase {
     }
 
     public void testBindUnavailableAddress() {
-        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool)) {
+        try (Netty4HttpServerTransport transport = new Netty4HttpServerTransport(Settings.EMPTY, networkService, bigArrays, threadPool,
+                xContentRegistry())) {
             transport.start();
             TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
             Settings settings = Settings.builder().put("http.port", remoteAddress.getPort()).build();
-            try (Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(settings, networkService, bigArrays,
-                threadPool)) {
+            try (Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool,
+                    xContentRegistry())) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, () -> otherTransport.start());
                 assertEquals("Failed to bind to [" + remoteAddress.getPort() + "]", bindHttpException.getMessage());
             }

@@ -36,15 +36,4 @@ public class ParseFieldMatcher {
     public ParseFieldMatcher(Settings settings) {
         //we don't do anything with the settings argument, this whole class will be soon removed
     }
-
-    /**
-     * Matches a {@link ParseField} against a field name,
-     * @param fieldName the field name found in the request while parsing
-     * @param parseField the parse field that we are looking for
-     * @throws IllegalArgumentException whenever we are in strict mode and the request contained a deprecated field
-     * @return true whenever the parse field that we are looking for was found, false otherwise
-     */
-    public boolean match(String fieldName, ParseField parseField) {
-        return parseField.match(fieldName);
-    }
 }

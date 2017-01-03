@@ -83,7 +83,7 @@ public class RestMainActionTests extends ESTestCase {
         if (prettyPrint == false) {
             params.put("pretty", String.valueOf(prettyPrint));
         }
-        RestRequest restRequest = new FakeRestRequest.Builder().withParams(params).build();
+        RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
 
         BytesRestResponse response = RestMainAction.convertMainResponse(mainResponse, restRequest, builder);
         assertNotNull(response);

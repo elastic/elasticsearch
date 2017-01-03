@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.allocation.IndexMetaDataUpdater;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -44,10 +44,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -75,8 +75,12 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
-public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuilder<IndexMetaData>, ToXContent {
+public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
 
+    /**
+     * This class will be removed in v7.0
+     */
+    @Deprecated
     public interface Custom extends Diffable<Custom>, ToXContent {
 
         String type();
@@ -84,6 +88,16 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         Custom fromMap(Map<String, Object> map) throws IOException;
 
         Custom fromXContent(XContentParser parser) throws IOException;
+
+        /**
+         * Reads the {@link org.elasticsearch.cluster.Diff} from StreamInput
+         */
+        Diff<Custom> readDiffFrom(StreamInput in) throws IOException;
+
+        /**
+         * Reads an object of this type from the provided {@linkplain StreamInput}. The receiving instance remains unchanged.
+         */
+        Custom readFrom(StreamInput in) throws IOException;
 
         /**
          * Merges from this to another, with this being more important, i.e., if something exists in this and another,
@@ -245,10 +259,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                       ActiveShardCount::parseString,
                       Setting.Property.Dynamic,
                       Setting.Property.IndexScope);
-
-    public static final IndexMetaData PROTO = IndexMetaData.builder("")
-            .settings(Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
-            .numberOfShards(1).numberOfReplicas(0).build();
 
     public static final String KEY_IN_SYNC_ALLOCATIONS = "in_sync_allocations";
     static final String KEY_VERSION = "version";
@@ -564,13 +574,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         return new IndexMetaDataDiff(previousState, this);
     }
 
-    @Override
-    public Diff<IndexMetaData> readDiffFrom(StreamInput in) throws IOException {
+    public static Diff<IndexMetaData> readDiffFrom(StreamInput in) throws IOException {
         return new IndexMetaDataDiff(in);
     }
 
-    @Override
-    public IndexMetaData fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+    public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
         return Builder.fromXContent(parser);
     }
 
@@ -614,8 +622,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             state = State.fromId(in.readByte());
             settings = Settings.readSettingsFromStream(in);
             primaryTerms = in.readVLongArray();
-            mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MappingMetaData.PROTO);
-            aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), AliasMetaData.PROTO);
+            mappings = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), MappingMetaData::new,
+                MappingMetaData::readDiffFrom);
+            aliases = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), AliasMetaData::new,
+                AliasMetaData::readDiffFrom);
             customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(),
                 new DiffableUtils.DiffableValueSerializer<String, Custom>() {
                     @Override
@@ -623,6 +633,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                         return lookupPrototypeSafe(key).readFrom(in);
                     }
 
+                    @SuppressWarnings("unchecked")
                     @Override
                     public Diff<Custom> readDiff(StreamInput in, String key) throws IOException {
                         return lookupPrototypeSafe(key).readDiffFrom(in);
@@ -662,8 +673,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
     }
 
-    @Override
-    public IndexMetaData readFrom(StreamInput in) throws IOException {
+    public static IndexMetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.version(in.readLong());
         builder.setRoutingNumShards(in.readInt());
@@ -672,12 +682,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         builder.primaryTerms(in.readVLongArray());
         int mappingsSize = in.readVInt();
         for (int i = 0; i < mappingsSize; i++) {
-            MappingMetaData mappingMd = MappingMetaData.PROTO.readFrom(in);
+            MappingMetaData mappingMd = new MappingMetaData(in);
             builder.putMapping(mappingMd);
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
-            AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
+            AliasMetaData aliasMd = new AliasMetaData(in);
             builder.putAlias(aliasMd);
         }
         int customSize = in.readVInt();
@@ -831,9 +841,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         public Builder putMapping(String type, String source) throws IOException {
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-                putMapping(new MappingMetaData(type, parser.mapOrdered()));
-            }
+            putMapping(new MappingMetaData(type, XContentHelper.convertToMap(XContentFactory.xContent(source), source, true)));
             return this;
         }
 
@@ -1047,11 +1055,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 if (binary) {
                     builder.value(cursor.value.source().compressed());
                 } else {
-                    byte[] data = cursor.value.source().uncompressed();
-                    try (XContentParser parser = XContentFactory.xContent(data).createParser(data)) {
-                        Map<String, Object> mapping = parser.mapOrdered();
-                        builder.map(mapping);
-                    }
+                    builder.map(XContentHelper.convertToMap(new BytesArray(cursor.value.source().uncompressed()), true).v2());
                 }
             }
             builder.endArray();
@@ -1202,10 +1206,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 }
             }
             return builder.build();
-        }
-
-        public static IndexMetaData readFrom(StreamInput in) throws IOException {
-            return PROTO.readFrom(in);
         }
     }
 

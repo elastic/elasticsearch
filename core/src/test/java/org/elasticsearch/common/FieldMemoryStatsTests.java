@@ -95,7 +95,7 @@ public class FieldMemoryStatsTests extends ESTestCase {
         ObjectLongHashMap<String> map = new ObjectLongHashMap<>();
         int keys = randomIntBetween(1, 1000);
         for (int i = 0; i < keys; i++) {
-            map.put(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), randomPositiveLong());
+            map.put(randomRealisticUnicodeOfCodepointLengthBetween(1, 10), randomNonNegativeLong());
         }
         return new FieldMemoryStats(map);
     }

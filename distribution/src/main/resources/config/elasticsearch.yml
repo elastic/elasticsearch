@@ -8,7 +8,7 @@
 # the most important settings you may want to configure for a production cluster.
 #
 # Please see the documentation for further information on configuration options:
-# <http://www.elastic.co/guide/en/elasticsearch/reference/current/setup-configuration.html>
+# <https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html>
 #
 # ---------------------------------- Cluster -----------------------------------
 #

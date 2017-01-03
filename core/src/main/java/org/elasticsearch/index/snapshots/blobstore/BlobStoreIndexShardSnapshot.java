@@ -27,7 +27,6 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -41,9 +40,7 @@ import java.util.List;
 /**
  * Shard snapshot metadata
  */
-public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuilder<BlobStoreIndexShardSnapshot> {
-
-    public static final BlobStoreIndexShardSnapshot PROTO = new BlobStoreIndexShardSnapshot();
+public class BlobStoreIndexShardSnapshot implements ToXContent {
 
     /**
      * Information about snapshotted file
@@ -478,6 +475,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
     private static final ParseField PARSE_NUMBER_OF_FILES = new ParseField("number_of_files");
     private static final ParseField PARSE_TOTAL_SIZE = new ParseField("total_size");
     private static final ParseField PARSE_FILES = new ParseField("files");
+    private static final ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
 
     /**
      * Serializes shard snapshot metadata info into JSON
@@ -507,8 +505,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
      * @param parser parser
      * @return shard snapshot metadata
      */
-    public BlobStoreIndexShardSnapshot fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-
+    public static BlobStoreIndexShardSnapshot fromXContent(XContentParser parser) throws IOException {
         String snapshot = null;
         long indexVersion = -1;
         long startTime = 0;
@@ -527,24 +524,24 @@ public class BlobStoreIndexShardSnapshot implements ToXContent, FromXContentBuil
                     String currentFieldName = parser.currentName();
                     token = parser.nextToken();
                     if (token.isValue()) {
-                        if (parseFieldMatcher.match(currentFieldName, PARSE_NAME)) {
+                        if (PARSE_NAME.match(currentFieldName)) {
                             snapshot = parser.text();
-                        } else if (parseFieldMatcher.match(currentFieldName, PARSE_INDEX_VERSION)) {
+                        } else if (PARSE_INDEX_VERSION.match(currentFieldName)) {
                             // The index-version is needed for backward compatibility with v 1.0
                             indexVersion = parser.longValue();
-                        } else if (parseFieldMatcher.match(currentFieldName, PARSE_START_TIME)) {
+                        } else if (PARSE_START_TIME.match(currentFieldName)) {
                             startTime = parser.longValue();
-                        } else if (parseFieldMatcher.match(currentFieldName, PARSE_TIME)) {
+                        } else if (PARSE_TIME.match(currentFieldName)) {
                             time = parser.longValue();
-                        } else if (parseFieldMatcher.match(currentFieldName, PARSE_NUMBER_OF_FILES)) {
+                        } else if (PARSE_NUMBER_OF_FILES.match(currentFieldName)) {
                             numberOfFiles = parser.intValue();
-                        } else if (parseFieldMatcher.match(currentFieldName, PARSE_TOTAL_SIZE)) {
+                        } else if (PARSE_TOTAL_SIZE.match(currentFieldName)) {
                             totalSize = parser.longValue();
                         } else {
                             throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
-                        if (parseFieldMatcher.match(currentFieldName, PARSE_FILES)) {
+                        if (PARSE_FILES.match(currentFieldName)) {
                             while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                 indexFiles.add(FileInfo.fromXContent(parser));
                             }

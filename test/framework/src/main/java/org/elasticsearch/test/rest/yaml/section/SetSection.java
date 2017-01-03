@@ -18,7 +18,9 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 
 import java.io.IOException;
@@ -32,6 +34,28 @@ import java.util.Map;
  *
  */
 public class SetSection implements ExecutableSection {
+    public static SetSection parse(XContentParser parser) throws IOException {
+        String currentFieldName = null;
+        XContentParser.Token token;
+
+        SetSection setSection = new SetSection(parser.getTokenLocation());
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                setSection.addSet(currentFieldName, parser.text());
+            }
+        }
+
+        parser.nextToken();
+
+        if (setSection.getStash().isEmpty()) {
+            throw new ParsingException(setSection.location, "set section must set at least a value");
+        }
+
+        return setSection;
+    }
 
     private final Map<String, String> stash = new HashMap<>();
     private final XContentLocation location;

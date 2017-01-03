@@ -31,9 +31,8 @@ import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.BatchResult;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor.ClusterTasksResult;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.TimeoutClusterStateListener;
@@ -64,6 +63,7 @@ import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.PrioritizedRunnable;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -136,6 +136,8 @@ public class ClusterService extends AbstractLifecycleComponent {
     private final ClusterBlocks.Builder initialBlocks;
 
     private NodeConnectionsService nodeConnectionsService;
+
+    private DiscoverySettings discoverySettings;
 
     public ClusterService(Settings settings,
                           ClusterSettings clusterSettings, ThreadPool threadPool) {
@@ -214,6 +216,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(state().nodes().getLocalNode(), "please set the local node before starting");
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
+        Objects.requireNonNull(discoverySettings, "please set discovery settings before starting");
         addListener(localNodeMasterListeners);
         updateState(state -> ClusterState.builder(state).blocks(initialBlocks).build());
         this.threadPoolExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME),
@@ -379,10 +382,10 @@ public class ClusterService extends AbstractLifecycleComponent {
      *                   task
      *
      */
-    public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
+    public <T extends ClusterStateTaskConfig & ClusterStateTaskExecutor<T> & ClusterStateTaskListener> void submitStateUpdateTask(
+        final String source, final T updateTask) {
         submitStateUpdateTask(source, updateTask, updateTask, updateTask, updateTask);
     }
-
 
     /**
      * Submits a cluster state update task; submitted updates will be
@@ -573,6 +576,10 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterName;
     }
 
+    public void setDiscoverySettings(DiscoverySettings discoverySettings) {
+        this.discoverySettings = discoverySettings;
+    }
+
     abstract static class SourcePrioritizedRunnable extends PrioritizedRunnable {
         protected final String source;
 
@@ -643,29 +650,28 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     public TaskOutputs calculateTaskOutputs(TaskInputs taskInputs, ClusterState previousClusterState, long startTimeNS) {
-        BatchResult<Object> batchResult = executeTasks(taskInputs, startTimeNS, previousClusterState);
-        ClusterState newClusterState = batchResult.resultingState;
+        ClusterTasksResult<Object> clusterTasksResult = executeTasks(taskInputs, startTimeNS, previousClusterState);
         // extract those that are waiting for results
         List<UpdateTask> nonFailedTasks = new ArrayList<>();
         for (UpdateTask updateTask : taskInputs.updateTasks) {
-            assert batchResult.executionResults.containsKey(updateTask.task) : "missing " + updateTask;
+            assert clusterTasksResult.executionResults.containsKey(updateTask.task) : "missing " + updateTask;
             final ClusterStateTaskExecutor.TaskResult taskResult =
-                batchResult.executionResults.get(updateTask.task);
+                clusterTasksResult.executionResults.get(updateTask.task);
             if (taskResult.isSuccess()) {
                 nonFailedTasks.add(updateTask);
             }
         }
-        newClusterState = patchVersions(previousClusterState, newClusterState);
+        ClusterState newClusterState = patchVersionsAndNoMasterBlocks(previousClusterState, clusterTasksResult);
 
         return new TaskOutputs(taskInputs, previousClusterState, newClusterState, nonFailedTasks,
-                                  batchResult.executionResults);
+                                  clusterTasksResult.executionResults);
     }
 
-    private BatchResult<Object> executeTasks(TaskInputs taskInputs, long startTimeNS, ClusterState previousClusterState) {
-        BatchResult<Object> batchResult;
+    private ClusterTasksResult<Object> executeTasks(TaskInputs taskInputs, long startTimeNS, ClusterState previousClusterState) {
+        ClusterTasksResult<Object> clusterTasksResult;
         try {
             List<Object> inputs = taskInputs.updateTasks.stream().map(tUpdateTask -> tUpdateTask.task).collect(Collectors.toList());
-            batchResult = taskInputs.executor.execute(previousClusterState, inputs);
+            clusterTasksResult = taskInputs.executor.execute(previousClusterState, inputs);
         } catch (Exception e) {
             TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
             if (logger.isTraceEnabled()) {
@@ -681,42 +687,70 @@ public class ClusterService extends AbstractLifecycleComponent {
                     e);
             }
             warnAboutSlowTaskIfNeeded(executionTime, taskInputs.summary);
-            batchResult = BatchResult.builder()
+            clusterTasksResult = ClusterTasksResult.builder()
                 .failures(taskInputs.updateTasks.stream().map(updateTask -> updateTask.task)::iterator, e)
                 .build(previousClusterState);
         }
 
-        assert batchResult.executionResults != null;
-        assert batchResult.executionResults.size() == taskInputs.updateTasks.size()
+        assert clusterTasksResult.executionResults != null;
+        assert clusterTasksResult.executionResults.size() == taskInputs.updateTasks.size()
                 : String.format(Locale.ROOT, "expected [%d] task result%s but was [%d]", taskInputs.updateTasks.size(),
-                taskInputs.updateTasks.size() == 1 ? "" : "s", batchResult.executionResults.size());
+                taskInputs.updateTasks.size() == 1 ? "" : "s", clusterTasksResult.executionResults.size());
         boolean assertsEnabled = false;
         assert (assertsEnabled = true);
         if (assertsEnabled) {
             for (UpdateTask updateTask : taskInputs.updateTasks) {
-                assert batchResult.executionResults.containsKey(updateTask.task) :
+                assert clusterTasksResult.executionResults.containsKey(updateTask.task) :
                     "missing task result for " + updateTask;
             }
         }
 
-        return batchResult;
+        return clusterTasksResult;
     }
 
-    private ClusterState patchVersions(ClusterState previousClusterState, ClusterState newClusterState) {
-        if (previousClusterState != newClusterState) {
-            if (newClusterState.nodes().isLocalNodeElectedMaster()) {
-                // only the master controls the version numbers
-                Builder builder = ClusterState.builder(newClusterState).incrementVersion();
-                if (previousClusterState.routingTable() != newClusterState.routingTable()) {
-                    builder.routingTable(RoutingTable.builder(newClusterState.routingTable())
-                            .version(newClusterState.routingTable().version() + 1).build());
-                }
-                if (previousClusterState.metaData() != newClusterState.metaData()) {
-                    builder.metaData(MetaData.builder(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
-                }
-                newClusterState = builder.build();
+    private ClusterState patchVersionsAndNoMasterBlocks(ClusterState previousClusterState, ClusterTasksResult<Object> executionResult) {
+        ClusterState newClusterState = executionResult.resultingState;
+
+        if (executionResult.noMaster) {
+            assert newClusterState == previousClusterState : "state can only be changed by ClusterService when noMaster = true";
+            if (previousClusterState.nodes().getMasterNodeId() != null) {
+                // remove block if it already exists before adding new one
+                assert previousClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock().id()) == false :
+                    "NO_MASTER_BLOCK should only be added by ClusterService";
+                ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(previousClusterState.blocks())
+                    .addGlobalBlock(discoverySettings.getNoMasterBlock())
+                    .build();
+
+                DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(previousClusterState.nodes()).masterNodeId(null).build();
+                newClusterState = ClusterState.builder(previousClusterState)
+                    .blocks(clusterBlocks)
+                    .nodes(discoveryNodes)
+                    .build();
             }
+        } else if (newClusterState.nodes().isLocalNodeElectedMaster() && previousClusterState != newClusterState) {
+            // only the master controls the version numbers
+            Builder builder = ClusterState.builder(newClusterState).incrementVersion();
+            if (previousClusterState.routingTable() != newClusterState.routingTable()) {
+                builder.routingTable(RoutingTable.builder(newClusterState.routingTable())
+                    .version(newClusterState.routingTable().version() + 1).build());
+            }
+            if (previousClusterState.metaData() != newClusterState.metaData()) {
+                builder.metaData(MetaData.builder(newClusterState.metaData()).version(newClusterState.metaData().version() + 1));
+            }
+
+            // remove the no master block, if it exists
+            if (newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock().id())) {
+                builder.blocks(ClusterBlocks.builder().blocks(newClusterState.blocks())
+                    .removeGlobalBlock(discoverySettings.getNoMasterBlock().id()));
+            }
+
+            newClusterState = builder.build();
         }
+
+        assert newClusterState.nodes().getMasterNodeId() == null ||
+            newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock().id()) == false :
+            "cluster state with master node must not have NO_MASTER_BLOCK";
+
         return newClusterState;
     }
 
@@ -801,14 +835,16 @@ public class ClusterService extends AbstractLifecycleComponent {
 
         taskOutputs.processedDifferentClusterState(previousClusterState, newClusterState);
 
-        try {
-            taskOutputs.clusterStatePublished(clusterChangedEvent);
-        } catch (Exception e) {
-            logger.error(
-                (Supplier<?>) () -> new ParameterizedMessage(
-                    "exception thrown while notifying executor of new cluster state publication [{}]",
-                    taskInputs.summary),
-                e);
+        if (newClusterState.nodes().isLocalNodeElectedMaster()) {
+            try {
+                taskOutputs.clusterStatePublished(clusterChangedEvent);
+            } catch (Exception e) {
+                logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "exception thrown while notifying executor of new cluster state publication [{}]",
+                        taskInputs.summary),
+                    e);
+            }
         }
     }
 

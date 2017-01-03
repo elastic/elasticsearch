@@ -67,11 +67,12 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 ((DateFieldType) ft).setDateTimeFormatter(Joda.forPattern("date_optional_time", Locale.CANADA));
             }
         });
-        nowInMillis = randomPositiveLong();
+        nowInMillis = randomNonNegativeLong();
     }
 
     public void testIsFieldWithinQueryEmptyReader() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null, null, null, () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null, xContentRegistry(), null, null,
+                () -> nowInMillis);
         IndexReader reader = new MultiReader();
         DateFieldType ft = new DateFieldType();
         ft.setName("my_date");
@@ -81,7 +82,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader,
             DateTimeZone zone, DateMathParser alternateFormat) throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null, null, null, () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null, xContentRegistry(), null, null,
+                () -> nowInMillis);
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02",
                 randomBoolean(), randomBoolean(), null, null, context));
         assertEquals(Relation.INTERSECTS, ft.isFieldWithinQuery(reader, "2016-01-02", "2016-06-20",
@@ -128,7 +130,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         DateFieldType ft2 = new DateFieldType();
         ft2.setName("my_date2");
 
-        QueryRewriteContext context = new QueryRewriteContext(null, null, null, null, null, null, () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(null, null, null, xContentRegistry(), null, null,
+                () -> nowInMillis);
         assertEquals(Relation.DISJOINT, ft2.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", false, false, null, null, context));
         IOUtils.close(reader, w, dir);
     }
@@ -163,7 +166,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(),
                         indexSettings),
-                null, null, null, null, null, null, null, null, () -> nowInMillis);
+                null, null, null, null, null, xContentRegistry(), null, null, () -> nowInMillis);
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date = "2015-10-12T14:10:55";
@@ -182,7 +185,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings),
-                null, null, null, null, null, null, null, null, () -> nowInMillis);
+                null, null, null, null, null, xContentRegistry(), null, null, () -> nowInMillis);
         MappedFieldType ft = createDefaultFieldType();
         ft.setName("field");
         String date1 = "2015-10-12T14:10:55";

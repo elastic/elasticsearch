@@ -29,7 +29,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,7 +46,9 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -63,8 +64,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -132,7 +134,6 @@ import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Base testcase for randomized unit testing with Elasticsearch
@@ -256,6 +257,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Before
     public final void before()  {
         logger.info("[{}]: before test", getTestName());
+        assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             DeprecationLogger.setThreadContext(threadContext);
@@ -273,8 +275,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     @After
     public final void after() throws Exception {
         checkStaticState();
-        if (enableWarningsCheck()) {
+        // We check threadContext != null rather than enableWarningsCheck()
+        // because after methods are still called in the event that before
+        // methods failed, in which case threadContext might not have been
+        // initialized
+        if (threadContext != null) {
             ensureNoWarnings();
+            threadContext = null;
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
@@ -299,7 +306,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
         try {
             final List<String> actualWarnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
-            assertThat(actualWarnings, hasSize(expectedWarnings.length));
+            assertEquals("Expected " + expectedWarnings.length + " warnings but found " + actualWarnings.size() + "\nExpected: "
+                    + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
+                    expectedWarnings.length, actualWarnings.size());
             for (String msg : expectedWarnings) {
                 assertThat(actualWarnings, hasItem(equalTo(msg)));
             }
@@ -440,7 +449,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextInt();
     }
 
-    public static long randomPositiveLong() {
+    public static long randomNonNegativeLong() {
         long randomLong;
         do {
             randomLong = randomLong();
@@ -794,7 +803,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static <T> List<T> randomSubsetOf(int size, Collection<T> collection) {
         if (size > collection.size()) {
-            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a collection of " + collection.size() + " objects");
+            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a collection of " +
+                    collection.size() + " objects");
         }
         List<T> tempList = new ArrayList<>(collection);
         Collections.shuffle(tempList, random());
@@ -838,9 +848,8 @@ public abstract class ESTestCase extends LuceneTestCase {
      * recursive shuffling behavior can be made by passing in the names of fields which
      * internally should stay untouched.
      */
-    public static XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
-        BytesReference bytes = builder.bytes();
-        XContentParser parser = XContentFactory.xContent(bytes).createParser(bytes);
+    public XContentBuilder shuffleXContent(XContentBuilder builder, String... exceptFieldNames) throws IOException {
+        XContentParser parser = createParser(builder);
         // use ordered maps for reproducibility
         Map<String, Object> shuffledMap = shuffleMap(parser.mapOrdered(), new HashSet<>(Arrays.asList(exceptFieldNames)));
         XContentBuilder xContentBuilder = XContentFactory.contentBuilder(builder.contentType());
@@ -936,35 +945,42 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContentBuilder builder) throws IOException {
-        return builder.generator().contentType().xContent().createParser(builder.bytes());
+        return builder.generator().contentType().xContent().createParser(xContentRegistry(), builder.bytes());
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, String data) throws IOException {
-        return xContent.createParser(data);
+        return xContent.createParser(xContentRegistry(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, InputStream data) throws IOException {
-        return xContent.createParser(data);
+        return xContent.createParser(xContentRegistry(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, byte[] data) throws IOException {
-        return xContent.createParser(data);
+        return xContent.createParser(xContentRegistry(), data);
     }
 
     /**
      * Create a new {@link XContentParser}.
      */
     protected final XContentParser createParser(XContent xContent, BytesReference data) throws IOException {
-        return xContent.createParser(data);
+        return xContent.createParser(xContentRegistry(), data);
+    }
+
+    /**
+     * The {@link NamedXContentRegistry} to use for this test. Subclasses should override and use liberally.
+     */
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
     }
 
     /** Returns the suite failure marker: internal use only! */

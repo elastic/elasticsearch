@@ -180,17 +180,17 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             if (token == XContentParser.Token.FIELD_NAME) {
                 toOrFromOrKey = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (parseFieldMatcher.match(toOrFromOrKey, Range.FROM_FIELD)) {
+                if (Range.FROM_FIELD.match(toOrFromOrKey)) {
                     from = parser.doubleValue();
-                } else if (parseFieldMatcher.match(toOrFromOrKey, Range.TO_FIELD)) {
+                } else if (Range.TO_FIELD.match(toOrFromOrKey)) {
                     to = parser.doubleValue();
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (parseFieldMatcher.match(toOrFromOrKey, Range.KEY_FIELD)) {
+                if (Range.KEY_FIELD.match(toOrFromOrKey)) {
                     key = parser.text();
-                } else if (parseFieldMatcher.match(toOrFromOrKey, Range.FROM_FIELD)) {
+                } else if (Range.FROM_FIELD.match(toOrFromOrKey)) {
                     fromAsStr = parser.text();
-                } else if (parseFieldMatcher.match(toOrFromOrKey, Range.TO_FIELD)) {
+                } else if (Range.TO_FIELD.match(toOrFromOrKey)) {
                     toAsStr = parser.text();
                 }
             }

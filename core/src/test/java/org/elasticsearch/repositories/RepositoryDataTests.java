@@ -56,7 +56,10 @@ public class RepositoryDataTests extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder();
         repositoryData.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
-        assertEquals(repositoryData, RepositoryData.fromXContent(parser));
+        long gen = (long) randomIntBetween(0, 500);
+        RepositoryData fromXContent = RepositoryData.fromXContent(parser, gen);
+        assertEquals(repositoryData, fromXContent);
+        assertEquals(gen, fromXContent.getGenId());
     }
 
     public void testAddSnapshots() {
@@ -64,8 +67,6 @@ public class RepositoryDataTests extends ESTestCase {
         // test that adding the same snapshot id to the repository data throws an exception
         final SnapshotId snapshotId = repositoryData.getSnapshotIds().get(0);
         Map<String, IndexId> indexIdMap = repositoryData.getIndices();
-        expectThrows(IllegalArgumentException.class,
-            () -> repositoryData.addSnapshot(new SnapshotId(snapshotId.getName(), snapshotId.getUUID()), Collections.emptyList()));
         // test that adding a snapshot and its indices works
         SnapshotId newSnapshot = new SnapshotId(randomAsciiOfLength(7), UUIDs.randomBase64UUID());
         List<IndexId> indices = new ArrayList<>();
@@ -91,22 +92,7 @@ public class RepositoryDataTests extends ESTestCase {
                 assertEquals(snapshotIds.size(), 1); // if it was a new index, only the new snapshot should be in its set
             }
         }
-    }
-
-    public void testInitIndices() {
-        final int numSnapshots = randomIntBetween(1, 30);
-        final List<SnapshotId> snapshotIds = new ArrayList<>(numSnapshots);
-        for (int i = 0; i < numSnapshots; i++) {
-            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
-        }
-        RepositoryData repositoryData = new RepositoryData(snapshotIds, Collections.emptyMap());
-        // test that initializing indices works
-        Map<IndexId, Set<SnapshotId>> indices = randomIndices(snapshotIds);
-        RepositoryData newRepoData = repositoryData.initIndices(indices);
-        assertEquals(repositoryData.getSnapshotIds(), newRepoData.getSnapshotIds());
-        for (IndexId indexId : indices.keySet()) {
-            assertEquals(indices.get(indexId), newRepoData.getSnapshots(indexId));
-        }
+        assertEquals(repositoryData.getGenId(), newRepoData.getGenId());
     }
 
     public void testRemoveSnapshot() {
@@ -135,12 +121,8 @@ public class RepositoryDataTests extends ESTestCase {
     }
 
     public static RepositoryData generateRandomRepoData() {
-        return generateRandomRepoData(new ArrayList<>());
-    }
-
-    public static RepositoryData generateRandomRepoData(final List<SnapshotId> origSnapshotIds) {
-        List<SnapshotId> snapshotIds = randomSnapshots(origSnapshotIds);
-        return new RepositoryData(snapshotIds, randomIndices(snapshotIds));
+        List<SnapshotId> snapshotIds = randomSnapshots(new ArrayList<>());
+        return RepositoryData.initRepositoryData(snapshotIds, randomIndices(snapshotIds));
     }
 
     private static List<SnapshotId> randomSnapshots(final List<SnapshotId> origSnapshotIds) {

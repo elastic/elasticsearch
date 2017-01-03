@@ -72,9 +72,11 @@ class ClusterConfiguration {
     boolean useMinimumMasterNodes = true
 
     @Input
-    String jvmArgs = "-Xms" + System.getProperty('tests.heap.size', '512m') +
-            " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
-            " " + System.getProperty('tests.jvm.argline', '')
+    String jvmArgs = "-ea" +
+        " " + "-Xms" + System.getProperty('tests.heap.size', '512m') +
+        " " + "-Xmx" + System.getProperty('tests.heap.size', '512m') +
+        " " + System.getProperty('tests.jvm.argline', '')
+
 
     /**
      * A closure to call which returns the unicast host to connect to for cluster formation.

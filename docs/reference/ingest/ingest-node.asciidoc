@@ -143,7 +143,7 @@ This should give a small response that makes it both easy and inexpensive to par
 [[delete-pipeline-api]]
 === Delete Pipeline API
 
-The delete pipeline API deletes pipelines by ID.
+The delete pipeline API deletes pipelines by ID or wildcard match (`my-*`, `*`).
 
 [source,js]
 --------------------------------------------------
@@ -151,6 +151,36 @@ DELETE _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+////
+Hidden setup for wildcard test:
+[source,js]
+--------------------------------------------------
+PUT _ingest/pipeline/wild-one
+{
+  "description" : "first pipeline to be wildcard deleted",
+  "processors" : [ ]
+}
+
+PUT _ingest/pipeline/wild-two
+{
+  "description" : "second pipeline to be wildcard deleted",
+  "processors" : [ ]
+}
+
+DELETE _ingest/pipeline/*
+--------------------------------------------------
+// CONSOLE
+
+Hidden expected response:
+[source,js]
+--------------------------------------------------
+{
+"acknowledged": true
+}
+--------------------------------------------------
+// TESTRESPONSE
+////
 
 [[simulate-pipeline-api]]
 === Simulate Pipeline API
@@ -1136,6 +1166,10 @@ In this example, if the `remove` processor does fail, then
 the array elements that have been processed thus far will
 be updated.
 
+Another advanced example can be found in the {plugins}/ingest-attachment-with-arrays.html[attachment processor documentation].
+
+
+
 [[grok-processor]]
 === Grok Processor
 
@@ -1484,6 +1518,38 @@ Converts a JSON string into a structured JSON object.
   }
 }
 --------------------------------------------------
+
+[[kv-processor]]
+=== KV Processor
+This processor helps automatically parse messages (or specific event fields) which are of the foo=bar variety.
+
+For example, if you have a log message which contains `ip=1.2.3.4 error=REFUSED`, you can parse those automatically by configuring:
+
+
+[source,js]
+--------------------------------------------------
+{
+  "kv": {
+    "field": "message",
+    "field_split": " ",
+    "value_split": "="
+  }
+}
+--------------------------------------------------
+
+[[kv-options]]
+.Kv Options
+[options="header"]
+|======
+| Name             | Required  | Default  | Description
+| `field`          | yes       | -        | The field to be parsed
+| `field_split`    | yes       | -        | Regex pattern to use for splitting key-value pairs
+| `value_split`    | yes       | -        | Regex pattern to use for splitting the key from the value within a key-value pair
+| `target_field`   | no        | `null`   | The field to insert the extracted keys into. Defaults to the root of the document
+| `include_keys`   | no        | `null`   | List of keys to filter and insert into document. Defaults to including all keys
+| `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
+|======
+
 
 [[lowercase-processor]]
 === Lowercase Processor

@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchShardTarget;
@@ -267,11 +266,10 @@ public class SignificanceHeuristicTests extends ESTestCase {
     protected void checkParseException(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
             SearchContext searchContext, String faultyHeuristicDefinition, String expectedError) throws IOException {
 
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
         try {
             XContentParser stParser = createParser(JsonXContent.jsonXContent, 
                     "{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
-            QueryParseContext parseContext = new QueryParseContext(registry, stParser, ParseFieldMatcher.STRICT);
+            QueryParseContext parseContext = new QueryParseContext(stParser, ParseFieldMatcher.STRICT);
             stParser.nextToken();
             SignificantTermsAggregationBuilder.getParser(significanceHeuristicParserRegistry).parse("testagg", parseContext);
             fail();
@@ -293,8 +291,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     private SignificanceHeuristic parseSignificanceHeuristic(
             ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry, SearchContext searchContext,
             XContentParser stParser) throws IOException {
-        IndicesQueriesRegistry registry = new IndicesQueriesRegistry();
-        QueryParseContext parseContext = new QueryParseContext(registry, stParser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(stParser, ParseFieldMatcher.STRICT);
         stParser.nextToken();
         SignificantTermsAggregationBuilder aggregatorFactory =
                 (SignificantTermsAggregationBuilder) SignificantTermsAggregationBuilder.getParser(

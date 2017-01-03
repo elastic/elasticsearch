@@ -28,7 +28,6 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -41,15 +40,11 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestCountAction extends AbstractCatAction {
-
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
-
     @Inject
-    public RestCountAction(Settings settings, RestController restController, RestController controller, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public RestCountAction(Settings settings, RestController restController, RestController controller) {
         super(settings);
         restController.registerHandler(GET, "/_cat/count", this);
         restController.registerHandler(GET, "/_cat/count/{index}", this);
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
     }
 
     @Override
@@ -72,7 +67,7 @@ public class RestCountAction extends AbstractCatAction {
                         searchSourceBuilder.query(queryBuilder);
                     }
                 } else {
-                    searchSourceBuilder.query(RestActions.getQueryContent(parser, indicesQueriesRegistry, parseFieldMatcher));
+                    searchSourceBuilder.query(RestActions.getQueryContent(parser, parseFieldMatcher));
                 }
             });
         } catch (IOException e) {

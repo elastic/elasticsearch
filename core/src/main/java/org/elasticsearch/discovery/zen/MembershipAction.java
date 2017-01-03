@@ -170,7 +170,7 @@ public class MembershipAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            this.state = ClusterState.Builder.readFrom(in, localNode.get());
+            this.state = ClusterState.readFrom(in, localNode.get());
         }
 
         @Override

@@ -74,7 +74,7 @@ import static org.mockito.Mockito.when;
 
 public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndicesClusterStateServiceTestCase {
 
-    private final ClusterStateChanges cluster = new ClusterStateChanges();
+    private final ClusterStateChanges cluster = new ClusterStateChanges(xContentRegistry());
 
     public void testRandomClusterStateUpdates() {
         // we have an IndicesClusterStateService per node in the cluster

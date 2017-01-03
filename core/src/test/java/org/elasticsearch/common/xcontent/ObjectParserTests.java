@@ -180,8 +180,8 @@ public class ObjectParserTests extends ESTestCase {
                 }
             }
         }
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser("{\"url\" : { \"host\": \"http://foobar\", \"port\" : 80}, \"name\" : \"foobarbaz\"}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+                "{\"url\" : { \"host\": \"http://foobar\", \"port\" : 80}, \"name\" : \"foobarbaz\"}");
         ObjectParser<Foo, CustomParseFieldMatchSupplier> objectParser = new ObjectParser<>("foo");
         objectParser.declareString(Foo::setName, new ParseField("name"));
         objectParser.declareObjectOrDefault(Foo::setURI, (p, s) -> s.parseURI(p), () -> null, new ParseField("url"));

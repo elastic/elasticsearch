@@ -23,8 +23,6 @@ public class Scheduler extends AbstractDiffable<Scheduler> implements ToXContent
     private static final ParseField CONFIG_FIELD = new ParseField("config");
     private static final ParseField STATUS_FIELD = new ParseField("status");
 
-    public static final Scheduler PROTO = new Scheduler(null, null);
-
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("schedulers");
 

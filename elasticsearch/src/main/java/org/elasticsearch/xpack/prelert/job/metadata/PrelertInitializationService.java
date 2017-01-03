@@ -44,7 +44,7 @@ public class PrelertInitializationService extends AbstractComponent implements C
                         public ClusterState execute(ClusterState currentState) throws Exception {
                             ClusterState.Builder builder = new ClusterState.Builder(currentState);
                             MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
-                            metadataBuilder.putCustom(PrelertMetadata.TYPE, PrelertMetadata.PROTO);
+                            metadataBuilder.putCustom(PrelertMetadata.TYPE, PrelertMetadata.EMPTY_METADATA);
                             builder.metaData(metadataBuilder.build());
                             return builder.build();
                         }

@@ -47,8 +47,8 @@ public class PrelertMetadata implements MetaData.Custom {
     private static final ParseField SCHEDULERS_FIELD = new ParseField("schedulers");
 
     public static final String TYPE = "prelert";
-    public static final PrelertMetadata PROTO = new PrelertMetadata(Collections.emptySortedMap(), Collections.emptySortedMap(),
-            Collections.emptySortedMap());
+    public static final PrelertMetadata EMPTY_METADATA = new PrelertMetadata(Collections.emptySortedMap(),
+            Collections.emptySortedMap(), Collections.emptySortedMap());
 
     static final ObjectParser<Builder, ParseFieldMatcherSupplier> PRELERT_METADATA_PARSER = new ObjectParser<>("prelert_metadata",
             Builder::new);

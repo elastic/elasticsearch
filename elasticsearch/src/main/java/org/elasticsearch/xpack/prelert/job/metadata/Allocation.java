@@ -28,8 +28,6 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
     public static final ParseField STATUS = new ParseField("status");
     public static final ParseField STATUS_REASON = new ParseField("status_reason");
 
-    static final Allocation PROTO = new Allocation(null, null, false, null, null);
-
     static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("allocation", Builder::new);
 
     static {

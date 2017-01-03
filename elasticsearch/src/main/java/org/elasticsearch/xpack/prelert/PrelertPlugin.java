@@ -137,10 +137,6 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
 
     private final ParseFieldMatcherSupplier parseFieldMatcherSupplier;
 
-    static {
-        MetaData.registerPrototype(PrelertMetadata.TYPE, PrelertMetadata.PROTO);
-    }
-
     public PrelertPlugin(Settings settings) {
         this.settings = settings;
         this.env = new Environment(settings);

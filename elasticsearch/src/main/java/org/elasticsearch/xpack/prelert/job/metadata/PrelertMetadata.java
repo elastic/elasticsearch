@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
@@ -89,13 +87,8 @@ public class PrelertMetadata implements MetaData.Custom {
     }
 
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
-    }
-
-    @Override
-    public MetaData.Custom fromXContent(XContentParser parser) throws IOException {
-        return PRELERT_METADATA_PARSER.parse(parser, () -> ParseFieldMatcher.STRICT).build();
     }
 
     @Override
@@ -110,29 +103,25 @@ public class PrelertMetadata implements MetaData.Custom {
         return new PrelertMetadataDiff((PrelertMetadata) previousState, this);
     }
 
-    @Override
-    public Diff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return new PrelertMetadataDiff(in);
-    }
-
-    @Override
-    public MetaData.Custom readFrom(StreamInput in) throws IOException {
+    public PrelertMetadata(StreamInput in) throws IOException {
         int size = in.readVInt();
         TreeMap<String, Job> jobs = new TreeMap<>();
         for (int i = 0; i < size; i++) {
             jobs.put(in.readString(), new Job(in));
         }
+        this.jobs = jobs;
         size = in.readVInt();
         TreeMap<String, Allocation> allocations = new TreeMap<>();
         for (int i = 0; i < size; i++) {
-            allocations.put(in.readString(), Allocation.PROTO.readFrom(in));
+            allocations.put(in.readString(), new Allocation(in));
         }
+        this.allocations = allocations;
         size = in.readVInt();
         TreeMap<String, Scheduler> schedulers = new TreeMap<>();
         for (int i = 0; i < size; i++) {
             schedulers.put(in.readString(), new Scheduler(in));
         }
-        return new PrelertMetadata(jobs, allocations, schedulers);
+        this.schedulers = schedulers;
     }
 
     @Override
@@ -177,12 +166,6 @@ public class PrelertMetadata implements MetaData.Custom {
             this.jobs = DiffableUtils.diff(before.jobs, after.jobs, DiffableUtils.getStringKeySerializer());
             this.allocations = DiffableUtils.diff(before.allocations, after.allocations, DiffableUtils.getStringKeySerializer());
             this.schedulers = DiffableUtils.diff(before.schedulers, after.schedulers, DiffableUtils.getStringKeySerializer());
-        }
-
-        PrelertMetadataDiff(StreamInput in) throws IOException {
-            jobs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Job.PROTO);
-            allocations = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Allocation.PROTO);
-            schedulers = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), Scheduler.PROTO);
         }
 
         @Override

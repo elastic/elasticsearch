@@ -67,11 +67,6 @@ public class Scheduler extends AbstractDiffable<Scheduler> implements ToXContent
     }
 
     @Override
-    public Scheduler readFrom(StreamInput in) throws IOException {
-        return new Scheduler(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         config.writeTo(out);
         status.writeTo(out);

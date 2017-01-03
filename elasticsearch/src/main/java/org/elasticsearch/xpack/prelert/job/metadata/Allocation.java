@@ -88,11 +88,6 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
     }
 
     @Override
-    public Allocation readFrom(StreamInput in) throws IOException {
-        return new Allocation(in);
-    }
-
-    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(nodeId);
         out.writeString(jobId);

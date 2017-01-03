@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfig;
 import org.elasticsearch.xpack.prelert.job.transform.TransformConfigs;
 import org.elasticsearch.xpack.prelert.job.transform.verification.TransformConfigsVerifier;
-import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.prelert.utils.PrelertStrings;
 import org.elasticsearch.xpack.prelert.utils.time.TimeUtils;
 
@@ -194,11 +193,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         customSettings = in.readMap();
         modelSnapshotId = in.readOptionalString();
         indexName = in.readString();
-    }
-
-    @Override
-    public Job readFrom(StreamInput in) throws IOException {
-        return new Job(in);
     }
 
     /**

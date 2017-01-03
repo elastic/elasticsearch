@@ -68,7 +68,7 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
 
     @Override
     protected Writeable.Reader<PrelertMetadata> instanceReader() {
-        return in -> (PrelertMetadata) PrelertMetadata.PROTO.readFrom(in);
+        return in -> new PrelertMetadata(in);
     }
 
     @Override

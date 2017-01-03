@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.notification.email.Attachment;

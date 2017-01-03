@@ -105,7 +105,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertTrue(e.getMessage().contains("[index.analysis.analyzer.default_index] is not supported"));
     }
 
-    public void testBackCompatOverrideDefaultIndexAnalyzer() throws IOException {
+    public void testBackCompatOverrideDefaultIndexAnalyzer() {
         Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
                 VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -128,7 +128,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         assertThat(indexAnalyzers.getDefaultSearchQuoteAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
     }
 
-    public void testBackCompatOverrideDefaultIndexAndSearchAnalyzer() throws IOException {
+    public void testBackCompatOverrideDefaultIndexAndSearchAnalyzer() {
         Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(),
                 VersionUtils.getPreviousVersion(Version.V_5_0_0_alpha1));
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();

@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.gateway.PriorityComparator;
 
 import java.util.ArrayList;
@@ -111,12 +113,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
     }
 
     @Override
-    public Map<DiscoveryNode, Float> weighShard(RoutingAllocation allocation, ShardRouting shard) {
-        final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
-        return balancer.weighShard(shard);
-    }
-
-    @Override
     public void allocate(RoutingAllocation allocation) {
         if (allocation.routingNodes().size() == 0) {
             /* with no nodes this is pointless */
@@ -128,16 +124,21 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         balancer.balance();
     }
 
-    /**
-     * Returns a decision on rebalancing a single shard to form a more optimal cluster balance.  This
-     * method is not used in itself for cluster rebalancing because all shards from all indices are
-     * taken into account when making rebalancing decisions.  This method is only intended to be used
-     * from the cluster allocation explain API to explain possible rebalancing decisions for a single
-     * shard.
-     */
-    public MoveDecision decideRebalance(final ShardRouting shard, final RoutingAllocation allocation) {
-        assert allocation.debugDecision() : "debugDecision should be set in explain mode";
-        return new Balancer(logger, allocation, weightFunction, threshold).decideRebalance(shard);
+    @Override
+    public ShardAllocationDecision decideShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
+        Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
+        AllocateUnassignedDecision allocateUnassignedDecision = AllocateUnassignedDecision.NOT_TAKEN;
+        MoveDecision moveDecision = MoveDecision.NOT_TAKEN;
+        if (shard.unassigned()) {
+            allocateUnassignedDecision = balancer.decideAllocateUnassigned(shard, Sets.newHashSet());
+        } else {
+            moveDecision = balancer.decideMove(shard);
+            if (moveDecision.isDecisionTaken() && moveDecision.canRemain()) {
+                MoveDecision rebalanceDecision = balancer.decideRebalance(shard);
+                moveDecision = rebalanceDecision.withRemainDecision(moveDecision.getCanRemainDecision());
+            }
+        }
+        return new ShardAllocationDecision(allocateUnassignedDecision, moveDecision);
     }
 
     /**
@@ -337,7 +338,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          */
         private MoveDecision decideRebalance(final ShardRouting shard) {
             if (shard.started() == false) {
-                // cannot rebalance a shard that isn't started
+                // we can only rebalance started shards
                 return MoveDecision.NOT_TAKEN;
             }
 
@@ -437,7 +438,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             }
 
             if (canRebalance.type() != Type.YES || allocation.hasPendingAsyncFetch()) {
-                AllocationDecision allocationDecision = allocation.hasPendingAsyncFetch() ? AllocationDecision.FETCH_PENDING :
+                AllocationDecision allocationDecision = allocation.hasPendingAsyncFetch() ? AllocationDecision.AWAITING_INFO :
                                                             AllocationDecision.fromDecisionType(canRebalance.type());
                 return MoveDecision.cannotRebalance(canRebalance, allocationDecision, currentNodeWeightRanking, nodeDecisions);
             } else {
@@ -644,7 +645,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             // offloading the shards.
             for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext(); ) {
                 ShardRouting shardRouting = it.next();
-                final MoveDecision moveDecision = makeMoveDecision(shardRouting);
+                final MoveDecision moveDecision = decideMove(shardRouting);
                 if (moveDecision.isDecisionTaken() && moveDecision.forceMove()) {
                     final ModelNode sourceNode = nodes.get(shardRouting.currentNodeId());
                     final ModelNode targetNode = nodes.get(moveDecision.getTargetNode().getId());
@@ -673,7 +674,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          *   4. If the method is invoked in explain mode (e.g. from the cluster allocation explain APIs), then
          *      {@link MoveDecision#nodeDecisions} will have a non-null value.
          */
-        public MoveDecision makeMoveDecision(final ShardRouting shardRouting) {
+        public MoveDecision decideMove(final ShardRouting shardRouting) {
             if (shardRouting.started() == false) {
                 // we can only move started shards
                 return MoveDecision.NOT_TAKEN;

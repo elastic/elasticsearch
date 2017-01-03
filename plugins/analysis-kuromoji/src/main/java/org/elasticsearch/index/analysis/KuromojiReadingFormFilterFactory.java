@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ja.JapaneseReadingFormFilter;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -32,8 +31,7 @@ public class KuromojiReadingFormFilterFactory extends AbstractTokenFilterFactory
 
     public KuromojiReadingFormFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        useRomaji = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "use_romaji", false);
+        useRomaji = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "use_romaji", false);
     }
 
     @Override

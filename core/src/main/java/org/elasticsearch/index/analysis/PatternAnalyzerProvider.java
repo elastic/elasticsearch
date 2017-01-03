@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -37,8 +36,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
         super(indexSettings, name, settings);
 
         final CharArraySet defaultStopwords = CharArraySet.EMPTY_SET;
-        boolean lowercase = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "lowercase", true);
+        boolean lowercase = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "lowercase", true);
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
 
         String sPattern = settings.get("pattern", "\\W+" /*PatternAnalyzer.NON_WORD_PATTERN*/);

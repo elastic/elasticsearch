@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.LimitTokenCountFilter;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -37,8 +36,8 @@ public class LimitTokenCountFilterFactory extends AbstractTokenFilterFactory {
     public LimitTokenCountFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.maxTokenCount = settings.getAsInt("max_token_count", DEFAULT_MAX_TOKEN_COUNT);
-        this.consumeAllTokens = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "consume_all_tokens", DEFAULT_CONSUME_ALL_TOKENS);
+        this.consumeAllTokens = settings.getAsBooleanLenientForPreEs6Indices(
+            indexSettings.getIndexVersionCreated(), "consume_all_tokens", DEFAULT_CONSUME_ALL_TOKENS);
     }
 
     @Override

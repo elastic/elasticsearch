@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
 import org.apache.lucene.analysis.path.ReversePathHierarchyTokenizer;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -57,8 +56,7 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
             this.replacement = replacement.charAt(0);
         }
         this.skip = settings.getAsInt("skip", PathHierarchyTokenizer.DEFAULT_SKIP);
-        this.reverse = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "reverse", false);
+        this.reverse = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "reverse", false);
     }
 
     @Override

@@ -42,7 +42,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -1219,7 +1218,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
      */
     public static boolean isOnSharedFilesystem(Settings settings) {
         Version version = settings.getAsVersion(SETTING_VERSION_CREATED, Version.CURRENT);
-        return SettingMigrationUtils.getAsBoolean(version, settings, SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings));
+        return settings.getAsBooleanLenientForPreEs6Indices(version, SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings));
     }
 
     /**
@@ -1229,7 +1228,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
      */
     public static boolean isIndexUsingShadowReplicas(Settings settings) {
         Version version = settings.getAsVersion(SETTING_VERSION_CREATED, Version.CURRENT);
-        return SettingMigrationUtils.getAsBoolean(version, settings, SETTING_SHADOW_REPLICAS, false);
+        return settings.getAsBooleanLenientForPreEs6Indices(version, SETTING_SHADOW_REPLICAS, false);
     }
 
     /**

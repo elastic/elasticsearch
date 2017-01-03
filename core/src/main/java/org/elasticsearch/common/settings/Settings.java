@@ -25,6 +25,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.settings.loader.SettingsLoaderFactory;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -72,6 +74,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
  * An immutable settings implementation.
  */
 public final class Settings implements ToXContent {
+    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(Settings.class));
 
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
@@ -295,18 +298,30 @@ public final class Settings implements ToXContent {
         return Booleans.parseBoolean(get(setting), defaultValue);
     }
 
-    // TODO #22298: Delete this method.
+    // TODO #22298: Delete this method and update call sites to <code>#getAsBoolean(String, Boolean)</code>.
     /**
-     * Returns the setting value (as boolean) associated with the setting key. If it does not exists,
-     * returns the default value provided.
+     * Returns the setting value (as boolean) associated with the setting key. If it does not exist, returns the default value provided.
+     * If the index was created on Elasticsearch below 6.0, booleans will be parsed leniently otherwise they are parsed strictly.
      *
-     * @deprecated Only used to provide automatic upgrades for pre 6.0 indices. Do not call this method directly but
-     * use {@link SettingMigrationUtils} instead.
+     * See {@link Booleans#isBooleanLenient(char[], int, int)} for the definition of a "lenient boolean"
+     * and {@link Booleans#isBoolean(char[], int, int)} for the definition of a "strict boolean".
      *
+     * @deprecated Only used to provide automatic upgrades for pre 6.0 indices.
      */
     @Deprecated
-    public Boolean getAsBooleanLenient(String setting, Boolean defaultValue) {
-        return Booleans.parseBooleanLenient(get(setting), defaultValue);
+    public Boolean getAsBooleanLenientForPreEs6Indices(Version indexVersion, String setting, Boolean defaultValue) {
+        if (indexVersion.before(Version.V_6_0_0_alpha1_UNRELEASED)) {
+            //Only emit a warning if the setting's value is not a proper boolean
+            final String value = get(setting, "false");
+            if (Booleans.isBoolean(value) == false) {
+                @SuppressWarnings("deprecation")
+                boolean convertedValue = Booleans.parseBooleanLenient(get(setting), defaultValue);
+                deprecationLogger.deprecated("The value [{}] of setting [{}] is not coerced into boolean anymore. Please change " +
+                    "this value to [{}].", value, setting, String.valueOf(convertedValue));
+                return convertedValue;
+            }
+        }
+        return getAsBoolean(setting, defaultValue);
     }
 
     /**

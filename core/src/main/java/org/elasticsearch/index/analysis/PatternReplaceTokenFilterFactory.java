@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.pattern.PatternReplaceFilter;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -44,8 +43,7 @@ public class PatternReplaceTokenFilterFactory extends AbstractTokenFilterFactory
         }
         this.pattern = Regex.compile(sPattern, settings.get("flags"));
         this.replacement = settings.get("replacement", "");
-        this.all = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "all", true);
+        this.all = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "all", true);
     }
 
     @Override

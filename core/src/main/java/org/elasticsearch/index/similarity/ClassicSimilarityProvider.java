@@ -22,7 +22,6 @@ package org.elasticsearch.index.similarity;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -41,8 +40,7 @@ public class ClassicSimilarityProvider extends AbstractSimilarityProvider {
     public ClassicSimilarityProvider(String name, Settings settings) {
         super(name);
         Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
-        boolean discountOverlaps = SettingMigrationUtils
-            .getAsBoolean(indexVersion, settings, "discount_overlaps", true);
+        boolean discountOverlaps = settings.getAsBooleanLenientForPreEs6Indices(indexVersion, "discount_overlaps", true);
         this.similarity.setDiscountOverlaps(discountOverlaps);
     }
 

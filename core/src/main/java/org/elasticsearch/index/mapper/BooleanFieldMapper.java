@@ -233,15 +233,13 @@ public class BooleanFieldMapper extends FieldMapper {
                     value = fieldType().nullValue();
                 }
             } else {
-                //TODO dm: Test me
                 if (indexCreatedVersion.onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
                     value = context.parser().booleanValue();
                 } else {
                     value = context.parser().booleanValueLenient();
                     if (context.parser().isBooleanValueLenient() != context.parser().isBooleanValue()) {
                         String rawValue = context.parser().text();
-                        deprecationLogger.deprecated("Expected a boolean for property [{}] for field [{}] but got [{}]",
-                            fieldType().name(), rawValue);
+                        deprecationLogger.deprecated("Expected a boolean for property [{}] but got [{}]", fieldType().name(), rawValue);
                     }
                 }
             }

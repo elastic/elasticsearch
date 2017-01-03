@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -34,10 +33,8 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         super(indexSettings, name, settings);
         Integer maxShingleSize = settings.getAsInt("max_shingle_size", ShingleFilter.DEFAULT_MAX_SHINGLE_SIZE);
         Integer minShingleSize = settings.getAsInt("min_shingle_size", ShingleFilter.DEFAULT_MIN_SHINGLE_SIZE);
-        Boolean outputUnigrams = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "output_unigrams", true);
-        Boolean outputUnigramsIfNoShingles = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "output_unigrams_if_no_shingles", false);
+        Boolean outputUnigrams = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "output_unigrams", true);
+        Boolean outputUnigramsIfNoShingles = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "output_unigrams_if_no_shingles", false);
         String tokenSeparator = settings.get("token_separator", ShingleFilter.DEFAULT_TOKEN_SEPARATOR);
         String fillerToken = settings.get("filler_token", ShingleFilter.DEFAULT_FILLER_TOKEN);
         factory = new Factory("shingle", minShingleSize, maxShingleSize, outputUnigrams, outputUnigramsIfNoShingles, tokenSeparator, fillerToken);

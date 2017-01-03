@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsQueryFilter;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -38,10 +37,8 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public CommonGramsTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.ignoreCase = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "ignore_case", false);
-        this.queryMode = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "query_mode", false);
+        this.ignoreCase = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false);
+        this.queryMode = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "query_mode", false);
         this.words = Analysis.parseCommonWords(env, settings, null, ignoreCase);
 
         if (this.words == null) {

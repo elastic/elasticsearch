@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.StopFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -46,10 +45,9 @@ public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory{
 
     public JapaneseStopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        this.ignoreCase = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "ignore_case", false);
-        this.removeTrailing = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "remove_trailing", true);
+        this.ignoreCase = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false);
+        this.removeTrailing = settings
+            .getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "remove_trailing", true);
         this.stopWords = Analysis.parseWords(env, settings, "stopwords", JapaneseAnalyzer.getDefaultStopSet(), NAMED_STOP_WORDS, ignoreCase);
     }
 

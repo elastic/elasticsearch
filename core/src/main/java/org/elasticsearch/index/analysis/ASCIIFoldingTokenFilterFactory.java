@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -38,9 +37,8 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory i
 
     public ASCIIFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
-        preserveOriginal = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, PRESERVE_ORIGINAL.getPreferredName(),
-                DEFAULT_PRESERVE_ORIGINAL);
+        preserveOriginal = settings.getAsBooleanLenientForPreEs6Indices(
+            indexSettings.getIndexVersionCreated(), PRESERVE_ORIGINAL.getPreferredName(), DEFAULT_PRESERVE_ORIGINAL);
     }
 
     @Override

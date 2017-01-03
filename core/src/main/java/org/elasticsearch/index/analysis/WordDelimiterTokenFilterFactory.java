@@ -23,7 +23,6 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterFilter;
 import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -102,7 +101,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     }
 
     public int getFlag(int flag, Settings settings, String key, boolean defaultValue) {
-        if (SettingMigrationUtils.getAsBoolean(indexSettings.getIndexVersionCreated(), settings, key, defaultValue)) {
+        if (settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), key, defaultValue)) {
             return flag;
         }
         return 0;

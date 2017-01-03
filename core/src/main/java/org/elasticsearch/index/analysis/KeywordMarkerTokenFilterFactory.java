@@ -22,7 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -36,8 +35,7 @@ public class KeywordMarkerTokenFilterFactory extends AbstractTokenFilterFactory 
     public KeywordMarkerTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
-        boolean ignoreCase = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "ignore_case", false);
+        boolean ignoreCase = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "ignore_case", false);
         Set<?> rules = Analysis.getWordSet(env, settings, "keywords");
         if (rules == null) {
             throw new IllegalArgumentException("keyword filter requires either `keywords` or `keywords_path` to be configured");

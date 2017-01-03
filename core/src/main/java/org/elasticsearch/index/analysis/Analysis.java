@@ -58,7 +58,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
@@ -182,13 +181,13 @@ public class Analysis {
 
     public static CharArraySet parseArticles(Environment env, Settings settings) {
         org.elasticsearch.Version version = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
-        boolean articlesCase = SettingMigrationUtils.getAsBoolean(version, settings, "articles_case", false);
+        boolean articlesCase = settings.getAsBooleanLenientForPreEs6Indices(version, "articles_case", false);
         return parseWords(env, settings, "articles", null, null, articlesCase);
     }
 
     public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords) {
         org.elasticsearch.Version version = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
-        boolean stopwordsCase = SettingMigrationUtils.getAsBoolean(version, settings, "stopwords_case", false);
+        boolean stopwordsCase = settings.getAsBooleanLenientForPreEs6Indices(version, "stopwords_case", false);
         return parseStopWords(env, settings, defaultStopWords, stopwordsCase);
     }
 
@@ -217,7 +216,7 @@ public class Analysis {
             return null;
         }
         org.elasticsearch.Version version = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
-        boolean ignoreCase = SettingMigrationUtils.getAsBoolean(version, settings, settingsPrefix + "_case", false);
+        boolean ignoreCase = settings.getAsBooleanLenientForPreEs6Indices(version, settingsPrefix + "_case", false);
         return new CharArraySet(wordList, ignoreCase);
     }
 

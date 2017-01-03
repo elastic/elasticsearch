@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.analysis.hunspell.HunspellStemFilter;
-import org.elasticsearch.common.settings.SettingMigrationUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.HunspellService;
@@ -47,10 +46,8 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException(String.format(Locale.ROOT, "Unknown hunspell dictionary for locale [%s]", locale));
         }
 
-        dedup = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "dedup", true);
-        longestOnly = SettingMigrationUtils
-            .getAsBoolean(indexSettings.getIndexVersionCreated(), settings, "longest_only", false);
+        dedup = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "dedup", true);
+        longestOnly = settings.getAsBooleanLenientForPreEs6Indices(indexSettings.getIndexVersionCreated(), "longest_only", false);
     }
 
     @Override

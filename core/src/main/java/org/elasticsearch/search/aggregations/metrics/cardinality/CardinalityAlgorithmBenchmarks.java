@@ -21,8 +21,8 @@ public class CardinalityAlgorithmBenchmarks {
     }
 
     public static void main(String[] args) throws Exception {
-        for (int precision = HyperLogLogBeta.MIN_PRECISION; precision <= HyperLogLogBeta.MAX_PRECISION; precision++) {
-            File outFile = new File("/Users/colings86/dev/work/git/elasticsearch/gnuplot/hllBBenchmark" + precision + ".dat");
+        for (int precision = 14; precision <= 15; precision++) {
+            File outFile = new File("/Users/colings86/dev/work/git/elasticsearch/gnuplot/hllBBenchmark" + precision + "-paper.dat");
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(outFile))) {
                 HyperLogLogPlusPlus hllpp = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
 
@@ -31,7 +31,7 @@ public class CardinalityAlgorithmBenchmarks {
                 int next = 100;
                 int step = 10;
 
-                for (int i = 1; i <= 10000000; ++i) {
+                for (int i = 1; i <= 10000; ++i) {
                     long h = BitMixer.mix64(i);
                     hllpp.collect(0, h);
 

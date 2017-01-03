@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -19,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -161,10 +159,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
     /**
      * Reads a new watcher search request instance for the specified parser.
      */
-    public static WatcherSearchTemplateRequest fromXContent(Logger logger, XContentParser parser,
-                                                            SearchType searchType,
-                                                            ParseFieldMatcher parseFieldMatcher,
-                                                            SearchRequestParsers searchRequestParsers) throws IOException {
+    public static WatcherSearchTemplateRequest fromXContent(XContentParser parser, SearchType searchType) throws IOException {
         List<String> indices = new ArrayList<>();
         List<String> types = new ArrayList<>();
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;

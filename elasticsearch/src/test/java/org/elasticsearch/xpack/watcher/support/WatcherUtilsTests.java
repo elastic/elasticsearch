@@ -12,7 +12,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -123,7 +122,7 @@ public class WatcherUtilsTests extends ESTestCase {
         request.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = createParser(builder);
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(logger, parser, DEFAULT_SEARCH_TYPE, null, null);
+        WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE);
 
         assertThat(result.getIndices(), arrayContainingInAnyOrder(expectedIndices != null ? expectedIndices : new String[0]));
         assertThat(result.getTypes(), arrayContainingInAnyOrder(expectedTypes != null ? expectedTypes : new String[0]));
@@ -212,7 +211,7 @@ public class WatcherUtilsTests extends ESTestCase {
 
         XContentParser parser = createParser(builder);
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(logger, parser, DEFAULT_SEARCH_TYPE, null, null);
+        WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, DEFAULT_SEARCH_TYPE);
 
         assertThat(result.getIndices(), arrayContainingInAnyOrder(indices));
         assertThat(result.getTypes(), arrayContainingInAnyOrder(types));

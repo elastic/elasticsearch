@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.transform.search;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -23,8 +22,6 @@ import java.io.IOException;
 public class SearchTransformFactory extends TransformFactory<SearchTransform, SearchTransform.Result, ExecutableSearchTransform> {
     protected final WatcherClientProxy client;
     private final TimeValue defaultTimeout;
-    private final SearchRequestParsers searchRequestParsers;
-    private final ParseFieldMatcher parseFieldMatcher;
     private final WatcherSearchTemplateService searchTemplateService;
 
     public SearchTransformFactory(Settings settings, InternalClient client, SearchRequestParsers searchRequestParsers,
@@ -36,8 +33,6 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
             NamedXContentRegistry xContentRegistry, ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
         this.client = client;
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
-        this.searchRequestParsers = searchRequestParsers;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.transform.search.default_timeout", null);
         this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, searchRequestParsers, xContentRegistry);
     }
@@ -49,8 +44,7 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
 
     @Override
     public SearchTransform parseTransform(String watchId, XContentParser parser) throws IOException {
-        return SearchTransform.parse(transformLogger, watchId, parser,
-                parseFieldMatcher, searchRequestParsers);
+        return SearchTransform.parse(watchId, parser);
     }
 
     @Override

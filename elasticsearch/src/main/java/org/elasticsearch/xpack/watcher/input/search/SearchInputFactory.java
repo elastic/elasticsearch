@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.watcher.input.search;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -24,8 +23,6 @@ import java.io.IOException;
 public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Result, ExecutableSearchInput> {
     private final WatcherClientProxy client;
     private final TimeValue defaultTimeout;
-    private final SearchRequestParsers searchRequestParsers;
-    private final ParseFieldMatcher parseFieldMatcher;
     private final WatcherSearchTemplateService searchTemplateService;
 
     public SearchInputFactory(Settings settings, InternalClient client, SearchRequestParsers searchRequestParsers,
@@ -36,9 +33,7 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
     public SearchInputFactory(Settings settings, WatcherClientProxy client, SearchRequestParsers searchRequestParsers,
             NamedXContentRegistry xContentRegistry, ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableSimpleInput.class, settings));
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.client = client;
-        this.searchRequestParsers = searchRequestParsers;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.input.search.default_timeout", null);
         this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, searchRequestParsers, xContentRegistry);
     }
@@ -50,8 +45,7 @@ public class SearchInputFactory extends InputFactory<SearchInput, SearchInput.Re
 
     @Override
     public SearchInput parseInput(String watchId, XContentParser parser) throws IOException {
-        return SearchInput.parse(inputLogger, watchId, parser,
-                parseFieldMatcher, searchRequestParsers);
+        return SearchInput.parse(watchId, parser);
     }
 
     @Override

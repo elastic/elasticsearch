@@ -152,7 +152,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
             }
         }
 
-        FieldParser<Value> fieldParser = null;
+        FieldParser fieldParser = null;
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -356,13 +356,13 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         return name;
     }
 
-    private void parseArray(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+    private void parseArray(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context)
             throws IOException {
         assert parser.currentToken() == XContentParser.Token.START_ARRAY : "Token was: " + parser.currentToken();
         parseValue(parser, fieldParser, currentFieldName, value, context);
     }
 
-    private void parseValue(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+    private void parseValue(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context)
             throws IOException {
         try {
             fieldParser.parser.parse(parser, value, context);
@@ -371,7 +371,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
     }
 
-    private void parseSub(XContentParser parser, FieldParser<Value> fieldParser, String currentFieldName, Value value, Context context)
+    private void parseSub(XContentParser parser, FieldParser fieldParser, String currentFieldName, Value value, Context context)
             throws IOException {
         final XContentParser.Token token = parser.currentToken();
         switch (token) {
@@ -395,27 +395,27 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private FieldParser getParser(String fieldName) {
-        FieldParser<Value> parser = fieldParserMap.get(fieldName);
+        FieldParser parser = fieldParserMap.get(fieldName);
         if (parser == null && false == ignoreUnknownFields) {
             throw new IllegalArgumentException("[" + name  + "] unknown field [" + fieldName + "], parser not found");
         }
         return parser;
     }
 
-    public static class FieldParser<T> {
-        private final Parser parser;
+    private class FieldParser {
+        private final Parser<Value, Context> parser;
         private final EnumSet<XContentParser.Token> supportedTokens;
         private final ParseField parseField;
         private final ValueType type;
 
-        public FieldParser(Parser parser, EnumSet<XContentParser.Token> supportedTokens, ParseField parseField, ValueType type) {
+        FieldParser(Parser<Value, Context> parser, EnumSet<XContentParser.Token> supportedTokens, ParseField parseField, ValueType type) {
             this.parser = parser;
             this.supportedTokens = supportedTokens;
             this.parseField = parseField;
             this.type = type;
         }
 
-        public void assertSupports(String parserName, XContentParser.Token token, String currentFieldName) {
+        void assertSupports(String parserName, XContentParser.Token token, String currentFieldName) {
             if (parseField.match(currentFieldName) == false) {
                 throw new IllegalStateException("[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }

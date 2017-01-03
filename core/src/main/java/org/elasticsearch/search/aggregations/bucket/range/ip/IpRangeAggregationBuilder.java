@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.range.ip;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,8 +32,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator;
@@ -81,7 +80,6 @@ public final class IpRangeAggregationBuilder
     }
 
     private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
-        final ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
         String key = null;
         String from = null;
         String to = null;

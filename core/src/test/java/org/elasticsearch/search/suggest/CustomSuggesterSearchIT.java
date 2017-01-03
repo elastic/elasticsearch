@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -142,7 +141,6 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
 
         static CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
             XContentParser parser = parseContext.parser();
-            ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
             XContentParser.Token token;
             String currentFieldName = null;
             String fieldname = null;

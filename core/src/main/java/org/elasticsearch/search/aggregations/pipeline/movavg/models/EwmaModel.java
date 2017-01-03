@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -127,8 +126,7 @@ public class EwmaModel extends MovAvgModel {
 
     public static final AbstractModelParser PARSER = new AbstractModelParser() {
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize,
-                                 ParseFieldMatcher parseFieldMatcher) throws ParseException {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize) throws ParseException {
             double alpha = parseDoubleParam(settings, "alpha", DEFAULT_ALPHA);
             checkUnrecognizedParams(settings);
             return new EwmaModel(alpha);

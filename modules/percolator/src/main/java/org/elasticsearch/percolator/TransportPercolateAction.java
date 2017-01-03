@@ -63,7 +63,6 @@ import java.util.List;
 public class TransportPercolateAction extends HandledTransportAction<PercolateRequest, PercolateResponse> {
 
     private final Client client;
-    private final ParseFieldMatcher parseFieldMatcher;
     private final SearchRequestParsers searchRequestParsers;
     private final NamedXContentRegistry xContentRegistry;
 
@@ -76,7 +75,6 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         this.client = client;
         this.searchRequestParsers = searchRequestParsers;
         this.xContentRegistry = xContentRegistry;
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
     }
 
     @Override

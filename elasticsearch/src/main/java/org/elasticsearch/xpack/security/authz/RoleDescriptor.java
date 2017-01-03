@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -44,6 +44,7 @@ public class RoleDescriptor implements ToXContent {
     private final IndicesPrivileges[] indicesPrivileges;
     private final String[] runAs;
     private final Map<String, Object> metadata;
+    private final Map<String, Object> transientMetadata;
 
     public RoleDescriptor(String name,
                           @Nullable String[] clusterPrivileges,
@@ -57,12 +58,23 @@ public class RoleDescriptor implements ToXContent {
                           @Nullable IndicesPrivileges[] indicesPrivileges,
                           @Nullable String[] runAs,
                           @Nullable Map<String, Object> metadata) {
+        this(name, clusterPrivileges, indicesPrivileges, runAs, metadata, null);
+    }
 
+
+    public RoleDescriptor(String name,
+                          @Nullable String[] clusterPrivileges,
+                          @Nullable IndicesPrivileges[] indicesPrivileges,
+                          @Nullable String[] runAs,
+                          @Nullable Map<String, Object> metadata,
+                          @Nullable Map<String, Object> transientMetadata) {
         this.name = name;
         this.clusterPrivileges = clusterPrivileges != null ? clusterPrivileges : Strings.EMPTY_ARRAY;
         this.indicesPrivileges = indicesPrivileges != null ? indicesPrivileges : IndicesPrivileges.NONE;
         this.runAs = runAs != null ? runAs : Strings.EMPTY_ARRAY;
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
+        this.transientMetadata = transientMetadata != null ? Collections.unmodifiableMap(transientMetadata) :
+                Collections.singletonMap("enabled", true);
     }
 
     public String getName() {
@@ -83,6 +95,14 @@ public class RoleDescriptor implements ToXContent {
 
     public Map<String, Object> getMetadata() {
         return metadata;
+    }
+
+    public Map<String, Object> getTransientMetadata() {
+        return transientMetadata;
+    }
+
+    public boolean isUsingDocumentOrFieldLevelSecurity() {
+        return Arrays.stream(indicesPrivileges).anyMatch(ip -> ip.isUsingDocumentLevelSecurity() || ip.isUsingFieldLevelSecurity());
     }
 
     @Override
@@ -125,7 +145,12 @@ public class RoleDescriptor implements ToXContent {
         return result;
     }
 
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, true);
+    }
+
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeTransient) throws IOException {
         builder.startObject();
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
         builder.array(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
@@ -133,6 +158,9 @@ public class RoleDescriptor implements ToXContent {
             builder.array(Fields.RUN_AS.getPreferredName(), runAs);
         }
         builder.field(Fields.METADATA.getPreferredName(), metadata);
+        if (includeTransient) {
+            builder.field(Fields.TRANSIENT_METADATA.getPreferredName(), transientMetadata);
+        }
         return builder.endObject();
     }
 
@@ -146,7 +174,14 @@ public class RoleDescriptor implements ToXContent {
         }
         String[] runAs = in.readStringArray();
         Map<String, Object> metadata = in.readMap();
-        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAs, metadata);
+
+        final Map<String, Object> transientMetadata;
+        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            transientMetadata = in.readMap();
+        } else {
+            transientMetadata = Collections.emptyMap();
+        }
+        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAs, metadata, transientMetadata);
     }
 
     public static void writeTo(RoleDescriptor descriptor, StreamOutput out) throws IOException {
@@ -158,6 +193,9 @@ public class RoleDescriptor implements ToXContent {
         }
         out.writeStringArray(descriptor.runAs);
         out.writeMap(descriptor.metadata);
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            out.writeMap(descriptor.transientMetadata);
+        }
     }
 
     public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat) throws IOException {
@@ -202,6 +240,14 @@ public class RoleDescriptor implements ToXContent {
                             "expected field [{}] to be of type object, but found [{}] instead", currentFieldName, token);
                 }
                 metadata = parser.map();
+            } else if (Fields.TRANSIENT_METADATA.match(currentFieldName)) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    // consume object but just drop
+                    parser.map();
+                } else {
+                    throw new ElasticsearchParseException("expected field [{}] to be an object, but found [{}] instead",
+                            currentFieldName, token);
+                }
             } else {
                 throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
             }
@@ -327,6 +373,15 @@ public class RoleDescriptor implements ToXContent {
                             " permissions in role [{}], use [\"{}\": {\"{}\":[...]," + "\"{}\":[...]}] instead",
                             roleName, Fields.FIELD_PERMISSIONS, Fields.GRANT_FIELDS, Fields.EXCEPT_FIELDS, roleName);
                 }
+            } else if (Fields.TRANSIENT_METADATA.match(currentFieldName)) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        // it is transient metadata, skip it
+                    }
+                } else {
+                    throw new ElasticsearchParseException("failed to parse transient metadata for role [{}]. expected {} but got {}" +
+                            " in \"{}\".", roleName, XContentParser.Token.START_OBJECT, token, Fields.TRANSIENT_METADATA);
+                }
             } else {
                 throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. unexpected field [{}]",
                         roleName, currentFieldName);
@@ -395,6 +450,30 @@ public class RoleDescriptor implements ToXContent {
         @Nullable
         public BytesReference getQuery() {
             return this.query;
+        }
+
+        public boolean isUsingDocumentLevelSecurity() {
+            return query != null;
+        }
+
+        public boolean isUsingFieldLevelSecurity() {
+            return hasDeniedFields() || hasGrantedFields();
+        }
+
+        private boolean hasDeniedFields() {
+            return deniedFields != null && deniedFields.length > 0;
+        }
+
+        private boolean hasGrantedFields() {
+            if (grantedFields != null && grantedFields.length >= 0) {
+                // we treat just '*' as no FLS since that's what the UI defaults to
+                if (grantedFields.length == 1 && "*".equals(grantedFields[0])) {
+                    return false;
+                } else {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -562,5 +641,6 @@ public class RoleDescriptor implements ToXContent {
         ParseField GRANT_FIELDS = new ParseField("grant");
         ParseField EXCEPT_FIELDS = new ParseField("except");
         ParseField METADATA = new ParseField("metadata");
+        ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");
     }
 }

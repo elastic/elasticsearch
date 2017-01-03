@@ -170,7 +170,8 @@ public class AuthorizationServiceTests extends ESTestCase {
             if (roleDescriptors.isEmpty()) {
                 callback.onResponse(Role.EMPTY);
             } else {
-                callback.onResponse(CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache));
+                callback.onResponse(
+                        CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache));
             }
             return Void.TYPE;
         }).when(rolesStore).roles(any(Set.class), any(FieldPermissionsCache.class), any(ActionListener.class));

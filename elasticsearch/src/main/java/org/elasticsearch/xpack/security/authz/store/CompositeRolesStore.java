@@ -15,6 +15,7 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.set.Sets;
@@ -66,12 +67,13 @@ public class CompositeRolesStore extends AbstractComponent {
     private final FileRolesStore fileRolesStore;
     private final NativeRolesStore nativeRolesStore;
     private final ReservedRolesStore reservedRolesStore;
+    private final XPackLicenseState licenseState;
     private final Cache<Set<String>, Role> roleCache;
     private final Set<String> negativeLookupCache;
     private final AtomicLong numInvalidation = new AtomicLong();
 
     public CompositeRolesStore(Settings settings, FileRolesStore fileRolesStore, NativeRolesStore nativeRolesStore,
-                               ReservedRolesStore reservedRolesStore) {
+                               ReservedRolesStore reservedRolesStore, XPackLicenseState licenseState) {
         super(settings);
         this.fileRolesStore = fileRolesStore;
         // invalidating all on a file based role update is heavy handed to say the least, but in general this should be infrequent so the
@@ -79,6 +81,7 @@ public class CompositeRolesStore extends AbstractComponent {
         fileRolesStore.addListener(this::invalidateAll);
         this.nativeRolesStore = nativeRolesStore;
         this.reservedRolesStore = reservedRolesStore;
+        this.licenseState = licenseState;
         CacheBuilder<Set<String>, Role> builder = CacheBuilder.builder();
         final int cacheSize = CACHE_SIZE_SETTING.get(settings);
         if (cacheSize >= 0) {
@@ -96,7 +99,16 @@ public class CompositeRolesStore extends AbstractComponent {
             final long invalidationCounter = numInvalidation.get();
             roleDescriptors(roleNames, ActionListener.wrap(
                     (descriptors) -> {
-                        final Role role = buildRoleFromDescriptors(descriptors, fieldPermissionsCache);
+                        final Role role;
+                        if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+                            role = buildRoleFromDescriptors(descriptors, fieldPermissionsCache);
+                        } else {
+                            final Set<RoleDescriptor> filtered = descriptors.stream()
+                                    .filter((rd) -> rd.isUsingDocumentOrFieldLevelSecurity() == false)
+                                    .collect(Collectors.toSet());
+                            role = buildRoleFromDescriptors(filtered, fieldPermissionsCache);
+                        }
+
                         if (role != null) {
                             try (ReleasableLock ignored = readLock.acquire()) {
                                 /* this is kinda spooky. We use a read/write lock to ensure we don't modify the cache if we hold the write
@@ -161,7 +173,7 @@ public class CompositeRolesStore extends AbstractComponent {
         StringBuilder nameBuilder = new StringBuilder();
         Set<String> clusterPrivileges = new HashSet<>();
         Set<String> runAs = new HashSet<>();
-        Map<Set<String>, MergableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
+        Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
         for (RoleDescriptor descriptor : roleDescriptors) {
             nameBuilder.append(descriptor.getName());
             nameBuilder.append('_');
@@ -181,10 +193,10 @@ public class CompositeRolesStore extends AbstractComponent {
                 if (isExplicitDenial == false) {
                     indicesPrivilegesMap.compute(key, (k, value) -> {
                         if (value == null) {
-                            return new MergableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
+                            return new MergeableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
                                     indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery());
                         } else {
-                            value.merge(new MergableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
+                            value.merge(new MergeableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
                                     indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery()));
                             return value;
                         }
@@ -199,7 +211,7 @@ public class CompositeRolesStore extends AbstractComponent {
                 .cluster(ClusterPrivilege.get(clusterPrivs))
                 .runAs(runAsPrivilege);
         indicesPrivilegesMap.entrySet().forEach((entry) -> {
-            MergableIndicesPrivilege privilege = entry.getValue();
+            MergeableIndicesPrivilege privilege = entry.getValue();
             builder.add(fieldPermissionsCache.getFieldPermissions(privilege.grantedFields, privilege.deniedFields), privilege.query,
                     IndexPrivilege.get(privilege.privileges), privilege.indices.toArray(Strings.EMPTY_ARRAY));
         });
@@ -240,15 +252,15 @@ public class CompositeRolesStore extends AbstractComponent {
     /**
      * A mutable class that can be used to represent the combination of one or more {@link IndicesPrivileges}
      */
-    private static class MergableIndicesPrivilege {
+    private static class MergeableIndicesPrivilege {
         private Set<String> indices;
         private Set<String> privileges;
         private Set<String> grantedFields = null;
         private Set<String> deniedFields = null;
         private Set<BytesReference> query = null;
 
-        MergableIndicesPrivilege(String[] indices, String[] privileges, @Nullable String[] grantedFields, @Nullable String[] deniedFields,
-                                 @Nullable BytesReference query) {
+        MergeableIndicesPrivilege(String[] indices, String[] privileges, @Nullable String[] grantedFields, @Nullable String[] deniedFields,
+                                  @Nullable BytesReference query) {
             this.indices = Sets.newHashSet(Objects.requireNonNull(indices));
             this.privileges = Sets.newHashSet(Objects.requireNonNull(privileges));
             this.grantedFields = grantedFields == null ? null : Sets.newHashSet(grantedFields);
@@ -258,7 +270,7 @@ public class CompositeRolesStore extends AbstractComponent {
             }
         }
 
-        void merge(MergableIndicesPrivilege other) {
+        void merge(MergeableIndicesPrivilege other) {
             assert indices.equals(other.indices) : "index names must be equivalent in order to merge";
             this.grantedFields = combineFieldSets(this.grantedFields, other.grantedFields);
             this.deniedFields = combineFieldSets(this.deniedFields, other.deniedFields);

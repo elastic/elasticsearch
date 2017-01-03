@@ -54,8 +54,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
                         .putAlias(new AliasMetaData.Builder("ba").build())
                         .build(), true)
                 .build();
-        Role roles =
-                CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(aStarRole, bRole), new FieldPermissionsCache(Settings.EMPTY));
+        Role roles = CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(aStarRole, bRole),
+                new FieldPermissionsCache(Settings.EMPTY));
         AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, roles, SearchAction.NAME, metaData);
         List<String> list = authorizedIndices.get();
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));

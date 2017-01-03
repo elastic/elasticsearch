@@ -313,10 +313,14 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             cryptoService, failureHandler, threadPool, anonymousUser));
         components.add(authcService.get());
 
-        final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService);
-        final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client);
+        final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, licenseState);
+        final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, licenseState);
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
-        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore);
+        final CompositeRolesStore allRolesStore =
+                new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore, licenseState);
+        // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
+        // minimal
+        licenseState.addListener(allRolesStore::invalidateAll);
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser);
         components.add(nativeRolesStore); // used by roles actions

@@ -38,6 +38,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.license.LicenseUtils;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.action.role.ClearRolesCacheRequest;
@@ -45,8 +47,10 @@ import org.elasticsearch.xpack.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.security.action.role.DeleteRoleRequest;
 import org.elasticsearch.xpack.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -90,6 +94,7 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
     private static final String ROLE_DOC_TYPE = "role";
 
     private final InternalClient client;
+    private final XPackLicenseState licenseState;
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final boolean isTribeNode;
 
@@ -98,10 +103,12 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
     private volatile boolean securityIndexExists = false;
     private volatile boolean canWrite = false;
 
-    public NativeRolesStore(Settings settings, InternalClient client) {
+    public NativeRolesStore(Settings settings, InternalClient client, XPackLicenseState licenseState) {
         super(settings);
         this.client = client;
         this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;
+        this.securityClient = new SecurityClient(client);
+        this.licenseState = licenseState;
     }
 
     public boolean canStart(ClusterState clusterState, boolean master) {
@@ -148,7 +155,6 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
     public void start() {
         try {
             if (state.compareAndSet(State.INITIALIZED, State.STARTING)) {
-                this.securityClient = new SecurityClient(client);
                 state.set(State.STARTED);
             }
         } catch (Exception e) {
@@ -192,7 +198,8 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
                         .setFetchSource(true)
                         .request();
                 request.indicesOptions().ignoreUnavailable();
-                InternalClient.fetchAllByEntity(client, request, listener, (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger));
+                InternalClient.fetchAllByEntity(client, request, listener,
+                        (hit) -> transformRole(hit.getId(), hit.getSourceRef(), logger, licenseState));
             } catch (Exception e) {
                 logger.error((Supplier<?>) () -> new ParameterizedMessage("unable to retrieve roles {}", Arrays.toString(names)), e);
                 listener.onFailure(e);
@@ -244,16 +251,23 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
             listener.onResponse(false);
         } else if (isTribeNode) {
             listener.onFailure(new UnsupportedOperationException("roles may not be created or modified using a tribe node"));
-            return;
-        }  else if (canWrite == false) {
+        } else if (canWrite == false) {
             listener.onFailure(new IllegalStateException("role cannot be created or modified as service cannot write until template and " +
                     "mappings are up to date"));
-            return;
+        } else if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+            innerPutRole(request, role, listener);
+        } else if (role.isUsingDocumentOrFieldLevelSecurity()) {
+            listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
+        } else {
+            innerPutRole(request, role, listener);
         }
+    }
 
+    // pkg-private for testing
+    void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         try {
             client.prepareIndex(SecurityTemplateService.SECURITY_INDEX_NAME, ROLE_DOC_TYPE, role.getName())
-                    .setSource(role.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS))
+                    .setSource(role.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, false))
                     .setRefreshPolicy(request.getRefreshPolicy())
                     .execute(new ActionListener<IndexResponse>() {
                         @Override
@@ -434,15 +448,41 @@ public class NativeRolesStore extends AbstractComponent implements ClusterStateL
         if (response.isExists() == false) {
             return null;
         }
-        return transformRole(response.getId(), response.getSourceAsBytesRef(), logger);
+
+        return transformRole(response.getId(), response.getSourceAsBytesRef(), logger, licenseState);
     }
 
     @Nullable
-    static RoleDescriptor transformRole(String name, BytesReference sourceBytes, Logger logger) {
+    static RoleDescriptor transformRole(String name, BytesReference sourceBytes, Logger logger, XPackLicenseState licenseState) {
         try {
             // we pass true as last parameter because we do not want to reject permissions if the field permissions
             // are given in 2.x syntax
-            return RoleDescriptor.parse(name, sourceBytes, true);
+            RoleDescriptor roleDescriptor = RoleDescriptor.parse(name, sourceBytes, true);
+            if (licenseState.isDocumentAndFieldLevelSecurityAllowed()) {
+                return roleDescriptor;
+            } else {
+                final boolean dlsEnabled =
+                        Arrays.stream(roleDescriptor.getIndicesPrivileges()).anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity);
+                final boolean flsEnabled =
+                        Arrays.stream(roleDescriptor.getIndicesPrivileges()).anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity);
+                if (dlsEnabled || flsEnabled) {
+                    List<String> unlicensedFeatures = new ArrayList<>(2);
+                    if (flsEnabled) {
+                        unlicensedFeatures.add("fls");
+                    }
+                    if (dlsEnabled) {
+                        unlicensedFeatures.add("dls");
+                    }
+                    Map<String, Object> transientMap = new HashMap<>(2);
+                    transientMap.put("unlicensed_features", unlicensedFeatures);
+                    transientMap.put("enabled", false);
+                    return new RoleDescriptor(roleDescriptor.getName(), roleDescriptor.getClusterPrivileges(),
+                            roleDescriptor.getIndicesPrivileges(), roleDescriptor.getRunAs(), roleDescriptor.getMetadata(), transientMap);
+                } else {
+                    return roleDescriptor;
+                }
+
+            }
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("error in the format of data for role [{}]", name), e);
             return null;

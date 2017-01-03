@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -40,7 +41,6 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableMap;
 
 public class FileRolesStore extends AbstractComponent {
@@ -49,24 +49,28 @@ public class FileRolesStore extends AbstractComponent {
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
 
     private final Path file;
+    private final XPackLicenseState licenseState;
     private final List<Runnable> listeners = new ArrayList<>();
 
     private volatile Map<String, RoleDescriptor> permissions;
 
-    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService) throws IOException {
-        this(settings, env, watcherService, null);
+    public FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, XPackLicenseState licenseState)
+            throws IOException {
+        this(settings, env, watcherService, () -> {}, licenseState);
     }
 
-    FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Runnable listener) throws IOException {
+    FileRolesStore(Settings settings, Environment env, ResourceWatcherService watcherService, Runnable listener,
+                   XPackLicenseState licenseState) throws IOException {
         super(settings);
         this.file = resolveFile(env);
         if (listener != null) {
             listeners.add(listener);
         }
+        this.licenseState = licenseState;
         FileWatcher watcher = new FileWatcher(file.getParent());
         watcher.addListener(new FileListener());
         watcherService.add(watcher, ResourceWatcherService.Frequency.HIGH);
-        permissions = parseFile(file, logger, settings);
+        permissions = parseFile(file, logger, settings, licenseState);
     }
 
     Set<RoleDescriptor> roleDescriptors(Set<String> roleNames) {
@@ -113,19 +117,15 @@ public class FileRolesStore extends AbstractComponent {
     }
 
     public static Set<String> parseFileForRoleNames(Path path, Logger logger) {
-        Map<String, RoleDescriptor> roleMap = parseFile(path, logger, false, Settings.EMPTY);
-        if (roleMap == null) {
-            return emptySet();
-        }
-        return roleMap.keySet();
+        return parseRoleDescriptors(path, logger, false, Settings.EMPTY).keySet();
     }
 
-    public static Map<String, RoleDescriptor> parseFile(Path path, Logger logger, Settings settings) {
-        return parseFile(path, logger, true, settings);
+    public static Map<String, RoleDescriptor> parseFile(Path path, Logger logger, Settings settings, XPackLicenseState licenseState) {
+        return parseFile(path, logger, true, settings, licenseState);
     }
 
     public static Map<String, RoleDescriptor> parseFile(Path path, Logger logger, boolean resolvePermission,
-                                                                     Settings settings) {
+                                                                     Settings settings, XPackLicenseState licenseState) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
@@ -135,18 +135,23 @@ public class FileRolesStore extends AbstractComponent {
         if (Files.exists(path)) {
             try {
                 List<String> roleSegments = roleSegments(path);
+                final boolean flsDlsLicensed = licenseState.isDocumentAndFieldLevelSecurityAllowed();
                 for (String segment : roleSegments) {
                     RoleDescriptor descriptor = parseRoleDescriptor(segment, path, logger, resolvePermission, settings);
                     if (descriptor != null) {
                         if (ReservedRolesStore.isReserved(descriptor.getName())) {
                             logger.warn("role [{}] is reserved. the relevant role definition in the mapping file will be ignored",
                                     descriptor.getName());
+                        } else if (flsDlsLicensed == false && descriptor.isUsingDocumentOrFieldLevelSecurity()) {
+                            logger.warn("role [{}] uses document and/or field level security, which is not enabled by the current license" +
+                                    ". this role will be ignored", descriptor.getName());
+                            // we still put the role in the map to avoid unnecessary negative lookups
+                            roles.put(descriptor.getName(), descriptor);
                         } else {
                             roles.put(descriptor.getName(), descriptor);
                         }
                     }
                 }
-
             } catch (IOException ioe) {
                 logger.error(
                         (Supplier<?>) () -> new ParameterizedMessage(
@@ -164,8 +169,7 @@ public class FileRolesStore extends AbstractComponent {
         return unmodifiableMap(roles);
     }
 
-    public static Map<String, RoleDescriptor> parseRoleDescriptors(Path path, Logger logger,
-                                                                   boolean resolvePermission, Settings settings) {
+    public static Map<String, RoleDescriptor> parseRoleDescriptors(Path path, Logger logger, boolean resolvePermission, Settings settings) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
@@ -194,8 +198,7 @@ public class FileRolesStore extends AbstractComponent {
     }
 
     @Nullable
-    static RoleDescriptor parseRoleDescriptor(String segment, Path path, Logger logger,
-                                                      boolean resolvePermissions, Settings settings) {
+    static RoleDescriptor parseRoleDescriptor(String segment, Path path, Logger logger, boolean resolvePermissions, Settings settings) {
         String roleName = null;
         try {
             // EMPTY is safe here because we never use namedObject
@@ -312,7 +315,7 @@ public class FileRolesStore extends AbstractComponent {
         public void onFileChanged(Path file) {
             if (file.equals(FileRolesStore.this.file)) {
                 try {
-                    permissions = parseFile(file, logger, settings);
+                    permissions = parseFile(file, logger, settings, licenseState);
                     logger.info("updated roles (roles file [{}] changed)", file.toAbsolutePath());
                 } catch (Exception e) {
                     logger.error(

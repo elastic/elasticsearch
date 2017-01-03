@@ -299,7 +299,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
 
         static String createRoleJson(RoleDescriptor rd) throws IOException {
             XContentBuilder builder = jsonBuilder();
-            rd.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            rd.toXContent(builder, ToXContent.EMPTY_PARAMS, false);
             return builder.string();
         }
 
@@ -312,7 +312,7 @@ public class ESNativeRealmMigrateTool extends MultiCommand {
             }
             terminal.println("importing roles from [" + rolesFile + "]...");
             Logger logger = getTerminalLogger(terminal);
-            Map<String, RoleDescriptor> roles = FileRolesStore.parseRoleDescriptors(rolesFile, logger, true, env.settings());
+            Map<String, RoleDescriptor> roles = FileRolesStore.parseRoleDescriptors(rolesFile, logger, true, Settings.EMPTY);
             Set<String> existingRoles;
             try {
                 existingRoles = getRolesThatExist(terminal, env.settings(), env, options);

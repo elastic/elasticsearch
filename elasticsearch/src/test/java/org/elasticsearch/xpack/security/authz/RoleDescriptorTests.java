@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.security.support.MetadataUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -142,5 +143,16 @@ public class RoleDescriptorTests extends ESTestCase {
         assertArrayEquals(new String[] { "idx1", "idx2" }, rd.getIndicesPrivileges()[0].getIndices());
         assertArrayEquals(new String[] { "m", "n" }, rd.getRunAs());
         assertNull(rd.getIndicesPrivileges()[0].getQuery());
+    }
+
+    public void testParseIgnoresTransientMetadata() throws Exception {
+        final RoleDescriptor descriptor = new RoleDescriptor("test", new String[] { "all" }, null, null,
+                Collections.singletonMap("_unlicensed_feature", true), Collections.singletonMap("foo", "bar"));
+        XContentBuilder b = jsonBuilder();
+        descriptor.toXContent(b, ToXContent.EMPTY_PARAMS);
+        RoleDescriptor parsed = RoleDescriptor.parse("test", b.bytes(), false);
+        assertNotNull(parsed);
+        assertEquals(1, parsed.getTransientMetadata().size());
+        assertEquals(true, parsed.getTransientMetadata().get("enabled"));
     }
 }

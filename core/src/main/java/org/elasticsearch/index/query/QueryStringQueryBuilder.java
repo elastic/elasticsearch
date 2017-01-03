@@ -1012,11 +1012,11 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         qpSettings.fuzziness(fuzziness);
         qpSettings.fuzzyPrefixLength(fuzzyPrefixLength);
         qpSettings.fuzzyMaxExpansions(fuzzyMaxExpansions);
-        qpSettings.fuzzyRewriteMethod(QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), this.fuzzyRewrite));
+        qpSettings.fuzzyRewriteMethod(QueryParsers.parseRewriteMethod(this.fuzzyRewrite));
         qpSettings.phraseSlop(phraseSlop);
         qpSettings.useDisMax(useDisMax);
         qpSettings.tieBreaker(tieBreaker);
-        qpSettings.rewriteMethod(QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), this.rewrite));
+        qpSettings.rewriteMethod(QueryParsers.parseRewriteMethod(this.rewrite));
         qpSettings.timeZone(timeZone);
         qpSettings.maxDeterminizedStates(maxDeterminizedStates);
         qpSettings.splitOnWhitespace(splitOnWhitespace);

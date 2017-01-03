@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -65,7 +64,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"));
 
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            buildFromContent(parser, analyzeRequest, parseFieldMatcher);
+            buildFromContent(parser, analyzeRequest);
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to parse request body", e);
         }
@@ -73,7 +72,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
         return channel -> client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<>(channel));
     }
 
-    static void buildFromContent(XContentParser parser, AnalyzeRequest analyzeRequest, ParseFieldMatcher parseFieldMatcher)
+    static void buildFromContent(XContentParser parser, AnalyzeRequest analyzeRequest)
             throws IOException {
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("Malformed content, must start with an object");

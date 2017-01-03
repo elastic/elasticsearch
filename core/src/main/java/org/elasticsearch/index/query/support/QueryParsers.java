@@ -22,7 +22,6 @@ package org.elasticsearch.index.query.support;
 import org.apache.lucene.search.MultiTermQuery;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 
 public final class QueryParsers {
 
@@ -44,18 +43,12 @@ public final class QueryParsers {
         query.setRewriteMethod(rewriteMethod);
     }
 
-    public static void setRewriteMethod(MultiTermQuery query, ParseFieldMatcher matcher, @Nullable String rewriteMethod) {
-        if (rewriteMethod == null) {
-            return;
-        }
-        query.setRewriteMethod(parseRewriteMethod(matcher, rewriteMethod));
+    public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod) {
+        return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE);
     }
 
-    public static MultiTermQuery.RewriteMethod parseRewriteMethod(ParseFieldMatcher matcher, @Nullable String rewriteMethod) {
-        return parseRewriteMethod(matcher, rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE);
-    }
-
-    public static MultiTermQuery.RewriteMethod parseRewriteMethod(ParseFieldMatcher matcher, @Nullable String rewriteMethod, @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod) {
+    public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod,
+                                                                  @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod) {
         if (rewriteMethod == null) {
             return defaultRewriteMethod;
         }
@@ -94,5 +87,4 @@ public final class QueryParsers {
 
         throw new IllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
     }
-
 }

@@ -199,7 +199,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
      * "query_then_fetch"/"queryThenFetch", and "query_and_fetch"/"queryAndFetch".
      */
     public SearchRequest searchType(String searchType) {
-        return searchType(SearchType.fromString(searchType, ParseFieldMatcher.EMPTY));
+        return searchType(SearchType.fromString(searchType));
     }
 
     /**

@@ -65,7 +65,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory<
         if (valuesSource instanceof ValuesSource.Bytes) {
             ExecutionMode execution = null;
             if (executionHint != null) {
-                execution = ExecutionMode.fromString(executionHint, context.parseFieldMatcher());
+                execution = ExecutionMode.fromString(executionHint);
             }
 
             // In some cases using ordinals is just not supported: override

@@ -51,7 +51,7 @@ public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<Exte
         parser.nextToken(); // skip object start
 
         ExtendedStatsBucketPipelineAggregationBuilder builder = (ExtendedStatsBucketPipelineAggregationBuilder) aggParsers
-            .pipelineParser(ExtendedStatsBucketPipelineAggregationBuilder.NAME, parseFieldMatcher)
+            .pipelineParser(ExtendedStatsBucketPipelineAggregationBuilder.NAME)
             .parse("test", parseContext);
 
         assertThat(builder.sigma(), equalTo(5.0));

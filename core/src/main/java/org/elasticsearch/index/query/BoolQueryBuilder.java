@@ -56,7 +56,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private static final String SHOULD = "should";
     private static final String MUST = "must";
     private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord");
-    private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match", "minimum_number_should_match");
+    private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
     private static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
 
     private final List<QueryBuilder> mustClauses = new ArrayList<>();
@@ -209,7 +209,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     /**
-     * Sets the minimum should match using the special syntax (for example, supporting percentage).
+     * Sets the minimum should match parameter using the special syntax (for example, supporting percentage).
+     * @see BoolQueryBuilder#minimumShouldMatch(int)
      */
     public BoolQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
         this.minimumShouldMatch = minimumShouldMatch;
@@ -217,7 +218,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     /**
-     * Sets the minimum should match as an integer value.
+     * Specifies a minimum number of the optional (should) boolean clauses which must be satisfied.
+     * <p>
+     * By default no optional clauses are necessary for a match
+     * (unless there are no required clauses).  If this method is used,
+     * then the specified number of clauses is required.
+     * <p>
+     * Use of this method is totally independent of specifying that
+     * any specific clauses are required (or prohibited).  This number will
+     * only be compared against the number of matching optional clauses.
+     *
+     * @param minimumShouldMatch the number of optional clauses that must match
      */
     public BoolQueryBuilder minimumShouldMatch(int minimumShouldMatch) {
         this.minimumShouldMatch = Integer.toString(minimumShouldMatch);

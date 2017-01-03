@@ -65,6 +65,10 @@ public class RestGetBucketsAction extends BaseRestHandler {
                     || restRequest.hasParam(GetBucketsAction.Request.MAX_NORMALIZED_PROBABILITY.getPreferredName())
                     || timestamp == null) {
 
+                request.setPageParams(
+                        new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                                restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+
                 // Multiple buckets, check if the param is set first so mutually exclusive
                 // options will only cause an error if set
                 if (restRequest.hasParam(GetBucketsAction.Request.START.getPreferredName())) {
@@ -72,11 +76,6 @@ public class RestGetBucketsAction extends BaseRestHandler {
                 }
                 if (restRequest.hasParam(GetBucketsAction.Request.END.getPreferredName())) {
                     request.setEnd(restRequest.param(GetBucketsAction.Request.END.getPreferredName()));
-                }
-                if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
-                    request.setPageParams(
-                            new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                                            restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
                 }
                 if (restRequest.hasParam(GetBucketsAction.Request.ANOMALY_SCORE.getPreferredName())) {
                     request.setAnomalyScore(
@@ -99,5 +98,4 @@ public class RestGetBucketsAction extends BaseRestHandler {
 
         return channel -> transportAction.execute(request, new RestStatusToXContentListener<>(channel));
     }
-
 }

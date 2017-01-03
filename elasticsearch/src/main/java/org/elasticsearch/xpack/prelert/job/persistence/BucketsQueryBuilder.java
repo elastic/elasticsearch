@@ -59,12 +59,16 @@ public final class BucketsQueryBuilder {
     }
 
     public BucketsQueryBuilder anomalyScoreThreshold(Double anomalyScoreFilter) {
-        bucketsQuery.anomalyScoreFilter = anomalyScoreFilter;
+        if (anomalyScoreFilter != null) {
+            bucketsQuery.anomalyScoreFilter = anomalyScoreFilter;
+        }
         return this;
     }
 
     public BucketsQueryBuilder normalizedProbabilityThreshold(Double normalizedProbability) {
-        bucketsQuery.normalizedProbability = normalizedProbability;
+        if (normalizedProbability != null) {
+            bucketsQuery.normalizedProbability = normalizedProbability;
+        }
         return this;
     }
 

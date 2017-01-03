@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets
 import java.security.KeyStore
 import java.security.SecureRandom
 
+apply plugin: 'elasticsearch.standalone-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
@@ -398,4 +399,3 @@ class SanEvaluator {
     return buf.toString();
   }
 }
-

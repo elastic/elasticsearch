@@ -24,6 +24,7 @@ import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -34,6 +35,9 @@ public class StandaloneTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        if (project.pluginManager.hasPlugin('elasticsearch.build')) {
+            throw new InvalidUserDataException('elasticsearch.standalone-test and elasticsearch.build are mutually exclusive')
+        }
         project.pluginManager.apply(JavaBasePlugin)
         project.pluginManager.apply(RandomizedTestingPlugin)
 
@@ -41,7 +45,7 @@ public class StandaloneTestBasePlugin implements Plugin<Project> {
         BuildPlugin.configureRepositories(project)
 
         // only setup tests to build
-        project.sourceSets.maybeCreate('test')
+        project.sourceSets.create('test')
         project.dependencies.add('testCompile', "org.elasticsearch.test:framework:${VersionProperties.elasticsearch}")
 
         project.eclipse.classpath.sourceSets = [project.sourceSets.test]
@@ -49,10 +53,7 @@ public class StandaloneTestBasePlugin implements Plugin<Project> {
         project.idea.module.testSourceDirs += project.sourceSets.test.java.srcDirs
         project.idea.module.scopes['TEST'] = [plus: [project.configurations.testRuntime]]
 
-        Task precommitTask = project.tasks.findByName('precommit')
-        if (precommitTask == null) {
-            PrecommitTasks.create(project, false)
-            project.check.dependsOn(project.precommit)
-        }
+        PrecommitTasks.create(project, false)
+        project.check.dependsOn(project.precommit)
     }
 }

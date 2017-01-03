@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -42,6 +41,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.prelert.integration.TooManyJobsIT.ensureClusterStateConsistencyWorkAround;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -260,5 +260,10 @@ public class ScheduledJobsIT extends ESIntegTestCase {
                     client.execute(DeleteJobAction.INSTANCE, new DeleteJobAction.Request(jobId)).get();
             assertTrue(response.isAcknowledged());
         }
+    }
+
+    @Override
+    protected void ensureClusterStateConsistency() throws IOException {
+        ensureClusterStateConsistencyWorkAround();
     }
 }

@@ -177,7 +177,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
-    public void testInvalidLenientBooleanForCurrentIndexVersion() throws IOException {
+    public void testInvalidLenientBooleanForCurrentIndexVersion() {
         String falsy = randomFrom("off", "no", "0");
         String truthy = randomFrom("on", "yes", "1");
 
@@ -192,7 +192,7 @@ public class SettingsTests extends ESTestCase {
     }
 
     @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
-    public void testValidLenientBooleanForCurrentIndexVersion() throws IOException {
+    public void testValidLenientBooleanForCurrentIndexVersion() {
         Settings settings = Settings.builder()
             .put("foo", "false")
             .put("bar", "true").build();

@@ -11,9 +11,11 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -154,6 +156,21 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                         StatusReporter.ACCEPTABLE_PERCENTAGE_OUT_OF_ORDER_ERRORS_SETTING,
                         UsageReporter.UPDATE_INTERVAL_SETTING,
                         AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE));
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return Collections.singletonList(new NamedWriteableRegistry.Entry(MetaData.Custom.class, "prelert", PrelertMetadata::new));
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        NamedXContentRegistry.Entry entry = new NamedXContentRegistry.Entry(
+                MetaData.Custom.class,
+                new ParseField("prelert"),
+                parser -> PrelertMetadata.PRELERT_METADATA_PARSER.parse(parser, parseFieldMatcherSupplier).build()
+        );
+        return Collections.singletonList(entry);
     }
 
     @Override

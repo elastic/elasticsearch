@@ -81,7 +81,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         if (localCheckpoint < 0 && localCheckpoint != SequenceNumbersService.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
                 "local checkpoint must be non-negative or [" + SequenceNumbersService.NO_OPS_PERFORMED + "] "
-                    + "but was [" +  localCheckpoint + "]");
+                    + "but was [" + localCheckpoint + "]");
         }
         if (maxSeqNo < 0 && maxSeqNo != SequenceNumbersService.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
@@ -186,7 +186,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         while (bitSetOffset >= processedSeqNo.size()) {
             processedSeqNo.add(new FixedBitSet(bitArraysSize));
         }
-        return processedSeqNo.get((int)bitSetOffset);
+        return processedSeqNo.get((int) bitSetOffset);
     }
 
     /**

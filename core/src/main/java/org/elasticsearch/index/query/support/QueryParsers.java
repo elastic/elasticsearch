@@ -44,13 +44,6 @@ public final class QueryParsers {
         query.setRewriteMethod(rewriteMethod);
     }
 
-    public static void setRewriteMethod(MultiTermQuery query, ParseFieldMatcher matcher, @Nullable String rewriteMethod) {
-        if (rewriteMethod == null) {
-            return;
-        }
-        query.setRewriteMethod(parseRewriteMethod(matcher, rewriteMethod));
-    }
-
     public static MultiTermQuery.RewriteMethod parseRewriteMethod(ParseFieldMatcher matcher, @Nullable String rewriteMethod) {
         return parseRewriteMethod(matcher, rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE);
     }

@@ -48,7 +48,6 @@ import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
@@ -295,12 +294,11 @@ public abstract class ESTestCase extends LuceneTestCase {
             final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
             assertNull("unexpected warning headers", warnings);
         } finally {
-            DeprecationLogger.removeThreadContext(this.threadContext);
-            this.threadContext.close();
+            resetDeprecationLogger();
         }
     }
 
-    protected final void assertWarnings(String... expectedWarnings) throws IOException {
+    protected final void assertWarnings(String... expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
@@ -313,12 +311,22 @@ public abstract class ESTestCase extends LuceneTestCase {
                 assertThat(actualWarnings, hasItem(equalTo(msg)));
             }
         } finally {
-            // "clear" current warning headers by setting a new ThreadContext
-            DeprecationLogger.removeThreadContext(this.threadContext);
-            this.threadContext.close();
-            this.threadContext = new ThreadContext(Settings.EMPTY);
-            DeprecationLogger.setThreadContext(this.threadContext);
+            resetDeprecationLogger();
         }
+    }
+
+    private void resetDeprecationLogger() {
+        // "clear" current warning headers by setting a new ThreadContext
+        DeprecationLogger.removeThreadContext(this.threadContext);
+        try {
+            this.threadContext.close();
+            // catch IOException to avoid that call sites have to deal with it. It is only declared because this class implements Closeable
+            // but it is impossible that this implementation will ever throw an IOException.
+        } catch (IOException ex) {
+            throw new AssertionError("IOException thrown while closing deprecation logger's thread context", ex);
+        }
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        DeprecationLogger.setThreadContext(this.threadContext);
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();

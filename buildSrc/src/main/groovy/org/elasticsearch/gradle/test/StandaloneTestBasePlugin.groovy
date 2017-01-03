@@ -24,6 +24,7 @@ import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
@@ -33,6 +34,9 @@ public class StandaloneTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        if (project.pluginManager.hasPlugin('elasticsearch.build')) {
+            throw new InvalidUserDataException('elasticsearch.standalone-test and elasticsearch.build are mutually exclusive')
+        }
         project.pluginManager.apply(JavaBasePlugin)
         project.pluginManager.apply(RandomizedTestingPlugin)
 

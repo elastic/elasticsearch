@@ -19,13 +19,10 @@
 
 package org.elasticsearch.index.search;
 
-import static org.apache.lucene.analysis.synonym.SynonymGraphFilter.GRAPH_FLAG;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.GraphTokenStreamFiniteStrings;
-import org.apache.lucene.analysis.tokenattributes.FlagsAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
@@ -361,7 +358,6 @@ public class MatchQuery {
                 TermToBytesRefAttribute termAtt = stream.getAttribute(TermToBytesRefAttribute.class);
                 PositionIncrementAttribute posIncAtt = stream.addAttribute(PositionIncrementAttribute.class);
                 PositionLengthAttribute posLenAtt = stream.addAttribute(PositionLengthAttribute.class);
-                FlagsAttribute flagsAtt = stream.addAttribute(FlagsAttribute.class);
 
                 if (termAtt == null) {
                     return null;
@@ -386,7 +382,7 @@ public class MatchQuery {
                     }
 
                     int positionLength = posLenAtt.getPositionLength();
-                    if (!isGraph && positionLength > 1 && ((flagsAtt.getFlags() & GRAPH_FLAG) == GRAPH_FLAG)) {
+                    if (positionLength > 1) {
                         isGraph = true;
                     }
                 }

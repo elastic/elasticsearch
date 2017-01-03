@@ -105,7 +105,8 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
     }
 
     /**
-     * Notifies the service to update the local checkpoint for the shard with the provided allocation ID.
+     * Notifies the service to update the local checkpoint for the shard with the provided allocation ID. See
+     * {@link GlobalCheckpointService#updateLocalCheckpoint(String, long)} for details.
      *
      * @param allocationId the allocation ID of the shard to update the local checkpoint for
      * @param checkpoint   the local checkpoint for the shard
@@ -165,8 +166,8 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
      * Notifies the service of the current allocation IDs in the cluster state. See
      * {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
      *
-     * @param activeAllocationIds       the allocation ids of the currently active shard copies
-     * @param initializingAllocationIds the allocation ids of the currently initializing shard copies
+     * @param activeAllocationIds       the allocation IDs of the currently active shard copies
+     * @param initializingAllocationIds the allocation IDs of the currently initializing shard copies
      */
     public void updateAllocationIdsFromMaster(final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
         globalCheckpointService.updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);

@@ -350,6 +350,31 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     }
 
     /**
+     * We deprecated `minimum_number_should_match`, it should still parse correctly but add a warning header
+     */
+    public void testMinimumNumberShouldMatchDeprecated() throws IOException {
+        String query =
+                "{" +
+                "\"bool\" : {" +
+                "  \"should\" : { " +
+                "    \"term\" : {" +
+                "      \"tag\" : {" +
+                "        \"value\" : \"wow\"," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    } " +
+                "   }," +
+                "  \"minimum_number_should_match\" : 1" +
+                "}}";
+
+        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
+        assertEquals(query, 1, queryBuilder.should().size());
+        assertEquals(query, "1", queryBuilder.minimumShouldMatch());
+        // we should have deprecation warning headers regardless of throwing an exception
+        assertWarnings("Deprecated field [minimum_number_should_match] used, expected [minimum_should_match] instead");
+    }
+
+    /**
      * test that unknown query names in the clauses throw an error
      */
     public void testUnknownQueryName() throws IOException {

@@ -22,7 +22,6 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -257,7 +256,6 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
     static SuggestionBuilder<?> fromXContent(QueryParseContext parseContext, Suggesters suggesters)
             throws IOException {
         XContentParser parser = parseContext.parser();
-        ParseFieldMatcher parsefieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String currentFieldName = null;
         String suggestText = null;

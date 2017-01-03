@@ -18,8 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.elasticsearch.xpack.ssl.VerificationMode;
 
-import java.io.IOException;
-
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -39,7 +37,7 @@ public class SessionFactoryTests extends ESTestCase {
         assertThat(options.getSSLSocketVerifier(), is(instanceOf(HostNameSSLSocketVerifier.class)));
     }
 
-    public void testConnectionFactoryReturnsCorrectLDAPConnectionOptions() throws IOException {
+    public void testConnectionFactoryReturnsCorrectLDAPConnectionOptions() {
         Settings settings = Settings.builder()
                 .put(SessionFactory.TIMEOUT_TCP_CONNECTION_SETTING, "10ms")
                 .put(SessionFactory.HOSTNAME_VERIFICATION_SETTING, "false")

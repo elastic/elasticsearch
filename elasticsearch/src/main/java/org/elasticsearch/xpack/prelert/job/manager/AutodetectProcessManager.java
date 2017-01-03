@@ -137,8 +137,9 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         logger.debug("Flushing job {}", jobId);
         AutodetectCommunicator communicator = autoDetectCommunicatorByJob.get(jobId);
         if (communicator == null) {
-            logger.debug("Cannot flush: no active autodetect process for job {}", jobId);
-            return;
+            String message = String.format(Locale.ROOT, "[%s] Cannot flush: no active autodetect process for job", jobId);
+            logger.debug(message);
+            throw new IllegalArgumentException(message);
         }
         try {
             communicator.flushJob(params);

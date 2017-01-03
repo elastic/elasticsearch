@@ -17,6 +17,20 @@ setup:
           }
 
   - do:
+      xpack.prelert.put_job:
+        body:  >
+          {
+            "job_id":"closed_job",
+            "description":"A closed job",
+            "analysis_config" : {
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "format":"JSON"
+            }
+          }
+
+  - do:
       xpack.prelert.open_job:
         job_id: farequote
 
@@ -149,3 +163,21 @@ setup:
       catch: missing
       xpack.prelert.close_job:
         job_id: not_a_job
+
+---
+"Test flushing, posting and closing a closed job":
+  - do:
+      catch: /illegal_argument_exception/
+      xpack.prelert.flush_job:
+        job_id: closed_job
+
+  - do:
+      catch: /illegal_argument_exception/
+      xpack.prelert.close_job:
+        job_id: closed_job
+
+  - do:
+      catch: /illegal_argument_exception/
+      xpack.prelert.job_data:
+        job_id: closed_job
+        body: {}

@@ -32,7 +32,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -53,7 +52,6 @@ import java.util.Map;
 public class TransportMultiPercolateAction extends HandledTransportAction<MultiPercolateRequest, MultiPercolateResponse> {
 
     private final Client client;
-    private final ParseFieldMatcher parseFieldMatcher;
     private final SearchRequestParsers searchRequestParsers;
     private final NamedXContentRegistry xContentRegistry;
 
@@ -66,7 +64,6 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
         this.client = client;
         this.searchRequestParsers = searchRequestParsers;
         this.xContentRegistry = xContentRegistry;
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
     }
 
     @Override

@@ -21,7 +21,6 @@ package org.elasticsearch.index.snapshots.blobstore;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -153,7 +152,6 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         static final ParseField FILES = new ParseField("files");
         static final ParseField SNAPSHOTS = new ParseField("snapshots");
     }
-    private static final ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
 
     /**
      * Writes index file for the shard in the following format.

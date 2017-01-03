@@ -21,7 +21,6 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
@@ -68,7 +67,7 @@ import static org.elasticsearch.common.xcontent.XContentParser.Token.VALUE_STRIN
  * It's highly recommended to use the high level declare methods like {@link #declareString(BiConsumer, ParseField)} instead of
  * {@link #declareField} which can be used to implement exceptional parsing operations not covered by the high level methods.
  */
-public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier> extends AbstractObjectParser<Value, Context> {
+public final class ObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
     /**
      * Adapts an array (or varags) setter into a list setter.
      */
@@ -167,7 +166,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
                     assert ignoreUnknownFields : "this should only be possible if configured to ignore known fields";
                     parser.skipChildren(); // noop if parser points to a value, skips children if parser is start object or start array
                 } else {
-                    fieldParser.assertSupports(name, token, currentFieldName, context.getParseFieldMatcher());
+                    fieldParser.assertSupports(name, token, currentFieldName);
                     parseSub(parser, fieldParser, currentFieldName, value, context);
                 }
                 fieldParser = null;
@@ -416,7 +415,7 @@ public final class ObjectParser<Value, Context extends ParseFieldMatcherSupplier
             this.type = type;
         }
 
-        public void assertSupports(String parserName, XContentParser.Token token, String currentFieldName, ParseFieldMatcher matcher) {
+        public void assertSupports(String parserName, XContentParser.Token token, String currentFieldName) {
             if (parseField.match(currentFieldName) == false) {
                 throw new IllegalStateException("[" + parserName  + "] parsefield doesn't accept: " + currentFieldName);
             }

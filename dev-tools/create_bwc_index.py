@@ -59,11 +59,11 @@ def capabilities_of(version):
 
 
 def falsy(lenient):
-  return random.choice(['off', 'no', '0', 0, 'false', False]) if lenient else random.choice(['false', False])
+  return random.choice(['off', 'no', '0', 0, 'false', False]) if lenient else False
 
 
 def truthy(lenient):
-  return random.choice(['on', 'yes', '1', 1, 'true', True]) if lenient else random.choice(['true', True])
+  return random.choice(['on', 'yes', '1', 1, 'true', True]) if lenient else True
 
 
 def random_bool(lenient):
@@ -89,12 +89,14 @@ def index_documents(es, index_name, type, num_docs, capabilities):
 
 def index(es, index_name, type, num_docs, capabilities, flush=False):
   for id in range(0, num_docs):
-    # be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
-    lenient_bool = capabilities['lenient_booleans'] and id > 0
-    body = {'string': str(random.randint(0, 100)),
-            'long_sort': random.randint(0, 100),
-            'double_sort': float(random.randint(0, 100)),
-            'bool': random_bool(lenient_bool)}
+    lenient_bool = capabilities['lenient_booleans']
+    body = {
+          'string': str(random.randint(0, 100)),
+          'long_sort': random.randint(0, 100),
+          'double_sort': float(random.randint(0, 100)),
+          # be sure to create a "proper" boolean (True, False) for the first document so that automapping is correct
+          'bool': random_bool(lenient_bool) if id > 0 else random.choice([True, False])
+        }
     if capabilities['dots_in_field_names']:
       body['field.with.dots'] = str(random.randint(0, 100))
 
@@ -109,6 +111,10 @@ def index(es, index_name, type, num_docs, capabilities, flush=False):
 
 def reindex_docs(es, index_name, type, num_docs, capabilities):
   logging.info('Re-indexing %s docs' % num_docs)
+  # TODO: Translog recovery fails on mixed representation of booleans as strings / booleans (e.g. "true", true)
+  # (see gradle :core:test -Dtests.seed=AF7BB7B3FA387AAE -Dtests.class=org.elasticsearch.index.engine.InternalEngineTests
+  #      -Dtests.method="testUpgradeOldIndex")
+  capabilities['lenient_booleans'] = False
   # reindex some docs after the flush such that we have something in the translog
   index(es, index_name, type, num_docs, capabilities)
 

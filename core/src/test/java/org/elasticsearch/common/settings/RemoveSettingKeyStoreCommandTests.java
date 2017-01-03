@@ -19,6 +19,9 @@
 
 package org.elasticsearch.common.settings;
 
+import javax.crypto.SecretKeyFactory;
+import java.security.Provider;
+import java.security.Security;
 import java.util.Map;
 import java.util.Set;
 
@@ -43,7 +46,7 @@ public class RemoveSettingKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissing() throws Exception {
-        UserException e = expectThrows(UserException.class, this::execute);
+        UserException e = expectThrows(UserException.class, () -> execute("foo"));
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertThat(e.getMessage(), containsString("keystore not found"));
     }

@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Locale;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
@@ -65,8 +66,7 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
 
         String setting = arguments.value(options);
         if (keystore.getSettings().contains(setting) && options.has(forceOption) == false) {
-            String answer = terminal.readText("Setting " + setting + " already exists. Overwrite? [y/N]");
-            if (answer.equals("y") == false) {
+            if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
                 terminal.println("Exiting without modifying keystore.");
                 return;
             }

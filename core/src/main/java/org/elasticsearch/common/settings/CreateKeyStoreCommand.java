@@ -40,8 +40,7 @@ class CreateKeyStoreCommand extends EnvironmentAwareCommand {
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         Path keystoreFile = KeyStoreWrapper.keystorePath(env.configFile());
         if (Files.exists(keystoreFile)) {
-            String answer = terminal.readText("An elasticsearch keystore already exists. Overwrite? [y/N] ");
-            if (answer.equals("y") == false) {
+            if (terminal.promptYesNo("An elasticsearch keystore already exists. Overwrite?", false) == false) {
                 terminal.println("Exiting without creating keystore.");
                 return;
             }

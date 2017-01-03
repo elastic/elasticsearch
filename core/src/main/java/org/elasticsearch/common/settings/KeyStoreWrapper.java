@@ -37,7 +37,6 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Set;
@@ -59,21 +58,17 @@ public class KeyStoreWrapper implements Closeable {
     /** The keystore type for a newly created keystore. */
     private static final String NEW_KEYSTORE_TYPE = "PKCS12";
 
-    /** A factory necessary for constructing instances of secrets in a {@link KeyStore}. */
-    private static final SecretKeyFactory passwordFactory;
-    static {
-        try {
-            passwordFactory = SecretKeyFactory.getInstance("PBE");
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException(e);
-        }
-    }
+    /** The algorithm used to store password for a newly created keystore. */
+    private static final String NEW_KEYSTORE_SECRET_KEY_ALGO = "PBEWithHmacSHA256AndAES_128";
 
     /** True iff the keystore has a password needed to read. */
     private final boolean hasPassword;
 
     /** The type of the keystore, as passed to {@link java.security.KeyStore#getInstance(String)} */
     private final String type;
+
+    /** A factory necessary for constructing instances of secrets in a {@link KeyStore}. */
+    private final SecretKeyFactory secretFactory;
 
     /** A stream of the actual keystore data. */
     private final InputStream input;
@@ -87,9 +82,14 @@ public class KeyStoreWrapper implements Closeable {
     /** The setting names contained in the loaded keystore. */
     private final Set<String> settingNames = new HashSet<>();
 
-    private KeyStoreWrapper(boolean hasPassword, String type, InputStream input) {
+    private KeyStoreWrapper(boolean hasPassword, String type, String secretKeyAlgo, InputStream input) {
         this.hasPassword = hasPassword;
         this.type = type;
+        try {
+            secretFactory = SecretKeyFactory.getInstance(secretKeyAlgo);
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
         this.input = input;
     }
 
@@ -100,7 +100,7 @@ public class KeyStoreWrapper implements Closeable {
 
     /** Constructs a new keystore with the given password. */
     static KeyStoreWrapper create(char[] password) throws Exception {
-        KeyStoreWrapper wrapper = new KeyStoreWrapper(password.length != 0, NEW_KEYSTORE_TYPE, null);
+        KeyStoreWrapper wrapper = new KeyStoreWrapper(password.length != 0, NEW_KEYSTORE_TYPE, NEW_KEYSTORE_SECRET_KEY_ALGO, null);
         KeyStore keyStore = KeyStore.getInstance(NEW_KEYSTORE_TYPE);
         keyStore.load(null, null);
         wrapper.keystore.set(keyStore);
@@ -126,7 +126,8 @@ public class KeyStoreWrapper implements Closeable {
         }
         boolean hasPassword = inputStream.readBoolean();
         String type = inputStream.readUTF();
-        return new KeyStoreWrapper(hasPassword, type, inputStream);
+        String secretKeyAlgo = inputStream.readUTF();
+        return new KeyStoreWrapper(hasPassword, type, secretKeyAlgo, inputStream);
     }
 
     /** Returns true iff {@link #loadKeystore(char[])} has been called. */
@@ -164,6 +165,7 @@ public class KeyStoreWrapper implements Closeable {
             char[] password = this.keystorePassword.get().getPassword();
             outputStream.writeBoolean(password.length != 0);
             outputStream.writeUTF(type);
+            outputStream.writeUTF(secretFactory.getAlgorithm());
             keystore.get().store(outputStream, password);
         }
         PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreFile, PosixFileAttributeView.class);
@@ -186,7 +188,7 @@ public class KeyStoreWrapper implements Closeable {
         }
         // TODO: only allow getting a setting once?
         KeyStore.SecretKeyEntry secretKeyEntry = (KeyStore.SecretKeyEntry)entry;
-        PBEKeySpec keySpec = (PBEKeySpec)passwordFactory.getKeySpec(secretKeyEntry.getSecretKey(), PBEKeySpec.class);
+        PBEKeySpec keySpec = (PBEKeySpec) secretFactory.getKeySpec(secretKeyEntry.getSecretKey(), PBEKeySpec.class);
         SecureString value = new SecureString(keySpec.getPassword());
         keySpec.clearPassword();
         return value;
@@ -194,7 +196,7 @@ public class KeyStoreWrapper implements Closeable {
 
     /** Set a string setting. */
     void setStringSetting(String setting, char[] value) throws GeneralSecurityException {
-        SecretKey secretKey = passwordFactory.generateSecret(new PBEKeySpec(value));
+        SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec(value));
         keystore.get().setEntry(setting, new KeyStore.SecretKeyEntry(secretKey), keystorePassword.get());
         settingNames.add(setting);
     }

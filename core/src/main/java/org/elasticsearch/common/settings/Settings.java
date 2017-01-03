@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -612,7 +613,7 @@ public final class Settings implements ToXContent {
         // we use a sorted map for consistent serialization when using getAsMap()
         private final Map<String, String> map = new TreeMap<>();
 
-        private KeyStoreWrapper keystore;
+        private SetOnce<KeyStoreWrapper> keystore = new SetOnce<>();
 
         private Builder() {
 
@@ -638,9 +639,10 @@ public final class Settings implements ToXContent {
 
         /** Sets the secret store for these settings. */
         public void setKeyStore(KeyStoreWrapper keystore) {
-            assert this.keystore == null; // only set once!
-            assert keystore.isLoaded();
-            this.keystore = Objects.requireNonNull(keystore);
+            if (keystore.isLoaded()) {
+                throw new IllegalStateException("The keystore wrapper must already be loaded");
+            }
+            this.keystore.set(Objects.requireNonNull(keystore));
         }
 
         /**
@@ -1049,7 +1051,7 @@ public final class Settings implements ToXContent {
          * set on this builder.
          */
         public Settings build() {
-            return new Settings(map, keystore);
+            return new Settings(map, keystore.get());
         }
     }
 

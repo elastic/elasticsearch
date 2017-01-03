@@ -54,10 +54,5 @@ class ListKeyStoreCommand extends EnvironmentAwareCommand {
         for (String entry : sortedEntries) {
             terminal.println(entry);
         }
-
-        // TODO:
-        // 2. delete command
-        // 3. tests for delete
-        // 4. shell script
     }
 }

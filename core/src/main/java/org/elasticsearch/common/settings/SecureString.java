@@ -80,7 +80,7 @@ public final class SecureString implements CharSequence, AutoCloseable {
     }
 
     /**
-     * Convert to a {@link String}. This only be used with APIs that do not take {@link CharSequence}.
+     * Convert to a {@link String}. This should only be used with APIs that do not take {@link CharSequence}.
      */
     @Override
     public String toString() {

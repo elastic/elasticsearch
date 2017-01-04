@@ -107,7 +107,8 @@ public class PrelertJobIT extends ESRestTestCase {
                 "\"time_field\":\"time\",\n"
                 + "        \"time_format\":\"yyyy-MM-dd HH:mm:ssX\"\n" + "    }\n" + "}";
 
-        return client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors", Collections.emptyMap(), new StringEntity(job));
+        return client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors" ,
+                Collections.emptyMap(), new StringEntity(job));
     }
 
     public void testGetBucketResults() throws Exception {

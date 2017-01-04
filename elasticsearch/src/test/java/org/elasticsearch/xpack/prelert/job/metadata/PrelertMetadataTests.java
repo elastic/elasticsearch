@@ -131,7 +131,12 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
         assertThat(result.getSchedulers().get("1"), nullValue());
 
         builder = new PrelertMetadata.Builder(result);
-        builder.removeJob("1");
+        builder.updateStatus("1", JobStatus.DELETING, null);
+        assertThat(result.getJobs().get("1"), sameInstance(job1));
+        assertThat(result.getAllocations().get("1").getStatus(), equalTo(JobStatus.CLOSED));
+        assertThat(result.getSchedulers().get("1"), nullValue());
+
+        builder.deleteJob("1");
         result = builder.build();
         assertThat(result.getJobs().get("1"), nullValue());
         assertThat(result.getAllocations().get("1"), nullValue());
@@ -151,7 +156,7 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
         assertThat(result.getSchedulers().get("1"), nullValue());
 
         PrelertMetadata.Builder builder2 = new PrelertMetadata.Builder(result);
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder2.removeJob("1"));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder2.deleteJob("1"));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
     }
 
@@ -162,7 +167,7 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
         builder.putJob(job1, false);
         builder.putScheduler(schedulerConfig1, mock(SearchRequestParsers.class));
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.removeJob(job1.getId()));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> builder.deleteJob(job1.getId()));
         assertThat(e.status(), equalTo(RestStatus.CONFLICT));
         String expectedMsg = "Cannot delete job [" + job1.getId() + "] while scheduler [" + schedulerConfig1.getId() + "] refers to it";
         assertThat(e.getMessage(), equalTo(expectedMsg));
@@ -170,7 +175,7 @@ public class PrelertMetadataTests extends AbstractSerializingTestCase<PrelertMet
 
     public void testRemoveJob_failBecauseJobDoesNotExist() {
         PrelertMetadata.Builder builder1 = new PrelertMetadata.Builder();
-        expectThrows(ResourceNotFoundException.class, () -> builder1.removeJob("1"));
+        expectThrows(ResourceNotFoundException.class, () -> builder1.deleteJob("1"));
     }
 
     public void testCrudScheduler() {

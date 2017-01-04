@@ -9,10 +9,14 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -196,7 +200,8 @@ public class JobManager extends AbstractComponent {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 ClusterState cs = updateClusterState(job, request.isOverwrite(), currentState);
                 if (currentState.metaData().index(AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName())) != null) {
-                    throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_INDEX_ALREADY_EXISTS, job.getIndexName()));
+                    throw new ResourceAlreadyExistsException(Messages.getMessage(Messages.JOB_INDEX_ALREADY_EXISTS,
+                            AnomalyDetectorsIndex.jobResultsIndexName(job.getIndexName())));
                 }
                 return cs;
             }
@@ -209,51 +214,79 @@ public class JobManager extends AbstractComponent {
         return buildNewClusterState(currentState, builder);
     }
 
-    /**
-     * Deletes a job.
-     *
-     * The clean-up involves:
-     * <ul>
-     * <li>Deleting the index containing job results</li>
-     * <li>Deleting the job logs</li>
-     * <li>Removing the job from the cluster state</li>
-     * </ul>
-     *
-     * @param request
-     *            the delete job request
-     * @param actionListener
-     *            the action listener
-     */
-    public void deleteJob(DeleteJobAction.Request request, ActionListener<DeleteJobAction.Response> actionListener) {
+
+    public void deleteJob(Client client, DeleteJobAction.Request request, ActionListener<DeleteJobAction.Response> actionListener) {
+
         String jobId = request.getJobId();
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         LOGGER.debug("Deleting job '" + jobId + "'");
 
-        ActionListener<Boolean> delegateListener = ActionListener.wrap(jobDeleted -> {
+
+        // Step 3. Listen for the Cluster State status change
+        //         Chain acknowledged status onto original actionListener
+        CheckedConsumer<Boolean, Exception> deleteStatusConsumer =  jobDeleted -> {
             if (jobDeleted) {
-                jobProvider.deleteJobRelatedIndices(request.getJobId(), actionListener);
-                audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
+                logger.info("Job [" + jobId + "] deleted.");
+                actionListener.onResponse(new DeleteJobAction.Response(true));
+
+                //nocommit: needs #626, because otherwise the audit message re-creates the index
+                // we just deleted.  :)
+                //audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
             } else {
                 actionListener.onResponse(new DeleteJobAction.Response(false));
             }
-        }, actionListener::onFailure);
-        clusterService.submitStateUpdateTask("delete-job-" + jobId,
-                new AckedClusterStateUpdateTask<Boolean>(request, delegateListener) {
+        };
 
-            @Override
-            protected Boolean newResponse(boolean acknowledged) {
-                return acknowledged;
+
+        // Step 2. Listen for the Deleted Index response
+        //         If successful, delete from cluster state and chain onto deleteStatusListener
+        CheckedConsumer<DeleteIndexResponse, Exception> deleteIndexConsumer = response -> {
+            logger.info("Deleting index [" + indexName + "] successful");
+
+            if (response.isAcknowledged()) {
+                logger.info("Index deletion acknowledged");
+            } else {
+                logger.warn("Index deletion not acknowledged");
+            }
+            clusterService.submitStateUpdateTask("delete-job-" + jobId,
+                new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(deleteStatusConsumer, actionListener::onFailure)) {
+
+                @Override
+                protected Boolean newResponse(boolean acknowledged) {
+                    return acknowledged && response.isAcknowledged();
+                }
+
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    return removeJobFromState(jobId, currentState);
+                }
+            });
+
+        };
+
+        // Step 1. Update the CS to DELETING
+        //         If successful, attempt to delete the physical index and chain
+        //         onto deleteIndexConsumer
+        CheckedConsumer<UpdateJobStatusAction.Response, Exception> updateConsumer = response -> {
+            // Sucessfully updated the status to DELETING, begin actually deleting
+            if (response.isAcknowledged()) {
+                logger.info("Job [" + jobId + "] set to [" + JobStatus.DELETING + "]");
+            } else {
+                logger.warn("Job [" + jobId + "] change to [" + JobStatus.DELETING + "] was not acknowledged.");
             }
 
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                return removeJobFromClusterState(jobId, currentState);
-            }
-        });
+            DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
+            client.admin().indices().delete(deleteIndexRequest, ActionListener.wrap(deleteIndexConsumer, actionListener::onFailure));
+        };
+
+        UpdateJobStatusAction.Request updateStatusListener = new UpdateJobStatusAction.Request(jobId, JobStatus.DELETING);
+        setJobStatus(updateStatusListener, ActionListener.wrap(updateConsumer, actionListener::onFailure));
+
     }
 
-    ClusterState removeJobFromClusterState(String jobId, ClusterState currentState) {
+    ClusterState removeJobFromState(String jobId, ClusterState currentState) {
         PrelertMetadata.Builder builder = createPrelertMetadataBuilder(currentState);
-        builder.removeJob(jobId);
+        builder.deleteJob(jobId);
         return buildNewClusterState(currentState, builder);
     }
 

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.job.metadata;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.Diff;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
@@ -234,8 +236,10 @@ public class PrelertMetadata implements MetaData.Custom {
             return this;
         }
 
-        public Builder removeJob(String jobId) {
-            if (jobs.remove(jobId) == null) {
+        public Builder deleteJob(String jobId) {
+
+            Job job = jobs.remove(jobId);
+            if (job == null) {
                 throw new ResourceNotFoundException("job [" + jobId + "] does not exist");
             }
 
@@ -247,10 +251,12 @@ public class PrelertMetadata implements MetaData.Custom {
 
             Allocation previousAllocation = this.allocations.remove(jobId);
             if (previousAllocation != null) {
-                if (!previousAllocation.getStatus().isAnyOf(JobStatus.CLOSED, JobStatus.FAILED)) {
-                    throw ExceptionsHelper.conflictStatusException(Messages.getMessage(
-                            Messages.JOB_CANNOT_DELETE_WHILE_RUNNING, jobId, previousAllocation.getStatus()));
+                if (!previousAllocation.getStatus().equals(JobStatus.DELETING)) {
+                    throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because it is in ["
+                            + previousAllocation.getStatus() + "] state. Must be in [" + JobStatus.DELETING + "] state.");
                 }
+            } else {
+                throw new ResourceNotFoundException("No Cluster State found for job [" + jobId + "]");
             }
 
             return this;
@@ -346,6 +352,22 @@ public class PrelertMetadata implements MetaData.Custom {
             Allocation previous = allocations.get(jobId);
             if (previous == null) {
                 throw new IllegalStateException("[" + jobId + "] no allocation exist to update the status to [" + jobStatus + "]");
+            }
+
+            // Cannot update the status to DELETING if there are schedulers attached
+            if (jobStatus.equals(JobStatus.DELETING)) {
+                Optional<Scheduler> scheduler = getSchedulerByJobId(jobId);
+                if (scheduler.isPresent()) {
+                    throw ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] while scheduler ["
+                            + scheduler.get().getId() + "] refers to it");
+                }
+            }
+
+
+            // Once a job goes into Deleting, it cannot be changed
+            if (previous.getStatus().equals(JobStatus.DELETING)) {
+                throw new ElasticsearchStatusException("Cannot change status of job [" + jobId + "] to [" + jobStatus + "] because " +
+                        "it is currently in [" + JobStatus.DELETING + "] status.", RestStatus.CONFLICT);
             }
             Allocation.Builder builder = new Allocation.Builder(previous);
             builder.setStatus(jobStatus);

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.job.metadata;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -131,12 +132,12 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         verify(dataProcessor, times(1)).closeJob("my_job_id");
     }
 
-    public void testClusterChanged_allocationRemovedStopJob() {
+    public void testClusterChanged_allocationDeletingJob() {
         jobLifeCycleService.localAssignedJobs.add("my_job_id");
 
         PrelertMetadata.Builder pmBuilder = new PrelertMetadata.Builder();
         pmBuilder.putJob(buildJobBuilder("my_job_id").build(), false);
-        pmBuilder.removeJob("my_job_id");
+        pmBuilder.updateStatus("my_job_id", JobStatus.DELETING, null);
         ClusterState cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
@@ -144,8 +145,29 @@ public class JobLifeCycleServiceTests extends ESTestCase {
                         .localNodeId("_node_id"))
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
+        assertEquals(jobLifeCycleService.localAssignedJobs.size(), 1);
+
+
+        pmBuilder.deleteJob("my_job_id");
+        ClusterState cs2 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
+                .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .localNodeId("_node_id"))
+                .build();
+        jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs2, cs1));
+
         assertEquals(jobLifeCycleService.localAssignedJobs.size(), 0);
         verify(dataProcessor, times(1)).closeJob("my_job_id");
+    }
+
+    public void testClusterChanged_allocationDeletingClosedJob() {
+        jobLifeCycleService.localAssignedJobs.add("my_job_id");
+
+        PrelertMetadata.Builder pmBuilder = new PrelertMetadata.Builder();
+        pmBuilder.putJob(buildJobBuilder("my_job_id").build(), false);
+
+        expectThrows(ElasticsearchStatusException.class, () -> pmBuilder.deleteJob("my_job_id"));
     }
 
     public void testStart_openJobFails() {

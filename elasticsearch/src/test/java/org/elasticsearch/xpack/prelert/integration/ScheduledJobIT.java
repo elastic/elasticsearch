@@ -115,7 +115,8 @@ public class ScheduledJobIT extends ESRestTestCase {
                 + "        \"time_field\":\"time\",\n" + "        \"time_format\":\"yyyy-MM-dd'T'HH:mm:ssX\"\n" + "    }\n"
                 + "}";
 
-        return client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors", Collections.emptyMap(), new StringEntity(job));
+        return client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors",
+                Collections.emptyMap(), new StringEntity(job));
     }
 
     private Response createScheduler(String schedulerId, String jobId) throws IOException {
@@ -137,7 +138,7 @@ public class ScheduledJobIT extends ESRestTestCase {
     }
 
     @After
-    public void clearPrelertState() throws IOException {
+    public void clearPrelertState() throws Exception {
         new PrelertRestTestStateCleaner(client(), this).clearPrelertMetadata();
     }
 }

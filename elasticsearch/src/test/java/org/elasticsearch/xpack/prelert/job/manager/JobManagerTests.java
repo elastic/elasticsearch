@@ -185,7 +185,7 @@ public class JobManagerTests extends ESTestCase {
             }
         }));
 
-        assertEquals("Cannot create index 'my-special-place' as it already exists", e.getMessage());
+        assertEquals("Cannot create index '.ml-anomalies-my-special-place' as it already exists", e.getMessage());
     }
 
     private JobManager createJobManager() {

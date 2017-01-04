@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -23,6 +24,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.job.Job;
@@ -72,6 +76,11 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId) {
+            return new Task(id, type, action, "delete-job-" + jobId, parentTaskId);
         }
 
         @Override
@@ -135,14 +144,18 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
     public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
 
         private final JobManager jobManager;
+        private final Client client;
+        private final TaskManager taskManager;
 
         @Inject
-        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                JobManager jobManager) {
+        public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
+                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager,
+                               Client client, TaskManager taskManager) {
             super(settings, DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.jobManager = jobManager;
+            this.client = client;
+            this.taskManager = taskManager;
         }
 
         @Override
@@ -156,13 +169,26 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
         }
 
         @Override
+        protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+            jobManager.deleteJob(client, request, ActionListener.wrap(response -> {
+                taskManager.unregister(task);
+                listener.onResponse(response);
+            }, e -> {
+                taskManager.unregister(task);
+                listener.onFailure(e);
+            }));
+        }
+
+        @Override
         protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            jobManager.deleteJob(request, listener);
+            throw new UnsupportedOperationException("the Task parameter is required");
         }
 
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
         }
+
+
     }
 }

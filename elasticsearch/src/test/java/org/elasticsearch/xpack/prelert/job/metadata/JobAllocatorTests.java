@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.junit.Before;
 
 import java.util.concurrent.ExecutorService;
@@ -99,7 +100,8 @@ public class JobAllocatorTests extends ESTestCase {
         expectThrows(IllegalStateException.class, () -> jobAllocator.assignJobsToNodes(cs3));
 
         pmBuilder = new PrelertMetadata.Builder(result1.getMetaData().custom(PrelertMetadata.TYPE));
-        pmBuilder.removeJob("my_job_id");
+        pmBuilder.updateStatus("my_job_id", JobStatus.DELETING, null);
+        pmBuilder.deleteJob("my_job_id");
         ClusterState cs4 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()

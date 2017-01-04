@@ -71,11 +71,11 @@ For instance, to install a plugin from your local file system, you could run:
 sudo bin/elasticsearch-plugin install file:///path/to/plugin.zip
 -----------------------------------
 
-On windows the file URI also required 3 slashes
+Or on windows (please note the 3 slashes)
 
 [source,shell]
 -----------------------------------
-bin\elasticsearch-plugin install file:///C:\path\to\plugin.zip
+bin\elasticsearch-plugin install file:///C:/path/to/plugin.zip
 -----------------------------------
 
 The plugin script will refuse to talk to an HTTPS URL with an untrusted

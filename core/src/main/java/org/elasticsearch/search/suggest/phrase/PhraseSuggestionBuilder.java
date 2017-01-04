@@ -22,7 +22,6 @@ package org.elasticsearch.search.suggest.phrase;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -491,7 +490,6 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     static PhraseSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         PhraseSuggestionBuilder tmpSuggestion = new PhraseSuggestionBuilder("_na_");
-        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String currentFieldName = null;
         String fieldname = null;

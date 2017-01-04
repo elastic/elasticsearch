@@ -25,14 +25,14 @@ import org.gradle.api.Project
 
 /**
  * Adds support for starting an Elasticsearch cluster before running integration
- * tests. Used in conjunction with {@link StandaloneTestBasePlugin} for qa
+ * tests. Used in conjunction with {@link StandaloneRestTestPlugin} for qa
  * projects and in conjunction with {@link BuildPlugin} for testing the rest
  * client.
  */
 public class RestTestPlugin implements Plugin<Project> {
     List REQUIRED_PLUGINS = [
         'elasticsearch.build',
-        'elasticsearch.standalone-test']
+        'elasticsearch.standalone-rest-test']
 
     @Override
     public void apply(Project project) {

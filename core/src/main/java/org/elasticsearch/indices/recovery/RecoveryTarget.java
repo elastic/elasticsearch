@@ -36,6 +36,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -56,6 +57,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -182,17 +185,21 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * Closes the current recovery target and waits up to a certain timeout for resources to be freed.
      * Returns true if resetting the recovery was successful, false if the recovery target is already cancelled / failed or marked as done.
      */
-    boolean resetRecovery() throws InterruptedException, IOException {
+    boolean resetRecovery(TimeValue activityTimeout) throws InterruptedException, IOException, TimeoutException {
         if (finished.compareAndSet(false, true)) {
             try {
-                // yes, this is just a logger call in a try-finally block. The reason for this is that resetRecovery is called from
-                // CancellableThreads and we have to make sure that all references to IndexShard are cleaned up before exiting this method
                 logger.debug("reset of recovery with shard {} and id [{}]", shardId, recoveryId);
             } finally {
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now.
                 decRef();
             }
-            closedLatch.await();
+            try {
+                if (closedLatch.await(activityTimeout.millis(), TimeUnit.MILLISECONDS) == false) {
+                    throw new TimeoutException("timed out while waiting on previous recovery attempt to release resources");
+                }
+            } catch (InterruptedException e) {
+                throw new IllegalStateException("Interrupted while waiting on previous recovery attempt to release resources", e);
+            }
             RecoveryState.Stage stage = indexShard.recoveryState().getStage();
             if (indexShard.recoveryState().getPrimary() && (stage == RecoveryState.Stage.FINALIZE || stage == RecoveryState.Stage.DONE)) {
                 // once primary relocation has moved past the finalization step, the relocation source can be moved to RELOCATED state

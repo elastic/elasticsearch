@@ -55,8 +55,10 @@ class BuildPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-        if (project.pluginManager.hasPlugin('elasticsearch.standalone-test')) {
-              throw new InvalidUserDataException('elasticsearch.standalone-test and elasticsearch.build are mutually exclusive')
+        if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
+              throw new InvalidUserDataException('elasticsearch.standalone-test, '
+                + 'elasticearch.standalone-rest-test, and elasticsearch.build '
+                + 'are mutually exclusive')
         }
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')

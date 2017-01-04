@@ -458,13 +458,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                                 "failed to connect to [{}], cleaning dangling connections", node), e);
                         throw e;
                     }
-                    Channel channel = nodeChannels.channel(TransportRequestOptions.Type.PING);
-                    final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
-                        defaultConnectionProfile.getConnectTimeout() :
-                        connectionProfile.getConnectTimeout();
-                    final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
-                        connectTimeout : connectionProfile.getHandshakeTimeout();
-                    Version version = executeHandshake(node, channel, handshakeTimeout);
                     // we acquire a connection lock, so no way there is an existing connection
                     connectedNodes.put(node, nodeChannels);
                     if (logger.isDebugEnabled()) {
@@ -483,11 +476,18 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     @Override
-    public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+    public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
         try {
-            NodeChannels nodeChannels = connectToChannels(node, profile);
+            NodeChannels nodeChannels = connectToChannels(node, connectionProfile);
+            final Channel channel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
+            final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
+                defaultConnectionProfile.getConnectTimeout() :
+                connectionProfile.getConnectTimeout();
+            final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
+                connectTimeout : connectionProfile.getHandshakeTimeout();
+            final Version version = executeHandshake(node, channel, handshakeTimeout);
             transportServiceAdapter.onConnectionOpened(node);
-            return nodeChannels;
+            return new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
         } catch (ConnectTransportException e) {
             throw e;
         } catch (Exception e) {

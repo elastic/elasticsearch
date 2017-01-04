@@ -71,6 +71,13 @@ For instance, to install a plugin from your local file system, you could run:
 sudo bin/elasticsearch-plugin install file:///path/to/plugin.zip
 -----------------------------------
 
+On windows the file URI also required 3 slashes
+
+[source,shell]
+-----------------------------------
+bin\elasticsearch-plugin install file:///C:\path\to\plugin.zip
+-----------------------------------
+
 The plugin script will refuse to talk to an HTTPS URL with an untrusted
 certificate. To use a self-signed HTTPS cert, you will need to add the CA cert
 to a local Java truststore and pass the location to the script as follows:

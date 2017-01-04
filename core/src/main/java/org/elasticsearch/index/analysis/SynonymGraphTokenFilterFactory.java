@@ -27,8 +27,8 @@ import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 
-public class SynonymGraphFilterFactory extends SynonymTokenFilterFactory {
-    public SynonymGraphFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
+public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
+    public SynonymGraphTokenFilterFactory(IndexSettings indexSettings, Environment env, AnalysisRegistry analysisRegistry,
                                      String name, Settings settings) throws IOException {
         super(indexSettings, env, analysisRegistry, name, settings);
     }

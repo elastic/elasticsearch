@@ -1,5 +1,5 @@
 subprojects {
-  apply plugin: 'elasticsearch.standalone-test'
+  apply plugin: 'elasticsearch.standalone-rest-test'
   apply plugin: 'elasticsearch.rest-test'
 
   dependencies {

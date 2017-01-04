@@ -411,7 +411,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         final String pathPrefix = basePathToAssertablePrefix(basePath);
         MockRequest request;
 
-        for (String type : monitoringProductTypes()) {
+        for (final String type : MonitoringTemplateUtils.NEW_DATA_TYPES) {
             request = webServer.takeRequest();
 
             assertThat(request.getMethod(), equalTo("GET"));
@@ -586,10 +586,6 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
         return docs;
     }
 
-    private List<String> monitoringProductTypes() {
-        return Arrays.asList("kibana");
-    }
-
     private String basePathToAssertablePrefix(@Nullable String basePath) {
         if (basePath == null) {
             return "";
@@ -635,14 +631,14 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     }
 
     private void enqueueMappingTypeResponsesDoesNotExistYet(final MockWebServer webServer) throws IOException {
-        for (String type : monitoringProductTypes()) {
+        for (final String type : MonitoringTemplateUtils.NEW_DATA_TYPES) {
             enqueueResponse(webServer, 200, "{}");
             enqueueResponse(webServer, 200, "type [" + type + "] created");
         }
     }
 
     private void enqueueMappingTypeResponsesExistsAlreadyOrWillBeCreated(final MockWebServer webServer) throws IOException {
-        for (final String type : monitoringProductTypes()) {
+        for (final String type : MonitoringTemplateUtils.NEW_DATA_TYPES) {
             if (randomBoolean()) {
                 enqueueResponse(webServer, 200, "{\".monitoring-data-2\":{\"" + type + "\":{\"enabled\":false}}}");
             } else {

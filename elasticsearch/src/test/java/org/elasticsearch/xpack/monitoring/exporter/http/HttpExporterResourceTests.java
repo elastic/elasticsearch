@@ -16,6 +16,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 
 import java.io.IOException;
@@ -39,9 +40,9 @@ import static org.mockito.Mockito.when;
 public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTestCase {
 
     /**
-     * kibana, logstash, beats (This PR only really covers kibana, but a follow-on will add logstash and eventually we'll support beats)
+     * kibana, logstash, beats
      */
-    private final int EXPECTED_TYPES = 1;
+    private final int EXPECTED_TYPES = MonitoringTemplateUtils.NEW_DATA_TYPES.length;
     private final int EXPECTED_TEMPLATES = 4;
 
     private final RestClient client = mock(RestClient.class);
@@ -65,39 +66,38 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyNoMoreInteractions(client);
     }
 
-    // COMMENTED OUT CODE WILL BE USED IN FOLLOW-UP PR FOR "logstash" type
     public void testTypeMappingCheckBlocksAfterSuccessfulVersion() throws IOException {
         final Exception exception = failureGetException();
-//        final boolean firstSucceeds = randomBoolean();
+        final boolean firstSucceeds = randomBoolean();
         int expectedGets = 1;
         int expectedPuts = 0;
 
         whenValidVersionResponse();
 
         // failure in the middle of various templates being checked/published; suggests a node dropped
-//        if (firstSucceeds) {
-//            final boolean successfulFirst = randomBoolean();
-//            // -2 from one success + a necessary failure after it!
-//            final int extraPasses = Math.max(randomIntBetween(0, EXPECTED_TYPES - 2), 0);
-//            final int successful = randomIntBetween(0, extraPasses);
-//            final int unsuccessful = extraPasses - successful;
-//
-//            final Response first = successfulFirst ? successfulGetTypeMappingResponse() : unsuccessfulGetTypeMappingResponse();
-//
-//            final List<Response> otherResponses = getTypeMappingResponses(successful, unsuccessful);
-//
-//            // last check fails implies that N - 2 publishes succeeded!
-//            when(client.performRequest(eq("GET"), startsWith("/" + DATA_INDEX + "/_mapping/"), anyMapOf(String.class, String.class)))
-//                    .thenReturn(first, otherResponses.toArray(new Response[otherResponses.size()]))
-//                    .thenThrow(exception);
-//            whenSuccessfulPutTypeMappings(otherResponses.size() + 1);
-//
-//            expectedGets += 1 + successful + unsuccessful;
-//            expectedPuts = (successfulFirst ? 0 : 1) + unsuccessful;
-//        } else {
+        if (firstSucceeds) {
+            final boolean successfulFirst = randomBoolean();
+            // -2 from one success + a necessary failure after it!
+            final int extraPasses = Math.max(randomIntBetween(0, EXPECTED_TYPES - 2), 0);
+            final int successful = randomIntBetween(0, extraPasses);
+            final int unsuccessful = extraPasses - successful;
+
+            final Response first = successfulFirst ? successfulGetTypeMappingResponse() : unsuccessfulGetTypeMappingResponse();
+
+            final List<Response> otherResponses = getTypeMappingResponses(successful, unsuccessful);
+
+            // last check fails implies that N - 2 publishes succeeded!
+            when(client.performRequest(eq("GET"), startsWith("/" + DATA_INDEX + "/_mapping/"), anyMapOf(String.class, String.class)))
+                    .thenReturn(first, otherResponses.toArray(new Response[otherResponses.size()]))
+                    .thenThrow(exception);
+            whenSuccessfulPutTypeMappings(otherResponses.size() + 1);
+
+            expectedGets += 1 + successful + unsuccessful;
+            expectedPuts = (successfulFirst ? 0 : 1) + unsuccessful;
+        } else {
             when(client.performRequest(eq("GET"), startsWith("/" + DATA_INDEX + "/_mapping/"), anyMapOf(String.class, String.class)))
                     .thenThrow(exception);
-//        }
+        }
 
         assertTrue(resources.isDirty());
         assertFalse(resources.checkAndPublish(client));
@@ -110,41 +110,40 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         verifyNoMoreInteractions(client);
     }
 
-    // COMMENTED OUT CODE WILL BE USED IN FOLLOW-UP PR FOR "logstash" type
     public void testTypeMappingPublishBlocksAfterSuccessfulVersion() throws IOException {
         final Exception exception = failurePutException();
-//        final boolean firstSucceeds = randomBoolean();
+        final boolean firstSucceeds = randomBoolean();
         int expectedGets = 1;
         int expectedPuts = 1;
 
         whenValidVersionResponse();
 
         // failure in the middle of various templates being checked/published; suggests a node dropped
-//        if (firstSucceeds) {
-//            final Response firstSuccess = successfulPutResponse();
-//            // -2 from one success + a necessary failure after it!
-//            final int extraPasses = randomIntBetween(0, EXPECTED_TYPES - 2);
-//            final int successful = randomIntBetween(0, extraPasses);
-//            final int unsuccessful = extraPasses - successful;
-//
-//            final List<Response> otherResponses = successfulPutResponses(unsuccessful);
-//
-//            // first one passes for sure, so we need an extra "unsuccessful" GET
-//            whenGetTypeMappingResponse(successful, unsuccessful + 2);
-//
-//            // previous publishes must have succeeded
-//            when(client.performRequest(eq("PUT"),
-//                                       startsWith("/" + DATA_INDEX + "/_mapping/"),
-//                                       anyMapOf(String.class, String.class),
-//                                       any(HttpEntity.class)))
-//                    .thenReturn(firstSuccess, otherResponses.toArray(new Response[otherResponses.size()]))
-//                    .thenThrow(exception);
-//
-//            // GETs required for each PUT attempt (first is guaranteed "unsuccessful")
-//            expectedGets += successful + unsuccessful + 1;
-//            // unsuccessful are PUT attempts + the guaranteed successful PUT (first)
-//            expectedPuts += unsuccessful + 1;
-//        } else {
+        if (firstSucceeds) {
+            final Response firstSuccess = successfulPutResponse();
+            // -2 from one success + a necessary failure after it!
+            final int extraPasses = randomIntBetween(0, EXPECTED_TYPES - 2);
+            final int successful = randomIntBetween(0, extraPasses);
+            final int unsuccessful = extraPasses - successful;
+
+            final List<Response> otherResponses = successfulPutResponses(unsuccessful);
+
+            // first one passes for sure, so we need an extra "unsuccessful" GET
+            whenGetTypeMappingResponse(successful, unsuccessful + 2);
+
+            // previous publishes must have succeeded
+            when(client.performRequest(eq("PUT"),
+                                       startsWith("/" + DATA_INDEX + "/_mapping/"),
+                                       anyMapOf(String.class, String.class),
+                                       any(HttpEntity.class)))
+                    .thenReturn(firstSuccess, otherResponses.toArray(new Response[otherResponses.size()]))
+                    .thenThrow(exception);
+
+            // GETs required for each PUT attempt (first is guaranteed "unsuccessful")
+            expectedGets += successful + unsuccessful + 1;
+            // unsuccessful are PUT attempts + the guaranteed successful PUT (first)
+            expectedPuts += unsuccessful + 1;
+        } else {
             // fail the check so that it has to attempt the PUT
             whenGetTypeMappingResponse(0, 1);
 
@@ -153,7 +152,7 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
                                        anyMapOf(String.class, String.class),
                                        any(HttpEntity.class)))
                     .thenThrow(exception);
-//        }
+        }
 
         assertTrue(resources.isDirty());
         assertFalse(resources.checkAndPublish(client));

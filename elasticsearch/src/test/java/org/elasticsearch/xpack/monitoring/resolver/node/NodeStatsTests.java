@@ -71,7 +71,8 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
                         continue;
                     }
                 }
-                // fs stats and cgroup stats are not reported on every node
+                // fs and cgroup stats are only reported on Linux, but it's acceptable for _node/stats to report them as null if the OS is
+                //  misconfigured or not reporting them for some reason (e.g., older kernel)
                 if (filter.startsWith("node_stats.fs") || filter.startsWith("node_stats.os.cgroup")) {
                     continue;
                 }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter.Config;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.ssl.SSLService;
 
@@ -305,7 +306,7 @@ public class HttpExporterTests extends ESTestCase {
         assertThat(multiResource.getResources().size(),
                    equalTo(version + typeMappings.size() + templates.size() + pipelines.size() + bwc.size()));
         assertThat(version, equalTo(1));
-        assertThat(typeMappings, hasSize(1));
+        assertThat(typeMappings, hasSize(MonitoringTemplateUtils.NEW_DATA_TYPES.length));
         assertThat(templates, hasSize(4));
         assertThat(pipelines, hasSize(useIngest ? 1 : 0));
         assertThat(bwc, hasSize(1));

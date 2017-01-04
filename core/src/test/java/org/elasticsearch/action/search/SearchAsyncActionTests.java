@@ -92,6 +92,7 @@ public class SearchAsyncActionTests extends ESTestCase {
         };
         Map<String, Transport.Connection> lookup = new HashMap<>();
         lookup.put(primaryNode.getId(), new MockConnection(primaryNode));
+        lookup.put(replicaNode.getId(), new MockConnection(replicaNode));
         Map<String, AliasFilter> aliasFilters = Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY));
         AbstractSearchAsyncAction asyncAction = new AbstractSearchAsyncAction<TestSearchPhaseResult>(logger, transportService, lookup::get,
             aliasFilters, Collections.emptyMap(), null, request, responseListener, shardsIter, 0, 0, null) {

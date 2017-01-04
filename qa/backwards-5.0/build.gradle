@@ -17,7 +17,7 @@
  * under the License.
  */
 
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 /* This project runs the core REST tests against a 2 node cluster where one of the nodes has a different minor.

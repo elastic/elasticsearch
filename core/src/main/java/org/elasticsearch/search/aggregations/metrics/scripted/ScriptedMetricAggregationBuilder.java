@@ -38,7 +38,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -255,13 +254,13 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.VALUE_STRING) {
                 if (INIT_SCRIPT_FIELD.match(currentFieldName)) {
-                    initScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    initScript = Script.parse(parser, context.getDefaultScriptLanguage());
                 } else if (MAP_SCRIPT_FIELD.match(currentFieldName)) {
-                    mapScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    mapScript = Script.parse(parser, context.getDefaultScriptLanguage());
                 } else if (COMBINE_SCRIPT_FIELD.match(currentFieldName)) {
-                    combineScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    combineScript = Script.parse(parser, context.getDefaultScriptLanguage());
                 } else if (REDUCE_SCRIPT_FIELD.match(currentFieldName)) {
-                    reduceScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                    reduceScript = Script.parse(parser, context.getDefaultScriptLanguage());
                 } else if (token == XContentParser.Token.START_OBJECT &&
                         PARAMS_FIELD.match(currentFieldName)) {
                     params = parser.map();

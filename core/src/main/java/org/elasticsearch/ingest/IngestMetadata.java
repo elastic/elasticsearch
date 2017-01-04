@@ -24,8 +24,6 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -47,7 +45,7 @@ public final class IngestMetadata implements MetaData.Custom {
 
     public static final String TYPE = "ingest";
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
-    private static final ObjectParser<List<PipelineConfiguration>, ParseFieldMatcherSupplier> INGEST_METADATA_PARSER = new ObjectParser<>(
+    private static final ObjectParser<List<PipelineConfiguration>, Void> INGEST_METADATA_PARSER = new ObjectParser<>(
             "ingest_metadata", ArrayList::new);
 
     static {
@@ -95,7 +93,7 @@ public final class IngestMetadata implements MetaData.Custom {
 
     public static IngestMetadata fromXContent(XContentParser parser) throws IOException {
         Map<String, PipelineConfiguration> pipelines = new HashMap<>();
-        List<PipelineConfiguration> configs = INGEST_METADATA_PARSER.parse(parser, () -> ParseFieldMatcher.STRICT);
+        List<PipelineConfiguration> configs = INGEST_METADATA_PARSER.parse(parser, null);
         for (PipelineConfiguration pipeline : configs) {
             pipelines.put(pipeline.getId(), pipeline);
         }

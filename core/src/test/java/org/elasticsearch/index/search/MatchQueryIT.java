@@ -21,7 +21,6 @@ package org.elasticsearch.index.search;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;

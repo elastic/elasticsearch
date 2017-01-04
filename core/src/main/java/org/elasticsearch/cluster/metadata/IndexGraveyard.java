@@ -22,8 +22,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -70,7 +68,7 @@ public final class IndexGraveyard implements MetaData.Custom {
 
     public static final String TYPE = "index-graveyard";
     private static final ParseField TOMBSTONES_FIELD = new ParseField("tombstones");
-    private static final ObjectParser<List<Tombstone>, ParseFieldMatcherSupplier> GRAVEYARD_PARSER;
+    private static final ObjectParser<List<Tombstone>, Void> GRAVEYARD_PARSER;
     static {
         GRAVEYARD_PARSER = new ObjectParser<>("index_graveyard", ArrayList::new);
         GRAVEYARD_PARSER.declareObjectArray(List::addAll, Tombstone.getParser(), TOMBSTONES_FIELD);
@@ -141,7 +139,7 @@ public final class IndexGraveyard implements MetaData.Custom {
     }
 
     public static IndexGraveyard fromXContent(final XContentParser parser) throws IOException {
-        return new IndexGraveyard(GRAVEYARD_PARSER.parse(parser, () -> ParseFieldMatcher.STRICT));
+        return new IndexGraveyard(GRAVEYARD_PARSER.parse(parser, null));
     }
 
     @Override
@@ -354,16 +352,17 @@ public final class IndexGraveyard implements MetaData.Custom {
         private static final String INDEX_KEY = "index";
         private static final String DELETE_DATE_IN_MILLIS_KEY = "delete_date_in_millis";
         private static final String DELETE_DATE_KEY = "delete_date";
-        private static final ObjectParser<Tombstone.Builder, ParseFieldMatcherSupplier> TOMBSTONE_PARSER;
+        private static final ObjectParser<Tombstone.Builder, Void> TOMBSTONE_PARSER;
         static {
             TOMBSTONE_PARSER = new ObjectParser<>("tombstoneEntry", Tombstone.Builder::new);
-            TOMBSTONE_PARSER.declareObject(Tombstone.Builder::index, Index::parseIndex, new ParseField(INDEX_KEY));
+            TOMBSTONE_PARSER.declareObject(Tombstone.Builder::index, (parser, context) -> Index.fromXContent(parser),
+                    new ParseField(INDEX_KEY));
             TOMBSTONE_PARSER.declareLong(Tombstone.Builder::deleteDateInMillis, new ParseField(DELETE_DATE_IN_MILLIS_KEY));
             TOMBSTONE_PARSER.declareString((b, s) -> {}, new ParseField(DELETE_DATE_KEY));
         }
 
-        static ContextParser<ParseFieldMatcherSupplier, Tombstone> getParser() {
-            return (p, c) -> TOMBSTONE_PARSER.apply(p, c).build();
+        static ContextParser<Void, Tombstone> getParser() {
+            return (parser, context) -> TOMBSTONE_PARSER.apply(parser, null).build();
         }
 
         private final Index index;
@@ -438,7 +437,7 @@ public final class IndexGraveyard implements MetaData.Custom {
         }
 
         public static Tombstone fromXContent(final XContentParser parser) throws IOException {
-            return TOMBSTONE_PARSER.parse(parser, () -> ParseFieldMatcher.STRICT).build();
+            return TOMBSTONE_PARSER.parse(parser, null).build();
         }
 
         /**

@@ -42,12 +42,12 @@ class ListKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.loadMetadata(env.configFile());
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
         if (keystore == null) {
             throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
         }
 
-        keystore.loadKeystore(new char[0] /* TODO: prompt for password when they are supported */);
+        keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
 
         List<String> sortedEntries = new ArrayList<>(keystore.getSettings());
         Collections.sort(sortedEntries);

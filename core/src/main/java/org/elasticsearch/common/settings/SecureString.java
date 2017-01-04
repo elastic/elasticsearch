@@ -40,7 +40,7 @@ public final class SecureString implements CharSequence, AutoCloseable {
 
     /** Constant time equality to avoid potential timing attacks. */
     @Override
-    public boolean equals(Object o) {
+    public synchronized boolean equals(Object o) {
         ensureNotClosed();
         if (this == o) return true;
         if (o == null || o instanceof CharSequence == false) return false;
@@ -58,18 +58,18 @@ public final class SecureString implements CharSequence, AutoCloseable {
     }
 
     @Override
-    public int hashCode() {
+    public synchronized int hashCode() {
         return Arrays.hashCode(chars);
     }
 
     @Override
-    public int length() {
+    public synchronized int length() {
         ensureNotClosed();
         return chars.length;
     }
 
     @Override
-    public char charAt(int index) {
+    public synchronized char charAt(int index) {
         ensureNotClosed();
         return chars[index];
     }
@@ -83,7 +83,7 @@ public final class SecureString implements CharSequence, AutoCloseable {
      * Convert to a {@link String}. This should only be used with APIs that do not take {@link CharSequence}.
      */
     @Override
-    public String toString() {
+    public synchronized String toString() {
         return new String(chars);
     }
 
@@ -91,7 +91,7 @@ public final class SecureString implements CharSequence, AutoCloseable {
      * Closes the string by clearing the underlying char array.
      */
     @Override
-    public void close() {
+    public synchronized void close() {
         Arrays.fill(chars, '\0');
         chars = null;
     }

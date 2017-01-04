@@ -33,7 +33,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -83,8 +82,8 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
     }
 
     KeyStoreWrapper loadKeystore(String password) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.loadMetadata(env.configFile());
-        keystore.loadKeystore(password.toCharArray());
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
+        keystore.decrypt(password.toCharArray());
         return keystore;
     }
 

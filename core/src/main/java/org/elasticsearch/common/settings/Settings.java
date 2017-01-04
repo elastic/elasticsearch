@@ -642,7 +642,7 @@ public final class Settings implements ToXContent {
             if (keystore.isLoaded()) {
                 throw new IllegalStateException("The keystore wrapper must already be loaded");
             }
-            this.keystore.set(Objects.requireNonNull(keystore));
+            this.keystore.set(keystore);
         }
 
         /**

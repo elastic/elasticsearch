@@ -48,12 +48,12 @@ class RemoveSettingKeyStoreCommand extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Must supply at least one setting to remove");
         }
 
-        KeyStoreWrapper keystore = KeyStoreWrapper.loadMetadata(env.configFile());
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
         if (keystore == null) {
             throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
         }
 
-        keystore.loadKeystore(new char[0] /* TODO: prompt for password when they are supported */);
+        keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
 
         for (String setting : arguments.values(options)) {
             if (keystore.getSettings().contains(setting) == false) {

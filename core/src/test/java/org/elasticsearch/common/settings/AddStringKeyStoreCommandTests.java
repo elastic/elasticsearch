@@ -119,6 +119,14 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
         assertSecureString("foo", "secret value 2");
     }
 
+    public void testNonAsciiValue() throws Exception {
+        KeyStoreWrapper.create(new char[0]).save(env.configFile());
+        terminal.addSecretInput("non-äsčîï");
+        UserException e = expectThrows(UserException.class, () -> execute("foo"));
+        assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
+        assertEquals("String value must contain only ASCII", e.getMessage());
+    }
+
     void setInput(String inputStr) {
         input = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
     }

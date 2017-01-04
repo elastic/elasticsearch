@@ -24,7 +24,6 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Locale;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
@@ -57,12 +56,12 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        KeyStoreWrapper keystore = KeyStoreWrapper.loadMetadata(env.configFile());
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(env.configFile());
         if (keystore == null) {
             throw new UserException(ExitCodes.DATA_ERROR, "Elasticsearch keystore not found. Use 'create' command to create one.");
         }
 
-        keystore.loadKeystore(new char[0] /* TODO: prompt for password when they are supported */);
+        keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
 
         String setting = arguments.value(options);
         if (keystore.getSettings().contains(setting) && options.has(forceOption) == false) {
@@ -80,7 +79,11 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
             value = terminal.readSecret("Enter value for " + setting + ": ");
         }
 
-        keystore.setStringSetting(setting, value);
+        try {
+            keystore.setStringSetting(setting, value);
+        } catch (IllegalArgumentException e) {
+            throw new UserException(ExitCodes.DATA_ERROR, "String value must contain only ASCII");
+        }
         keystore.save(env.configFile());
     }
 }

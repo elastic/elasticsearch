@@ -226,7 +226,7 @@ final class Bootstrap {
     private static KeyStoreWrapper loadKeyStore(Environment env0) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
-            keystore = KeyStoreWrapper.loadMetadata(env0.configFile());
+            keystore = KeyStoreWrapper.load(env0.configFile());
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -235,7 +235,7 @@ final class Bootstrap {
         }
 
         try {
-            keystore.loadKeystore(new char[0] /* TODO: read password from stdin */);
+            keystore.decrypt(new char[0] /* TODO: read password from stdin */);
         } catch (Exception e) {
             throw new BootstrapException(e);
         }

@@ -23,13 +23,17 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.security.auth.DestroyFailedException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
-import java.io.DataInputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.CharBuffer;
+import java.nio.charset.CharsetEncoder;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.GeneralSecurityException;
@@ -39,18 +43,31 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Enumeration;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.BufferedChecksumIndexInput;
+import org.apache.lucene.store.ChecksumIndexInput;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.SetOnce;
 
 /**
  * A wrapper around a Java KeyStore which provides supplements the keystore with extra metadata.
  *
- * Loading a keystore has 2 phases. First, call {@link #loadMetadata(Path)}. Then call
- * {@link #loadKeystore(char[])} with the keystore password, or an empty char array if
- * {@link #hasPassword()} is {@code false}.
+ * Loading a keystore has 2 phases. First, call {@link #load(Path)}. Then call
+ * {@link #decrypt(char[])} with the keystore password, or an empty char array if
+ * {@link #hasPassword()} is {@code false}.  Loading and decrypting should happen
+ * in a single thread. Once decrypted, keys may be read with the wrapper in
+ * multiple threads.
  */
 public class KeyStoreWrapper implements Closeable {
+
+    /** The name of the keystore file to read and write. */
+    private static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
 
     /** The version of the metadata written before the keystore data. */
     private static final int FORMAT_VERSION = 1;
@@ -59,7 +76,10 @@ public class KeyStoreWrapper implements Closeable {
     private static final String NEW_KEYSTORE_TYPE = "PKCS12";
 
     /** The algorithm used to store password for a newly created keystore. */
-    private static final String NEW_KEYSTORE_SECRET_KEY_ALGO = "PBEWithHmacSHA256AndAES_128";
+    private static final String NEW_KEYSTORE_SECRET_KEY_ALGO = "PBE";//"PBEWithHmacSHA256AndAES_128";
+
+    /** An encoder to check whether string values are ascii. */
+    private static final CharsetEncoder ASCII_ENCODER = StandardCharsets.US_ASCII.newEncoder();
 
     /** True iff the keystore has a password needed to read. */
     private final boolean hasPassword;
@@ -70,19 +90,19 @@ public class KeyStoreWrapper implements Closeable {
     /** A factory necessary for constructing instances of secrets in a {@link KeyStore}. */
     private final SecretKeyFactory secretFactory;
 
-    /** A stream of the actual keystore data. */
-    private final InputStream input;
+    /** The raw bytes of the encrypted keystore. */
+    private final byte[] keystoreBytes;
 
-    /** The loaded keystore. See {@link #loadKeystore(char[])}. */
+    /** The loaded keystore. See {@link #decrypt(char[])}. */
     private final SetOnce<KeyStore> keystore = new SetOnce<>();
 
-    /** The password for the keystore. See {@link #loadKeystore(char[])}. */
+    /** The password for the keystore. See {@link #decrypt(char[])}. */
     private final SetOnce<KeyStore.PasswordProtection> keystorePassword = new SetOnce<>();
 
     /** The setting names contained in the loaded keystore. */
     private final Set<String> settingNames = new HashSet<>();
 
-    private KeyStoreWrapper(boolean hasPassword, String type, String secretKeyAlgo, InputStream input) {
+    private KeyStoreWrapper(boolean hasPassword, String type, String secretKeyAlgo, byte[] keystoreBytes) {
         this.hasPassword = hasPassword;
         this.type = type;
         try {
@@ -90,12 +110,12 @@ public class KeyStoreWrapper implements Closeable {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException(e);
         }
-        this.input = input;
+        this.keystoreBytes = keystoreBytes;
     }
 
     /** Returns a path representing the ES keystore in the given config dir. */
     static Path keystorePath(Path configDir) {
-        return configDir.resolve("elasticsearch.keystore");
+        return configDir.resolve(KEYSTORE_FILENAME);
     }
 
     /** Constructs a new keystore with the given password. */
@@ -111,43 +131,61 @@ public class KeyStoreWrapper implements Closeable {
     /**
      * Loads information about the Elasticsearch keystore from the provided config directory.
      *
-     * {@link #loadKeystore(char[])} must be called before reading or writing any entries.
+     * {@link #decrypt(char[])} must be called before reading or writing any entries.
      * Returns {@code null} if no keystore exists.
      */
-    public static KeyStoreWrapper loadMetadata(Path configDir) throws IOException {
+    public static KeyStoreWrapper load(Path configDir) throws IOException {
         Path keystoreFile = keystorePath(configDir);
         if (Files.exists(keystoreFile) == false) {
             return null;
         }
-        DataInputStream inputStream = new DataInputStream(Files.newInputStream(keystoreFile));
-        int format = inputStream.readInt();
-        if (format != FORMAT_VERSION) {
-            throw new IllegalStateException("Unknown keystore metadata format [" + format + "]");
+
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
+        try (IndexInput indexInput = directory.openInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
+            ChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput);
+            CodecUtil.checkHeader(input, KEYSTORE_FILENAME, FORMAT_VERSION, FORMAT_VERSION);
+            byte hasPasswordByte = input.readByte();
+            boolean hasPassword = hasPasswordByte == 1;
+            if (hasPassword == false && hasPasswordByte != 0) {
+                throw new IllegalStateException("hasPassword boolean is corrupt: "
+                    + String.format(Locale.ROOT, "%02x", hasPasswordByte));
+            }
+            String type = input.readString();
+            String secretKeyAlgo = input.readString();
+            byte[] keystoreBytes = new byte[input.readInt()];
+            input.readBytes(keystoreBytes, 0, keystoreBytes.length);
+            CodecUtil.checkFooter(input);
+            return new KeyStoreWrapper(hasPassword, type, secretKeyAlgo, keystoreBytes);
         }
-        boolean hasPassword = inputStream.readBoolean();
-        String type = inputStream.readUTF();
-        String secretKeyAlgo = inputStream.readUTF();
-        return new KeyStoreWrapper(hasPassword, type, secretKeyAlgo, inputStream);
     }
 
-    /** Returns true iff {@link #loadKeystore(char[])} has been called. */
+    /** Returns true iff {@link #decrypt(char[])} has been called. */
     public boolean isLoaded() {
         return keystore.get() != null;
     }
 
-    /** Return true iff calling {@link #loadKeystore(char[])} requires a non-empty password. */
+    /** Return true iff calling {@link #decrypt(char[])} requires a non-empty password. */
     public boolean hasPassword() {
         return hasPassword;
     }
 
-    /** Loads the keystore this metadata wraps. This may only be called once. */
-    public void loadKeystore(char[] password) throws GeneralSecurityException, IOException {
-        this.keystore.set(KeyStore.getInstance(type));
-        try (InputStream in = input) {
+    /**
+     * Decrypts the underlying java keystore.
+     *
+     * This may only be called once. The provided password will be zeroed out.
+     */
+    public void decrypt(char[] password) throws GeneralSecurityException, IOException {
+        if (keystore.get() != null) {
+            throw new IllegalStateException("Keystore has already been decrypted");
+        }
+        keystore.set(KeyStore.getInstance(type));
+        try (InputStream in = new ByteArrayInputStream(keystoreBytes)) {
             keystore.get().load(in, password);
+        } finally {
+            Arrays.fill(keystoreBytes, (byte)0);
         }
 
-        this.keystorePassword.set(new KeyStore.PasswordProtection(password));
+        keystorePassword.set(new KeyStore.PasswordProtection(password));
         Arrays.fill(password, '\0');
 
         // convert keystore aliases enum into a set for easy lookup
@@ -159,15 +197,27 @@ public class KeyStoreWrapper implements Closeable {
 
     /** Write the keystore to the given config directory. */
     void save(Path configDir) throws Exception {
-        Path keystoreFile = keystorePath(configDir);
-        try (DataOutputStream outputStream = new DataOutputStream(Files.newOutputStream(keystoreFile))) {
-            outputStream.writeInt(FORMAT_VERSION);
-            char[] password = this.keystorePassword.get().getPassword();
-            outputStream.writeBoolean(password.length != 0);
-            outputStream.writeUTF(type);
-            outputStream.writeUTF(secretFactory.getAlgorithm());
-            keystore.get().store(outputStream, password);
+        char[] password = this.keystorePassword.get().getPassword();
+
+        NIOFSDirectory directory = new NIOFSDirectory(configDir);
+        // write to tmp file first, then overwrite
+        String tmpFile = KEYSTORE_FILENAME + ".tmp";
+        try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
+            output.writeByte(password.length == 0 ? (byte)0 : (byte)1);
+            output.writeString(type);
+            output.writeString(secretFactory.getAlgorithm());
+
+            ByteArrayOutputStream keystoreBytesStream = new ByteArrayOutputStream();
+            keystore.get().store(keystoreBytesStream, password);
+            byte[] keystoreBytes = keystoreBytesStream.toByteArray();
+            output.writeInt(keystoreBytes.length);
+            output.writeBytes(keystoreBytes, keystoreBytes.length);
+            CodecUtil.writeFooter(output);
         }
+
+        Path keystoreFile = keystorePath(configDir);
+        Files.move(configDir.resolve(tmpFile), keystoreFile, StandardCopyOption.REPLACE_EXISTING);
         PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreFile, PosixFileAttributeView.class);
         if (attrs != null) {
             // don't rely on umask: ensure the keystore has minimal permissions
@@ -194,8 +244,15 @@ public class KeyStoreWrapper implements Closeable {
         return value;
     }
 
-    /** Set a string setting. */
+    /**
+     * Set a string setting.
+     *
+     * @throws IllegalArgumentException if the value is not ASCII
+     */
     void setStringSetting(String setting, char[] value) throws GeneralSecurityException {
+        if (ASCII_ENCODER.canEncode(CharBuffer.wrap(value)) == false) {
+            throw new IllegalArgumentException("Value must be ascii");
+        }
         SecretKey secretKey = secretFactory.generateSecret(new PBEKeySpec(value));
         keystore.get().setEntry(setting, new KeyStore.SecretKeyEntry(secretKey), keystorePassword.get());
         settingNames.add(setting);

@@ -25,7 +25,6 @@ import java.nio.file.Path;
 import java.util.Map;
 
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 
@@ -44,14 +43,14 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testPosix() throws Exception {
         execute();
         Path configDir = env.configFile();
-        assertNotNull(KeyStoreWrapper.loadMetadata(configDir));
+        assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testNotPosix() throws Exception {
         setupEnv(false);
         execute();
         Path configDir = env.configFile();
-        assertNotNull(KeyStoreWrapper.loadMetadata(configDir));
+        assertNotNull(KeyStoreWrapper.load(configDir));
     }
 
     public void testOverwrite() throws Exception {
@@ -69,6 +68,6 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
         terminal.addTextInput("y");
         execute();
-        assertNotNull(KeyStoreWrapper.loadMetadata(env.configFile()));
+        assertNotNull(KeyStoreWrapper.load(env.configFile()));
     }
 }

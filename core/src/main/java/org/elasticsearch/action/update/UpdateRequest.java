@@ -739,7 +739,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                     fields(fields.toArray(new String[fields.size()]));
                 }
             } else if ("_source".equals(currentFieldName)) {
-                fetchSourceContext = FetchSourceContext.parse(parser);
+                fetchSourceContext = FetchSourceContext.fromXContent(parser);
             }
         }
         if (script != null) {

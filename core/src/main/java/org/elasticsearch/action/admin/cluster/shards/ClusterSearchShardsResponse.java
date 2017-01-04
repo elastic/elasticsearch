@@ -42,7 +42,7 @@ public class ClusterSearchShardsResponse extends ActionResponse implements ToXCo
 
     }
 
-    ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes, Map<String, AliasFilter> indicesAndFilters) {
+    public ClusterSearchShardsResponse(ClusterSearchShardsGroup[] groups, DiscoveryNode[] nodes, Map<String, AliasFilter> indicesAndFilters) {
         this.groups = groups;
         this.nodes = nodes;
         this.indicesAndFilters = indicesAndFilters;

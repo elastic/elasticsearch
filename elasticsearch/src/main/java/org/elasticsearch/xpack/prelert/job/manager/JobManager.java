@@ -229,7 +229,7 @@ public class JobManager extends AbstractComponent {
                 logger.info("Job [" + jobId + "] deleted.");
                 actionListener.onResponse(new DeleteJobAction.Response(true));
 
-                //nocommit: needs #626, because otherwise the audit message re-creates the index
+                //norelease: needs #626, because otherwise the audit message re-creates the index
                 // we just deleted.  :)
                 //audit(jobId).info(Messages.getMessage(Messages.JOB_AUDIT_DELETED));
             } else {

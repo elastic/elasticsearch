@@ -60,7 +60,7 @@ setup:
 "Basic field stats":
   - do:
       field_stats:
-          fields:  [foo, number, geo, geo_shape]
+          fields:  [foo, number]
 
   - match: { indices._all.fields.foo.max_doc: 2 }
   - match: { indices._all.fields.foo.doc_count: 2 }
@@ -80,15 +80,6 @@ setup:
   - match: { indices._all.fields.number.max_value: 456 }
   - match: { indices._all.fields.number.max_value_as_string: "456" }
   - match: { indices._all.fields.number.type: "integer" }
-  - match: { indices._all.fields.geo.type: "string" }
-  - match: { indices._all.fields.geo.max_doc: 1 }
-  - match: { indices._all.fields.geo.doc_count: -1 }
-  - match: { indices._all.fields.geo.searchable: true }
-  - match: { indices._all.fields.geo.aggregatable: true }
-  - match: { indices._all.fields.geo_shape.type: "string" }
-  - match: { indices._all.fields.geo_shape.max_doc: 1 }
-  - match: { indices._all.fields.geo_shape.searchable: true }
-  - match: { indices._all.fields.geo_shape.aggregatable: false }
 
   - is_false: conflicts
 
@@ -127,7 +118,7 @@ setup:
 "Basic field stats with level set to indices":
   - do:
       field_stats:
-          fields:  [foo, number, geo, geo_shape]
+          fields:  [foo, number]
           level: indices
 
   - match: { indices.test_1.fields.foo.max_doc: 1 }
@@ -148,10 +139,6 @@ setup:
   - match: { indices.test_1.fields.number.max_value: 123 }
   - match: { indices.test_1.fields.number.max_value_as_string: "123" }
   - match: { indices.test_1.fields.number.type: "integer" }
-  - match: { indices.test_1.fields.geo.type: "string" }
-  - match: { indices.test_1.fields.geo.max_doc: 1 }
-  - match: { indices.test_1.fields.geo.searchable: true }
-  - match: { indices.test_1.fields.geo.aggregatable: true }
   - match: { indices.test_2.fields.foo.max_doc: 1 }
   - match: { indices.test_2.fields.foo.doc_count: 1 }
   - match: { indices.test_2.fields.foo.min_value: "babar" }
@@ -171,11 +158,6 @@ setup:
   - match: { indices.test_2.fields.number.max_value: 456 }
   - match: { indices.test_2.fields.number.max_value_as_string: "456" }
   - match: { indices.test_2.fields.number.type: "integer" }
-  - match: { indices.test_2.fields.geo_shape.type: "string" }
-  - match: { indices.test_2.fields.geo_shape.max_doc: 1 }
-  - match: { indices.test_2.fields.geo_shape.searchable: true }
-  - match: { indices.test_2.fields.geo_shape.aggregatable: false }
-  - is_false: indices.test_2.fields.geo
   - is_false: conflicts
 
 

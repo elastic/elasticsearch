@@ -349,7 +349,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                             } else if ("fields".equals(currentFieldName)) {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains a simple value for parameter [fields] while a list is expected");
                             } else if ("_source".equals(currentFieldName)) {
-                                fetchSourceContext = FetchSourceContext.parse(parser);
+                                fetchSourceContext = FetchSourceContext.fromXContent(parser);
                             } else {
                                 throw new IllegalArgumentException("Action/metadata line [" + line + "] contains an unknown parameter [" + currentFieldName + "]");
                             }
@@ -362,7 +362,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
                                 throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                             }
                         } else if (token == XContentParser.Token.START_OBJECT && "_source".equals(currentFieldName)) {
-                            fetchSourceContext = FetchSourceContext.parse(parser);
+                            fetchSourceContext = FetchSourceContext.fromXContent(parser);
                         } else if (token != XContentParser.Token.VALUE_NULL) {
                             throw new IllegalArgumentException("Malformed action/metadata line [" + line + "], expected a simple value for field [" + currentFieldName + "] but found [" + token + "]");
                         }

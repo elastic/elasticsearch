@@ -948,7 +948,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (TRACK_SCORES_FIELD.match(currentFieldName)) {
                     trackScores = parser.booleanValue();
                 } else if (_SOURCE_FIELD.match(currentFieldName)) {
-                    fetchSourceContext = FetchSourceContext.parse(context.parser());
+                    fetchSourceContext = FetchSourceContext.fromXContent(context.parser());
                 } else if (STORED_FIELDS_FIELD.match(currentFieldName)) {
                     storedFieldsContext =
                         StoredFieldsContext.fromXContent(SearchSourceBuilder.STORED_FIELDS_FIELD.getPreferredName(), context);
@@ -970,7 +970,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (POST_FILTER_FIELD.match(currentFieldName)) {
                     postQueryBuilder = context.parseInnerQueryBuilder();
                 } else if (_SOURCE_FIELD.match(currentFieldName)) {
-                    fetchSourceContext = FetchSourceContext.parse(context.parser());
+                    fetchSourceContext = FetchSourceContext.fromXContent(context.parser());
                 } else if (SCRIPT_FIELDS_FIELD.match(currentFieldName)) {
                     scriptFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -1059,7 +1059,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         }
                     }
                 } else if (_SOURCE_FIELD.match(currentFieldName)) {
-                    fetchSourceContext = FetchSourceContext.parse(context.parser());
+                    fetchSourceContext = FetchSourceContext.fromXContent(context.parser());
                 } else if (SEARCH_AFTER.match(currentFieldName)) {
                     searchAfterBuilder = SearchAfterBuilder.fromXContent(parser, context.getParseFieldMatcher());
                 } else if (FIELDS_FIELD.match(currentFieldName)) {

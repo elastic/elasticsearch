@@ -167,7 +167,7 @@ public final class AnalysisRegistry implements Closeable {
          * hide internal data-structures as much as possible.
          */
         tokenFilters.put("synonym", requriesAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings)));
-        tokenFilters.put("synonym_graph", requriesAnalysisSettings((is, env, name, settings) -> new SynonymGraphFilterFactory(is, env, this, name, settings)));
+        tokenFilters.put("synonym_graph", requriesAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings)));
         return buildMapping(Component.FILTER, indexSettings, tokenFiltersSettings, Collections.unmodifiableMap(tokenFilters), prebuiltAnalysis.tokenFilterFactories);
     }
 
@@ -231,7 +231,7 @@ public final class AnalysisRegistry implements Closeable {
             if ("synonym".equals(typeName)) {
                 return requriesAnalysisSettings((is, env, name, settings) -> new SynonymTokenFilterFactory(is, env, this, name, settings));
             } else if ("synonym_graph".equals(typeName)) {
-                return requriesAnalysisSettings((is, env, name, settings) -> new SynonymGraphFilterFactory(is, env, this, name, settings));
+                return requriesAnalysisSettings((is, env, name, settings) -> new SynonymGraphTokenFilterFactory(is, env, this, name, settings));
             } else {
                 return getAnalysisProvider(Component.FILTER, tokenFilters, tokenFilter, typeName);
             }

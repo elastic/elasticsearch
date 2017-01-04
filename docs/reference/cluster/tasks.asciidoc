@@ -81,15 +81,14 @@ GET _tasks?parent_task_id=parentTaskId:1 <1>
 
 You can also use the `detailed` request parameter to get more information about
 the running tasks. This is useful for telling one task from another but is more
-costly to execute. For example, fetching a search using the `detailed` request
-parameter:
+costly to execute. For example, fetching all searches using the `detailed`
+request parameter:
 
 [source,js]
 --------------------------------------------------
-GET _tasks/oTUltX4IQMOUUVeiohTt8A:464?detailed
+GET _tasks?actions=*search&detailed
 --------------------------------------------------
 // CONSOLE
-// TEST[catch:missing]
 
 might look like:
 

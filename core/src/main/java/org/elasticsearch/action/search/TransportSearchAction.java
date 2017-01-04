@@ -74,6 +74,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     private final ClusterService clusterService;
     private final SearchTransportService searchTransportService;
+    private final RemoteClusterService remoteClusterService;
     private final SearchPhaseController searchPhaseController;
     private final SearchService searchService;
 
@@ -85,6 +86,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         super(settings, SearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SearchRequest::new);
         this.searchPhaseController = searchPhaseController;
         this.searchTransportService = searchTransportService;
+        this.remoteClusterService = searchTransportService.getRemoteClusterService();
         SearchTransportService.registerRequestHandler(transportService, searchService);
         this.clusterService = clusterService;
         this.searchService = searchService;
@@ -133,13 +135,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         final String[] localIndices;
         final Map<String, List<String>> remoteIndicesByCluster = new HashMap<>();
-        if (searchTransportService.isCrossClusterSearchEnabled()) {
+        if (remoteClusterService.isCrossClusterSearchEnabled()) {
             List<String> localIndicesList = new ArrayList<>();
             for (String index : searchRequest.indices()) {
                 int i = index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
                 if (i >= 0) {
                     String remoteCluster = index.substring(0, i);
-                    if (searchTransportService.isRemoteClusterRegistered(remoteCluster)) {
+                    if (remoteClusterService.isRemoteClusterRegistered(remoteCluster)) {
                         String remoteIndex = index.substring(i + 1);
                         List<String> indices = remoteIndicesByCluster.get(remoteCluster);
                         if (indices == null) {
@@ -163,11 +165,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             executeSearch((SearchTask)task, startTimeInMillis, searchRequest, localIndices, Collections.emptyList(),
                 (nodeId) -> null, Collections.emptyMap(), listener);
         } else {
-            // nocommit we have to extract this logic to add unittests ideally with manually prepared searchShardsResponses etc.
-            searchTransportService.sendSearchShards(searchRequest, remoteIndicesByCluster,
+            remoteClusterService.sendSearchShards(searchRequest, remoteIndicesByCluster,
                 ActionListener.wrap((searchShardsResponses) -> {
                     List<ShardIterator> remoteShardIterators = new ArrayList<>();
-                    Set<DiscoveryNode> remoteNodes = new HashSet<>();
                     Map<String, AliasFilter> remoteAliasFilters = new HashMap<>();
                     Function<String, Transport.Connection> connectionFunction = processRemoteShards(searchShardsResponses,
                         remoteShardIterators, remoteAliasFilters);
@@ -185,7 +185,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             String clusterName = entry.getKey();
             ClusterSearchShardsResponse searchShardsResponse = entry.getValue();
             for (DiscoveryNode remoteNode : searchShardsResponse.getNodes()) {
-                nodeToCluster.put(remoteNode.getId(), () -> searchTransportService.getRemoteConnection(remoteNode, clusterName));
+                nodeToCluster.put(remoteNode.getId(), () -> remoteClusterService.getConnection(remoteNode, clusterName));
             }
             Map<String, AliasFilter> indicesAndFilters = searchShardsResponse.getIndicesAndFilters();
             for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {

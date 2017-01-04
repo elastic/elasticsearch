@@ -171,7 +171,7 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     // for testing
-    DiscoveryNode getLocalNode() {
+    protected DiscoveryNode getLocalNode() {
         return localNode;
     }
 

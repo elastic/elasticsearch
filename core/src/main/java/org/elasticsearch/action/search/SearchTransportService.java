@@ -19,23 +19,17 @@
 
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -55,29 +49,19 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TaskAwareTransportRequestHandler;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * An encapsulation of {@link org.elasticsearch.search.SearchService} operations exposed through
  * transport.
  */
-public class SearchTransportService extends AbstractComponent {
+public class SearchTransportService extends AbstractLifecycleComponent {
 
     public static final String FREE_CONTEXT_SCROLL_ACTION_NAME = "indices:data/read/search[free_context/scroll]";
     public static final String FREE_CONTEXT_ACTION_NAME = "indices:data/read/search[free_context]";
@@ -92,166 +76,17 @@ public class SearchTransportService extends AbstractComponent {
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
 
-    //TODO what should the setting name be?
-    // TODO this should be an affix settings?
-    public static final Setting<Settings> REMOTE_CLUSTERS_SEEDS = Setting.groupSetting("action.search.remote.",
-            SearchTransportService::validateRemoteClustersSeeds,
-            Setting.Property.NodeScope,
-            Setting.Property.Dynamic);
-
-    /**
-     * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single
-     * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
-     */
-    public static final Setting<Integer> NUM_REMOTE_CONNECTIONS = Setting.intSetting("action.search.num_remote_connections",
-        3, 1, Setting.Property.NodeScope);
-
     private final TransportService transportService;
-    private volatile Map<String, RemoteClusterConnection> remoteClusters = Collections.emptyMap();
+    private final RemoteClusterService remoteClusterService;
 
     public SearchTransportService(Settings settings, ClusterSettings clusterSettings, TransportService transportService) {
         super(settings);
         this.transportService = transportService;
-        clusterSettings.addSettingsUpdateConsumer(REMOTE_CLUSTERS_SEEDS, this::setRemoteClusters,
-            SearchTransportService::validateRemoteClustersSeeds);
-    }
-
-    public void setupRemoteClusters() {
-        setRemoteClusters(REMOTE_CLUSTERS_SEEDS.get(settings));
-    }
-
-    private static void validateRemoteClustersSeeds(Settings settings) {
-        //TODO do we need a static whitelist like in reindex from remote?
-        for (String clusterName : settings.names()) {
-            String[] remoteHosts = settings.getAsArray(clusterName);
-            if (remoteHosts.length == 0) {
-                throw new IllegalArgumentException("no hosts set for remote cluster [" + clusterName + "], at least one host is required");
-            }
-            for (String remoteHost : remoteHosts) {
-                int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
-                if (portSeparator == -1 || portSeparator == remoteHost.length()) {
-                    throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] " +
-                        "instead for remote cluster [" + clusterName + "]");
-                }
-                String host = remoteHost.substring(0, portSeparator);
-                try {
-                    InetAddress.getByName(host);
-                } catch (UnknownHostException e) {
-                    throw new IllegalArgumentException("unknown host [" + host + "]", e);
-                }
-                String port = remoteHost.substring(portSeparator + 1);
-                try {
-                    Integer portValue = Integer.valueOf(port);
-                    if (portValue <= 0) {
-                        throw new IllegalArgumentException("port number must be > 0 but was: [" + portValue + "]");
-                    }
-                } catch(NumberFormatException e) {
-                    throw new IllegalArgumentException("port must be a number, found [" + port + "] instead for remote cluster [" +
-                            clusterName + "]");
-                }
-            }
-        }
-    }
-
-    static Map<String, List<DiscoveryNode>> buildRemoteClustersSeeds(Settings settings) {
-        Map<String, List<DiscoveryNode>> remoteClustersNodes = new HashMap<>();
-        for (String clusterName : settings.names()) {
-            String[] remoteHosts = settings.getAsArray(clusterName);
-            for (String remoteHost : remoteHosts) {
-                int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
-                String host = remoteHost.substring(0, portSeparator);
-                InetAddress hostAddress;
-                try {
-                    hostAddress = InetAddress.getByName(host);
-                } catch (UnknownHostException e) {
-                    throw new IllegalArgumentException("unknown host [" + host + "]", e);
-                }
-                int port = Integer.valueOf(remoteHost.substring(portSeparator + 1));
-                DiscoveryNode node = new DiscoveryNode(clusterName + "#" + remoteHost,
-                        new TransportAddress(new InetSocketAddress(hostAddress, port)),
-                        Version.CURRENT.minimumCompatibilityVersion());
-                //don't connect yet as that would require the remote node to be up and would fail the local node startup otherwise
-                List<DiscoveryNode> nodes = remoteClustersNodes.get(clusterName);
-                if (nodes == null) {
-                    nodes = new ArrayList<>();
-                    remoteClustersNodes.put(clusterName, nodes);
-                }
-                nodes.add(node);
-            }
-        }
-        return remoteClustersNodes;
-    }
-
-    private void setRemoteClusters(Settings settings) {
-        Map<String, List<DiscoveryNode>> seeds = buildRemoteClustersSeeds(settings);
-        Map<String, RemoteClusterConnection> remoteClusters = new HashMap<>();
-        for (Map.Entry<String, List<DiscoveryNode>> entry : seeds.entrySet()) {
-            RemoteClusterConnection remote = this.remoteClusters.get(entry.getKey());
-            if (remote == null) {
-                remote = new RemoteClusterConnection(settings, entry.getKey(), entry.getValue(), transportService, 3,
-                    (node) -> Version.CURRENT.isCompatible(node.getVersion()));
-                remoteClusters.put(entry.getKey(), remote);
-            }
-            remote.updateSeedNodes(entry.getValue(), ActionListener.wrap((x) -> {},
-                e -> logger.error("failed to update seed list for cluster: " + entry.getKey(), e) ));
-        }
-        if (remoteClusters.isEmpty() == false) {
-            remoteClusters.putAll(this.remoteClusters);
-            this.remoteClusters = Collections.unmodifiableMap(remoteClusters);
-        }
-    }
-
-    boolean isCrossClusterSearchEnabled() {
-        return remoteClusters.isEmpty() == false;
-    }
-
-    boolean isRemoteClusterRegistered(String clusterName) {
-        return remoteClusters.containsKey(clusterName);
-    }
-
-    void sendSearchShards(SearchRequest searchRequest, Map<String, List<String>> remoteIndicesByCluster,
-                          ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
-        final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
-        final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
-        final AtomicReference<TransportException> transportException = new AtomicReference<>();
-        for (Map.Entry<String, List<String>> entry : remoteIndicesByCluster.entrySet()) {
-            final String clusterName = entry.getKey();
-            RemoteClusterConnection remoteClusterConnection = remoteClusters.get(clusterName);
-            if (remoteClusterConnection == null) {
-                throw new IllegalArgumentException("no such remote cluster: " + clusterName);
-            }
-            final List<String> indices = entry.getValue();
-            remoteClusterConnection.fetchSearchShards(searchRequest, indices,
-                    new ActionListener<ClusterSearchShardsResponse>() {
-                        @Override
-                        public void onResponse(ClusterSearchShardsResponse clusterSearchShardsResponse) {
-                            searchShardsResponses.put(clusterName, clusterSearchShardsResponse);
-                            if (responsesCountDown.countDown()) {
-                                TransportException exception = transportException.get();
-                                if (exception == null) {
-                                    listener.onResponse(searchShardsResponses);
-                                } else {
-                                    listener.onFailure(transportException.get());
-                                }
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            TransportException exception = new TransportException("unable to communicate with remote cluster [" +
-                                    clusterName + "]", e);
-                            if (transportException.compareAndSet(null, exception) == false) {
-                                exception = transportException.accumulateAndGet(exception, (previous, current) -> {
-                                    current.addSuppressed(previous);
-                                    return current;
-                                });
-                            }
-                            if (responsesCountDown.countDown()) {
-                                listener.onFailure(exception);
-                            }
-                        }
-                    });
-        }
+        this.remoteClusterService = new RemoteClusterService(settings, transportService);
+        final Consumer<Settings> clusterUpdateConsumer = (s) -> remoteClusterService.updateRemoteClusters(s,
+            ActionListener.wrap((x) -> {}, (x) -> {}));
+        clusterSettings.addSettingsUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS, clusterUpdateConsumer,
+            RemoteClusterService::validateRemoteClustersSeeds);
     }
 
     public void sendFreeContext(Transport.Connection connection, final long contextId, SearchRequest request) {
@@ -335,6 +170,10 @@ public class SearchTransportService extends AbstractComponent {
                                   final ActionListener<FetchSearchResult> listener) {
         transportService.sendChildRequest(connection, action, request, task,
             new ActionListenerResponseHandler<>(listener, FetchSearchResult::new));
+    }
+
+    public RemoteClusterService getRemoteClusterService() {
+        return remoteClusterService;
     }
 
     static class ScrollFreeContextRequest extends TransportRequest {
@@ -558,11 +397,17 @@ public class SearchTransportService extends AbstractComponent {
         return transportService.getConnection(node);
     }
 
-    Transport.Connection getRemoteConnection(DiscoveryNode node, String cluster) {
-        RemoteClusterConnection connection = remoteClusters.get(cluster);
-        if (connection == null) {
-            throw new IllegalArgumentException("no such remote cluster: " + cluster);
-        }
-        return connection.getProxyConnection(node);
+    @Override
+    protected void doStart() {
+        // here we start to connect to the remote clusters
+        remoteClusterService.initializeRemoteClusters();
     }
+
+    @Override
+    protected void doStop() {}
+
+    @Override
+    protected void doClose() throws IOException {}
+
+
 }

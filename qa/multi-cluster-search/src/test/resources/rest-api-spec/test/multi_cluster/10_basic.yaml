@@ -99,16 +99,16 @@
     cluster.get_settings:
       include_defaults: true
 
-  - set: { defaults.action.search.remote.my_remote_cluster: remote_ip }
+  - set: { defaults.search.remote.seeds.my_remote_cluster: remote_ip }
 
   - do:
     cluster.put_settings:
       flat_settings: true
       body:
         transient:
-          action.search.remote.test_remote_cluster: $remote_ip
+          search.remote.seeds.test_remote_cluster: $remote_ip
 
-  - match: {transient: {action.search.remote.test_remote_cluster: $remote_ip}}
+  - match: {transient: {search.remote.seeds.test_remote_cluster: $remote_ip}}
 
   - do:
     search:

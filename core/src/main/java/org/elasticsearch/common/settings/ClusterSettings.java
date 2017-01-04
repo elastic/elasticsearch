@@ -19,7 +19,7 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.search.RemoteClusterService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -254,8 +254,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
                     ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
                     TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
-                    SearchTransportService.REMOTE_CLUSTERS_SEEDS,
-                    SearchTransportService.NUM_REMOTE_CONNECTIONS,
+                    RemoteClusterService.REMOTE_CLUSTERS_SEEDS,
+                    RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER,
                     TransportService.TRACE_LOG_EXCLUDE_SETTING,
                     TransportService.TRACE_LOG_INCLUDE_SETTING,
                     TransportCloseIndexAction.CLUSTER_INDICES_CLOSE_ENABLE_SETTING,

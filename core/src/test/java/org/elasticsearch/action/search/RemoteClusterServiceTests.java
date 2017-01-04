@@ -29,24 +29,24 @@ import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
 
-public class SearchTransportServiceTests extends ESTestCase {
+public class RemoteClusterServiceTests extends ESTestCase {
 
     public void testRemoteClusterSeedSetting() {
         // simple validation
-        SearchTransportService.REMOTE_CLUSTERS_SEEDS.get(Settings.builder()
-            .put("action.search.remote.foo", "192.168.0.1:8080")
-            .put("action.search.remote.bar", "[::1]:9090").build());
+        RemoteClusterService.REMOTE_CLUSTERS_SEEDS.get(Settings.builder()
+            .put("search.remote.seeds.foo", "192.168.0.1:8080")
+            .put("search.remote.seeds.bar", "[::1]:9090").build());
 
         expectThrows(IllegalArgumentException.class, () ->
-        SearchTransportService.REMOTE_CLUSTERS_SEEDS.get(Settings.builder()
-            .put("action.search.remote.foo", "192.168.0.1").build()));
+        RemoteClusterService.REMOTE_CLUSTERS_SEEDS.get(Settings.builder()
+            .put("search.remote.seeds.foo", "192.168.0.1").build()));
     }
 
     public void testBuiltRemoteClustersSeeds() throws Exception {
-        Map<String, List<DiscoveryNode>> map = SearchTransportService.buildRemoteClustersSeeds(
-            SearchTransportService.REMOTE_CLUSTERS_SEEDS.get(Settings.builder()
-            .put("action.search.remote.foo", "192.168.0.1:8080")
-            .put("action.search.remote.bar", "[::1]:9090").build()));
+        Map<String, List<DiscoveryNode>> map = RemoteClusterService.buildRemoteClustersSeeds(
+            RemoteClusterService.REMOTE_CLUSTERS_SEEDS.get(Settings.builder()
+            .put("search.remote.seeds.foo", "192.168.0.1:8080")
+            .put("search.remote.seeds.bar", "[::1]:9090").build()));
         assertEquals(2, map.size());
         assertTrue(map.containsKey("foo"));
         assertTrue(map.containsKey("bar"));

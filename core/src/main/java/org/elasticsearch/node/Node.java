@@ -596,8 +596,6 @@ public class Node implements Closeable {
         // start after cluster service so the local disco is known
         discovery.start();
         transportService.acceptIncomingRequests();
-        SearchTransportService searchTransportService = injector.getInstance(SearchTransportService.class);
-        searchTransportService.setupRemoteClusters();
         discovery.startInitialJoin();
         // tribe nodes don't have a master so we shouldn't register an observer         s
         final TimeValue initialStateTimeout = DiscoverySettings.INITIAL_STATE_TIMEOUT_SETTING.get(settings);
@@ -640,6 +638,9 @@ public class Node implements Closeable {
 
         // start nodes now, after the http server, because it may take some time
         tribeService.startNodes();
+        // starts connecting to remote clusters if any cluster is configured
+        SearchTransportService searchTransportService = injector.getInstance(SearchTransportService.class);
+        searchTransportService.start();
 
         if (WRITE_PORTS_FIELD_SETTING.get(settings)) {
             if (NetworkModule.HTTP_ENABLED.get(settings)) {
@@ -683,6 +684,7 @@ public class Node implements Closeable {
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
+        injector.getInstance(SearchTransportService.class).stop();
 
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released
@@ -744,6 +746,8 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
+        toClose.add(() -> stopWatch.stop().start("search_transport_service"));
+        toClose.add(injector.getInstance(SearchTransportService.class));
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

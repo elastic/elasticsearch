@@ -2285,7 +2285,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
                 .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
                 .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
-                .put("action.search.remote.test_remote_cluster", seedNode.getAddress().toString())
+                .put("search.remote.seeds.test_remote_cluster", seedNode.getAddress().toString())
                 .put("node.name", "node_prx_0")
                 .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
                 .put(NetworkModule.HTTP_ENABLED.getKey(), false)

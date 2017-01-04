@@ -133,7 +133,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
         parser.nextToken();
         parser.nextToken();
         parser.nextToken();
-        return SearchAfterBuilder.fromXContent(parser, null);
+        return SearchAfterBuilder.fromXContent(parser);
     }
 
     private static SearchAfterBuilder serializedCopy(SearchAfterBuilder original) throws IOException {
@@ -172,7 +172,7 @@ public class SearchAfterBuilderTests extends ESTestCase {
             parser.nextToken();
             parser.nextToken();
             parser.nextToken();
-            SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.fromXContent(parser, null);
+            SearchAfterBuilder secondSearchAfterBuilder = SearchAfterBuilder.fromXContent(parser);
             assertNotSame(searchAfterBuilder, secondSearchAfterBuilder);
             assertEquals(searchAfterBuilder, secondSearchAfterBuilder);
             assertEquals(searchAfterBuilder.hashCode(), secondSearchAfterBuilder.hashCode());

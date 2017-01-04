@@ -124,4 +124,33 @@ public class PrelertInitializationServiceTests extends ESTestCase {
         verify(jobProvider, times(0)).createUsageMeteringIndex(any());
         verify(jobProvider, times(0)).createJobStateIndex(any());
     }
+
+    public void testInitialize_onlyOnce() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ExecutorService executorService = mock(ExecutorService.class);
+        doAnswer(invocation -> {
+            ((Runnable) invocation.getArguments()[0]).run();
+            return null;
+        }).when(executorService).execute(any(Runnable.class));
+        when(threadPool.executor(ThreadPool.Names.GENERIC)).thenReturn(executorService);
+
+        ClusterService clusterService = mock(ClusterService.class);
+        JobProvider jobProvider = mock(JobProvider.class);
+        PrelertInitializationService initializationService =
+                new PrelertInitializationService(Settings.EMPTY, threadPool, clusterService, jobProvider);
+
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+                .nodes(DiscoveryNodes.builder()
+                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .localNodeId("_node_id")
+                        .masterNodeId("_node_id"))
+                .metaData(MetaData.builder())
+                .build();
+        initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
+        initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
+
+        verify(clusterService, times(1)).submitStateUpdateTask(eq("install-prelert-metadata"), any());
+        verify(jobProvider, times(1)).createUsageMeteringIndex(any());
+        verify(jobProvider, times(1)).createJobStateIndex(any());
+    }
 }

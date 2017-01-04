@@ -18,11 +18,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public class PrelertInitializationService extends AbstractComponent implements ClusterStateListener {
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final JobProvider jobProvider;
+
+    private final AtomicBoolean installPrelertMetadataCheck = new AtomicBoolean(false);
+    private final AtomicBoolean createPrelertUsageIndexCheck = new AtomicBoolean(false);
+    private final AtomicBoolean createStateIndexCheck = new AtomicBoolean(false);
 
     public PrelertInitializationService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                         JobProvider jobProvider) {
@@ -38,54 +44,64 @@ public class PrelertInitializationService extends AbstractComponent implements C
         if (event.localNodeMaster()) {
             MetaData metaData = event.state().metaData();
             if (metaData.custom(PrelertMetadata.TYPE) == null) {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                    clusterService.submitStateUpdateTask("install-prelert-metadata", new ClusterStateUpdateTask() {
-                        @Override
-                        public ClusterState execute(ClusterState currentState) throws Exception {
-                            ClusterState.Builder builder = new ClusterState.Builder(currentState);
-                            MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
-                            metadataBuilder.putCustom(PrelertMetadata.TYPE, PrelertMetadata.EMPTY_METADATA);
-                            builder.metaData(metadataBuilder.build());
-                            return builder.build();
-                        }
+                if (installPrelertMetadataCheck.compareAndSet(false, true)) {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                        clusterService.submitStateUpdateTask("install-prelert-metadata", new ClusterStateUpdateTask() {
+                            @Override
+                            public ClusterState execute(ClusterState currentState) throws Exception {
+                                ClusterState.Builder builder = new ClusterState.Builder(currentState);
+                                MetaData.Builder metadataBuilder = MetaData.builder(currentState.metaData());
+                                metadataBuilder.putCustom(PrelertMetadata.TYPE, PrelertMetadata.EMPTY_METADATA);
+                                builder.metaData(metadataBuilder.build());
+                                return builder.build();
+                            }
 
-                        @Override
-                        public void onFailure(String source, Exception e) {
-                            logger.error("unable to install prelert metadata upon startup", e);
-                        }
+                            @Override
+                            public void onFailure(String source, Exception e) {
+                                logger.error("unable to install prelert metadata upon startup", e);
+                            }
+                        });
                     });
-                });
+                }
+            } else {
+                installPrelertMetadataCheck.set(false);
             }
             if (metaData.hasIndex(JobProvider.PRELERT_USAGE_INDEX) == false) {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                    jobProvider.createUsageMeteringIndex((result, error) -> {
-                        if (result) {
-                            logger.info("successfully created prelert-usage index");
-                        } else {
-                            if (error instanceof ResourceAlreadyExistsException) {
-                                logger.debug("not able to create prelert-usage index as it already exists");
+                if (createPrelertUsageIndexCheck.compareAndSet(false, true)) {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                        jobProvider.createUsageMeteringIndex((result, error) -> {
+                            if (result) {
+                                logger.info("successfully created prelert-usage index");
+                                createPrelertUsageIndexCheck.set(false);
                             } else {
-                                logger.error("not able to create prelert-usage index", error);
+                                if (error instanceof ResourceAlreadyExistsException) {
+                                    logger.debug("not able to create prelert-usage index as it already exists");
+                                } else {
+                                    logger.error("not able to create prelert-usage index", error);
+                                }
                             }
-                        }
+                        });
                     });
-                });
+                }
             }
             String stateIndexName = AnomalyDetectorsIndex.jobStateIndexName();
             if (metaData.hasIndex(stateIndexName) == false) {
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
-                    jobProvider.createJobStateIndex((result, error) -> {
-                        if (result) {
-                            logger.info("successfully created {} index", stateIndexName);
-                        } else {
-                            if (error instanceof ResourceAlreadyExistsException) {
-                                logger.debug("not able to create {} index as it already exists", stateIndexName);
+                if (createStateIndexCheck.compareAndSet(false, true)) {
+                    threadPool.executor(ThreadPool.Names.GENERIC).execute(() -> {
+                        jobProvider.createJobStateIndex((result, error) -> {
+                            if (result) {
+                                logger.info("successfully created {} index", stateIndexName);
+                                createStateIndexCheck.set(false);
                             } else {
-                                logger.error("not able to create " + stateIndexName + " index", error);
+                                if (error instanceof ResourceAlreadyExistsException) {
+                                    logger.debug("not able to create {} index as it already exists", stateIndexName);
+                                } else {
+                                    logger.error("not able to create " + stateIndexName + " index", error);
+                                }
                             }
-                        }
+                        });
                     });
-                });
+                }
             }
         }
     }

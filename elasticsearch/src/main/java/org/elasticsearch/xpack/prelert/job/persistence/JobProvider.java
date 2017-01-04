@@ -149,7 +149,7 @@ public class JobProvider {
                         }
                     });
 
-        } catch (IOException e) {
+        } catch (Exception e) {
             LOGGER.warn("Error creating the usage metering index", e);
         }
     }
@@ -299,7 +299,7 @@ public class JobProvider {
                 }
             });
         } catch (Exception e) {
-            LOGGER.warn("Error creating the usage metering index", e);
+            LOGGER.error("Error creating the " + AnomalyDetectorsIndex.jobStateIndexName() + " index", e);
         }
     }
 

@@ -71,9 +71,15 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
                         continue;
                     }
                 }
+
                 // fs and cgroup stats are only reported on Linux, but it's acceptable for _node/stats to report them as null if the OS is
                 //  misconfigured or not reporting them for some reason (e.g., older kernel)
                 if (filter.startsWith("node_stats.fs") || filter.startsWith("node_stats.os.cgroup")) {
+                    continue;
+                }
+
+                // load average is unavailable on macOS for 5m and 15m (but we get 1m), but it's also possible on Linux too
+                if ("node_stats.os.cpu.load_average.5m".equals(filter) || "node_stats.os.cpu.load_average.15m".equals(filter)) {
                     continue;
                 }
 

@@ -19,9 +19,10 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.MultiSearchRequest;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -86,6 +87,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 public class JobProvider {
     private static final Logger LOGGER = Loggers.getLogger(JobProvider.class);
@@ -332,6 +334,7 @@ public class JobProvider {
 
     /**
      * Get the job's data counts
+     *
      * @param jobId The job id
      * @return The dataCounts or default constructed object if not found
      */
@@ -361,45 +364,114 @@ public class JobProvider {
 
     /**
      * Search for buckets with the parameters in the {@link BucketsQueryBuilder}
-     * @return QueryPage of Buckets
-     * @throws ResourceNotFoundException If the job id is no recognised
      */
-    public QueryPage<Bucket> buckets(String jobId, BucketsQuery query)
+    public void buckets(String jobId, BucketsQuery query, Consumer<QueryPage<Bucket>> handler, Consumer<Exception> errorHandler)
             throws ResourceNotFoundException {
-        QueryBuilder fb = new ResultsFilterBuilder()
-                .timeRange(Bucket.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
-                .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
-                .score(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(), query.getNormalizedProbability())
-                .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
-                .build();
+        ResultsFilterBuilder rfb = new ResultsFilterBuilder();
+        if (query.getTimestamp() != null) {
+            rfb.timeRange(Bucket.TIMESTAMP.getPreferredName(), query.getTimestamp());
+        } else {
+            rfb.timeRange(Bucket.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
+                    .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
+                    .score(Bucket.MAX_NORMALIZED_PROBABILITY.getPreferredName(), query.getNormalizedProbability())
+                    .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim());
+        }
 
         SortBuilder<?> sortBuilder = new FieldSortBuilder(query.getSortField())
                 .order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
 
-        QueryPage<Bucket> buckets = buckets(jobId, query.isIncludeInterim(), query.getFrom(), query.getSize(), fb, sortBuilder);
+        QueryBuilder boolQuery = new BoolQueryBuilder()
+                .filter(rfb.build())
+                .filter(QueryBuilders.termQuery(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE));
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        SearchRequest searchRequest = new SearchRequest(indexName);
+        searchRequest.types(Result.TYPE.getPreferredName());
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.sort(sortBuilder);
+        searchSourceBuilder.query(boolQuery);
+        searchSourceBuilder.from(query.getFrom());
+        searchSourceBuilder.size(query.getSize());
+        searchRequest.source(searchSourceBuilder);
 
-        if (Strings.isNullOrEmpty(query.getPartitionValue())) {
-            for (Bucket b : buckets.results()) {
-                if (query.isExpand() && b.getRecordCount() > 0) {
-                    expandBucket(jobId, query.isIncludeInterim(), b);
-                }
-            }
-        } else {
-            List<PerPartitionMaxProbabilities> scores =
-                    partitionMaxNormalizedProbabilities(jobId, query.getStart(), query.getEnd(), query.getPartitionValue());
-
-            mergePartitionScoresIntoBucket(scores, buckets.results(), query.getPartitionValue());
-
-            for (Bucket b : buckets.results()) {
-                if (query.isExpand() && b.getRecordCount() > 0) {
-                    this.expandBucketForPartitionValue(jobId, query.isIncludeInterim(), b, query.getPartitionValue());
-                }
-
-                b.setAnomalyScore(b.partitionAnomalyScore(query.getPartitionValue()));
-            }
+        MultiSearchRequest mrequest = new MultiSearchRequest();
+        mrequest.add(searchRequest);
+        if (Strings.hasLength(query.getPartitionValue())) {
+            mrequest.add(createPartitionMaxNormailizedProbabilitiesRequest(jobId, query.getStart(), query.getEnd(),
+                    query.getPartitionValue()));
         }
 
-        return buckets;
+        client.multiSearch(mrequest, ActionListener.wrap(mresponse -> {
+            MultiSearchResponse.Item item1 = mresponse.getResponses()[0];
+            if (item1.isFailure()) {
+                Exception e = item1.getFailure();
+                if (e instanceof IndexNotFoundException) {
+                    errorHandler.accept(ExceptionsHelper.missingJobException(jobId));
+                } else {
+                    errorHandler.accept(e);
+                }
+                return;
+            }
+
+            SearchResponse searchResponse = item1.getResponse();
+            SearchHits hits = searchResponse.getHits();
+            if (query.getTimestamp() != null) {
+                if (hits.getTotalHits() == 0) {
+                    throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
+                } else if (hits.getTotalHits() > 1) {
+                    LOGGER.error("Found more than one bucket with timestamp [{}]" + " from index {}", query.getTimestamp(), indexName);
+                }
+            }
+
+            List<Bucket> results = new ArrayList<>();
+            for (SearchHit hit : hits.getHits()) {
+                BytesReference source = hit.getSourceRef();
+                XContentParser parser;
+                try {
+                    parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+                } catch (IOException e) {
+                    throw new ElasticsearchParseException("failed to parse bucket", e);
+                }
+                Bucket bucket = Bucket.PARSER.apply(parser, () -> parseFieldMatcher);
+
+                if (query.isIncludeInterim() || bucket.isInterim() == false) {
+                    results.add(bucket);
+                }
+            }
+
+            if (query.getTimestamp() != null && results.isEmpty()) {
+                throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
+            }
+
+            QueryPage<Bucket> buckets = new QueryPage<>(results, searchResponse.getHits().getTotalHits(), Bucket.RESULTS_FIELD);
+            if (Strings.hasLength(query.getPartitionValue())) {
+                MultiSearchResponse.Item item2 = mresponse.getResponses()[1];
+                if (item2.isFailure()) {
+                    Exception e = item2.getFailure();
+                    if (e instanceof IndexNotFoundException) {
+                        errorHandler.accept(ExceptionsHelper.missingJobException(jobId));
+                    } else {
+                        errorHandler.accept(e);
+                    }
+                    return;
+                }
+                List<PerPartitionMaxProbabilities> partitionProbs =
+                        handlePartitionMaxNormailizedProbabilitiesResponse(item2.getResponse());
+                mergePartitionScoresIntoBucket(partitionProbs, buckets.results(), query.getPartitionValue());
+                for (Bucket b : buckets.results()) {
+                    if (query.isExpand() && b.getRecordCount() > 0) {
+                        this.expandBucketForPartitionValue(jobId, query.isIncludeInterim(), b, query.getPartitionValue());
+                    }
+                    b.setAnomalyScore(b.partitionAnomalyScore(query.getPartitionValue()));
+                }
+            } else {
+                for (Bucket b : buckets.results()) {
+                    if (query.isExpand() && b.getRecordCount() > 0) {
+                        expandBucket(jobId, query.isIncludeInterim(), b);
+                    }
+                }
+            }
+            handler.accept(buckets);
+        }, errorHandler));
     }
 
     void mergePartitionScoresIntoBucket(List<PerPartitionMaxProbabilities> partitionProbs, List<Bucket> buckets, String partitionValue) {
@@ -419,136 +491,8 @@ public class JobProvider {
         }
     }
 
-    private QueryPage<Bucket> buckets(String jobId, boolean includeInterim, int from, int size,
-                                      QueryBuilder fb, SortBuilder<?> sb) throws ResourceNotFoundException {
-
-        QueryBuilder boolQuery = new BoolQueryBuilder()
-                .filter(fb)
-                .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE));
-
-        SearchResponse searchResponse;
-        try {
-            String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
-            LOGGER.trace("ES API CALL: search all of result type {}  from index {} with filter from {} size {}",
-                    Bucket.RESULT_TYPE_VALUE, indexName, from, size);
-
-            SearchRequest searchRequest = new SearchRequest(indexName);
-            searchRequest.types(Result.TYPE.getPreferredName());
-            SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-            searchSourceBuilder.sort(sb);
-            searchSourceBuilder.query(new ConstantScoreQueryBuilder(boolQuery));
-            searchSourceBuilder.from(from);
-            searchSourceBuilder.size(size);
-            searchRequest.source(searchSourceBuilder);
-            searchResponse = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
-        } catch (IndexNotFoundException e) {
-            throw ExceptionsHelper.missingJobException(jobId);
-        }
-
-        List<Bucket> results = new ArrayList<>();
-
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            BytesReference source = hit.getSourceRef();
-            XContentParser parser;
-            try {
-                parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse bucket", e);
-            }
-            Bucket bucket = Bucket.PARSER.apply(parser, () -> parseFieldMatcher);
-
-            if (includeInterim || bucket.isInterim() == false) {
-                results.add(bucket);
-            }
-        }
-
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), Bucket.RESULTS_FIELD);
-    }
-
-    /**
-     * Get the bucket at time <code>timestampMillis</code> from the job.
-     *
-     * @param jobId the job id
-     * @param query The bucket query
-     * @return QueryPage Bucket
-     * @throws ResourceNotFoundException If the job id is not recognised
-     */
-    public QueryPage<Bucket> bucket(String jobId, BucketQueryBuilder.BucketQuery query) throws ResourceNotFoundException {
-        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
-        SearchHits hits;
-        try {
-            LOGGER.trace("ES API CALL: get Bucket with timestamp {} from index {}", query.getTimestamp(), indexName);
-            QueryBuilder matchQuery = QueryBuilders.matchQuery(Bucket.TIMESTAMP.getPreferredName(), query.getTimestamp());
-
-            QueryBuilder boolQuery = new BoolQueryBuilder()
-                    .filter(matchQuery)
-                    .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), Bucket.RESULT_TYPE_VALUE));
-
-            SearchRequest searchRequest = new SearchRequest(indexName);
-            searchRequest.types(Result.TYPE.getPreferredName());
-            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-            sourceBuilder.query(boolQuery);
-            sourceBuilder.sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC));
-            searchRequest.source(sourceBuilder);
-            SearchResponse searchResponse = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
-            hits = searchResponse.getHits();
-        } catch (IndexNotFoundException e) {
-            throw ExceptionsHelper.missingJobException(jobId);
-        }
-
-        if (hits.getTotalHits() == 0) {
-            throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
-        } else if (hits.getTotalHits() > 1L) {
-            LOGGER.error("Found more than one bucket with timestamp [" + query.getTimestamp() + "]" +
-                    " from index " + indexName);
-        }
-
-        SearchHit hit = hits.getAt(0);
-        BytesReference source = hit.getSourceRef();
-        XContentParser parser;
-        try {
-            parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse bucket", e);
-        }
-        Bucket bucket = Bucket.PARSER.apply(parser, () -> parseFieldMatcher);
-
-        // don't return interim buckets if not requested
-        if (bucket.isInterim() && query.isIncludeInterim() == false) {
-            throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
-        }
-
-        if (Strings.isNullOrEmpty(query.getPartitionValue())) {
-            if (query.isExpand() && bucket.getRecordCount() > 0) {
-                expandBucket(jobId, query.isIncludeInterim(), bucket);
-            }
-        } else {
-            List<PerPartitionMaxProbabilities> partitionProbs =
-                    partitionMaxNormalizedProbabilities(jobId, query.getTimestamp(), query.getTimestamp() + 1, query.getPartitionValue());
-
-            if (partitionProbs.size() > 1) {
-                LOGGER.error("Found more than one PerPartitionMaxProbabilities with timestamp [" + query.getTimestamp() + "]" +
-                        " from index " + indexName);
-            }
-            if (partitionProbs.size() > 0) {
-                bucket.setMaxNormalizedProbability(partitionProbs.get(0).getMaxProbabilityForPartition(query.getPartitionValue()));
-            }
-
-            if (query.isExpand() && bucket.getRecordCount() > 0) {
-                this.expandBucketForPartitionValue(jobId, query.isIncludeInterim(),
-                        bucket, query.getPartitionValue());
-            }
-
-            bucket.setAnomalyScore(
-                    bucket.partitionAnomalyScore(query.getPartitionValue()));
-        }
-        return new QueryPage<>(Collections.singletonList(bucket), 1, Bucket.RESULTS_FIELD);
-    }
-
-
-    private List<PerPartitionMaxProbabilities> partitionMaxNormalizedProbabilities(String jobId, Object epochStart, Object epochEnd,
-                                                                                   String partitionFieldValue)
-                    throws ResourceNotFoundException {
+    private SearchRequest createPartitionMaxNormailizedProbabilitiesRequest(String jobId, Object epochStart, Object epochEnd,
+                                                                            String partitionFieldValue) {
         QueryBuilder timeRangeQuery = new ResultsFilterBuilder()
                 .timeRange(Bucket.TIMESTAMP.getPreferredName(), epochStart, epochEnd)
                 .build();
@@ -560,21 +504,16 @@ public class JobProvider {
 
         FieldSortBuilder sb = new FieldSortBuilder(Bucket.TIMESTAMP.getPreferredName()).order(SortOrder.ASC);
         String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
-        SearchRequestBuilder searchBuilder = client
-                .prepareSearch(indexName)
-                .setQuery(boolQuery)
-                .addSort(sb)
-                .setTypes(Result.TYPE.getPreferredName());
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.sort(sb);
+        sourceBuilder.query(boolQuery);
+        SearchRequest searchRequest = new SearchRequest(indexName);
+        searchRequest.source(sourceBuilder);
+        return searchRequest;
+    }
 
-        SearchResponse searchResponse;
-        try {
-            searchResponse = searchBuilder.get();
-        } catch (IndexNotFoundException e) {
-            throw ExceptionsHelper.missingJobException(jobId);
-        }
-
+    private List<PerPartitionMaxProbabilities> handlePartitionMaxNormailizedProbabilitiesResponse(SearchResponse searchResponse) {
         List<PerPartitionMaxProbabilities> results = new ArrayList<>();
-
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
             XContentParser parser;
@@ -583,14 +522,13 @@ public class JobProvider {
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse PerPartitionMaxProbabilities", e);
             }
-
             results.add(PerPartitionMaxProbabilities.PARSER.apply(parser, () -> parseFieldMatcher));
         }
-
         return results;
     }
 
-    public int expandBucketForPartitionValue(String jobId, boolean includeInterim, Bucket bucket,
+    // TODO (norelease): Use scroll search instead of multiple searches with increasing from
+    private int expandBucketForPartitionValue(String jobId, boolean includeInterim, Bucket bucket,
                                              String partitionFieldValue) throws ResourceNotFoundException {
         int from = 0;
 
@@ -625,11 +563,12 @@ public class JobProvider {
     /**
      * Expand a bucket to include the associated records.
      *
-     * @param jobId the job id
+     * @param jobId          the job id
      * @param includeInterim Include interim results
-     * @param bucket The bucket to be expanded
+     * @param bucket         The bucket to be expanded
      * @return The number of records added to the bucket
      */
+    // TODO (norelease): Use scroll search instead of multiple searches with increasing from
     public int expandBucket(String jobId, boolean includeInterim, Bucket bucket) throws ResourceNotFoundException {
         int from = 0;
 
@@ -680,8 +619,8 @@ public class JobProvider {
      * Get a page of {@linkplain CategoryDefinition}s for the given <code>jobId</code>.
      *
      * @param jobId the job id
-     * @param from Skip the first N categories. This parameter is for paging
-     * @param size Take only this number of categories
+     * @param from  Skip the first N categories. This parameter is for paging
+     * @param size  Take only this number of categories
      * @return QueryPage of CategoryDefinition
      */
     public QueryPage<CategoryDefinition> categoryDefinitions(String jobId, int from, int size) {
@@ -719,7 +658,7 @@ public class JobProvider {
     /**
      * Get the specific CategoryDefinition for the given job and category id.
      *
-     * @param jobId the job id
+     * @param jobId      the job id
      * @param categoryId Unique id
      * @return QueryPage CategoryDefinition
      */
@@ -756,6 +695,7 @@ public class JobProvider {
     /**
      * Search for anomaly records with the parameters in the
      * {@link org.elasticsearch.xpack.prelert.job.persistence.RecordsQueryBuilder.RecordsQuery}
+     *
      * @return QueryPage of AnomalyRecords
      */
     public QueryPage<AnomalyRecord> records(String jobId, RecordsQueryBuilder.RecordsQuery query)
@@ -815,7 +755,7 @@ public class JobProvider {
         SearchResponse searchResponse;
         try {
             LOGGER.trace("ES API CALL: search all of result type {} from index {}{}{}  with filter after sort from {} size {}",
-                    AnomalyRecord.RESULT_TYPE_VALUE, indexName, (sb != null) ? " with sort"  : "",
+                    AnomalyRecord.RESULT_TYPE_VALUE, indexName, (sb != null) ? " with sort" : "",
                     secondarySort.isEmpty() ? "" : " with secondary sort", from, size);
 
             searchResponse = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
@@ -843,10 +783,8 @@ public class JobProvider {
      * Return a page of influencers for the given job and within the given date
      * range
      *
-     * @param jobId
-     *            The job ID for which influencers are requested
-     * @param query
-     *            the query
+     * @param jobId The job ID for which influencers are requested
+     * @param query the query
      * @return QueryPage of Influencer
      */
     public QueryPage<Influencer> influencers(String jobId, InfluencersQuery query) throws ResourceNotFoundException {
@@ -905,7 +843,7 @@ public class JobProvider {
     /**
      * Get the influencer for the given job for id
      *
-     * @param jobId the job id
+     * @param jobId        the job id
      * @param influencerId The unique influencer Id
      * @return Optional Influencer
      */
@@ -1022,7 +960,7 @@ public class JobProvider {
         try {
             String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
             LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} with filter after sort from {} size {}",
-                ModelSnapshot.TYPE, indexName, sortField, from, size);
+                    ModelSnapshot.TYPE, indexName, sortField, from, size);
 
             SearchRequest searchRequest = new SearchRequest(indexName);
             searchRequest.types(ModelSnapshot.TYPE.getPreferredName());
@@ -1059,6 +997,7 @@ public class JobProvider {
      * Given a model snapshot, get the corresponding state and write it to the supplied
      * stream.  If there are multiple state documents they are separated using <code>'\0'</code>
      * when written to the stream.
+     *
      * @param jobId         the job id
      * @param modelSnapshot the model snapshot to be restored
      * @param restoreStream the stream to write the state to
@@ -1233,6 +1172,6 @@ public class JobProvider {
      * @return the {@code Auditor}
      */
     public Auditor audit(String jobId) {
-         return new Auditor(client, AnomalyDetectorsIndex.jobResultsIndexName(jobId), jobId);
+        return new Auditor(client, AnomalyDetectorsIndex.jobResultsIndexName(jobId), jobId);
     }
 }

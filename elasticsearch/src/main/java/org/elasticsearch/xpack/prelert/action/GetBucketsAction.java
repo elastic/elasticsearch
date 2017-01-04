@@ -31,7 +31,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.prelert.job.Job;
-import org.elasticsearch.xpack.prelert.job.persistence.BucketQueryBuilder;
 import org.elasticsearch.xpack.prelert.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
@@ -410,33 +409,26 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
-            QueryPage<Bucket> results;
-            // Single bucket
-            if (request.timestamp != null) {
-                BucketQueryBuilder.BucketQuery query =
-                        new BucketQueryBuilder(request.timestamp).expand(request.expand)
-                                .includeInterim(request.includeInterim)
-                                .partitionValue(request.partitionValue)
-                                .build();
+            BucketsQueryBuilder query =
+                    new BucketsQueryBuilder().expand(request.expand)
+                            .includeInterim(request.includeInterim)
+                            .start(request.start)
+                            .end(request.end)
+                            .anomalyScoreThreshold(request.anomalyScore)
+                            .normalizedProbabilityThreshold(request.maxNormalizedProbability)
+                            .partitionValue(request.partitionValue);
 
-                results = jobProvider.bucket(request.jobId, query);
-            } else {
-                // Multiple buckets
-                BucketsQueryBuilder.BucketsQuery query =
-                        new BucketsQueryBuilder().expand(request.expand)
-                                .includeInterim(request.includeInterim)
-                                .start(request.start)
-                                .end(request.end)
-                                .from(request.pageParams.getFrom())
-                                .size(request.pageParams.getSize())
-                                .anomalyScoreThreshold(request.anomalyScore)
-                                .normalizedProbabilityThreshold(request.maxNormalizedProbability)
-                                .partitionValue(request.partitionValue)
-                                .build();
-
-                results = jobProvider.buckets(request.jobId, query);
+            if (request.pageParams != null) {
+                query.from(request.pageParams.getFrom())
+                        .size(request.pageParams.getSize());
             }
-            listener.onResponse(new Response(results));
+            if (request.timestamp != null) {
+                query.timestamp(request.timestamp);
+            } else {
+                query.start(request.start);
+                query.end(request.end);
+            }
+            jobProvider.buckets(request.jobId, query.build(), q -> listener.onResponse(new Response(q)), listener::onFailure);
         }
     }
 

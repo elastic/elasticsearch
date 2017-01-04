@@ -33,9 +33,7 @@ import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractorFactory;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
-import org.elasticsearch.xpack.prelert.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
-import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -104,8 +102,12 @@ public class ScheduledJobRunnerTests extends ESTestCase {
                 () -> currentTime);
 
         when(jobProvider.audit(anyString())).thenReturn(auditor);
-        when(jobProvider.buckets(anyString(), any(BucketsQueryBuilder.BucketsQuery.class))).thenThrow(
-                QueryPage.emptyQueryPage(Job.RESULTS_FIELD));
+        doAnswer(invocationOnMock -> {
+            @SuppressWarnings("rawtypes")
+            Consumer consumer = (Consumer) invocationOnMock.getArguments()[3];
+            consumer.accept(new ResourceNotFoundException("dummy"));
+            return null;
+        }).when(jobProvider).buckets(any(), any(), any(), any());
     }
 
     public void testStart_GivenNewlyCreatedJobLoopBack() throws Exception {

@@ -53,6 +53,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     private static final String JOB_ID = "foo";
@@ -71,7 +73,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         jobProvider = new JobProvider(client(), 1, matcher);
     }
 
-    public void testProcessResults() throws IOException {
+    public void testProcessResults() throws Exception {
         createJob();
 
         AutoDetectResultProcessor resultProcessor =
@@ -113,7 +115,8 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         resultProcessor.process(JOB_ID, inputStream, false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
-        QueryPage<Bucket> persistedBucket = jobProvider.buckets(JOB_ID, new BucketsQueryBuilder().includeInterim(true).build());
+        BucketsQueryBuilder.BucketsQuery bucketsQuery = new BucketsQueryBuilder().includeInterim(true).build();
+        QueryPage<Bucket> persistedBucket = getBucketQueryPage(bucketsQuery);
         assertEquals(1, persistedBucket.count());
         // Records are not persisted to Elasticsearch as an array within the bucket
         // documents, so remove them from the expected bucket before comparing
@@ -149,7 +152,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         assertEquals(quantiles, persistedQuantiles.get());
     }
 
-    public void testDeleteInterimResults() throws IOException, InterruptedException {
+    public void testDeleteInterimResults() throws Exception {
         createJob();
 
         AutoDetectResultProcessor resultProcessor =
@@ -180,7 +183,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         resultProcessor.process(JOB_ID, inputStream, false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
-        QueryPage<Bucket> persistedBucket = jobProvider.buckets(JOB_ID, new BucketsQueryBuilder().includeInterim(true).build());
+        QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
         assertEquals(1, persistedBucket.count());
         // Records are not persisted to Elasticsearch as an array within the bucket
         // documents, so remove them from the expected bucket before comparing
@@ -194,7 +197,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         assertEquals(0, persistedRecords.count());
     }
 
-    public void testMultipleFlushesBetweenPersisting() throws IOException, InterruptedException {
+    public void testMultipleFlushesBetweenPersisting() throws Exception {
         createJob();
 
         AutoDetectResultProcessor resultProcessor =
@@ -229,7 +232,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         resultProcessor.process(JOB_ID, inputStream, false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
-        QueryPage<Bucket> persistedBucket = jobProvider.buckets(JOB_ID, new BucketsQueryBuilder().includeInterim(true).build());
+        QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
         assertEquals(1, persistedBucket.count());
         // Records are not persisted to Elasticsearch as an array within the bucket
         // documents, so remove them from the expected bucket before comparing
@@ -240,7 +243,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         assertResultsAreSame(finalAnomalyRecords, persistedRecords);
     }
 
-    public void testEndOfStreamTriggersPersisting() throws IOException, InterruptedException {
+    public void testEndOfStreamTriggersPersisting() throws Exception {
         createJob();
 
         AutoDetectResultProcessor resultProcessor =
@@ -270,7 +273,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         resultProcessor.process(JOB_ID, inputStream, false);
         jobResultsPersister.commitResultWrites(JOB_ID);
 
-        QueryPage<Bucket> persistedBucket = jobProvider.buckets(JOB_ID, new BucketsQueryBuilder().includeInterim(true).build());
+        QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
         assertEquals(1, persistedBucket.count());
 
         QueryPage<AnomalyRecord> persistedRecords = jobProvider.records(JOB_ID,
@@ -446,5 +449,23 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         Set<T> expectedSet = new HashSet<>(expected);
         expectedSet.removeAll(actual.results());
         assertEquals(0, expectedSet.size());
+    }
+
+    private QueryPage<Bucket> getBucketQueryPage(BucketsQueryBuilder.BucketsQuery bucketsQuery) throws Exception {
+        AtomicReference<Exception> errorHolder = new AtomicReference<>();
+        AtomicReference<QueryPage<Bucket>> resultHolder = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        jobProvider.buckets(JOB_ID, bucketsQuery, r -> {
+            resultHolder.set(r);
+            latch.countDown();
+        }, e -> {
+            errorHolder.set(e);
+            latch.countDown();
+        });
+        latch.await();
+        if (errorHolder.get() != null) {
+            throw errorHolder.get();
+        }
+        return resultHolder.get();
     }
 }

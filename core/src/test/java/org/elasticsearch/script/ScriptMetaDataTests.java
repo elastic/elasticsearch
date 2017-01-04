@@ -80,7 +80,7 @@ public class ScriptMetaDataTests extends ESTestCase {
 
         XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
-        ScriptMetaData result = ScriptMetaData.PROTO.fromXContent(parser);
+        ScriptMetaData result = ScriptMetaData.fromXContent(parser);
         assertEquals(expected, result);
         assertEquals(expected.hashCode(), result.hashCode());
     }
@@ -90,7 +90,7 @@ public class ScriptMetaDataTests extends ESTestCase {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         expected.writeTo(new OutputStreamStreamOutput(out));
 
-        ScriptMetaData result = ScriptMetaData.PROTO.readFrom(new InputStreamStreamInput(new ByteArrayInputStream(out.toByteArray())));
+        ScriptMetaData result = new ScriptMetaData(new InputStreamStreamInput(new ByteArrayInputStream(out.toByteArray())));
         assertEquals(expected, result);
         assertEquals(expected.hashCode(), result.hashCode());
     }

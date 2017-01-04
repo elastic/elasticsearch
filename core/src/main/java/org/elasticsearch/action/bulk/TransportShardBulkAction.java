@@ -150,6 +150,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         final long version = indexResult.getVersion();
                         indexRequest.version(version);
                         indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
+                        indexRequest.setSeqNo(indexResult.getSeqNo());
                         assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
                         response = new IndexResponse(primary.shardId(), indexRequest.type(), indexRequest.id(), indexResult.getSeqNo(),
                             indexResult.getVersion(), indexResult.isCreated());
@@ -173,6 +174,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // update the request with the version so it will go to the replicas
                         deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
                         deleteRequest.version(deleteResult.getVersion());
+                        deleteRequest.setSeqNo(deleteResult.getSeqNo());
                         assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
                         response = new DeleteResponse(request.shardId(), deleteRequest.type(), deleteRequest.id(), deleteResult.getSeqNo(),
                             deleteResult.getVersion(), deleteResult.isFound());
@@ -182,6 +184,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     break;
                 default: throw new IllegalStateException("unexpected opType [" + itemRequest.opType() + "] found");
             }
+
             // update the bulk item request because update request execution can mutate the bulk item request
             request.items()[requestIndex] = replicaRequest;
             if (operationResult == null) { // in case of noop update operation
@@ -282,6 +285,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         final long version = updateOperationResult.getVersion();
                         indexRequest.version(version);
                         indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
+                        indexRequest.setSeqNo(updateOperationResult.getSeqNo());
                         assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());
                     }
                     break;
@@ -292,6 +296,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         // update the request with the version so it will go to the replicas
                         deleteRequest.versionType(deleteRequest.versionType().versionTypeForReplicationAndRecovery());
                         deleteRequest.version(updateOperationResult.getVersion());
+                        deleteRequest.setSeqNo(updateOperationResult.getSeqNo());
                         assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
                     }
                     break;
@@ -342,6 +347,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         replicaRequest = new BulkItemRequest(request.items()[requestIndex].id(), updateDeleteRequest);
                         break;
                 }
+                assert (replicaRequest.request() instanceof IndexRequest
+                    && ((IndexRequest) replicaRequest.request()).getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) ||
+                    (replicaRequest.request() instanceof DeleteRequest
+                        && ((DeleteRequest) replicaRequest.request()).getSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO);
                 // successful operation
                 break; // out of retry loop
             } else if (updateOperationResult.getFailure() instanceof VersionConflictEngineException == false) {
@@ -364,10 +373,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     switch (docWriteRequest.opType()) {
                         case CREATE:
                         case INDEX:
-                            operationResult = executeIndexRequestOnReplica(((IndexRequest) docWriteRequest), replica);
+                            operationResult = executeIndexRequestOnReplica((IndexRequest) docWriteRequest, replica);
                             break;
                         case DELETE:
-                            operationResult = executeDeleteRequestOnReplica(((DeleteRequest) docWriteRequest), replica);
+                            operationResult = executeDeleteRequestOnReplica((DeleteRequest) docWriteRequest, replica);
                             break;
                         default:
                             throw new IllegalStateException("Unexpected request operation type on replica: "

@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -146,7 +147,7 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
     }
 
-    static final class ScriptMetadataDiff implements Diff<MetaData.Custom> {
+    static final class ScriptMetadataDiff implements NamedDiff<MetaData.Custom> {
 
         final Diff<Map<String, StoredScriptSource>> pipelines;
 
@@ -155,7 +156,13 @@ public final class ScriptMetaData implements MetaData.Custom {
         }
 
         ScriptMetadataDiff(StreamInput in) throws IOException {
-            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), new StoredScriptSource());
+            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(),
+                StoredScriptSource::new, StoredScriptSource::readDiffFrom);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
         }
 
         @Override
@@ -207,89 +214,6 @@ public final class ScriptMetaData implements MetaData.Custom {
     public static final String TYPE = "stored_scripts";
 
     /**
-     * The empty state used to register this metadata with the {@link ClusterState}.
-     */
-    public static final ScriptMetaData PROTO = new ScriptMetaData(Collections.emptyMap());
-
-    private final Map<String, StoredScriptSource> scripts;
-
-    /**
-     * Standard constructor to create metadata to store scripts.
-     * @param scripts The currently stored scripts.  Must not be {@code null},
-     *                use and empty {@link Map} to specify there were no
-     *                previously stored scripts.
-     */
-    ScriptMetaData(Map<String, StoredScriptSource> scripts) {
-        this.scripts = Collections.unmodifiableMap(scripts);
-    }
-
-    @Override
-    public ScriptMetaData readFrom(StreamInput in) throws IOException {
-        Map<String, StoredScriptSource> scripts = new HashMap<>();
-        StoredScriptSource source;
-        int size = in.readVInt();
-
-        for (int i = 0; i < size; i++) {
-            String id = in.readString();
-
-            // Prior to version 5.2 all scripts were stored using the deprecated namespace.
-            // Split the id to find the language then use StoredScriptSource to parse the
-            // expected BytesReference after which a new StoredScriptSource is created
-            // with the appropriate language and options.
-            if (in.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
-                int split = id.indexOf('#');
-
-                if (split == -1) {
-                    throw new IllegalArgumentException("illegal stored script id [" + id + "], does not contain lang");
-                } else {
-                    source = new StoredScriptSource(in);
-                    source = new StoredScriptSource(id.substring(split + 1), source.getCode(), Collections.emptyMap());
-                }
-            // Version 5.2+ can just be parsed normally using StoredScriptSource.
-            } else {
-                source = new StoredScriptSource(in);
-            }
-
-            scripts.put(id, source);
-        }
-
-        return new ScriptMetaData(scripts);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        // Version 5.2+ will output the contents of the scripts' Map using
-        // StoredScriptSource to stored the language, code, and options.
-        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
-            out.write(scripts.size());
-
-            for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
-        // Prior to Version 5.2, stored scripts can only be read using the deprecated
-        // namespace.  Scripts using the deprecated namespace are first isolated in a
-        // temporary Map, then written out.  Since all scripts will be stored using the
-        // deprecated namespace, no scripts will be lost.
-        } else {
-            Map<String, StoredScriptSource> filtered = new HashMap<>();
-
-            for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
-                if (entry.getKey().contains("#")) {
-                    filtered.put(entry.getKey(), entry.getValue());
-                }
-            }
-
-            out.writeVInt(filtered.size());
-
-            for (Map.Entry<String, StoredScriptSource> entry : filtered.entrySet()) {
-                out.writeString(entry.getKey());
-                entry.getValue().writeTo(out);
-            }
-        }
-    }
-
-    /**
      * This will parse XContent into {@link ScriptMetaData}.
      *
      * The following format will be parsed for the new namespace:
@@ -315,8 +239,7 @@ public final class ScriptMetaData implements MetaData.Custom {
      * Note when using the deprecated namespace, the language will be pulled from
      * the id and options will be set to an empty {@link Map}.
      */
-    @Override
-    public ScriptMetaData fromXContent(XContentParser parser) throws IOException {
+    public static ScriptMetaData fromXContent(XContentParser parser) throws IOException {
         Map<String, StoredScriptSource> scripts = new HashMap<>();
         String id = null;
         StoredScriptSource source;
@@ -363,6 +286,89 @@ public final class ScriptMetaData implements MetaData.Custom {
         return new ScriptMetaData(scripts);
     }
 
+    public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+        return new ScriptMetadataDiff(in);
+    }
+
+    private final Map<String, StoredScriptSource> scripts;
+
+    /**
+     * Standard constructor to create metadata to store scripts.
+     * @param scripts The currently stored scripts.  Must not be {@code null},
+     *                use and empty {@link Map} to specify there were no
+     *                previously stored scripts.
+     */
+    ScriptMetaData(Map<String, StoredScriptSource> scripts) {
+        this.scripts = Collections.unmodifiableMap(scripts);
+    }
+
+    public ScriptMetaData(StreamInput in) throws IOException {
+        Map<String, StoredScriptSource> scripts = new HashMap<>();
+        StoredScriptSource source;
+        int size = in.readVInt();
+
+        for (int i = 0; i < size; i++) {
+            String id = in.readString();
+
+            // Prior to version 5.2 all scripts were stored using the deprecated namespace.
+            // Split the id to find the language then use StoredScriptSource to parse the
+            // expected BytesReference after which a new StoredScriptSource is created
+            // with the appropriate language and options.
+            if (in.getVersion().before(Version.V_5_2_0_UNRELEASED)) {
+                int split = id.indexOf('#');
+
+                if (split == -1) {
+                    throw new IllegalArgumentException("illegal stored script id [" + id + "], does not contain lang");
+                } else {
+                    source = new StoredScriptSource(in);
+                    source = new StoredScriptSource(id.substring(split + 1), source.getCode(), Collections.emptyMap());
+                }
+            // Version 5.2+ can just be parsed normally using StoredScriptSource.
+            } else {
+                source = new StoredScriptSource(in);
+            }
+
+            scripts.put(id, source);
+        }
+
+        this.scripts = Collections.unmodifiableMap(scripts);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        // Version 5.2+ will output the contents of the scripts' Map using
+        // StoredScriptSource to stored the language, code, and options.
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            out.writeVInt(scripts.size());
+
+            for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        // Prior to Version 5.2, stored scripts can only be read using the deprecated
+        // namespace.  Scripts using the deprecated namespace are first isolated in a
+        // temporary Map, then written out.  Since all scripts will be stored using the
+        // deprecated namespace, no scripts will be lost.
+        } else {
+            Map<String, StoredScriptSource> filtered = new HashMap<>();
+
+            for (Map.Entry<String, StoredScriptSource> entry : scripts.entrySet()) {
+                if (entry.getKey().contains("#")) {
+                    filtered.put(entry.getKey(), entry.getValue());
+                }
+            }
+
+            out.writeVInt(filtered.size());
+
+            for (Map.Entry<String, StoredScriptSource> entry : filtered.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        }
+    }
+
+
+
     /**
      * This will write XContent from {@link ScriptMetaData}.  The following format will be written:
      *
@@ -390,12 +396,7 @@ public final class ScriptMetaData implements MetaData.Custom {
     }
 
     @Override
-    public Diff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
-        return new ScriptMetadataDiff(in);
-    }
-
-    @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 

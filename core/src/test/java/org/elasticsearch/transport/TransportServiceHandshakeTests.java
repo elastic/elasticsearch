@@ -113,14 +113,14 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptyMap(),
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
-        DiscoveryNode connectedNode =
-                handleA.transportService.connectToNodeAndHandshake(discoveryNode, timeout);
-        assertNotNull(connectedNode);
-
-        // the name and version should be updated
-        assertEquals(connectedNode.getName(), "TS_B");
-        assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
-        assertTrue(handleA.transportService.nodeConnected(discoveryNode));
+        try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode, MockTcpTransport.LIGHT_PROFILE)){
+            DiscoveryNode connectedNode = handleA.transportService.handshake(connection, timeout);
+            assertNotNull(connectedNode);
+            // the name and version should be updated
+            assertEquals(connectedNode.getName(), "TS_B");
+            assertEquals(connectedNode.getVersion(), handleB.discoveryNode.getVersion());
+            assertFalse(handleA.transportService.nodeConnected(discoveryNode));
+        }
     }
 
     public void testMismatchedClusterName() {
@@ -133,8 +133,12 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptyMap(),
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> handleA.transportService.connectToNodeAndHandshake(
-                discoveryNode, timeout));
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
+            try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
+                MockTcpTransport.LIGHT_PROFILE)) {
+                handleA.transportService.handshake(connection, timeout);
+            }
+        });
         assertThat(ex.getMessage(), containsString("handshake failed, mismatched cluster name [Cluster [b]]"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
 }
@@ -150,8 +154,12 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             emptyMap(),
             emptySet(),
             Version.CURRENT.minimumCompatibilityVersion());
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> handleA.transportService.connectToNodeAndHandshake(
-            discoveryNode, timeout));
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> {
+            try (Transport.Connection connection = handleA.transportService.openConnection(discoveryNode,
+                MockTcpTransport.LIGHT_PROFILE)) {
+                handleA.transportService.handshake(connection, timeout);
+            }
+        });
         assertThat(ex.getMessage(), containsString("handshake failed, incompatible version"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
     }

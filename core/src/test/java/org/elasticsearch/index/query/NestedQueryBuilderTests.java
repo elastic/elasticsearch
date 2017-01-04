@@ -73,13 +73,13 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         }
         NestedQueryBuilder nqb = new NestedQueryBuilder("nested1", innerQueryBuilder,
                 RandomPicks.randomFrom(random(), ScoreMode.values()));
+        nqb.ignoreUnmapped(randomBoolean());
         if (randomBoolean()) {
             nqb.innerHit(new InnerHitBuilder()
                     .setName(randomAsciiOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
-                    .addSort(new FieldSortBuilder(INT_FIELD_NAME).order(SortOrder.ASC)));
+                    .addSort(new FieldSortBuilder(INT_FIELD_NAME).order(SortOrder.ASC)), nqb.ignoreUnmapped());
         }
-        nqb.ignoreUnmapped(randomBoolean());
         return nqb;
     }
 

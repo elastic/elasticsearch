@@ -25,7 +25,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -43,7 +42,6 @@ import java.util.Set;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIntegerValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeStringValue;
 
@@ -59,16 +57,11 @@ public class TypeParsers {
     private static final Set<String> BOOLEAN_STRINGS = new HashSet<>(Arrays.asList("true", "false"));
 
     public static boolean nodeBooleanValue(String name, Object node, Mapper.TypeParser.ParserContext parserContext) {
-        // Hook onto ParseFieldMatcher so that parsing becomes strict when setting index.query.parse.strict
-        if (parserContext.parseFieldMatcher().isStrict()) {
-            return XContentMapValues.nodeBooleanValue(node);
-        } else {
-            // TODO: remove this leniency in 6.0
-            if (BOOLEAN_STRINGS.contains(node.toString()) == false) {
-                DEPRECATION_LOGGER.deprecated("Expected a boolean for property [{}] but got [{}]", name, node);
-            }
-            return XContentMapValues.lenientNodeBooleanValue(node);
+        // TODO: remove this leniency in 6.0
+        if (BOOLEAN_STRINGS.contains(node.toString()) == false) {
+            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [{}] but got [{}]", name, node);
         }
+        return XContentMapValues.lenientNodeBooleanValue(node);
     }
 
     private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser.ParserContext parserContext) {
@@ -211,10 +204,10 @@ public class TypeParsers {
                 throw new MapperParsingException("[" + propName + "] must not have a [null] value");
             }
             if (propName.equals("store")) {
-                builder.store(parseStore(name, propNode.toString(), parserContext));
+                builder.store(parseStore(propNode.toString()));
                 iterator.remove();
             } else if (propName.equals("index")) {
-                builder.index(parseIndex(name, propNode.toString(), parserContext));
+                builder.index(parseIndex(name, propNode.toString()));
                 iterator.remove();
             } else if (propName.equals(DOC_VALUES)) {
                 builder.docValues(nodeBooleanValue(DOC_VALUES, propNode, parserContext));
@@ -229,7 +222,11 @@ public class TypeParsers {
                 builder.indexOptions(nodeIndexOptionValue(propNode));
                 iterator.remove();
             } else if (propName.equals("include_in_all")) {
-                builder.includeInAll(nodeBooleanValue("include_in_all", propNode, parserContext));
+                if (parserContext.isWithinMultiField()) {
+                    throw new MapperParsingException("include_in_all in multi fields is not allowed. Found the include_in_all in field [" + name + "] which is within a multi field.");
+                } else {
+                    builder.includeInAll(nodeBooleanValue("include_in_all", propNode, parserContext));
+                }
                 iterator.remove();
             } else if (propName.equals("similarity")) {
                 SimilarityProvider similarityProvider = resolveSimilarity(parserContext, name, propNode.toString());
@@ -346,7 +343,7 @@ public class TypeParsers {
         }
     }
 
-    public static boolean parseIndex(String fieldName, String index, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
+    private static boolean parseIndex(String fieldName, String index) throws MapperParsingException {
         switch (index) {
         case "true":
             return true;
@@ -355,31 +352,23 @@ public class TypeParsers {
         case "not_analyzed":
         case "analyzed":
         case "no":
-            if (parserContext.parseFieldMatcher().isStrict() == false) {
-                DEPRECATION_LOGGER.deprecated("Expected a boolean for property [index] but got [{}]", index);
-                return "no".equals(index) == false;
-            } else {
-                throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true] or [false]");
-            }
+            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [index] but got [{}]", index);
+            return "no".equals(index) == false;
         default:
             throw new IllegalArgumentException("Can't parse [index] value [" + index + "] for field [" + fieldName + "], expected [true] or [false]");
         }
     }
 
-    public static boolean parseStore(String fieldName, String store, Mapper.TypeParser.ParserContext parserContext) throws MapperParsingException {
-        if (parserContext.parseFieldMatcher().isStrict()) {
-            return XContentMapValues.nodeBooleanValue(store);
+    private static boolean parseStore(String store) throws MapperParsingException {
+        if (BOOLEAN_STRINGS.contains(store) == false) {
+            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [store] but got [{}]", store);
+        }
+        if ("no".equals(store)) {
+            return false;
+        } else if ("yes".equals(store)) {
+            return true;
         } else {
-            if (BOOLEAN_STRINGS.contains(store) == false) {
-                DEPRECATION_LOGGER.deprecated("Expected a boolean for property [store] but got [{}]", store);
-            }
-            if ("no".equals(store)) {
-                return false;
-            } else if ("yes".equals(store)) {
-                return true;
-            } else {
-                return lenientNodeBooleanValue(store);
-            }
+            return lenientNodeBooleanValue(store);
         }
     }
 

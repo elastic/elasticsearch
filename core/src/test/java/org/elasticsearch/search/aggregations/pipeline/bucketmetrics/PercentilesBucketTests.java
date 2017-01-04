@@ -52,11 +52,11 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
             .string();
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, content);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
         parser.nextToken(); // skip object start
 
         PercentilesBucketPipelineAggregationBuilder builder = (PercentilesBucketPipelineAggregationBuilder) aggParsers
-            .pipelineParser(PercentilesBucketPipelineAggregationBuilder.NAME, parseFieldMatcher)
+            .pipelineParser(PercentilesBucketPipelineAggregationBuilder.NAME)
             .parse("test", parseContext);
 
         assertThat(builder.percents(), equalTo(new double[]{0.0, 20.0, 50.0, 75.99}));

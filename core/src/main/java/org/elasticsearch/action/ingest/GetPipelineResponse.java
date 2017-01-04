@@ -52,7 +52,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         int size = in.readVInt();
         pipelines = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            pipelines.add(PipelineConfiguration.readPipelineConfiguration(in));
+            pipelines.add(PipelineConfiguration.readFrom(in));
         }
     }
 

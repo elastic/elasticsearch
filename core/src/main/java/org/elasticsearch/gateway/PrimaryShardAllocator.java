@@ -183,7 +183,7 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
                 // this shard will be picked up when the node joins and we do another allocation reroute
                 logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}]",
                              unassignedShard.index(), unassignedShard.id(), nodeShardsResult.allocationsFound);
-                return AllocateUnassignedDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, null);
+                return AllocateUnassignedDecision.no(AllocationStatus.NO_VALID_SHARD_COPY, explain ? new ArrayList<>() : null);
             }
         }
 

@@ -38,11 +38,11 @@ public class OsStatsTests extends ESTestCase {
         OsStats.Swap swap = new OsStats.Swap(randomLong(), randomLong());
         OsStats.Cgroup cgroup = new OsStats.Cgroup(
             randomAsciiOfLength(8),
-            randomPositiveLong(),
+            randomNonNegativeLong(),
             randomAsciiOfLength(8),
-            randomPositiveLong(),
-            randomPositiveLong(),
-            new OsStats.Cgroup.CpuStat(randomPositiveLong(), randomPositiveLong(), randomPositiveLong()));
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()));
         OsStats osStats = new OsStats(System.currentTimeMillis(), cpu, mem, swap, cgroup);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {

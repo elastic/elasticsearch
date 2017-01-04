@@ -294,6 +294,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 1);
+        assertWarnings("[template] query is deprecated, use search template api instead");
     }
 
     // Relates to #10397

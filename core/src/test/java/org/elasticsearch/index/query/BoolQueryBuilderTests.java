@@ -26,10 +26,10 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
@@ -58,7 +58,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             query.disableCoord(randomBoolean());
         }
         if (randomBoolean()) {
-            query.minimumNumberShouldMatch(randomMinimumShouldMatch());
+            query.minimumShouldMatch(randomMinimumShouldMatch());
         }
         int mustClauses = randomIntBetween(0, 3);
         for (int i = 0; i < mustClauses; i++) {
@@ -244,14 +244,14 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             boolQuery()
                 .should(termQuery("foo", "bar"))
                 .should(termQuery("foo2", "bar2"))
-                .minimumNumberShouldMatch("3")).toQuery(createShardContext());
+                .minimumShouldMatch("3")).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
 
         bq = (BooleanQuery) parseQuery(
             boolQuery()
                 .should(termQuery("foo", "bar"))
                 .should(termQuery("foo2", "bar2"))
-                .minimumNumberShouldMatch(3)).toQuery(createShardContext());
+                .minimumShouldMatch(3)).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
     }
 
@@ -260,7 +260,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 boolQuery()
                         .should(termQuery("foo", "bar"))
                         .should(termQuery("foo2", "bar2"))
-                        .minimumNumberShouldMatch("3")
+                        .minimumShouldMatch("3")
                         .disableCoord(true)).toQuery(createShardContext());
         assertEquals(3, bq.getMinimumNumberShouldMatch());
     }
@@ -340,8 +340,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
      * test that two queries in object throws error
      */
     public void testTooManyQueriesInObject() throws IOException {
-        assumeFalse("Test only makes sense if JSON parser doesn't have strict duplicate checks enabled",
-            JsonXContent.isStrictDuplicateDetectionEnabled());
+        assumeFalse("Test only makes sense if XContent parser doesn't have strict duplicate checks enabled",
+            XContent.isStrictDuplicateDetectionEnabled());
         String clauseType = randomFrom("must", "should", "must_not", "filter");
         // should also throw error if invalid query is preceded by a valid one
         String query = "{\n" +

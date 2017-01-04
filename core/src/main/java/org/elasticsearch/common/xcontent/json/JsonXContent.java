@@ -23,9 +23,9 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentGenerator;
@@ -50,27 +50,6 @@ public class JsonXContent implements XContent {
 
     public static final JsonXContent jsonXContent;
 
-    /*
-     * NOTE: This comment is only meant for maintainers of the Elasticsearch code base and is intentionally not a Javadoc comment as it
-     *       describes an undocumented system property.
-     *
-     *
-     * Determines whether the JSON parser will always check for duplicate keys in JSON content. This behavior is enabled by default but
-     * can be disabled by setting the otherwise undocumented system property "es.json.strict_duplicate_detection" to "false".
-     *
-     * Before we've enabled this mode, we had custom duplicate checks in various parts of the code base. As the user can still disable this
-     * mode and fall back to the legacy duplicate checks, we still need to keep the custom duplicate checks around and we also need to keep
-     * the tests around.
-     *
-     * If this fallback via system property is removed one day in the future you can remove all tests that call this method and also remove
-     * the corresponding custom duplicate check code.
-     *
-     */
-    public static boolean isStrictDuplicateDetectionEnabled() {
-        // Don't allow duplicate keys in JSON content by default but let the user opt out
-        return Booleans.parseBooleanExact(System.getProperty("es.json.strict_duplicate_detection", "true"));
-    }
-
     static {
         jsonFactory = new JsonFactory();
         jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
@@ -78,7 +57,7 @@ public class JsonXContent implements XContent {
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.core.json.UTF8JsonGenerator#close() method
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
-        jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, isStrictDuplicateDetectionEnabled());
+        jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, XContent.isStrictDuplicateDetectionEnabled());
         jsonXContent = new JsonXContent();
     }
 
@@ -101,32 +80,32 @@ public class JsonXContent implements XContent {
     }
 
     @Override
-    public XContentParser createParser(String content) throws IOException {
-        return new JsonXContentParser(jsonFactory.createParser(new FastStringReader(content)));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, String content) throws IOException {
+        return new JsonXContentParser(xContentRegistry, jsonFactory.createParser(new FastStringReader(content)));
     }
 
     @Override
-    public XContentParser createParser(InputStream is) throws IOException {
-        return new JsonXContentParser(jsonFactory.createParser(is));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, InputStream is) throws IOException {
+        return new JsonXContentParser(xContentRegistry, jsonFactory.createParser(is));
     }
 
     @Override
-    public XContentParser createParser(byte[] data) throws IOException {
-        return new JsonXContentParser(jsonFactory.createParser(data));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data) throws IOException {
+        return new JsonXContentParser(xContentRegistry, jsonFactory.createParser(data));
     }
 
     @Override
-    public XContentParser createParser(byte[] data, int offset, int length) throws IOException {
-        return new JsonXContentParser(jsonFactory.createParser(data, offset, length));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, byte[] data, int offset, int length) throws IOException {
+        return new JsonXContentParser(xContentRegistry, jsonFactory.createParser(data, offset, length));
     }
 
     @Override
-    public XContentParser createParser(BytesReference bytes) throws IOException {
-        return createParser(bytes.streamInput());
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, BytesReference bytes) throws IOException {
+        return createParser(xContentRegistry, bytes.streamInput());
     }
 
     @Override
-    public XContentParser createParser(Reader reader) throws IOException {
-        return new JsonXContentParser(jsonFactory.createParser(reader));
+    public XContentParser createParser(NamedXContentRegistry xContentRegistry, Reader reader) throws IOException {
+        return new JsonXContentParser(xContentRegistry, jsonFactory.createParser(reader));
     }
 }

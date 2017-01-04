@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptResponse;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -85,13 +87,11 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      */
     private static final class MatcherSupplier implements ParseFieldMatcherSupplier {
 
-        ParseFieldMatcher matcher = new ParseFieldMatcher(false);
-
         private MatcherSupplier() {}
 
         @Override
         public ParseFieldMatcher getParseFieldMatcher() {
-            return matcher;
+            return ParseFieldMatcher.EMPTY;
         }
     }
 
@@ -248,7 +248,7 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
      * @return        The parsed {@link StoredScriptSource}.
      */
     public static StoredScriptSource parse(String lang, BytesReference content) {
-        try (XContentParser parser = XContentHelper.createParser(content)) {
+        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, content)) {
             Token token = parser.nextToken();
 
             if (token != Token.START_OBJECT) {
@@ -345,18 +345,18 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
         return PARSER.apply(parser, new MatcherSupplier()).build();
     }
 
+    /**
+     * Required for {@link ScriptMetaData.ScriptMetadataDiff}.  Uses
+     * the {@link StoredScriptSource#StoredScriptSource(StreamInput)}
+     * constructor.
+     */
+    public static Diff<StoredScriptSource> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(StoredScriptSource::new, in);
+    }
+
     private final String lang;
     private final String code;
     private final Map<String, String> options;
-
-    /**
-     * Empty constructor for use with {@link ScriptMetaData.ScriptMetadataDiff}.
-     */
-    StoredScriptSource() {
-        this.lang = null;
-        this.code = null;
-        this.options = null;
-    }
 
     /**
      * Constructor for use with {@link GetStoredScriptResponse}
@@ -398,16 +398,6 @@ public class StoredScriptSource extends AbstractDiffable<StoredScriptSource> imp
             this.code = in.readBytesReference().utf8ToString();
             this.options = null;
         }
-    }
-
-    /**
-     * Required for {@link ScriptMetaData.ScriptMetadataDiff}.  Uses
-     * the {@link StoredScriptSource#StoredScriptSource(StreamInput)}
-     * constructor.
-     */
-    @Override
-    public StoredScriptSource readFrom(StreamInput in) throws IOException {
-        return new StoredScriptSource(in);
     }
 
     /**

@@ -26,7 +26,6 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
@@ -86,15 +85,8 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private InnerHitsContext innerHitsContext;
 
-    protected final ParseFieldMatcher parseFieldMatcher;
-
-    protected SearchContext(ParseFieldMatcher parseFieldMatcher) {
+    protected SearchContext() {
         super("search_context");
-        this.parseFieldMatcher = parseFieldMatcher;
-    }
-
-    public ParseFieldMatcher parseFieldMatcher() {
-        return parseFieldMatcher;
     }
 
     public abstract void setTask(SearchTask task);
@@ -147,8 +139,6 @@ public abstract class SearchContext extends AbstractRefCounted implements Releas
     public abstract int numberOfShards();
 
     public abstract float queryBoost();
-
-    public abstract SearchContext queryBoost(float queryBoost);
 
     public abstract long getOriginNanoTime();
 

@@ -140,9 +140,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                 builder.endObject();
             } else {
                 GetResponse getResponse = response.getResponse();
-                builder.startObject();
                 getResponse.toXContent(builder, params);
-                builder.endObject();
             }
         }
         builder.endArray();
@@ -154,9 +152,6 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
         static final String _INDEX = "_index";
         static final String _TYPE = "_type";
         static final String _ID = "_id";
-        static final String ERROR = "error";
-        static final String ROOT_CAUSE = "root_cause";
-
     }
 
     @Override

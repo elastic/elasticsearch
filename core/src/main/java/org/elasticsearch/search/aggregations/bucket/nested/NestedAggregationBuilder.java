@@ -116,7 +116,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (context.getParseFieldMatcher().match(currentFieldName, NestedAggregator.PATH_FIELD)) {
+                if (NestedAggregator.PATH_FIELD.match(currentFieldName)) {
                     path = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

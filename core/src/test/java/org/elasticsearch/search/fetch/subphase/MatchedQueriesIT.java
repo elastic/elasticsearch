@@ -292,7 +292,7 @@ public class MatchedQueriesIT extends ESIntegTestCase {
             SearchResponse searchResponse = client().prepareSearch()
                     .setQuery(
                             boolQuery()
-                                    .minimumNumberShouldMatch(1)
+                                    .minimumShouldMatch(1)
                                     .should(queryStringQuery("dolor").queryName("dolor"))
                                     .should(queryStringQuery("elit").queryName("elit"))
                     )

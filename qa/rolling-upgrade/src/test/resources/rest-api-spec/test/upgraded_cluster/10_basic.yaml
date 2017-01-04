@@ -35,3 +35,15 @@
         index: test_index
 
  - match: { hits.total: 15 } # 10 docs from previous clusters plus 5 new docs
+
+---
+"Verify custom cluster metadata still exists after rolling upgrade":
+  - do:
+      snapshot.get_repository:
+        repository: my_repo
+  - is_true: my_repo
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }

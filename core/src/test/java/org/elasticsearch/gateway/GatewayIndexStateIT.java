@@ -58,6 +58,7 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -434,7 +435,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());
         assertNotNull(ex.getCause());
         assertEquals(IllegalArgumentException.class, ex.getCause().getClass());
-        assertEquals(ex.getCause().getMessage(), "Unknown tokenfilter type [icu_collation] for [myCollator]");
+        assertEquals(ex.getCause().getMessage(), "Unknown filter type [icu_collation] for [myCollator]");
     }
 
     /**
@@ -491,7 +492,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertEquals(ex.getMessage(), "Failed to verify index " + metaData.getIndex());
         assertNotNull(ex.getCause());
         assertEquals(MapperParsingException.class, ex.getCause().getClass());
-        assertEquals(ex.getCause().getMessage(), "analyzer [test] not found for field [field1]");
+        assertThat(ex.getCause().getMessage(), containsString("analyzer [test] not found for field [field1]"));
     }
 
     public void testArchiveBrokenClusterSettings() throws Exception {

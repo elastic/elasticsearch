@@ -70,7 +70,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
 
     private void assertParseSearchSource(SearchSourceBuilder testBuilder, XContentParser parser, ParseFieldMatcher pfm)
             throws IOException {
-        QueryParseContext parseContext = new QueryParseContext(searchRequestParsers.queryParsers, parser, pfm);
+        QueryParseContext parseContext = new QueryParseContext(parser, pfm);
         if (randomBoolean()) {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to
                                 // test the embedded case
@@ -83,7 +83,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private QueryParseContext createParseContext(XContentParser parser) {
-        return new QueryParseContext(searchRequestParsers.queryParsers, parser, ParseFieldMatcher.STRICT);
+        return new QueryParseContext(parser, ParseFieldMatcher.STRICT);
     }
 
     public void testSerialization() throws IOException {
@@ -312,6 +312,81 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
             Map<String, Object> sourceAsMap = XContentHelper.convertToMap(source, false).v2();
             assertEquals(1, sourceAsMap.size());
             assertEquals("query", sourceAsMap.keySet().iterator().next());
+        }
+    }
+
+    public void testParseIndicesBoost() throws IOException {
+        {
+            String restContent = " { \"indices_boost\": {\"foo\": 1.0, \"bar\": 2.0}}";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
+                assertEquals(2, searchSourceBuilder.indexBoosts().size());
+                assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
+                assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
+                assertWarnings("Object format in indices_boost is deprecated, please use array format instead");
+            }
+        }
+
+        {
+            String restContent = "{" +
+                "    \"indices_boost\" : [\n" +
+                "        { \"foo\" : 1.0 },\n" +
+                "        { \"bar\" : 2.0 },\n" +
+                "        { \"baz\" : 3.0 }\n" +
+                "    ]}";
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(createParseContext(parser),
+                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
+                assertEquals(3, searchSourceBuilder.indexBoosts().size());
+                assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
+                assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
+                assertEquals(new SearchSourceBuilder.IndexBoost("baz", 3.0f), searchSourceBuilder.indexBoosts().get(2));
+            }
+        }
+
+        {
+            String restContent = "{" +
+                "    \"indices_boost\" : [\n" +
+                "        { \"foo\" : 1.0, \"bar\": 2.0}\n" + // invalid format
+                "    ]}";
+
+            assertIndicesBoostParseErrorMessage(restContent, "Expected [END_OBJECT] in [indices_boost] but found [FIELD_NAME]");
+        }
+
+        {
+            String restContent = "{" +
+                "    \"indices_boost\" : [\n" +
+                "        {}\n" + // invalid format
+                "    ]}";
+
+            assertIndicesBoostParseErrorMessage(restContent, "Expected [FIELD_NAME] in [indices_boost] but found [END_OBJECT]");
+        }
+
+        {
+            String restContent = "{" +
+                "    \"indices_boost\" : [\n" +
+                "        { \"foo\" : \"bar\"}\n" + // invalid format
+                "    ]}";
+
+            assertIndicesBoostParseErrorMessage(restContent, "Expected [VALUE_NUMBER] in [indices_boost] but found [VALUE_STRING]");
+        }
+
+        {
+            String restContent = "{" +
+                "    \"indices_boost\" : [\n" +
+                "        { \"foo\" : {\"bar\": 1}}\n" + // invalid format
+                "    ]}";
+
+            assertIndicesBoostParseErrorMessage(restContent, "Expected [VALUE_NUMBER] in [indices_boost] but found [START_OBJECT]");
+        }
+    }
+
+    private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(createParseContext(parser),
+                searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers));
+            assertEquals(expectedErrorMessage, e.getMessage());
         }
     }
 }

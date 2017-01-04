@@ -36,7 +36,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -195,9 +194,8 @@ public class RestActions {
         return queryBuilder;
     }
 
-    public static QueryBuilder getQueryContent(XContentParser requestParser, IndicesQueriesRegistry indicesQueriesRegistry,
-                                               ParseFieldMatcher parseFieldMatcher) {
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, requestParser, parseFieldMatcher);
+    public static QueryBuilder getQueryContent(XContentParser requestParser, ParseFieldMatcher parseFieldMatcher) {
+        QueryParseContext context = new QueryParseContext(requestParser, parseFieldMatcher);
         return context.parseTopLevelQueryBuilder();
     }
 

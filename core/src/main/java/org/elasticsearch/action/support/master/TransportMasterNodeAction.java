@@ -121,12 +121,12 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         }
 
         public void start() {
-            this.observer = new ClusterStateObserver(clusterService, request.masterNodeTimeout(), logger, threadPool.getThreadContext());
-            doStart();
+            ClusterState state = clusterService.state();
+            this.observer = new ClusterStateObserver(state, clusterService, request.masterNodeTimeout(), logger, threadPool.getThreadContext());
+            doStart(state);
         }
 
-        protected void doStart() {
-            final ClusterState clusterState = observer.observedState();
+        protected void doStart(ClusterState clusterState) {
             final Predicate<ClusterState> masterChangePredicate = MasterNodeChangePredicate.build(clusterState);
             final DiscoveryNodes nodes = clusterState.nodes();
             if (nodes.isLocalNodeElectedMaster() || localExecute(request)) {
@@ -197,7 +197,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                 new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        doStart();
+                        doStart(state);
                     }
 
                     @Override

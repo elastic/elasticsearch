@@ -669,9 +669,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public DocsStats docStats() {
-        readAllowed();
-        final Engine engine = getEngine();
-        return engine.getDocStats();
+        try (final Engine.Searcher searcher = acquireSearcher("doc_stats")) {
+            return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
+        }
     }
 
     /**
@@ -1364,36 +1364,49 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * notifies the service of a local checkpoint. see {@link GlobalCheckpointService#updateLocalCheckpoint(String, long)} for details.
+     * Notifies the service to update the local checkpoint for the shard with the provided allocation ID. See
+     * {@link GlobalCheckpointService#updateLocalCheckpoint(String, long)} for details.
+     *
+     * @param allocationId the allocation ID of the shard to update the local checkpoint for
+     * @param checkpoint   the local checkpoint for the shard
      */
-    public void updateLocalCheckpointForShard(String allocationId, long checkpoint) {
+    public void updateLocalCheckpointForShard(final String allocationId, final long checkpoint) {
         verifyPrimary();
         getEngine().seqNoService().updateLocalCheckpointForShard(allocationId, checkpoint);
     }
 
     /**
-     * marks the allocationId as "in sync" with the primary shard. see {@link GlobalCheckpointService#markAllocationIdAsInSync(String)}
-     * for details.
+     * Marks the shard with the provided allocation ID as in-sync with the primary shard. See
+     * {@link GlobalCheckpointService#markAllocationIdAsInSync(String)} for additional details.
      *
-     * @param allocationId    allocationId of the recovering shard
+     * @param allocationId the allocation ID of the shard to mark as in-sync
      */
-    public void markAllocationIdAsInSync(String allocationId) {
+    public void markAllocationIdAsInSync(final String allocationId) {
         verifyPrimary();
         getEngine().seqNoService().markAllocationIdAsInSync(allocationId);
     }
 
+    /**
+     * Returns the local checkpoint for the shard.
+     *
+     * @return the local checkpoint
+     */
     public long getLocalCheckpoint() {
         return getEngine().seqNoService().getLocalCheckpoint();
     }
 
+    /**
+     * Returns the global checkpoint for the shard.
+     *
+     * @return the global checkpoint
+     */
     public long getGlobalCheckpoint() {
         return getEngine().seqNoService().getGlobalCheckpoint();
     }
 
     /**
-     * Checks whether the global checkpoint can be updated based on current knowledge of local checkpoints on the different
-     * shard copies. The checkpoint is updated or more information is required from the replica, a global checkpoint sync
-     * is initiated.
+     * Checks whether the global checkpoint can be updated based on current knowledge of local checkpoints on the different shard copies.
+     * The checkpoint is updated or if more information is required from the replica, a global checkpoint sync is initiated.
      */
     public void updateGlobalCheckpointOnPrimary() {
         verifyPrimary();
@@ -1403,24 +1416,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * updates the global checkpoint on a replica shard (after it has been updated by the primary).
+     * Updates the global checkpoint on a replica shard after it has been updated by the primary.
+     *
+     * @param checkpoint the global checkpoint
      */
-    public void updateGlobalCheckpointOnReplica(long checkpoint) {
+    public void updateGlobalCheckpointOnReplica(final long checkpoint) {
         verifyReplicationTarget();
         getEngine().seqNoService().updateGlobalCheckpointOnReplica(checkpoint);
     }
 
     /**
-     * Notifies the service of the current allocation ids in the cluster state.
-     * see {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
+     * Notifies the service of the current allocation IDs in the cluster state. See
+     * {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
      *
-     * @param activeAllocationIds       the allocation ids of the currently active shard copies
-     * @param initializingAllocationIds the allocation ids of the currently initializing shard copies
+     * @param activeAllocationIds       the allocation IDs of the currently active shard copies
+     * @param initializingAllocationIds the allocation IDs of the currently initializing shard copies
      */
-    public void updateAllocationIdsFromMaster(Set<String> activeAllocationIds, Set<String> initializingAllocationIds) {
+    public void updateAllocationIdsFromMaster(final Set<String> activeAllocationIds, final Set<String> initializingAllocationIds) {
         verifyPrimary();
-        Engine engine = getEngineOrNull();
-        // if engine is not yet started, we are not ready yet and can just ignore this
+        final Engine engine = getEngineOrNull();
+        // if the engine is not yet started, we are not ready yet and can just ignore this
         if (engine != null) {
             engine.seqNoService().updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
         }
@@ -1434,7 +1449,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void noopUpdate(String type) {
         internalIndexingStats.noopUpdate(type);
     }
-
 
     private void checkIndex() throws IOException {
         if (store.tryIncRef()) {

@@ -57,7 +57,7 @@ public class IndexGraveyardTests extends ESTestCase {
         final IndexGraveyard graveyard = createRandom();
         final BytesStreamOutput out = new BytesStreamOutput();
         graveyard.writeTo(out);
-        assertThat(IndexGraveyard.fromStream(out.bytes().streamInput()), equalTo(graveyard));
+        assertThat(new IndexGraveyard(out.bytes().streamInput()), equalTo(graveyard));
     }
 
     public void testXContent() throws IOException {
@@ -68,7 +68,7 @@ public class IndexGraveyardTests extends ESTestCase {
         builder.endObject();
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         parser.nextToken(); // the beginning of the parser
-        assertThat(IndexGraveyard.PROTO.fromXContent(parser), equalTo(graveyard));
+        assertThat(IndexGraveyard.fromXContent(parser), equalTo(graveyard));
     }
 
     public void testAddTombstones() {

@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestRequest;
 
 import java.util.HashMap;
@@ -33,11 +34,12 @@ public class FakeRestRequest extends RestRequest {
 
 
     public FakeRestRequest() {
-        this(new HashMap<>(), new HashMap<>(), null, Method.GET, "/");
+        this(NamedXContentRegistry.EMPTY, new HashMap<>(), new HashMap<>(), null, Method.GET, "/");
     }
 
-    private FakeRestRequest(Map<String, String> headers, Map<String, String> params, BytesReference content, Method method, String path) {
-        super(params, path);
+    private FakeRestRequest(NamedXContentRegistry xContentRegistry, Map<String, String> headers, Map<String, String> params,
+            BytesReference content, Method method, String path) {
+        super(xContentRegistry, params, path);
         this.headers = headers;
         this.content = content;
         this.method = method;
@@ -74,6 +76,7 @@ public class FakeRestRequest extends RestRequest {
     }
 
     public static class Builder {
+        private final NamedXContentRegistry xContentRegistry;
 
         private Map<String, String> headers = new HashMap<>();
 
@@ -84,6 +87,10 @@ public class FakeRestRequest extends RestRequest {
         private String path = "/";
 
         private Method method = Method.GET;
+
+        public Builder(NamedXContentRegistry xContentRegistry) {
+            this.xContentRegistry = xContentRegistry;
+        }
 
         public Builder withHeaders(Map<String, String> headers) {
             this.headers = headers;
@@ -111,7 +118,7 @@ public class FakeRestRequest extends RestRequest {
         }
 
         public FakeRestRequest build() {
-            return new FakeRestRequest(headers, params, content, method, path);
+            return new FakeRestRequest(xContentRegistry, headers, params, content, method, path);
         }
 
     }

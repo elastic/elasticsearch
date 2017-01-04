@@ -20,6 +20,7 @@
 package org.elasticsearch.test.transport;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.Lifecycle;
@@ -57,11 +58,13 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -80,6 +83,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class MockTransportService extends TransportService {
 
+    private final Map<DiscoveryNode, List<Transport.Connection>> openConnections = new HashMap<>();
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -90,7 +94,7 @@ public final class MockTransportService extends TransportService {
 
     public static MockTransportService createNewService(Settings settings, Version version, ThreadPool threadPool,
             @Nullable ClusterSettings clusterSettings) {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(ClusterModule.getNamedWriteables());
         final Transport transport = new MockTcpTransport(settings, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
                 new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(settings, Collections.emptyList()), version);
         return new MockTransportService(settings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, clusterSettings);
@@ -553,9 +557,7 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
-        public void close() {
-            transport.close();
-        }
+        public void close() { transport.close(); }
 
         @Override
         public Map<String, BoundTransportAddress> profileBoundAddresses() {
@@ -700,5 +702,42 @@ public final class MockTransportService extends TransportService {
             transport = ((DelegateTransport) transport).transport;
         }
         return transport;
+    }
+
+    @Override
+    public Transport.Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+        FilteredConnection filteredConnection = new FilteredConnection(super.openConnection(node, profile)) {
+            final AtomicBoolean closed = new AtomicBoolean(false);
+            @Override
+            public void close() throws IOException {
+                try {
+                    super.close();
+                } finally {
+                    if (closed.compareAndSet(false, true)) {
+                        synchronized (openConnections) {
+                            List<Transport.Connection> connections = openConnections.get(node);
+                            boolean remove = connections.remove(this);
+                            assert remove;
+                            if (connections.isEmpty()) {
+                                openConnections.remove(node);
+                            }
+                        }
+                    }
+                }
+
+            }
+        };
+        synchronized (openConnections) {
+            List<Transport.Connection> connections = openConnections.computeIfAbsent(node,
+                (n) -> new CopyOnWriteArrayList<>());
+            connections.add(filteredConnection);
+        }
+        return filteredConnection;
+    }
+
+    @Override
+    protected void doClose() {
+        super.doClose();
+        assert openConnections.size() == 0 : "still open connections: " + openConnections;
     }
 }

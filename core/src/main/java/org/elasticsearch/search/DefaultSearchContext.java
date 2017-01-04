@@ -30,7 +30,6 @@ import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -96,7 +95,7 @@ final class DefaultSearchContext extends SearchContext {
     private final DfsSearchResult dfsResult;
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
-    private float queryBoost = 1.0f;
+    private final float queryBoost;
     private TimeValue timeout;
     // terminate after count
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
@@ -152,9 +151,7 @@ final class DefaultSearchContext extends SearchContext {
 
     DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget, Engine.Searcher engineSearcher,
                          IndexService indexService, IndexShard indexShard,
-                         BigArrays bigArrays, Counter timeEstimateCounter, ParseFieldMatcher parseFieldMatcher, TimeValue timeout,
-                         FetchPhase fetchPhase) {
-        super(parseFieldMatcher);
+                         BigArrays bigArrays, Counter timeEstimateCounter, TimeValue timeout, FetchPhase fetchPhase) {
         this.id = id;
         this.request = request;
         this.fetchPhase = fetchPhase;
@@ -173,6 +170,7 @@ final class DefaultSearchContext extends SearchContext {
         this.timeout = timeout;
         queryShardContext = indexService.newQueryShardContext(request.shardId().id(), searcher.getIndexReader(), request::nowInMillis);
         queryShardContext.setTypes(request.types());
+        queryBoost = request.indexBoost();
     }
 
     @Override
@@ -350,12 +348,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public float queryBoost() {
         return queryBoost;
-    }
-
-    @Override
-    public SearchContext queryBoost(float queryBoost) {
-        this.queryBoost = queryBoost;
-        return this;
     }
 
     @Override

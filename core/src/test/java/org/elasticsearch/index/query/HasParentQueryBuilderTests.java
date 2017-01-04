@@ -23,7 +23,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -86,13 +85,13 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
             innerQueryBuilder = new WrapperQueryBuilder(innerQueryBuilder.toString());
         }
         HasParentQueryBuilder hqb = new HasParentQueryBuilder(PARENT_TYPE, innerQueryBuilder, randomBoolean());
+        hqb.ignoreUnmapped(randomBoolean());
         if (randomBoolean()) {
             hqb.innerHit(new InnerHitBuilder()
                     .setName(randomAsciiOfLengthBetween(1, 10))
                     .setSize(randomIntBetween(0, 100))
-                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)));
+                    .addSort(new FieldSortBuilder(STRING_FIELD_NAME_2).order(SortOrder.ASC)), hqb.ignoreUnmapped());
         }
-        hqb.ignoreUnmapped(randomBoolean());
         return hqb;
     }
 
@@ -149,12 +148,9 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
         builder.field("type", "foo"); // deprecated
         builder.endObject();
         builder.endObject();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(builder.string()));
-        assertEquals("Deprecated field [type] used, expected [parent_type] instead", e.getMessage());
-
-        HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string(), ParseFieldMatcher.EMPTY);
+        HasParentQueryBuilder queryBuilder = (HasParentQueryBuilder) parseQuery(builder.string());
         assertEquals("foo", queryBuilder.type());
-        checkWarningHeaders("Deprecated field [type] used, expected [parent_type] instead");
+        assertWarnings("Deprecated field [type] used, expected [parent_type] instead");
     }
 
     public void testToQueryInnerQueryType() throws IOException {

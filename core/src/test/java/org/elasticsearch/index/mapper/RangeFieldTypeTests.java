@@ -48,7 +48,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     @Before
     public void setupProperties() {
         type = RandomPicks.randomFrom(random(), RangeType.values());
-        nowInMillis = randomPositiveLong();
+        nowInMillis = randomNonNegativeLong();
         if (type == RangeType.DATE) {
             addModifier(new Modifier("format", true) {
                 @Override
@@ -74,8 +74,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAsciiOfLengthBetween(1, 10), indexSettings);
-        QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, null, null, null,
-            () -> nowInMillis);
+        QueryShardContext context = new QueryShardContext(0, idxSettings, null, null, null, null, null, xContentRegistry(),
+                null, null, () -> nowInMillis);
         RangeFieldMapper.RangeFieldType ft = new RangeFieldMapper.RangeFieldType(type);
         ft.setName(FIELDNAME);
         ft.setIndexOptions(IndexOptions.DOCS);

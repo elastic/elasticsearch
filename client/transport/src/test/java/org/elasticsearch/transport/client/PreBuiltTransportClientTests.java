@@ -41,7 +41,7 @@ public class PreBuiltTransportClientTests extends RandomizedTest {
 
     @Test
     public void testPluginInstalled() {
-        // TODO: remove when Netty 4.1.5 is upgraded to Netty 4.1.6 including https://github.com/netty/netty/pull/5778
+        // TODO: remove when Netty 4.1.6 is upgraded to Netty 4.1.7 including https://github.com/netty/netty/pull/6068
         assumeFalse(Constants.JRE_IS_MINIMUM_JAVA9);
         try (TransportClient client = new PreBuiltTransportClient(Settings.EMPTY)) {
             Settings settings = client.settings();

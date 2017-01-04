@@ -1,21 +1,15 @@
 [[java-query-percolate-query]]
-==== Percolate query
+==== Percolate Query
 
-See: {ref}/query-dsl-percolate-query.html[Percolate Query]
+See:
+ * {ref}/query-dsl-percolate-query.html[Percolate Query]
 
-In order to use the `percolate` query from the Java API your
-the percolator module dependency should be on the classpath and
-the transport client should be loaded with the percolator plugin:
 
 [source,java]
 --------------------------------------------------
-TransportClient transportClient = TransportClient.builder()
-        .settings(Settings.builder().put("node.name", "node"))
-        .addPlugin(PercolatorPlugin.class)
-        .build();
-transportClient.addTransportAddress(
-        new InetSocketTransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300))
-);
+Settings settings = Settings.builder().put("cluster.name", "elasticsearch").build();
+TransportClient client = new PreBuiltTransportClient(settings);
+client.addTransportAddress(new InetSocketTransportAddress(new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 9300)));
 --------------------------------------------------
 
 Before the `percolate` query can be used an `percolator` mapping should be added and
@@ -26,6 +20,7 @@ a document containing a percolator query should be indexed:
 // create an index with a percolator field with the name 'query':
 client.admin().indices().prepareCreate("myIndexName")
                         .addMapping("query", "query", "type=percolator")
+                        .addMapping("docs", "content", "type=text")
                         .get();
 
 //This is the query we're registering in the percolator
@@ -37,7 +32,7 @@ client.prepareIndex("myIndexName", "query", "myDesignatedQueryName")
         .startObject()
             .field("query", qb) // Register the query
         .endObject())
-    .setRefresh(true) // Needed when the query shall be available immediately
+    .setRefreshPolicy(RefreshPolicy.IMMEDIATE) // Needed when the query shall be available immediately
     .get();
 --------------------------------------------------
 
@@ -51,13 +46,14 @@ code:
 --------------------------------------------------
 //Build a document to check against the percolator
 XContentBuilder docBuilder = XContentFactory.jsonBuilder().startObject();
-docBuilder.field("doc").startObject(); //This is needed to designate the document
 docBuilder.field("content", "This is amazing!");
-docBuilder.endObject(); //End of the doc field
 docBuilder.endObject(); //End of the JSON root object
+
+PercolateQueryBuilder percolateQuery = new PercolateQueryBuilder("query", "docs", docBuilder.bytes());
+
 // Percolate, by executing the percolator query in the query dsl:
 SearchResponse response = client().prepareSearch("myIndexName")
-        .setQuery(QueryBuilders.percolateQuery("query", ""myDocumentType", docBuilder.bytes()))
+        .setQuery(percolateQuery))
         .get();
 //Iterate over the results
 for(SearchHit hit : response.getHits()) {

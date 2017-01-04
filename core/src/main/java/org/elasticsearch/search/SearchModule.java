@@ -23,11 +23,14 @@ import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder;
@@ -54,6 +57,7 @@ import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.ParentIdQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.RegexpQueryBuilder;
@@ -79,10 +83,8 @@ import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.LinearDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.WeightBuilder;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SearchPlugin.AggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.FetchPhaseConstructionContext;
@@ -266,8 +268,6 @@ public class SearchModule {
     private final boolean transportClient;
     private final Map<String, Highlighter> highlighters;
     private final Map<String, Suggester<?>> suggesters;
-    private final ParseFieldRegistry<ScoreFunctionParser<?>> scoreFunctionParserRegistry = new ParseFieldRegistry<>("score_function");
-    private final IndicesQueriesRegistry queryParserRegistry = new IndicesQueriesRegistry();
     private final ParseFieldRegistry<Aggregator.Parser> aggregationParserRegistry = new ParseFieldRegistry<>("aggregation");
     private final ParseFieldRegistry<PipelineAggregator.Parser> pipelineAggregationParserRegistry = new ParseFieldRegistry<>(
             "pipline_aggregation");
@@ -281,7 +281,8 @@ public class SearchModule {
     private final SearchExtRegistry searchExtParserRegistry = new SearchExtRegistry();
 
     private final Settings settings;
-    private final List<Entry> namedWriteables = new ArrayList<>();
+    private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
+    private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
     private final SearchRequestParsers searchRequestParsers;
 
     public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
@@ -301,19 +302,19 @@ public class SearchModule {
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
         registerShapes();
-        searchRequestParsers = new SearchRequestParsers(queryParserRegistry, aggregatorParsers, getSuggesters(), searchExtParserRegistry);
+        searchRequestParsers = new SearchRequestParsers(aggregatorParsers, getSuggesters(), searchExtParserRegistry);
     }
 
-    public List<Entry> getNamedWriteables() {
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return namedWriteables;
+    }
+
+    public List<NamedXContentRegistry.Entry> getNamedXContents() {
+        return namedXContents;
     }
 
     public Suggesters getSuggesters() {
         return new Suggesters(suggesters);
-    }
-
-    public IndicesQueriesRegistry getQueryParserRegistry() {
-        return queryParserRegistry;
     }
 
     public SearchRequestParsers getSearchRequestParsers() {
@@ -435,11 +436,12 @@ public class SearchModule {
         if (false == transportClient) {
             aggregationParserRegistry.register(spec.getParser(), spec.getName());
         }
-        namedWriteables.add(new Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedWriteables.add(
+                new NamedWriteableRegistry.Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> t : spec.getResultReaders().entrySet()) {
             String writeableName = t.getKey();
             Writeable.Reader<? extends InternalAggregation> internalReader = t.getValue();
-            namedWriteables.add(new Entry(InternalAggregation.class, writeableName, internalReader));
+            namedWriteables.add(new NamedWriteableRegistry.Entry(InternalAggregation.class, writeableName, internalReader));
         }
     }
 
@@ -528,10 +530,13 @@ public class SearchModule {
         if (false == transportClient) {
             pipelineAggregationParserRegistry.register(spec.getParser(), spec.getName());
         }
-        namedWriteables.add(new Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
-        namedWriteables.add(new Entry(PipelineAggregator.class, spec.getName().getPreferredName(), spec.getAggregatorReader()));
+        namedWriteables.add(
+                new NamedWriteableRegistry.Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedWriteables.add(
+                new NamedWriteableRegistry.Entry(PipelineAggregator.class, spec.getName().getPreferredName(), spec.getAggregatorReader()));
         for (Map.Entry<String, Writeable.Reader<? extends InternalAggregation>> resultReader : spec.getResultReaders().entrySet()) {
-            namedWriteables.add(new Entry(InternalAggregation.class, resultReader.getKey(), resultReader.getValue()));
+            namedWriteables
+                    .add(new NamedWriteableRegistry.Entry(InternalAggregation.class, resultReader.getKey(), resultReader.getValue()));
         }
     }
 
@@ -542,14 +547,14 @@ public class SearchModule {
     }
 
     private void registerRescorers() {
-        namedWriteables.add(new Entry(RescoreBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(RescoreBuilder.class, QueryRescorerBuilder.NAME, QueryRescorerBuilder::new));
     }
 
     private void registerSorts() {
-        namedWriteables.add(new Entry(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new));
-        namedWriteables.add(new Entry(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new));
-        namedWriteables.add(new Entry(SortBuilder.class, ScriptSortBuilder.NAME, ScriptSortBuilder::new));
-        namedWriteables.add(new Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, GeoDistanceSortBuilder.NAME, GeoDistanceSortBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScoreSortBuilder.NAME, ScoreSortBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, ScriptSortBuilder.NAME, ScriptSortBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new));
     }
 
     private <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {
@@ -561,9 +566,9 @@ public class SearchModule {
     }
 
     public static void registerSmoothingModels(List<Entry> namedWriteables) {
-        namedWriteables.add(new Entry(SmoothingModel.class, Laplace.NAME, Laplace::new));
-        namedWriteables.add(new Entry(SmoothingModel.class, LinearInterpolation.NAME, LinearInterpolation::new));
-        namedWriteables.add(new Entry(SmoothingModel.class, StupidBackoff.NAME, StupidBackoff::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SmoothingModel.class, Laplace.NAME, Laplace::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SmoothingModel.class, LinearInterpolation.NAME, LinearInterpolation::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SmoothingModel.class, StupidBackoff.NAME, StupidBackoff::new));
     }
 
     private Map<String, Suggester<?>> setupSuggesters(List<SearchPlugin> plugins) {
@@ -574,7 +579,7 @@ public class SearchModule {
             @Override
             public void register(String name, Suggester<?> t) {
                 super.register(name, t);
-                namedWriteables.add(new Entry(SuggestionBuilder.class, name, t));
+                namedWriteables.add(new NamedWriteableRegistry.Entry(SuggestionBuilder.class, name, t));
             }
         };
         suggesters.register("phrase", PhraseSuggester.INSTANCE);
@@ -612,14 +617,18 @@ public class SearchModule {
 
         //weight doesn't have its own parser, so every function supports it out of the box.
         //Can be a single function too when not associated to any other function, which is why it needs to be registered manually here.
-        namedWriteables.add(new Entry(ScoreFunctionBuilder.class, WeightBuilder.NAME, WeightBuilder::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(ScoreFunctionBuilder.class, WeightBuilder.NAME, WeightBuilder::new));
 
         registerFromPlugin(plugins, SearchPlugin::getScoreFunctions, this::registerScoreFunction);
     }
 
     private void registerScoreFunction(ScoreFunctionSpec<?> scoreFunction) {
-        scoreFunctionParserRegistry.register(scoreFunction.getParser(), scoreFunction.getName());
-        namedWriteables.add(new Entry(ScoreFunctionBuilder.class, scoreFunction.getName().getPreferredName(), scoreFunction.getReader()));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(
+                ScoreFunctionBuilder.class, scoreFunction.getName().getPreferredName(), scoreFunction.getReader()));
+        // TODO remove funky contexts
+        namedXContents.add(new NamedXContentRegistry.Entry(
+                ScoreFunctionBuilder.class, scoreFunction.getName(),
+                (XContentParser p, Object c) -> scoreFunction.getParser().fromXContent((QueryParseContext) c)));
     }
 
     private void registerValueFormats() {
@@ -635,7 +644,7 @@ public class SearchModule {
      * Register a new ValueFormat.
      */
     private void registerValueFormat(String name, Writeable.Reader<? extends DocValueFormat> reader) {
-        namedWriteables.add(new Entry(DocValueFormat.class, name, reader));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(DocValueFormat.class, name, reader));
     }
 
     private void registerSignificanceHeuristics(List<SearchPlugin> plugins) {
@@ -651,7 +660,8 @@ public class SearchModule {
 
     private void registerSignificanceHeuristic(SearchExtensionSpec<SignificanceHeuristic, SignificanceHeuristicParser> heuristic) {
         significanceHeuristicParserRegistry.register(heuristic.getParser(), heuristic.getName());
-        namedWriteables.add(new Entry(SignificanceHeuristic.class, heuristic.getName().getPreferredName(), heuristic.getReader()));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SignificanceHeuristic.class, heuristic.getName().getPreferredName(),
+                heuristic.getReader()));
     }
 
     private void registerMovingAverageModels(List<SearchPlugin> plugins) {
@@ -666,7 +676,8 @@ public class SearchModule {
 
     private void registerMovingAverageModel(SearchExtensionSpec<MovAvgModel, MovAvgModel.AbstractModelParser> movAvgModel) {
         movingAverageModelParserRegistry.register(movAvgModel.getParser(), movAvgModel.getName());
-        namedWriteables.add(new Entry(MovAvgModel.class, movAvgModel.getName().getPreferredName(), movAvgModel.getReader()));
+        namedWriteables.add(
+                new NamedWriteableRegistry.Entry(MovAvgModel.class, movAvgModel.getName().getPreferredName(), movAvgModel.getReader()));
     }
 
     private void registerFetchSubPhases(List<SearchPlugin> plugins) {
@@ -689,7 +700,7 @@ public class SearchModule {
 
     private void registerSearchExt(SearchExtSpec<?> spec) {
         searchExtParserRegistry.register(spec.getParser(), spec.getName());
-        namedWriteables.add(new Entry(SearchExtBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SearchExtBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
     private void registerFetchSubPhase(FetchSubPhase subPhase) {
@@ -742,7 +753,7 @@ public class SearchModule {
         registerQuery(
                 new QuerySpec<>(SpanMultiTermQueryBuilder.NAME, SpanMultiTermQueryBuilder::new, SpanMultiTermQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(FunctionScoreQueryBuilder.NAME, FunctionScoreQueryBuilder::new,
-                c -> FunctionScoreQueryBuilder.fromXContent(scoreFunctionParserRegistry, c)));
+                FunctionScoreQueryBuilder::fromXContent));
         registerQuery(
                 new QuerySpec<>(SimpleQueryStringBuilder.NAME, SimpleQueryStringBuilder::new, SimpleQueryStringBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TypeQueryBuilder.NAME, TypeQueryBuilder::new, TypeQueryBuilder::fromXContent));
@@ -763,8 +774,9 @@ public class SearchModule {
     }
 
     private void registerQuery(QuerySpec<?> spec) {
-        queryParserRegistry.register(spec.getParser(), spec.getName());
-        namedWriteables.add(new Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
+        namedXContents.add(new NamedXContentRegistry.Entry(QueryBuilder.class, spec.getName(),
+                (p, c) -> spec.getParser().fromXContent((QueryParseContext) c)));
     }
 
     public FetchPhase getFetchPhase() {

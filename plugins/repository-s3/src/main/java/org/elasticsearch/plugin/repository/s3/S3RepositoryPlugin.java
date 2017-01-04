@@ -32,6 +32,7 @@ import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cloud.aws.InternalAwsS3Service;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -71,9 +72,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin {
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env) {
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
         return Collections.singletonMap(S3Repository.TYPE,
-            (metadata) -> new S3Repository(metadata, env.settings(), createStorageService(env.settings())));
+            (metadata) -> new S3Repository(metadata, env.settings(), namedXContentRegistry, createStorageService(env.settings())));
     }
 
     @Override

@@ -180,8 +180,8 @@ public class ObjectParserTests extends ESTestCase {
                 }
             }
         }
-        XContentParser parser = XContentType.JSON.xContent()
-            .createParser("{\"url\" : { \"host\": \"http://foobar\", \"port\" : 80}, \"name\" : \"foobarbaz\"}");
+        XContentParser parser = createParser(JsonXContent.jsonXContent,
+                "{\"url\" : { \"host\": \"http://foobar\", \"port\" : 80}, \"name\" : \"foobarbaz\"}");
         ObjectParser<Foo, CustomParseFieldMatchSupplier> objectParser = new ObjectParser<>("foo");
         objectParser.declareString(Foo::setName, new ParseField("name"));
         objectParser.declareObjectOrDefault(Foo::setURI, (p, s) -> s.parseURI(p), () -> null, new ParseField("url"));
@@ -218,27 +218,17 @@ public class ObjectParserTests extends ESTestCase {
         }
     }
 
-    public void testDeprecationFail() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"old_test\" : \"foo\"}");
+    public void testDeprecationWarnings() throws IOException {
         class TestStruct {
             public String test;
         }
         ObjectParser<TestStruct, ParseFieldMatcherSupplier> objectParser = new ObjectParser<>("foo");
         TestStruct s = new TestStruct();
-
+        XContentParser parser = createParser(XContentType.JSON.xContent(), "{\"old_test\" : \"foo\"}");
         objectParser.declareField((i, v, c) -> v.test = i.text(), new ParseField("test", "old_test"), ObjectParser.ValueType.STRING);
-
-        try {
-            objectParser.parse(parser, s, STRICT_PARSING);
-            fail("deprecated value");
-        } catch (IllegalArgumentException ex) {
-            assertEquals(ex.getMessage(), "Deprecated field [old_test] used, expected [test] instead");
-
-        }
-        assertNull(s.test);
-        parser = createParser(JsonXContent.jsonXContent, "{\"old_test\" : \"foo\"}");
         objectParser.parse(parser, s, () -> ParseFieldMatcher.EMPTY);
         assertEquals("foo", s.test);
+        assertWarnings("Deprecated field [old_test] used, expected [test] instead");
     }
 
     public void testFailOnValueType() throws IOException {

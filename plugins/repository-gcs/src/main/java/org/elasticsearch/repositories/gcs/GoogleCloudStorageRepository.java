@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugin.repository.gcs.GoogleCloudStoragePlugin;
 import org.elasticsearch.repositories.RepositoryException;
@@ -72,8 +73,9 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
     private final GoogleCloudStorageBlobStore blobStore;
 
     public GoogleCloudStorageRepository(RepositoryMetaData metadata, Environment environment,
+                                        NamedXContentRegistry namedXContentRegistry,
                                         GoogleCloudStorageService storageService) throws Exception {
-        super(metadata, environment.settings());
+        super(metadata, environment.settings(), namedXContentRegistry);
 
         String bucket = get(BUCKET, metadata);
         String application = get(APPLICATION_NAME, metadata);

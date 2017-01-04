@@ -61,10 +61,9 @@ public class RemovePluginCommandTests extends ESTestCase {
     }
 
     static MockTerminal removePlugin(String name, Path home) throws Exception {
-        Map<String, String> settings = new HashMap<>();
-        settings.put("path.home", home.toString());
+        Environment env = new Environment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
-        new RemovePluginCommand().execute(terminal, name, settings);
+        new RemovePluginCommand().execute(terminal, name, env);
         return terminal;
     }
 

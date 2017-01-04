@@ -47,11 +47,11 @@ public class ExtendedStatsBucketTests extends AbstractBucketMetricsTestCase<Exte
             .string();
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, content);
-        QueryParseContext parseContext = new QueryParseContext(queriesRegistry, parser, parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
         parser.nextToken(); // skip object start
 
         ExtendedStatsBucketPipelineAggregationBuilder builder = (ExtendedStatsBucketPipelineAggregationBuilder) aggParsers
-            .pipelineParser(ExtendedStatsBucketPipelineAggregationBuilder.NAME, parseFieldMatcher)
+            .pipelineParser(ExtendedStatsBucketPipelineAggregationBuilder.NAME)
             .parse("test", parseContext);
 
         assertThat(builder.sigma(), equalTo(5.0));

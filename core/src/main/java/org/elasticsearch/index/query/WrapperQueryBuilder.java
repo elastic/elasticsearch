@@ -123,7 +123,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
-        if (! parseContext.getParseFieldMatcher().match(fieldName, QUERY_FIELD)) {
+        if (! QUERY_FIELD.match(fieldName)) {
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was " + fieldName);
         }
         parser.nextToken();
@@ -160,7 +160,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext context) throws IOException {
-        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
+        try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(context.getXContentRegistry(), source)) {
             QueryParseContext parseContext = context.newParseContext(qSourceParser);
 
             final QueryBuilder queryBuilder = parseContext.parseInnerQueryBuilder();

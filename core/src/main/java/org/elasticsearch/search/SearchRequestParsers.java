@@ -20,7 +20,6 @@
 package org.elasticsearch.search;
 
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
@@ -32,15 +31,6 @@ public class SearchRequestParsers {
     // TODO: this class should be renamed to SearchRequestParser, and all the parse
     // methods split across RestSearchAction and SearchSourceBuilder should be moved here
     // TODO: make all members private once parsing functions are moved here
-
-    // TODO: IndicesQueriesRegistry should be removed and just have the map of query parsers here
-    /**
-     * Query parsers that may be used in search requests.
-     * @see org.elasticsearch.index.query.QueryParseContext
-     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
-     *      Suggesters, SearchExtRegistry)
-     */
-    public final IndicesQueriesRegistry queryParsers;
 
     // TODO: AggregatorParsers should be removed and the underlying maps of agg
     // and pipeline agg parsers should be here
@@ -64,9 +54,7 @@ public class SearchRequestParsers {
      */
     public final SearchExtRegistry searchExtParsers;
 
-    public SearchRequestParsers(IndicesQueriesRegistry queryParsers, AggregatorParsers aggParsers, Suggesters suggesters,
-                                SearchExtRegistry searchExtParsers) {
-        this.queryParsers = queryParsers;
+    public SearchRequestParsers(AggregatorParsers aggParsers, Suggesters suggesters, SearchExtRegistry searchExtParsers) {
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
         this.searchExtParsers = searchExtParsers;

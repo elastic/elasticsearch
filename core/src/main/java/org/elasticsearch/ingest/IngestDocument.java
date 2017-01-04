@@ -27,18 +27,14 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TypeFieldMapper;
 
-import java.text.DateFormat;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TimeZone;
 
 /**
  * Represents a single document being captured before indexing and holds the source and metadata (like id, type and index).
@@ -68,9 +64,7 @@ public final class IngestDocument {
         }
 
         this.ingestMetadata = new HashMap<>();
-        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZZ", Locale.ROOT);
-        df.setTimeZone(TimeZone.getTimeZone("UTC"));
-        this.ingestMetadata.put(TIMESTAMP, df.format(new Date()));
+        this.ingestMetadata.put(TIMESTAMP, new Date());
     }
 
     /**
@@ -151,8 +145,24 @@ public final class IngestDocument {
      * or if the field that is found at the provided path is not of the expected type.
      */
     public byte[] getFieldValueAsBytes(String path) {
-        Object object = getFieldValue(path, Object.class);
-        if (object instanceof byte[]) {
+        return getFieldValueAsBytes(path, false);
+    }
+
+    /**
+     * Returns the value contained in the document for the provided path as a byte array.
+     * If the path value is a string, a base64 decode operation will happen.
+     * If the path value is a byte array, it is just returned
+     * @param path The path within the document in dot-notation
+     * @param ignoreMissing The flag to determine whether to throw an exception when `path` is not found in the document.
+     * @return the byte array for the provided path if existing
+     * @throws IllegalArgumentException if the path is null, empty, invalid, if the field doesn't exist
+     * or if the field that is found at the provided path is not of the expected type.
+     */
+    public byte[] getFieldValueAsBytes(String path, boolean ignoreMissing) {
+        Object object = getFieldValue(path, Object.class, ignoreMissing);
+        if (object == null) {
+            return null;
+        } else if (object instanceof byte[]) {
             return (byte[]) object;
         } else if (object instanceof String) {
             return Base64.getDecoder().decode(object.toString());
@@ -595,6 +605,8 @@ public final class IngestDocument {
             value instanceof Long || value instanceof Float ||
             value instanceof Double || value instanceof Boolean) {
             return value;
+        } else if (value instanceof Date) {
+            return ((Date) value).clone();
         } else {
             throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
         }

@@ -160,10 +160,10 @@ public abstract class NXYSignificanceHeuristic extends SignificanceHeuristic {
             boolean backgroundIsSuperset = true;
             XContentParser.Token token = parser.nextToken();
             while (!token.equals(XContentParser.Token.END_OBJECT)) {
-                if (context.getParseFieldMatcher().match(parser.currentName(), INCLUDE_NEGATIVES_FIELD)) {
+                if (INCLUDE_NEGATIVES_FIELD.match(parser.currentName())) {
                     parser.nextToken();
                     includeNegatives = parser.booleanValue();
-                } else if (context.getParseFieldMatcher().match(parser.currentName(), BACKGROUND_IS_SUPERSET)) {
+                } else if (BACKGROUND_IS_SUPERSET.match(parser.currentName())) {
                     parser.nextToken();
                     backgroundIsSuperset = parser.booleanValue();
                 } else {

@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -138,7 +137,6 @@ public final class LinearInterpolation extends SmoothingModel {
         double trigramLambda = 0.0;
         double bigramLambda = 0.0;
         double unigramLambda = 0.0;
-        ParseFieldMatcher matcher = parseContext.getParseFieldMatcher();
         while ((token = parser.nextToken()) != Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();

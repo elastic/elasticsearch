@@ -62,5 +62,4 @@
   - match: { shard: 0 }
   - match: { primary: false }
   - is_true: cluster_info
-  - match: { can_allocate: "no" }
-  - match: { allocate_explanation : "cannot allocate because allocation is not permitted to any of the nodes" }
+  - is_true: can_allocate

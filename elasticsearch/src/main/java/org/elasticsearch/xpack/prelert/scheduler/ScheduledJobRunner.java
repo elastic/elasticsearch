@@ -97,6 +97,7 @@ public class ScheduledJobRunner extends AbstractComponent {
                 } catch (Exception e) {
                     logger.error("Failed lookback import for job [" + job.getId() + "]", e);
                     holder.stop(e);
+                    return;
                 }
                 if (next != null) {
                     doScheduleRealtime(next, job.getId(), holder);

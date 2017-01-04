@@ -77,26 +77,33 @@ public class ScheduledJobRunner extends AbstractComponent {
             Holder holder = createJobScheduler(scheduler, job, handler);
             task.setHolder(holder);
             holder.future = threadPool.executor(PrelertPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME).submit(() -> {
+                Long next = null;
                 try {
-                    Long next = holder.scheduledJob.runLookBack(startTime, endTime);
-                    if (next != null) {
-                        doScheduleRealtime(next, job.getId(), holder);
-                    } else {
-                        holder.stop(null);
-                    }
+                    next = holder.scheduledJob.runLookBack(startTime, endTime);
                 } catch (ScheduledJob.ExtractionProblemException e) {
+                    if (endTime == null) {
+                        next = e.nextDelayInMsSinceEpoch;
+                    }
                     holder.problemTracker.reportExtractionProblem(e.getCause().getMessage());
                 } catch (ScheduledJob.AnalysisProblemException e) {
+                    if (endTime == null) {
+                        next = e.nextDelayInMsSinceEpoch;
+                    }
                     holder.problemTracker.reportAnalysisProblem(e.getCause().getMessage());
                 } catch (ScheduledJob.EmptyDataCountException e) {
-                    if (holder.problemTracker.updateEmptyDataCount(true)) {
-                        holder.stop(e);
+                    if (endTime == null && holder.problemTracker.updateEmptyDataCount(true) == false) {
+                        next = e.nextDelayInMsSinceEpoch;
                     }
                 } catch (Exception e) {
                     logger.error("Failed lookback import for job [" + job.getId() + "]", e);
                     holder.stop(e);
                 }
-                holder.problemTracker.finishReport();
+                if (next != null) {
+                    doScheduleRealtime(next, job.getId(), holder);
+                } else {
+                    holder.stop(null);
+                    holder.problemTracker.finishReport();
+                }
             });
         });
     }

@@ -141,6 +141,38 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         verify(client).execute(same(INSTANCE), eq(new Request("scheduler1", SchedulerStatus.STOPPED)), any());
     }
 
+    public void testStart_extractionProblem() throws Exception {
+        Job.Builder jobBuilder = createScheduledJob();
+        SchedulerConfig schedulerConfig = createSchedulerConfig("scheduler1", "foo").build();
+        DataCounts dataCounts = new DataCounts("foo", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
+        Job job = jobBuilder.build();
+        PrelertMetadata prelertMetadata = new PrelertMetadata.Builder()
+                .putJob(job, false)
+                .putScheduler(schedulerConfig, mock(SearchRequestParsers.class))
+                .updateStatus("foo", JobStatus.OPENED, null)
+                .build();
+        when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
+                .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, prelertMetadata))
+                .build());
+
+        DataExtractor dataExtractor = mock(DataExtractor.class);
+        when(dataExtractorFactory.newExtractor(schedulerConfig, job)).thenReturn(dataExtractor);
+        when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
+        when(dataExtractor.next()).thenThrow(new RuntimeException("dummy"));
+        when(jobDataFuture.get()).thenReturn(new JobDataAction.Response(dataCounts));
+        Consumer<Exception> handler = mockConsumer();
+        StartSchedulerAction.SchedulerTask task = mock(StartSchedulerAction.SchedulerTask.class);
+        scheduledJobRunner.run("scheduler1", 0L, 60000L, task, handler);
+
+        verify(dataExtractor).newSearch(eq(0L), eq(60000L), any());
+        verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME);
+        verify(threadPool, never()).schedule(any(), any(), any());
+        verify(client, never()).execute(same(JobDataAction.INSTANCE), eq(new JobDataAction.Request("foo")));
+        verify(client, never()).execute(same(FlushJobAction.INSTANCE), any());
+        verify(client).execute(same(INSTANCE), eq(new Request("scheduler1", SchedulerStatus.STARTED)), any());
+        verify(client).execute(same(INSTANCE), eq(new Request("scheduler1", SchedulerStatus.STOPPED)), any());
+    }
+
     public void testStart_GivenNewlyCreatedJobLoopBackAndRealtime() throws Exception {
         Job.Builder jobBuilder = createScheduledJob();
         SchedulerConfig schedulerConfig = createSchedulerConfig("scheduler1", "foo").build();

@@ -279,11 +279,10 @@ public class JobResultsPersister extends AbstractComponent {
             byte[] bytes = bytesRef.toBytesRef().bytes;
             logger.trace("[{}] ES API CALL: bulk index", jobId);
             client.prepareBulk()
-            .add(bytes, 0, bytes.length)
-            .execute().actionGet();
+                    .add(bytes, 0, bytes.length)
+                    .execute().actionGet();
         } catch (Exception e) {
-            logger.error((org.apache.logging.log4j.util.Supplier<?>)
-                    () -> new ParameterizedMessage("[{}] Error persisting bulk state", jobId), e);
+            logger.error(new ParameterizedMessage("[{}] Error persisting bulk state", jobId), e);
         }
     }
 

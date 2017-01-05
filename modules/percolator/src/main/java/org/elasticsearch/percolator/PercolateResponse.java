@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -45,7 +45,7 @@ import java.util.Map;
  * @deprecated Instead use search API with {@link PercolateQueryBuilder}
  */
 @Deprecated
-public class PercolateResponse extends BroadcastResponse implements Iterable<PercolateResponse.Match>, ToXContent {
+public class PercolateResponse extends BroadcastResponse implements Iterable<PercolateResponse.Match>, ToXContentObject {
 
     public static final Match[] EMPTY = new Match[0];
     // PercolateQuery emits this score if no 'query' is defined in the percolate request
@@ -113,6 +113,13 @@ public class PercolateResponse extends BroadcastResponse implements Iterable<Per
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(Fields.TOOK, tookInMillis);
         RestActions.buildBroadcastShardsHeader(builder, params, this);
 

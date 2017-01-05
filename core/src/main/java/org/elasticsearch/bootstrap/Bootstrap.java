@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
@@ -206,6 +207,9 @@ final class Bootstrap {
         } catch (IOException | URISyntaxException e) {
             throw new BootstrapException(e);
         }
+
+        // Log ifconfig output before SecurityManager is installed
+        IfConfig.logIfNecessary();
 
         // install SM after natives, shutdown hooks, etc.
         try {

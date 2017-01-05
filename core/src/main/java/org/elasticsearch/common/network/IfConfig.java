@@ -34,17 +34,17 @@ import java.util.Locale;
 /**
  * Simple class to log {@code ifconfig}-style output at DEBUG logging.
  */
-final class IfConfig {
+public final class IfConfig {
 
     private static final Logger logger = Loggers.getLogger(IfConfig.class);
     private static final String INDENT = "        ";
 
     /** log interface configuration at debug level, if its enabled */
-    static void logIfNecessary() {
+    public static void logIfNecessary() {
         if (logger.isDebugEnabled()) {
             try {
                 doLogging();
-            } catch (IOException | SecurityException e) {
+            } catch (IOException e) {
                 logger.warn("unable to gather network information", e);
             }
         }

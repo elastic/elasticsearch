@@ -260,7 +260,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest().indices("test").types("type"))
-                .setScript("/mustache/1a")
+                .setScript("1a")
                 .setScriptType(ScriptType.STORED)
                 .setScriptParams(templateParams)
                 .get();
@@ -286,6 +286,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                 .setScript("/mustache/2").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 1);
+        assertWarnings("use of </lang/id> [/mustache/2] for looking up" +
+            " stored scripts/templates has been deprecated, use only <id> [2] instead");
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("fieldParam", "bar");
@@ -327,6 +329,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                     .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                     .get());
             assertThat(e.getMessage(), containsString("[match] query does not support type ooophrase_prefix"));
+            assertWarnings("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]");
 
             assertAcked(client().admin().cluster().preparePutStoredScript()
                     .setLang(MustacheScriptEngineService.NAME)
@@ -339,6 +342,8 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
                     .setScript("git01").setScriptType(ScriptType.STORED).setScriptParams(templateParams)
                     .get();
             assertHitCount(searchResponse.getResponse(), 1);
+            assertWarnings("Deprecated field [type] used, replaced by [match_phrase and match_phrase_prefix query]");
+
         }
     }
 
@@ -365,7 +370,7 @@ public class SearchTemplateIT extends ESSingleNodeTestCase {
 
         SearchTemplateResponse searchResponse = new SearchTemplateRequestBuilder(client())
                 .setRequest(new SearchRequest("test").types("type"))
-                .setScript("/mustache/4").setScriptType(ScriptType.STORED).setScriptParams(arrayTemplateParams)
+                .setScript("4").setScriptType(ScriptType.STORED).setScriptParams(arrayTemplateParams)
                 .get();
         assertHitCount(searchResponse.getResponse(), 5);
     }

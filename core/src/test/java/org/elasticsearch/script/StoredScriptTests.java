@@ -117,8 +117,12 @@ public class StoredScriptTests extends ESTestCase {
 
         ScriptMetaData smd = ScriptMetaData.putStoredScript(null, "test0", source0);
         smd = ScriptMetaData.putStoredScript(smd, "test0", source1);
+        assertWarnings("stored script [test0] already exists using a different lang [lang0]," +
+            " the new namespace for stored scripts will only use (id) instead of (lang, id)");
         smd = ScriptMetaData.putStoredScript(smd, "test3", source3);
         smd = ScriptMetaData.putStoredScript(smd, "test0", source2);
+        assertWarnings("stored script [test0] already exists using a different lang [lang1]," +
+            " the new namespace for stored scripts will only use (id) instead of (lang, id)");
 
         assertThat(smd.getStoredScript("test0", null), equalTo(source2));
         assertThat(smd.getStoredScript("test0", "lang0"), equalTo(source0));

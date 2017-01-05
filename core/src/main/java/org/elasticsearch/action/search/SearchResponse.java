@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
@@ -44,7 +45,7 @@ import static org.elasticsearch.search.internal.InternalSearchResponse.readInter
 /**
  * A response of a search request.
  */
-public class SearchResponse extends ActionResponse implements StatusToXContent {
+public class SearchResponse extends ActionResponse implements StatusToXContent, ToXContentObject {
 
     private InternalSearchResponse internalResponse;
 
@@ -181,6 +182,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (scrollId != null) {
             builder.field(Fields._SCROLL_ID, scrollId);
         }

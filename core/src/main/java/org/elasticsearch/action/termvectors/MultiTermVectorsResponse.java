@@ -137,9 +137,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
                 builder.endObject();
             } else {
                 TermVectorsResponse getResponse = response.getResponse();
-                builder.startObject();
                 getResponse.toXContent(builder, params);
-                builder.endObject();
             }
         }
         builder.endArray();

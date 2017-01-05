@@ -22,10 +22,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -151,5 +153,35 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     @Override
     protected Bucket[] createBucketsArray(int size) {
         return new Bucket[size];
+    }
+
+    @Override
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        boolean promoteToDouble = false;
+        DocValueFormat decimalFormat = null;
+        for (InternalAggregation agg : aggregations) {
+            if (agg instanceof LongTerms) {
+                /**
+                 * this terms agg mixes longs and doubles, we must promote longs to doubles to make the internal aggs
+                 * compatible
+                 */
+                promoteToDouble = true;
+            } else if (agg instanceof DoubleTerms) {
+                decimalFormat = ((DoubleTerms) agg).format;
+            }
+        }
+        if (promoteToDouble == false) {
+            return super.doReduce(aggregations, reduceContext);
+        }
+        List<InternalAggregation> newAggs = new ArrayList<>();
+        for (InternalAggregation agg : aggregations) {
+            if (agg instanceof LongTerms) {
+                DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, decimalFormat);
+                newAggs.add(dTerms);
+            } else {
+                newAggs.add(agg);
+            }
+        }
+        return newAggs.get(0).doReduce(newAggs, reduceContext);
     }
 }

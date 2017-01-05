@@ -203,4 +203,15 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
         assertThat(e.getMessage(), containsString("[" + NestedQueryBuilder.NAME + "] failed to find nested object under path [unmapped]"));
     }
+
+    public void testIgnoreUnmappedWithRewrite() throws IOException {
+        // WrapperQueryBuilder makes sure we always rewrite
+        final NestedQueryBuilder queryBuilder =
+            new NestedQueryBuilder("unmapped", new WrapperQueryBuilder(new MatchAllQueryBuilder().toString()), ScoreMode.None);
+        queryBuilder.ignoreUnmapped(true);
+        QueryShardContext queryShardContext = createShardContext();
+        Query query = queryBuilder.rewrite(queryShardContext).toQuery(queryShardContext);
+        assertThat(query, notNullValue());
+        assertThat(query, instanceOf(MatchNoDocsQuery.class));
+    }
 }

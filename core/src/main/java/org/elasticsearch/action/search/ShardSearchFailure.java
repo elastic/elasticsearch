@@ -22,20 +22,33 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
 import org.elasticsearch.search.SearchShardTarget;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+
 /**
  * Represents a failure to search on a specific shard.
  */
 public class ShardSearchFailure implements ShardOperationFailedException {
+
+    private static final String REASON_FIELD = "reason";
+    private static final String NODE_FIELD = "node";
+    private static final String INDEX_FIELD = "index";
+    private static final String SHARD_FIELD = "shard";
 
     public static final ShardSearchFailure[] EMPTY_ARRAY = new ShardSearchFailure[0];
 
@@ -68,7 +81,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         this(reason, shardTarget, RestStatus.INTERNAL_SERVER_ERROR);
     }
 
-    public ShardSearchFailure(String reason, SearchShardTarget shardTarget, RestStatus status) {
+    private ShardSearchFailure(String reason, SearchShardTarget shardTarget, RestStatus status) {
         this.shardTarget = shardTarget;
         this.reason = reason;
         this.status = status;
@@ -153,13 +166,13 @@ public class ShardSearchFailure implements ShardOperationFailedException {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field("shard", shardId());
-        builder.field("index", index());
+        builder.field(SHARD_FIELD, shardId());
+        builder.field(INDEX_FIELD, index());
         if (shardTarget != null) {
-            builder.field("node", shardTarget.nodeId());
+            builder.field(NODE_FIELD, shardTarget.nodeId());
         }
         if (cause != null) {
-            builder.field("reason");
+            builder.field(REASON_FIELD);
             builder.startObject();
             ElasticsearchException.toXContent(builder, params, cause);
             builder.endObject();
@@ -167,8 +180,45 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         return builder;
     }
 
+    public static ShardSearchFailure fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        String currentFieldName = null;
+        int shardId = -1;
+        String indexName = null;
+        String nodeId = null;
+        ElasticsearchException exception = null;
+        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (SHARD_FIELD.equals(currentFieldName)) {
+                    shardId  = parser.intValue();
+                } else if (INDEX_FIELD.equals(currentFieldName)) {
+                    indexName  = parser.text();
+                } else if (NODE_FIELD.equals(currentFieldName)) {
+                    nodeId  = parser.text();
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (REASON_FIELD.equals(currentFieldName)) {
+                    exception = ElasticsearchException.fromXContent(parser);
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(),
+                        "Failed to parse object: unsupported token found [" + token + "]");
+            }
+        }
+        return new ShardSearchFailure(exception,
+                new SearchShardTarget(nodeId, new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId)));
+    }
+
     @Override
     public Throwable getCause() {
         return cause;
     }
+
 }

@@ -161,7 +161,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     }
 
     /** The fields required to write this addAggregation to xcontent */
-    static class Fields {
+    public static class Fields {
         public static final String AGGREGATIONS = "aggregations";
     }
 

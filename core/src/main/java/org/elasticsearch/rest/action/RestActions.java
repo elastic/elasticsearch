@@ -69,15 +69,23 @@ public class RestActions {
                                    response.getShardFailures());
     }
 
+    public static final class ShardsFields {
+        public static final String _SHARDS = "_shards";
+        public static final String TOTAL = "total";
+        public static final String SUCCESSFUL = "successful";
+        public static final String FAILED = "failed";
+        public static final String FAILURES = "failures";
+    }
+
     public static void buildBroadcastShardsHeader(XContentBuilder builder, Params params,
                                                   int total, int successful, int failed,
                                                   ShardOperationFailedException[] shardFailures) throws IOException {
-        builder.startObject("_shards");
-        builder.field("total", total);
-        builder.field("successful", successful);
-        builder.field("failed", failed);
+        builder.startObject(ShardsFields._SHARDS);
+        builder.field(ShardsFields.TOTAL, total);
+        builder.field(ShardsFields.SUCCESSFUL, successful);
+        builder.field(ShardsFields.FAILED, failed);
         if (shardFailures != null && shardFailures.length > 0) {
-            builder.startArray("failures");
+            builder.startArray(ShardsFields.FAILURES);
             final boolean group = params.paramAsBoolean("group_shard_failures", true); // we group by default
             for (ShardOperationFailedException shardFailure : group ? ExceptionsHelper.groupBy(shardFailures) : shardFailures) {
                 builder.startObject();

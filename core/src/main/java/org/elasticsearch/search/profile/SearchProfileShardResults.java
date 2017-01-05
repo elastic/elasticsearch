@@ -42,6 +42,7 @@ import java.util.Map;
  */
 public final class SearchProfileShardResults implements Writeable, ToXContent{
 
+    public static final String PROFILE_NAME = "profile";
     private Map<String, ProfileShardResult> shardResults;
 
     public SearchProfileShardResults(Map<String, ProfileShardResult> shardResults) {
@@ -75,7 +76,7 @@ public final class SearchProfileShardResults implements Writeable, ToXContent{
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("profile").startArray("shards");
+        builder.startObject(PROFILE_NAME).startArray("shards");
 
         for (Map.Entry<String, ProfileShardResult> entry : shardResults.entrySet()) {
             builder.startObject();

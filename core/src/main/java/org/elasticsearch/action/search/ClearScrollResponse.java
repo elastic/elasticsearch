@@ -22,8 +22,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
@@ -32,7 +31,7 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
-public class ClearScrollResponse extends ActionResponse implements StatusToXContent, ToXContentObject {
+public class ClearScrollResponse extends ActionResponse implements StatusToXContentObject {
 
     private boolean succeeded;
     private int numFreed;

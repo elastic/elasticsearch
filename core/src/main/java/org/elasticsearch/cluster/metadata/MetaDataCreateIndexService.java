@@ -66,7 +66,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -155,7 +154,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     /**
      * Validate the name for an index or alias against some static rules.
      */
-    public static void validateIndexOrAliasName(String index, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
+    static void validateIndexOrAliasName(String index, BiFunction<String, String, ? extends RuntimeException> exceptionCtor) {
         if (!Strings.validFileName(index)) {
             throw exceptionCtor.apply(index, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
         }
@@ -165,7 +164,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         if (index.charAt(0) == '_' || index.charAt(0) == '-' || index.charAt(0) == '+') {
             throw exceptionCtor.apply(index, "must not start with '_', '-', or '+'");
         }
-        int byteCount = 0;
+        int byteCount;
         try {
             byteCount = index.getBytes("UTF-8").length;
         } catch (UnsupportedEncodingException e) {
@@ -221,6 +220,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
                 new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+
+                    private static final String INDEX_NAME_PLACEHOLDER = "{index}";
+
                     @Override
                     protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                         return new ClusterStateUpdateResponse(acknowledged);
@@ -296,8 +298,8 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                                     }
 
                                     //Allow templatesAliases to be templated by replacing a token with the name of the index that we are applying it to
-                                    if (aliasMetaData.alias().contains("{index}")) {
-                                        String templatedAlias = aliasMetaData.alias().replace("{index}", request.index());
+                                    if (aliasMetaData.alias().contains(INDEX_NAME_PLACEHOLDER)) {
+                                        String templatedAlias = aliasMetaData.alias().replace(INDEX_NAME_PLACEHOLDER, request.index());
                                         aliasMetaData = AliasMetaData.newAliasMetaData(aliasMetaData, templatedAlias);
                                     }
 
@@ -334,7 +336,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             indexSettingsBuilder.put(IndexMetaData.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
                             indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
                             final Index shrinkFromIndex = request.shrinkFrom();
-                            int routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());;
+                            int routingNumShards = IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexSettingsBuilder.build());
                             if (shrinkFromIndex != null) {
                                 prepareShrinkIndexSettings(currentState, mappings.keySet(), indexSettingsBuilder, shrinkFromIndex,
                                     request.index());

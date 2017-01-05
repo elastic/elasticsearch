@@ -137,10 +137,13 @@ public class SearchAsyncActionTests extends ESTestCase {
         latch.await();
         assertNotNull(response.get());
         assertFalse(nodeToContextMap.isEmpty());
-        assertTrue(nodeToContextMap.containsKey(primaryNode));
+        assertTrue(nodeToContextMap.toString(), nodeToContextMap.containsKey(primaryNode) || nodeToContextMap.containsKey(replicaNode));
         assertEquals(shardsIter.size(), numFreedContext.get());
-        assertTrue(nodeToContextMap.get(primaryNode).toString(), nodeToContextMap.get(primaryNode).isEmpty());
-
+        if (nodeToContextMap.containsKey(primaryNode)) {
+            assertTrue(nodeToContextMap.get(primaryNode).toString(), nodeToContextMap.get(primaryNode).isEmpty());
+        } else {
+            assertTrue(nodeToContextMap.get(replicaNode).toString(), nodeToContextMap.get(replicaNode).isEmpty());
+        }
     }
 
     private GroupShardsIterator getShardsIter(String index, int numShards, boolean doReplicas, DiscoveryNode primaryNode,

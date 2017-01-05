@@ -18,18 +18,26 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.PlainShardIterator;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
@@ -40,6 +48,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -48,9 +57,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Predicate;
 
-
+//nocommit this class needs more javadocs and must be unittested
 public final class RemoteClusterService extends AbstractComponent implements Closeable {
 
     /**
@@ -81,6 +91,9 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
      */
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString("search.remote.node_attribute",
         Setting.Property.NodeScope);
+
+    private static final char REMOTE_CLUSTER_INDEX_SEPARATOR = '|';
+
     private final TransportService transportService;
     private final int numRemoteConnections;
     private volatile Map<String, RemoteClusterConnection> remoteClusters = Collections.emptyMap();
@@ -91,6 +104,11 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         numRemoteConnections = REMOTE_CONNECTIONS_PER_CLUSTER.get(settings);
     }
 
+    /**
+     * This method updates the list of remote clusters. it's intendet to be used as a update consumer on the settings infrastructure
+     * @param seedSettings the group settings returned from {@link #REMOTE_CLUSTERS_SEEDS}
+     * @param connectionListener a listener invoked once every configured cluster has been connected to
+     */
     void updateRemoteClusters(Settings seedSettings, ActionListener<Void> connectionListener) {
         Map<String, RemoteClusterConnection> remoteClusters = new HashMap<>();
         Map<String, List<DiscoveryNode>> seeds = buildRemoteClustersSeeds(seedSettings);
@@ -139,6 +157,30 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         return remoteClusters.isEmpty() == false;
     }
 
+    public String[] filterIndices(Map<String, List<String>> perClusterIndices, String... requestIndices) {
+        List<String> localIndicesList = new ArrayList<>();
+        for (String index : requestIndices) {
+            int i = index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
+            if (i >= 0) {
+                String remoteCluster = index.substring(0, i);
+                if (isRemoteClusterRegistered(remoteCluster)) {
+                    String remoteIndex = index.substring(i + 1);
+                    List<String> indices = perClusterIndices.get(remoteCluster);
+                    if (indices == null) {
+                        indices = new ArrayList<>();
+                        perClusterIndices.put(remoteCluster, indices);
+                    }
+                    indices.add(remoteIndex);
+                } else {
+                    localIndicesList.add(index);
+                }
+            } else {
+                localIndicesList.add(index);
+            }
+        }
+        return localIndicesList.toArray(new String[localIndicesList.size()]);
+}
+
     /**
      * Returns <code>true</code> iff the given cluster is configured as a remote cluster. Otherwise <code>false</code>
      */
@@ -146,8 +188,8 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         return remoteClusters.containsKey(clusterName);
     }
 
-    void sendSearchShards(SearchRequest searchRequest, Map<String, List<String>> remoteIndicesByCluster,
-                          ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
+    void collectSearchShards(SearchRequest searchRequest, Map<String, List<String>> remoteIndicesByCluster,
+                             ActionListener<Map<String, ClusterSearchShardsResponse>> listener) {
         final CountDown responsesCountDown = new CountDown(remoteIndicesByCluster.size());
         final Map<String, ClusterSearchShardsResponse> searchShardsResponses = new ConcurrentHashMap<>();
         final AtomicReference<TransportException> transportException = new AtomicReference<>();
@@ -189,6 +231,47 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                     }
                 });
         }
+    }
+
+
+    Function<String, Transport.Connection> processRemoteShards(Map<String, ClusterSearchShardsResponse> searchShardsResponses,
+                                                                       List<ShardIterator> remoteShardIterators,
+                                                                       Map<String, AliasFilter> aliasFilterMap) {
+        Map<String, Supplier<Transport.Connection>> nodeToCluster = new HashMap<>();
+        for (Map.Entry<String, ClusterSearchShardsResponse> entry : searchShardsResponses.entrySet()) {
+            String clusterName = entry.getKey();
+            ClusterSearchShardsResponse searchShardsResponse = entry.getValue();
+            for (DiscoveryNode remoteNode : searchShardsResponse.getNodes()) {
+                nodeToCluster.put(remoteNode.getId(), () -> getConnection(remoteNode, clusterName));
+            }
+            Map<String, AliasFilter> indicesAndFilters = searchShardsResponse.getIndicesAndFilters();
+            for (ClusterSearchShardsGroup clusterSearchShardsGroup : searchShardsResponse.getGroups()) {
+                //add the cluster name to the remote index names for indices disambiguation
+                //this ends up in the hits returned with the search response
+                ShardId shardId = clusterSearchShardsGroup.getShardId();
+                Index remoteIndex = shardId.getIndex();
+                Index index = new Index(clusterName + REMOTE_CLUSTER_INDEX_SEPARATOR + remoteIndex.getName(), remoteIndex.getUUID());
+                ShardIterator shardIterator = new PlainShardIterator(new ShardId(index, shardId.getId()),
+                    Arrays.asList(clusterSearchShardsGroup.getShards()));
+                remoteShardIterators.add(shardIterator);
+                AliasFilter aliasFilter;
+                if (indicesAndFilters == null) {
+                    aliasFilter = new AliasFilter(null, Strings.EMPTY_ARRAY);
+                } else {
+                    aliasFilter = indicesAndFilters.get(shardId.getIndexName());
+                    assert aliasFilter != null;
+                }
+                // here we have to map the filters to the UUID since from now on we use the uuid for the lookup
+                aliasFilterMap.put(remoteIndex.getUUID(), aliasFilter);
+            }
+        }
+        return (nodeId) -> {
+            Supplier<Transport.Connection> supplier = nodeToCluster.get(nodeId);
+            if (supplier == null) {
+                throw new IllegalArgumentException("unknown remote node: " + nodeId);
+            }
+            return supplier.get();
+        };
     }
 
     /**

@@ -30,7 +30,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -55,24 +54,19 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -83,10 +77,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkModule;
@@ -98,7 +90,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -126,10 +117,7 @@ import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
-import org.elasticsearch.node.MockNode;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeMocksPlugin;
-import org.elasticsearch.node.NodeValidationException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
@@ -150,7 +138,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Inherited;
@@ -173,7 +160,6 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -350,7 +336,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static ESIntegTestCase INSTANCE = null; // see @SuiteScope
     private static Long SUITE_SEED = null;
-    private static Node searchProxyNode;
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -381,9 +366,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         cluster().beforeTest(random(), getPerTestTransportClientRatio());
         cluster().wipe(excludeTemplates());
         randomIndexTemplate();
-        if (useSearchProxyNode()) {
-            searchProxyNode = startSearchProxyNode();
-        }
     }
 
     private void printTestMessage(String message) {
@@ -556,7 +538,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     protected final void afterInternal(boolean afterClass) throws Exception {
         boolean success = false;
         try {
-
             final Scope currentClusterScope = getCurrentClusterScope();
             clearDisruptionScheme();
             try {
@@ -600,8 +581,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 if (currentClusterScope == Scope.TEST) {
                     clearClusters(); // it is ok to leave persistent / transient cluster state behind if scope is TEST
                 }
-                IOUtils.close(searchProxyNode);
-                searchProxyNode = null;
             }
             success = true;
         } finally {
@@ -654,53 +633,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Client client = cluster().client();
         if (frequently()) {
             client = new RandomizingClient(client, random());
-        }
-        if (searchProxyNode != null && randomBoolean()) {
-            client = new FilterClient(client) {
-                @Override
-                public SearchRequestBuilder prepareSearch(String... indices) {
-                    return searchProxyNode.client().prepareSearch(convertToRemoteIndices(indices));
-                }
-
-                private String[] convertToRemoteIndices(String[] indices) {
-                    if (Objects.requireNonNull(indices).length == 0) {
-                        return new String[] {"test_remote_cluster|_all"};
-                    }
-                    String [] remoteIndices = new String[indices.length];
-                    for (int i = 0; i < indices.length; i++) {
-                        remoteIndices[i] = "test_remote_cluster|"+ Objects.requireNonNull(indices[i]);
-                    }
-                    return remoteIndices;
-                }
-
-                @Override
-                public ActionFuture<SearchResponse> search(SearchRequest request) {
-                    // we copy the request to ensure we never modify the original request
-                    try (BytesStreamOutput out = new BytesStreamOutput()) {
-                        request.writeTo(out);
-                        SearchRequest copy = new SearchRequest();
-                        copy.readFrom(out.bytes().streamInput());
-                        copy.indices(convertToRemoteIndices(request.indices()));
-                        return searchProxyNode.client().search(copy);
-                    } catch (IOException ex) {
-                        throw new UncheckedIOException(ex);
-                    }
-                }
-
-                @Override
-                public void search(SearchRequest request, ActionListener<SearchResponse> listener) {
-                    // we copy the request to ensure we never modify the original request
-                    try (BytesStreamOutput out = new BytesStreamOutput()) {
-                        request.writeTo(out);
-                        SearchRequest copy = new SearchRequest();
-                        copy.readFrom(out.bytes().streamInput());
-                        copy.indices(convertToRemoteIndices(request.indices()));
-                        searchProxyNode.client().search(copy, listener);
-                    } catch (IOException ex) {
-                        throw new UncheckedIOException(ex);
-                    }
-                }
-            };
         }
         return client;
     }
@@ -2270,48 +2202,5 @@ public abstract class ESIntegTestCase extends ESTestCase {
         assertTrue("index " + index + " not found", getIndexResponse.getSettings().containsKey(index));
         String uuid = getIndexResponse.getSettings().get(index).get(IndexMetaData.SETTING_INDEX_UUID);
         return new Index(index, uuid);
-    }
-
-    protected boolean useSearchProxyNode() {
-        return false; // nocommit - lets enable this globally
-    }
-
-    private synchronized Node startSearchProxyNode() {
-        if (isInternalCluster()) {
-            final DiscoveryNode seedNode = internalCluster().getInstance(ClusterService.class).localNode();
-            final Path tempDir = createTempDir();
-            Settings settings = Settings.builder()
-                .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "search_proxy_" + internalCluster().getClusterName())
-                .put(Environment.PATH_HOME_SETTING.getKey(), tempDir)
-                .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo"))
-                .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir().getParent())
-                .put("search.remote.seeds.test_remote_cluster", seedNode.getAddress().toString())
-                .put("node.name", "node_prx_0")
-                .put(EsExecutors.PROCESSORS_SETTING.getKey(), 1) // limit the number of threads created
-                .put(NetworkModule.HTTP_ENABLED.getKey(), false)
-                .put("transport.type", MockTcpTransportPlugin.MOCK_TCP_TRANSPORT_NAME)
-                .put(Node.NODE_DATA_SETTING.getKey(), false)
-                .put(Node.NODE_MASTER_SETTING.getKey(), true)
-                .put(Node.NODE_INGEST_SETTING.getKey(), false)
-                .build();
-            Collection<Class<? extends Plugin>> plugins = nodePlugins();
-            if (plugins.contains(MockTcpTransportPlugin.class) == false) {
-                plugins = new ArrayList<>(plugins);
-                plugins.add(MockTcpTransportPlugin.class);
-            }
-            if (plugins.contains(TestZenDiscovery.TestPlugin.class) == false) {
-                plugins = new ArrayList<>(plugins);
-                plugins.add(TestZenDiscovery.TestPlugin.class);
-            }
-            Node build = new MockNode(settings, plugins);
-            try {
-                build.start();
-            } catch (NodeValidationException e) {
-                throw new RuntimeException(e);
-            }
-            return build;
-        } else {
-            return null;
-        }
     }
 }

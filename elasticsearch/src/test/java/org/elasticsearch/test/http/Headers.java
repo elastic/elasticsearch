@@ -7,6 +7,7 @@ package org.elasticsearch.test.http;
 
 import org.elasticsearch.common.SuppressForbidden;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -48,7 +49,16 @@ public class Headers {
      * @param value Value of the header
      */
     void add(String name, String value) {
-        this.headers.put(name, Collections.singletonList(value));
+        this.headers.compute(name, (k, v) -> {
+            if (v == null) {
+                return Collections.singletonList(value);
+            } else {
+                List<String> list = new ArrayList<>();
+                list.addAll(v);
+                list.add(value);
+                return list;
+            }
+        });
     }
 
     /**

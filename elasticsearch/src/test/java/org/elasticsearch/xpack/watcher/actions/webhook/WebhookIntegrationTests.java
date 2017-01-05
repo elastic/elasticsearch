@@ -5,10 +5,15 @@
  */
 package org.elasticsearch.xpack.watcher.actions.webhook;
 
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -20,6 +25,8 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -35,6 +42,16 @@ import static org.hamcrest.Matchers.notNullValue;
 public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     private MockWebServer webServer = new MockWebServer();;
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("http.enabled", true).build();
+    }
+
+    @Override
+    protected boolean enableSecurity() {
+        return true;
+    }
 
     @Before
     public void startWebservice() throws Exception {
@@ -52,7 +69,8 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .path(new TextTemplate("/test/_id"))
                 .putParam("param1", new TextTemplate("value1"))
                 .putParam("watch_id", new TextTemplate("_id"))
-                .body(new TextTemplate("_body"));
+                .body(new TextTemplate("_body"))
+                .method(HttpMethod.POST);
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()
@@ -68,7 +86,6 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
         }
 
         assertWatchWithMinimumPerformedActionsCount("_id", 1, false);
-
         assertThat(webServer.requests(), hasSize(1));
         assertThat(webServer.requests().get(0).getUri().getQuery(),
                 anyOf(equalTo("watch_id=_id&param1=value1"), equalTo("param1=value1&watch_id=_id")));
@@ -94,7 +111,8 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 .path(new TextTemplate("/test/_id"))
                 .putParam("param1", new TextTemplate("value1"))
                 .putParam("watch_id", new TextTemplate("_id"))
-                .body(new TextTemplate("_body"));
+                .body(new TextTemplate("_body"))
+                .method(HttpMethod.POST);
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()
@@ -116,5 +134,32 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
                 anyOf(equalTo("watch_id=_id&param1=value1"), equalTo("param1=value1&watch_id=_id")));
         assertThat(webServer.requests().get(0).getBody(), is("_body"));
         assertThat(webServer.requests().get(0).getHeader("Authorization"), is(("Basic X3VzZXJuYW1lOl9wYXNzd29yZA==")));
+    }
+
+    public void testWebhookWithTimebasedIndex() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("<logstash-{now/d}>").get());
+
+        HttpServerTransport serverTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
+        TransportAddress publishAddress = serverTransport.boundAddress().publishAddress();
+
+        String host = publishAddress.address().getHostString();
+        HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder(host, publishAddress.getPort())
+                .path(new TextTemplate("/%3Clogstash-%7Bnow%2Fd%7D%3E/log/1"))
+                .body(new TextTemplate("{\"foo\":\"bar\"}"))
+                .auth(new BasicAuth("test", "changeme".toCharArray()))
+                .method(HttpMethod.PUT);
+
+        watcherClient().preparePutWatch("_id")
+                .setSource(watchBuilder()
+                        .trigger(schedule(interval("5s")))
+                        .input(simpleInput("key", "value"))
+                        .condition(AlwaysCondition.INSTANCE)
+                        .addAction("_id", ActionBuilders.webhookAction(builder)))
+                .get();
+
+        watcherClient().prepareExecuteWatch("_id").get();
+
+        GetResponse response = client().prepareGet("<logstash-{now/d}>", "log", "1").get();
+        assertExists(response);
     }
 }

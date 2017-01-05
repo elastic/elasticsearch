@@ -47,8 +47,6 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-
-                // this is for the `test-watcher-integration` group level integration in HipChat
                 .put("xpack.notification.slack.account.test_account.url",
                         "https://hooks.slack.com/services/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")
                 .build();
@@ -81,7 +79,7 @@ public class SlackServiceTests extends AbstractWatcherIntegrationTestCase {
     public void testWatchWithSlackAction() throws Exception {
         String account = "test_account";
         SlackAction.Builder actionBuilder = slackAction(account, SlackMessage.Template.builder()
-                .setText("slack integration test` " + DateTime.now())
+                .setText("slack integration test `testWatchWithSlackAction()` " + DateTime.now())
                 .addTo("#watcher-test", "#watcher-test-2"));
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("1").setSource(watchBuilder()

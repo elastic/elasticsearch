@@ -6,8 +6,10 @@
 package org.elasticsearch.xpack.common.http;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -15,7 +17,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuthFactory;
@@ -32,15 +33,19 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -89,7 +94,6 @@ public class HttpClientTests extends ESTestCase {
         HttpRequest request = requestBuilder.build();
 
         HttpResponse response = httpClient.execute(request);
-
         assertThat(response.status(), equalTo(responseCode));
         assertThat(response.body().utf8ToString(), equalTo(body));
         assertThat(webServer.requests(), hasSize(1));
@@ -98,7 +102,6 @@ public class HttpClientTests extends ESTestCase {
         assertThat(webServer.requests().get(0).getHeader(headerKey), equalTo(headerValue));
     }
 
-    @TestLogging("org.elasticsearch.http.test:TRACE")
     public void testNoQueryString() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
@@ -114,7 +117,7 @@ public class HttpClientTests extends ESTestCase {
         assertThat(webServer.requests().get(0).getBody(), is(nullValue()));
     }
 
-    public void testUrlEncodingWithQueryStrings() throws Exception{
+    public void testUrlEncodingWithQueryStrings() throws Exception {
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
         HttpRequest.Builder requestBuilder = HttpRequest.builder("localhost", webServer.getPort())
                 .method(HttpMethod.GET)
@@ -216,9 +219,9 @@ public class HttpClientTests extends ESTestCase {
     public void testHttpsClientAuth() throws Exception {
         Path resource = getDataPath("/org/elasticsearch/xpack/security/keystore/testnode.jks");
         Settings settings = Settings.builder()
-                    .put("xpack.ssl.keystore.path", resource.toString())
-                    .put("xpack.ssl.keystore.password", "testnode")
-                    .build();
+                .put("xpack.ssl.keystore.path", resource.toString())
+                .put("xpack.ssl.keystore.password", "testnode")
+                .build();
 
         TestsSSLService sslService = new TestsSSLService(settings, environment);
         httpClient = new HttpClient(settings, authRegistry, sslService);
@@ -329,11 +332,31 @@ public class HttpClientTests extends ESTestCase {
         }
     }
 
+    public void testThatProxyConfigurationRequiresHostAndPort() {
+        Settings.Builder settings = Settings.builder();
+        if (randomBoolean()) {
+            settings.put(HttpSettings.PROXY_HOST.getKey(), "localhost");
+        } else {
+            settings.put(HttpSettings.PROXY_PORT.getKey(), 8080);
+        }
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+                () -> new HttpClient(settings.build(), authRegistry, new SSLService(settings.build(), environment)));
+        assertThat(e.getMessage(),
+                containsString("HTTP proxy requires both settings: [xpack.http.proxy.host] and [xpack.http.proxy.port]"));
+    }
+
     public void testThatUrlPathIsNotEncoded() throws Exception {
         // %2F is a slash that needs to be encoded to not be misinterpreted as a path
         String path = "/%3Clogstash-%7Bnow%2Fd%7D%3E/_search";
         webServer.enqueue(new MockResponse().setResponseCode(200).setBody("foo"));
-        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path(path).build();
+        HttpRequest request;
+        if (randomBoolean()) {
+            request = HttpRequest.builder("localhost", webServer.getPort()).path(path).build();
+        } else {
+            // ensure that fromUrl acts the same way than the above builder
+            request = HttpRequest.builder().fromUrl(String.format(Locale.ROOT, "http://localhost:%s%s", webServer.getPort(), path)).build();
+        }
         httpClient.execute(request);
 
         assertThat(webServer.requests(), hasSize(1));
@@ -342,6 +365,36 @@ public class HttpClientTests extends ESTestCase {
         assertThat(webServer.requests(), hasSize(1));
         assertThat(webServer.requests().get(0).getUri().getRawPath(), not(containsString("%25")));
         assertThat(webServer.requests().get(0).getUri().getPath(), is("/<logstash-{now/d}>/_search"));
+    }
+
+    public void testThatDuplicateHeaderKeysAreReturned() throws Exception {
+        MockResponse mockResponse = new MockResponse().setResponseCode(200).setBody("foo")
+                .addHeader("foo", "bar")
+                .addHeader("foo", "baz")
+                .addHeader("Content-Length", "3");
+        webServer.enqueue(mockResponse);
+
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path("/").build();
+        HttpResponse httpResponse = httpClient.execute(request);
+
+        assertThat(webServer.requests(), hasSize(1));
+
+        assertThat(httpResponse.headers(), hasKey("foo"));
+        assertThat(httpResponse.headers().get("foo"), containsInAnyOrder("bar", "baz"));
+    }
+
+    // finally fixing https://github.com/elastic/x-plugins/issues/1141 - yay! Fixed due to switching to apache http client internally!
+    public void testThatClientTakesTimeoutsIntoAccountAfterHeadersAreSent() throws Exception {
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("foo").setBodyDelay(TimeValue.timeValueSeconds(2)));
+
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path("/foo")
+                .method(HttpMethod.POST)
+                .body("foo")
+                .connectionTimeout(TimeValue.timeValueMillis(500))
+                .readTimeout(TimeValue.timeValueMillis(500))
+                .build();
+        SocketTimeoutException e = expectThrows(SocketTimeoutException.class, () -> httpClient.execute(request));
+        assertThat(e.getMessage(), is("Read timed out"));
     }
 
     public void testThatHttpClientFailsOnNonHttpResponse() throws Exception {
@@ -360,11 +413,19 @@ public class HttpClientTests extends ESTestCase {
                 }
             });
             HttpRequest request = HttpRequest.builder("localhost", serverSocket.getLocalPort()).path("/").build();
-            IOException e = expectThrows(IOException.class, () -> httpClient.execute(request));
-            assertThat(e.getMessage(), is("Not a valid HTTP response, no status code in response"));
+            expectThrows(ClientProtocolException.class, () -> httpClient.execute(request));
             assertThat("A server side exception occured, but shouldnt", hasExceptionHappened.get(), is(nullValue()));
         } finally {
             terminate(executor);
         }
+    }
+
+    public void testNoContentResponse() throws Exception {
+        int noContentStatusCode = 204;
+        webServer.enqueue(new MockResponse().setResponseCode(noContentStatusCode));
+        HttpRequest request = HttpRequest.builder("localhost", webServer.getPort()).path("/foo").build();
+        HttpResponse response = httpClient.execute(request);
+        assertThat(response.status(), is(noContentStatusCode));
+        assertThat(response.body(), is(nullValue()));
     }
 }

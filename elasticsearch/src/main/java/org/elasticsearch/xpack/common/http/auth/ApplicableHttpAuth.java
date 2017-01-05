@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.common.http.auth;
 
+import org.apache.http.auth.AuthScope;
+import org.apache.http.client.CredentialsProvider;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -13,7 +15,7 @@ import java.net.HttpURLConnection;
 
 public abstract class ApplicableHttpAuth<Auth extends HttpAuth> implements ToXContent {
 
-    private final Auth auth;
+    protected final Auth auth;
 
     public ApplicableHttpAuth(Auth auth) {
         this.auth = auth;
@@ -24,6 +26,8 @@ public abstract class ApplicableHttpAuth<Auth extends HttpAuth> implements ToXCo
     }
 
     public abstract void apply(HttpURLConnection connection);
+
+    public abstract void apply(CredentialsProvider credsProvider, AuthScope authScope);
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

@@ -5,20 +5,25 @@
  */
 package org.elasticsearch.xpack.common.http.auth.basic;
 
+import org.apache.http.auth.AuthScope;
+import org.apache.http.auth.UsernamePasswordCredentials;
+import org.apache.http.client.CredentialsProvider;
+import org.elasticsearch.xpack.common.http.auth.ApplicableHttpAuth;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
+
 import java.net.HttpURLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
-import org.elasticsearch.xpack.common.http.auth.ApplicableHttpAuth;
-import org.elasticsearch.xpack.security.crypto.CryptoService;
-
 public class ApplicableBasicAuth extends ApplicableHttpAuth<BasicAuth> {
 
     private final String basicAuth;
+    private final CryptoService cryptoService;
 
     public ApplicableBasicAuth(BasicAuth auth, CryptoService service) {
         super(auth);
         basicAuth = headerValue(auth.username, auth.password.text(service));
+        this.cryptoService = service;
     }
 
     public static String headerValue(String username, char[] password) {
@@ -27,6 +32,12 @@ public class ApplicableBasicAuth extends ApplicableHttpAuth<BasicAuth> {
 
     public void apply(HttpURLConnection connection) {
         connection.setRequestProperty("Authorization", basicAuth);
+    }
+
+    @Override
+    public void apply(CredentialsProvider credsProvider, AuthScope authScope) {
+        credsProvider.setCredentials(authScope,
+                new UsernamePasswordCredentials(auth.username, new String(auth.password.text(cryptoService))));
     }
 
 }

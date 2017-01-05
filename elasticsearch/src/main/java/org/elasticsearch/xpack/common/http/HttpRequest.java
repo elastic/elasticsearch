@@ -460,8 +460,8 @@ public class HttpRequest implements ToXContent {
                 scheme = Scheme.parse(uri.getScheme());
                 port = uri.getPort() > 0 ? uri.getPort() : scheme.defaultPort();
                 host = uri.getHost();
-                if (Strings.hasLength(uri.getPath())) {
-                    path = uri.getPath();
+                if (Strings.hasLength(uri.getRawPath())) {
+                    path = uri.getRawPath();
                 }
                 String rawQuery = uri.getRawQuery();
                 if (Strings.hasLength(rawQuery)) {

@@ -5,18 +5,15 @@
  */
 package org.elasticsearch.xpack.watcher.client;
 
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
-import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
+import org.elasticsearch.xpack.watcher.condition.Condition;
 import org.elasticsearch.xpack.watcher.input.Input;
 import org.elasticsearch.xpack.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.watcher.support.Exceptions;
@@ -31,7 +28,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
-public class WatchSourceBuilder implements ToXContent {
+public class WatchSourceBuilder extends ToXContentToBytes implements ToXContent {
 
     private Trigger trigger;
     private Input input = NoneInput.INSTANCE;
@@ -163,17 +160,6 @@ public class WatchSourceBuilder implements ToXContent {
         }
 
         return builder.endObject();
-    }
-
-    public BytesReference buildAsBytes(XContentType contentType) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return builder.bytes();
-        } catch (IOException ioe) {
-            // todo think of a better std exception for this
-            throw new ElasticsearchException("failed to render watch source as bytes", ioe);
-        }
     }
 
     static class TransformedAction implements ToXContent {

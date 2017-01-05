@@ -98,10 +98,11 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
                 List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
                 while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                     parsedScriptFields.add(new SearchSourceBuilder.ScriptField(new QueryParseContext(p, ParseFieldMatcher.STRICT)));
-                }
-                Collections.sort(parsedScriptFields, Comparator.comparing((Function<SearchSourceBuilder.ScriptField, String>) f -> f.fieldName()));
-                return parsedScriptFields;
-            }, SCRIPT_FIELDS);
+            }
+            Collections.sort(parsedScriptFields,
+                    Comparator.comparing((Function<SearchSourceBuilder.ScriptField, String>) f -> f.fieldName()));
+            return parsedScriptFields;
+        }, SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
     }
 

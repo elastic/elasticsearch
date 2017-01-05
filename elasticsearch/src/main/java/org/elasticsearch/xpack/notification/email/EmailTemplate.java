@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.notification.email;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class EmailTemplate implements ToXContent {
+public class EmailTemplate implements ToXContentObject {
 
     final TextTemplate from;
     final TextTemplate[] replyTo;

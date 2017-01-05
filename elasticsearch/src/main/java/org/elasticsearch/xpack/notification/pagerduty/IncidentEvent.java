@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.http.HttpMethod;
@@ -35,7 +36,7 @@ import java.util.Objects;
  * https://developer.pagerduty.com/documentation/integration/events/acknowledge
  * https://developer.pagerduty.com/documentation/integration/events/resolve
  */
-public class IncidentEvent implements ToXContent {
+public class IncidentEvent implements ToXContentObject {
 
     static final String HOST = "events.pagerduty.com";
     static final String PATH = "/generic/2010-04-15/create_event.json";

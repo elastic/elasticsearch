@@ -7,13 +7,13 @@ package org.elasticsearch.xpack.common.http.auth;
 
 import org.apache.http.auth.AuthScope;
 import org.apache.http.client.CredentialsProvider;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
 
-public abstract class ApplicableHttpAuth<Auth extends HttpAuth> implements ToXContent {
+public abstract class ApplicableHttpAuth<Auth extends HttpAuth> implements ToXContentObject {
 
     protected final Auth auth;
 

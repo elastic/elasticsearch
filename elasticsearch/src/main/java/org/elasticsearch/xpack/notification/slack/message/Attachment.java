@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.notification.slack.message;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -142,7 +142,7 @@ public class Attachment implements MessageElement {
         return builder.endObject();
     }
 
-    static class Template implements ToXContent {
+    static class Template implements ToXContentObject {
 
         final TextTemplate fallback;
         final TextTemplate color;

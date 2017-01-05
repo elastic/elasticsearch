@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.trigger;
 
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public interface Trigger extends ToXContent {
+public interface Trigger extends ToXContentObject {
 
     String type();
 

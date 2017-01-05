@@ -9,6 +9,7 @@ import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.throttler.Throttler;
@@ -162,7 +163,7 @@ public class WatchSourceBuilder extends ToXContentToBytes implements ToXContent 
         return builder.endObject();
     }
 
-    static class TransformedAction implements ToXContent {
+    static class TransformedAction implements ToXContentObject {
 
         private final String id;
         private final Action action;

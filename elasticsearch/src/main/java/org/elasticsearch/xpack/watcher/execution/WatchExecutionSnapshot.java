@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
 import org.joda.time.DateTime;
@@ -17,7 +17,7 @@ import org.joda.time.DateTimeZone;
 import java.io.IOException;
 import java.util.Map;
 
-public class WatchExecutionSnapshot implements Streamable, ToXContent {
+public class WatchExecutionSnapshot implements Streamable, ToXContentObject {
 
     private String watchId;
     private String watchRecordId;

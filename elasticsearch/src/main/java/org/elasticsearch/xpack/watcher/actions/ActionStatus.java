@@ -11,6 +11,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTime;
@@ -23,7 +24,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.dateTimeFormatter;
 
-public class ActionStatus implements ToXContent {
+public class ActionStatus implements ToXContentObject {
 
     private AckStatus ackStatus;
     @Nullable private Execution lastExecution;

@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,7 +38,7 @@ import java.util.Map;
  * A holder for a Role that contains user-readable information about the Role
  * without containing the actual Role object.
  */
-public class RoleDescriptor implements ToXContent {
+public class RoleDescriptor implements ToXContentObject {
 
     private final String name;
     private final String[] clusterPrivileges;

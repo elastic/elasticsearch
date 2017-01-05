@@ -12,7 +12,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
@@ -30,7 +30,7 @@ import java.util.Objects;
  * A {@link WatcherSearchTemplateRequest} contains the search request and the eventual template that will
  * be rendered as a script by {@link WatcherSearchTemplateService} before being executed.
  */
-public class WatcherSearchTemplateRequest implements ToXContent {
+public class WatcherSearchTemplateRequest implements ToXContentObject {
 
     private final String[] indices;
     private final String[] types;

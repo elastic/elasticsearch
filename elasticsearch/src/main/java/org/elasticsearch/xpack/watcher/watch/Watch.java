@@ -15,7 +15,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.secret.Secret;
@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.trigger.Trigger;
@@ -45,17 +44,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
 import static org.joda.time.DateTimeZone.UTC;
 
-public class Watch implements TriggerEngine.Job, ToXContent {
+public class Watch implements TriggerEngine.Job, ToXContentObject {
 
     public static final String ALL_ACTIONS_ID = "_all";
     public static final String INCLUDE_STATUS_KEY = "include_status";
@@ -195,12 +192,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         }
         builder.endObject();
         return builder;
-    }
-
-    public BytesReference getAsBytes() throws IOException {
-        // we don't want to cache this and instead rebuild it every time on demand. The watch is in
-        // memory and we don't need this redundancy
-        return toXContent(jsonBuilder(), WatcherParams.builder().put(Watch.INCLUDE_STATUS_KEY, true).build()).bytes();
     }
 
     public static class Parser extends AbstractComponent {

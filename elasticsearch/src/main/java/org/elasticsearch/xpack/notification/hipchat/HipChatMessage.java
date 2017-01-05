@@ -10,6 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -23,7 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-public class HipChatMessage implements ToXContent {
+public class HipChatMessage implements ToXContentObject {
 
     final String body;
     @Nullable final String[] rooms;

@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.joda.time.DateTime;
@@ -31,7 +32,7 @@ import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
 
-public class Email implements ToXContent {
+public class Email implements ToXContentObject {
 
     final String id;
     final Address from;

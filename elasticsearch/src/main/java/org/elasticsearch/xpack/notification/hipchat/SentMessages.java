@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.notification.hipchat;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
@@ -17,7 +18,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 
-public class SentMessages implements ToXContent, Iterable<SentMessages.SentMessage> {
+public class SentMessages implements ToXContentObject, Iterable<SentMessages.SentMessage> {
 
     private String accountName;
     private List<SentMessage> messages;

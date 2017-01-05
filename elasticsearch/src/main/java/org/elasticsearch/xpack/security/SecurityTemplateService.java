@@ -41,7 +41,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
@@ -241,15 +240,7 @@ public class SecurityTemplateService extends AbstractComponent implements Cluste
 
     public static Version oldestSecurityIndexMappingVersion(ClusterState clusterState, Logger logger) {
         final Set<Version> versions = securityIndexMappingVersions(clusterState, logger);
-        return versions.stream().min((o1, o2) -> {
-            if(o1.before(o2)) {
-                return -1;
-            }
-            if(o1.after(o2)) {
-                return +1;
-            }
-            return 0;
-        }).orElse(null);
+        return versions.stream().min(Version::compareTo).orElse(null);
     }
 
     private static Set<Version> securityIndexMappingVersions(ClusterState clusterState, Logger logger) {

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.rest.action;
 
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -30,7 +30,7 @@ import java.util.function.Function;
 /**
  * Content listener that extracts that {@link RestStatus} from the response.
  */
-public class RestStatusToXContentListener<Response extends StatusToXContent> extends RestToXContentListener<Response> {
+public class RestStatusToXContentListener<Response extends StatusToXContentObject> extends RestToXContentListener<Response> {
     private final Function<Response, String> extractLocation;
 
     /**
@@ -53,7 +53,8 @@ public class RestStatusToXContentListener<Response extends StatusToXContent> ext
 
     @Override
     public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-        toXContent(response, builder);
+        assert response.isFragment() == false; //would be nice if we could make default methods final
+        response.toXContent(builder, channel.request());
         RestResponse restResponse = new BytesRestResponse(response.status(), builder);
         if (RestStatus.CREATED == restResponse.status()) {
             String location = extractLocation.apply(response);

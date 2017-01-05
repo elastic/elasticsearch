@@ -27,8 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -43,7 +42,7 @@ import java.util.Locale;
 /**
  * A base class for the response of a write operation that involves a single doc
  */
-public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContent, ToXContentObject {
+public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContentObject {
 
     /**
      * An enum that represents the the results of CRUD operations, primarily used to communicate the type of

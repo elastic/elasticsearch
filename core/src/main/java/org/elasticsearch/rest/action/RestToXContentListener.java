@@ -20,19 +20,18 @@
 package org.elasticsearch.rest.action;
 
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.IOException;
-
 /**
  * A REST based action listener that assumes the response is of type {@link ToXContent} and automatically
  * builds an XContent based response (wrapping the toXContent in startObject/endObject).
  */
-public class RestToXContentListener<Response extends ToXContent> extends RestResponseListener<Response> {
+public class RestToXContentListener<Response extends ToXContentObject> extends RestResponseListener<Response> {
 
     public RestToXContentListener(RestChannel channel) {
         super(channel);
@@ -43,19 +42,9 @@ public class RestToXContentListener<Response extends ToXContent> extends RestRes
         return buildResponse(response, channel.newBuilder());
     }
 
-    protected final void toXContent(Response response, XContentBuilder builder) throws IOException {
-        final boolean needsNewObject = response.isFragment();
-        if (needsNewObject) {
-            builder.startObject();
-        }
-        response.toXContent(builder, channel.request());
-        if (needsNewObject) {
-            builder.endObject();
-        }
-    }
-
     public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-        toXContent(response, builder);
+        assert response.isFragment() == false; //would be nice if we could make default methods final
+        response.toXContent(builder, channel.request());
         return new BytesRestResponse(getStatus(response), builder);
     }
 

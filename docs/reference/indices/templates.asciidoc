@@ -229,3 +229,39 @@ This should give a small response that makes it both easy and inexpensive to par
 }
 --------------------------------------------------
 // TESTRESPONSE
+
+[float]
+[[infer]]
+=== Infer Index Name from Alias Name
+
+It is possible to define that the index name will be inferred from an alias by specifying `"infer_index_name_from_alias" : true` in the template definition.
+In this case, prior to creating a new index, the index name will be inferred from one of the templates' aliases if the inferred index name will match the templates's pattern.
+
+This is useful in case all requests to the index (including the first request) are done by the alias, for example:
+[source,js]
+--------------------------------------------------
+PUT _template/template_1
+{
+    "index_patterns" : ["te*"],
+    "infer_index_name_from_alias" : true,
+    "settings" : {
+        "number_of_shards" : 1
+    },
+    "aliases" : {
+        "{index}-alias" : {}
+    }
+}
+
+POST template-alias/type1
+{
+    "field01" : "value01"
+}
+--------------------------------------------------
+// CONSOLE
+
+In the above example an index named `template` and an alias named `template-alias` will be created.
+In case `infer_index_name_from_alias` is `false` or not specified an index named `template-alias` and an alias named `template-alias-alias` will be created.
+
+<1> Only aliases containing `{index}` will be used to infer the index name.
+<2> In case multiple templates matched a request, higher order templates will be used first to try to infer. First match will be used for the index name.
+<3> Inferring index name also works when using <<date-math-index-names, date math index names>>.

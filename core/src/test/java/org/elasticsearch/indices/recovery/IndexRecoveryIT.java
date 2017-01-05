@@ -727,14 +727,14 @@ public class IndexRecoveryIT extends ESIntegTestCase {
             }
         });
 
-        final AtomicBoolean seenWaitForClusterState = new AtomicBoolean();
+        final AtomicBoolean finalized = new AtomicBoolean();
         blueMockTransportService.addDelegate(redMockTransportService, new MockTransportService.DelegateTransport(blueMockTransportService.original()) {
             @Override
             public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
                                     TransportRequestOptions options) throws IOException {
                 logger.info("--> sending request {} on {}", action, node);
-                if (action.equals(PeerRecoveryTargetService.Actions.WAIT_CLUSTERSTATE)) {
-                    seenWaitForClusterState.set(true);
+                if (action.equals(PeerRecoveryTargetService.Actions.FINALIZE)) {
+                    finalized.set(true);
                 }
                 super.sendRequest(node, requestId, action, request, options);
             }
@@ -746,7 +746,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
                                            TransportRequestOptions options) throws IOException {
                     logger.info("--> sending request {} on {}", action, node);
-                    if (primaryRelocation == false || seenWaitForClusterState.get() == false) {
+                    if ((primaryRelocation && finalized.get()) == false) {
                         assertNotEquals(action, ShardStateAction.SHARD_FAILED_ACTION_NAME);
                     }
                     super.sendRequest(node, requestId, action, request, options);

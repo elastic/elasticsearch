@@ -92,7 +92,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString("search.remote.node_attribute",
         Setting.Property.NodeScope);
 
-    private static final char REMOTE_CLUSTER_INDEX_SEPARATOR = '|';
+    private static final char REMOTE_CLUSTER_INDEX_SEPARATOR = ':';
 
     private final TransportService transportService;
     private final int numRemoteConnections;

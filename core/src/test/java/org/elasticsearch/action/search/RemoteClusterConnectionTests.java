@@ -75,7 +75,11 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    public MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version) {
+    private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version) {
+        return startTransport(id, knownNodes, version, threadPool);
+    }
+
+    public static MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version, ThreadPool threadPool) {
         boolean success = false;
         MockTransportService newService = MockTransportService.createNewService(Settings.EMPTY, version, threadPool, null);
         try {

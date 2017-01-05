@@ -35,11 +35,11 @@ search:
 === Using cross cluster search
 
 To search the `twitter` index on remote cluster `cluster_1` the index name must be prefixed with the cluster name
-separated by a `|` character:
+separated by a `:` character:
 
 [source,js]
 --------------------------------------------------
-POST /cluster_1|twitter/tweet/_search
+POST /cluster_one:twitter/tweet/_search
 {
     "match_all": {}
 }
@@ -50,7 +50,7 @@ In contrast to the `tribe` feature cross cluster search can also search indices 
 
 [source,js]
 --------------------------------------------------
-POST /cluster_1|twitter,twitter/tweet/_search
+POST /cluster_one:twitter,twitter/tweet/_search
 {
     "match_all": {}
 }
@@ -75,7 +75,7 @@ will be prefixed with it's remote clusters name:
     "max_score" : 1.0,
     "hits" : [
       {
-        "_index" : "cluster_1|twitter",
+        "_index" : "cluster_one:twitter",
         "_type" : "tweet",
         "_id" : "1",
         "_score" : 1.0,
@@ -86,7 +86,7 @@ will be prefixed with it's remote clusters name:
         }
       },
       {
-        "_index" : "cluster_1|twitter",
+        "_index" : "twitter",
         "_type" : "tweet",
         "_id" : "1",
         "_score" : 1.0,

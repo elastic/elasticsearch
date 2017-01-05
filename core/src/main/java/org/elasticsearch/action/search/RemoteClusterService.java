@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsResponse;
@@ -33,6 +34,8 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
@@ -48,7 +51,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 
-public final class RemoteClusterService extends AbstractComponent {
+public final class RemoteClusterService extends AbstractComponent implements Closeable {
 
     /**
      * A list of initial seed nodes to discover eligibale nodes from the remote cluster
@@ -280,5 +283,10 @@ public final class RemoteClusterService extends AbstractComponent {
         } catch (Exception e) {
             throw new IllegalStateException("failed to connect to remote clusters", e);
         }
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOUtils.close(remoteClusters.values());
     }
 }

@@ -407,7 +407,9 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     protected void doStop() {}
 
     @Override
-    protected void doClose() throws IOException {}
+    protected void doClose() throws IOException {
+        remoteClusterService.close();
+    }
 
 
 }

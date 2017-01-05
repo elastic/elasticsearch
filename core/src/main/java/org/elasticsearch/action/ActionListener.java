@@ -65,4 +65,53 @@ public interface ActionListener<Response> {
             }
         };
     }
+
+    /**
+     * Notifies every given listener with the response passed to {@link #onResponse(Object)}. If a listener itself throws an exception
+     * the exception is forwarded to {@link #onFailure(Exception)}. If in turn {@link #onFailure(Exception)} fails all remaining
+     * listeners will be processed and the caught exception will be re-thrown.
+     */
+    static <Response> void onResponse(Iterable<ActionListener<Response>> listeners, Response response) {
+        RuntimeException exception = null;
+        for (ActionListener<Response> listener : listeners) {
+            try {
+                listener.onResponse(response);
+            } catch (Exception ex) {
+                try {
+                    listener.onFailure(ex);
+                } catch (Exception ex1) {
+                    if (exception != null) {
+                        exception = new RuntimeException(ex1);
+                    } else {
+                        exception.addSuppressed(ex1);
+                    }
+                }
+            }
+        }
+        if (exception != null) {
+            throw exception;
+        }
+    }
+
+    /**
+     * Notifies every given listener with the failure passed to {@link #onFailure(Exception)}. If a listener itself throws an exception
+     * all remaining listeners will be processed and the caught exception will be re-thrown.
+     */
+    static <Response> void onFailure(Iterable<ActionListener<Response>> listeners, Exception failure) {
+        RuntimeException exception = null;
+        for (ActionListener<Response> listener : listeners) {
+            try {
+                listener.onFailure(failure);
+            } catch (Exception ex) {
+                if (exception != null) {
+                    exception = new RuntimeException(ex);
+                } else {
+                    exception.addSuppressed(ex);
+                }
+            }
+        }
+        if (exception != null) {
+            throw exception;
+        }
+    }
 }

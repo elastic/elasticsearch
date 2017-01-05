@@ -32,7 +32,10 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -58,6 +61,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
@@ -65,7 +69,7 @@ import java.util.function.Predicate;
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
  * current node is part of the cluster and it won't receive cluster state updated from the remote cluster. Remote clusters are also not
- * fully connected with the current node. From a connectin perspective a local cluster forms a bi-directional star network while in the
+ * fully connected with the current node. From a connection perspective a local cluster forms a bi-directional star network while in the
  * remote case we only connect to a subset of the nodes in the cluster in an uni-directional fashion.
  *
  * This class also handles the discovery of nodes from the remote cluster. The initial list of seed nodes is only used to discover all nodes
@@ -94,7 +98,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      * @param seedNodes a list of seed nodes to discover eligible nodes from
      * @param transportService the local nodes transport service
      * @param maxNumRemoteConnections the maximum number of connections to the remote cluster
-     * @param nodePredicate a predicate to filter eligable remote nodes to connect to
+     * @param nodePredicate a predicate to filter eligible remote nodes to connect to
      */
     RemoteClusterConnection(Settings settings, String clusterName, List<DiscoveryNode> seedNodes,
                                    TransportService transportService, int maxNumRemoteConnections, Predicate<DiscoveryNode> nodePredicate) {
@@ -235,20 +239,41 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         connectHandler.close();
     }
 
-    // TODO document this class
+    /**
+     * The connect handler manages node discovery and the actual connect to the remote cluster.
+     * There is at most one connect job running at any time. If such a connect job is triggered
+     * while another job is running the provided listeners are queued and batched up once the current running job returns.
+     *
+     * The handler has ab built-in queue that can hold up to 100 connect attempts and will reject request once the queue is full.
+     * In a scenario when a remote cluster becomes unavailable we will queue up immediate request but if we can't connect quick enough
+     * we will just reject the connect trigger which will lead to failing searches.
+     */
     private class ConnectHandler implements Closeable {
         private final Semaphore running = new Semaphore(1);
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final BlockingQueue<ActionListener<Void>> queue = new ArrayBlockingQueue<>(100);
+        private final CancellableThreads cancellableThreads = new CancellableThreads();
 
+        /**
+         * Triggers a connect round iff there are pending requests queued up and if there is no
+         * connect round currently running.
+         */
         void maybeConnect() {
             connect(null);
         }
 
+        /**
+         * Triggers a connect round unless there is one running already. If there is a connect round running, the listener will either
+         * be queued or rejected and failed.
+         */
         void connect(ActionListener<Void> connectListener) {
             connect(connectListener, false);
         }
 
+        /**
+         * Triggers a connect round unless there is one already running. In contrast to {@link #maybeConnect()} will this method also
+         * trigger a connect round if there is no listener queued up.
+         */
         void forceConnect() {
             connect(null, true);
         }
@@ -258,20 +283,19 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             final Collection<ActionListener<Void>> toNotify;
             synchronized (queue) {
                 if (connectListener != null && queue.offer(connectListener) == false) {
-                    throw new IllegalStateException("connect queue is full");
+                    connectListener.onFailure(new RejectedExecutionException("connect queue is full"));
+                    return;
                 }
                 if (forceRun == false && queue.isEmpty()) {
                     return;
                 }
                 runConnect = running.tryAcquire();
-
                 if (runConnect) {
                     toNotify = new ArrayList<>();
                     queue.drainTo(toNotify);
                     if (closed.get()) {
-                        for (ActionListener<Void> listener : toNotify) {
-                            listener.onFailure(new AlreadyClosedException("connect handler is already closed"));
-                        }
+                        running.release();
+                        ActionListener.onFailure(toNotify, new AlreadyClosedException("connect handler is already closed"));
                         return;
                     }
                 } else {
@@ -292,33 +316,36 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                     synchronized (queue) {
                         running.release();
                     }
-                    for (ActionListener<Void> queuedListener : toNotify) {
-                        queuedListener.onFailure(e);
+                    try {
+                        ActionListener.onFailure(toNotify, e);
+                    } finally {
+                        maybeConnect();
                     }
                 }
 
                 @Override
                 protected void doRun() throws Exception {
                     ActionListener<Void> listener = ActionListener.wrap((x) -> {
-                            synchronized (queue) {
-                                running.release();
-                            }
-                            for (ActionListener<Void> queuedListener : toNotify) {
-                                queuedListener.onResponse(x);
-                            }
+                        synchronized (queue) {
+                            running.release();
+                        }
+                        try {
+                            ActionListener.onResponse(toNotify, x);
+                        } finally {
                             maybeConnect();
-                        },
-                        (e) -> {
-                            synchronized (queue) {
-                                running.release();
-                            }
-                            for (ActionListener<Void> queuedListener : toNotify) {
-                                queuedListener.onFailure(e);
-                            }
+                        }
+
+                    }, (e) -> {
+                        synchronized (queue) {
+                            running.release();
+                        }
+                        try {
+                            ActionListener.onFailure(toNotify, e);
+                        } finally {
                             maybeConnect();
-                        });
-                    Iterator<DiscoveryNode> iterator = Collections.synchronizedList(seedNodes).iterator();
-                    collectRemoteNodes(iterator, transportService, listener);
+                        }
+                    });
+                    collectRemoteNodes(seedNodes.iterator(), transportService, listener);
                 }
             });
 
@@ -328,88 +355,37 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                                 final TransportService transportService, ActionListener<Void> listener) {
             try {
                 if (seedNodes.hasNext()) {
-                    final DiscoveryNode seedNode = seedNodes.next();
-                    final DiscoveryNode handshakeNode;
-                    Transport.Connection connection = transportService.openConnection(seedNode,
-                        ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null,null));
-                    boolean success = false;
-                    try  {
-                        handshakeNode = transportService.handshake(connection, remoteProfile.getHandshakeTimeout().millis(),
-                            (c) -> true);
-                        if (nodePredicate.test(handshakeNode) && connectedNodes.size() < maxNumRemoteConnections) {
-                            transportService.connectToNode(handshakeNode, remoteProfile);
-                            connectedNodes.add(handshakeNode);
+                    cancellableThreads.executeIO(() -> {
+                        final DiscoveryNode seedNode = seedNodes.next();
+                        final DiscoveryNode handshakeNode;
+                        Transport.Connection connection = transportService.openConnection(seedNode,
+                            ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, null, null));
+                        boolean success = false;
+                        try {
+                            handshakeNode = transportService.handshake(connection, remoteProfile.getHandshakeTimeout().millis(),
+                                (c) -> true);
+                            if (nodePredicate.test(handshakeNode) && connectedNodes.size() < maxNumRemoteConnections) {
+                                transportService.connectToNode(handshakeNode, remoteProfile);
+                                connectedNodes.add(handshakeNode);
+                            }
+                            ClusterStateRequest request = new ClusterStateRequest();
+                            request.clear();
+                            request.nodes(true);
+                            transportService.sendRequest(connection,
+                                ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
+                                new StateResponseHandler(transportService, connection, listener, seedNodes, cancellableThreads));
+                            success = true;
+                        } finally {
+                            if (success == false) {
+                                connection.close();
+                            }
                         }
-                        ClusterStateRequest request = new ClusterStateRequest();
-                        request.clear();
-                        request.nodes(true);
-                        transportService.sendRequest(connection,
-                            ClusterStateAction.NAME, request, TransportRequestOptions.EMPTY,
-                            new TransportResponseHandler<ClusterStateResponse>() {
-
-                                @Override
-                                public ClusterStateResponse newInstance() {
-                                    return new ClusterStateResponse();
-                                }
-
-                                @Override
-                                public void handleResponse(ClusterStateResponse response) {
-                                    try {
-                                        DiscoveryNodes nodes = response.getState().nodes();
-                                        Iterable<DiscoveryNode> nodesIter = nodes.getNodes()::valuesIt;
-                                        for (DiscoveryNode node : nodesIter) {
-                                            if (nodePredicate.test(node) && connectedNodes.size() < maxNumRemoteConnections) {
-                                                try {
-                                                    transportService.connectToNode(node, remoteProfile); // noop if node is connected
-                                                    connectedNodes.add(node);
-                                                } catch (ConnectTransportException | IllegalStateException ex) {
-                                                    // ISE if we fail the handshake with an version incompatible node
-                                                    // fair enough we can't connect just move on
-                                                    logger.debug((Supplier<?>)
-                                                        () -> new ParameterizedMessage("failed to connect to node {}", node), ex);
-                                                }
-
-                                            }
-                                        }
-                                        connection.close();
-                                        listener.onResponse(null);
-                                    } catch (Exception ex) {
-                                        logger.warn((Supplier<?>)
-                                            () -> new ParameterizedMessage("fetching nodes from external cluster {} failed",
-                                                clusterName), ex);
-                                        collectRemoteNodes(seedNodes, transportService, listener);
-                                    } finally {
-                                        IOUtils.closeWhileHandlingException(connection);
-                                    }
-                                }
-
-                                @Override
-                                public void handleException(TransportException exp) {
-                                    logger.warn((Supplier<?>)
-                                        () -> new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterName),
-                                        exp);
-                                    try {
-                                        IOUtils.closeWhileHandlingException(connection);
-                                    } finally {
-                                        collectRemoteNodes(seedNodes, transportService, listener);
-                                    }
-                                }
-
-                                @Override
-                                public String executor() {
-                                    return ThreadPool.Names.MANAGEMENT;
-                                }
-                            });
-                        success = true;
-                    } finally {
-                        if (success == false) {
-                            connection.close();
-                        }
-                    }
-
+                    });
                 } else {
                     listener.onFailure(new IllegalStateException("no seed node left"));
                 }
+            } catch (CancellableThreads.ExecutionCancelledException ex) {
+                listener.onFailure(ex); // we got canceled - fail the listener and step out
             } catch (ConnectTransportException | IOException | IllegalStateException ex) {
                 // ISE if we fail the handshake with an version incompatible node
                 if (seedNodes.hasNext()) {
@@ -425,17 +401,96 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         @Override
         public void close() throws IOException {
             try {
-                closed.compareAndSet(false, true);
-                running.acquire();
-                running.release();
+                if (closed.compareAndSet(false, true)) {
+                    cancellableThreads.cancel("connect handler is closed");
+                    running.acquire(); // acquire the semaphore to ensure all connections are closed and all thread joined
+                    running.release();
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         }
+
+        private class StateResponseHandler implements TransportResponseHandler<ClusterStateResponse> {
+
+            private final TransportService transportService;
+            private final Transport.Connection connection;
+            private final ActionListener<Void> listener;
+            private final Iterator<DiscoveryNode> seedNodes;
+            private final CancellableThreads cancellableThreads;
+
+            public StateResponseHandler(TransportService transportService, Transport.Connection connection, ActionListener<Void> listener
+                , Iterator<DiscoveryNode> seedNodes, CancellableThreads cancellableThreads) {
+                this.transportService = transportService;
+                this.connection = connection;
+                this.listener = listener;
+                this.seedNodes = seedNodes;
+                this.cancellableThreads = cancellableThreads;
+            }
+
+            @Override
+            public ClusterStateResponse newInstance() {
+                return new ClusterStateResponse();
+            }
+
+            @Override
+            public void handleResponse(ClusterStateResponse response) {
+                try {
+                    cancellableThreads.executeIO(() -> {
+                        DiscoveryNodes nodes = response.getState().nodes();
+                        Iterable<DiscoveryNode> nodesIter = nodes.getNodes()::valuesIt;
+                        for (DiscoveryNode node : nodesIter) {
+                            if (nodePredicate.test(node) && connectedNodes.size() < maxNumRemoteConnections) {
+                                try {
+                                    transportService.connectToNode(node, remoteProfile); // noop if node is connected
+                                    connectedNodes.add(node);
+                                } catch (ConnectTransportException | IllegalStateException ex) {
+                                    // ISE if we fail the handshake with an version incompatible node
+                                    // fair enough we can't connect just move on
+                                    logger.debug((Supplier<?>)
+                                        () -> new ParameterizedMessage("failed to connect to node {}", node), ex);
+                                }
+                            }
+                        }
+                    });
+                    connection.close();
+                    listener.onResponse(null);
+                } catch (CancellableThreads.ExecutionCancelledException ex) {
+                    listener.onFailure(ex); // we got canceled - fail the listener and step out
+                } catch (Exception ex) {
+                    logger.warn((Supplier<?>)
+                        () -> new ParameterizedMessage("fetching nodes from external cluster {} failed",
+                            clusterName), ex);
+                    collectRemoteNodes(seedNodes, transportService, listener);
+                } finally {
+                    // just to make sure we don't leak anything we close the connection here again even if we managed to do so before
+                    IOUtils.closeWhileHandlingException(connection);
+                }
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                logger.warn((Supplier<?>)
+                    () -> new ParameterizedMessage("fetching nodes from external cluster {} failed", clusterName),
+                    exp);
+                try {
+                    IOUtils.closeWhileHandlingException(connection);
+                } finally {
+                    // once the connection is closed lets try the next node
+                    collectRemoteNodes(seedNodes, transportService, listener);
+                }
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.MANAGEMENT;
+            }
+        }
     }
 
-    boolean isConnectRunning() { // for testing only
-        return connectHandler.running.availablePermits() == 0;
+    boolean assertNoRunningConnections() { // for testing only
+        assert connectHandler.running.availablePermits() == 1;
+        return true;
     }
 
 }

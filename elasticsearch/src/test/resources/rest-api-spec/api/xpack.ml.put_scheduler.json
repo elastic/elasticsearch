@@ -1,9 +1,9 @@
 {
-  "xpack.prelert.put_scheduler": {
+  "xpack.ml.put_scheduler": {
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_xpack/prelert/schedulers/{scheduler_id}",
-      "paths": [ "/_xpack/prelert/schedulers/{scheduler_id}" ],
+      "path": "/_xpack/ml/schedulers/{scheduler_id}",
+      "paths": [ "/_xpack/ml/schedulers/{scheduler_id}" ],
       "parts": {
         "scheduler_id": {
           "type": "string",

@@ -1,9 +1,9 @@
 {
-  "xpack.prelert.start_scheduler": {
+  "xpack.ml.start_scheduler": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/prelert/schedulers/{scheduler_id}/_start",
-      "paths": [ "/_xpack/prelert/schedulers/{scheduler_id}/_start" ],
+      "path": "/_xpack/ml/schedulers/{scheduler_id}/_start",
+      "paths": [ "/_xpack/ml/schedulers/{scheduler_id}/_start" ],
       "parts": {
         "scheduler_id": {
           "type": "string",

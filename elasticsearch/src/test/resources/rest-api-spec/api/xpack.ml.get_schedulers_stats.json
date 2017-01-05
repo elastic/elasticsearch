@@ -1,10 +1,10 @@
 {
-  "xpack.prelert.get_schedulers_stats": {
+  "xpack.ml.get_schedulers_stats": {
     "methods": [ "GET"],
     "url": {
-      "path": "/_xpack/prelert/schedulers/{scheduler_id}/_stats",
+      "path": "/_xpack/ml/schedulers/{scheduler_id}/_stats",
       "paths": [
-        "/_xpack/prelert/schedulers/{scheduler_id}/_stats"
+        "/_xpack/ml/schedulers/{scheduler_id}/_stats"
       ],
       "parts": {
         "scheduler_id": {

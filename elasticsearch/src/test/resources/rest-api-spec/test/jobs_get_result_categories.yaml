@@ -25,7 +25,7 @@ setup:
 ---
 "Test result categories api":
   - do:
-      xpack.prelert.get_categories:
+      xpack.ml.get_categories:
         job_id: "farequote"
 
   - match: { count: 2 }
@@ -37,7 +37,7 @@ setup:
 ---
 "Test result category api":
   - do:
-      xpack.prelert.get_categories:
+      xpack.ml.get_categories:
         job_id: "farequote"
         category_id: "1"
 
@@ -48,21 +48,21 @@ setup:
 "Test with invalid param combinations":
   - do:
       catch: request
-      xpack.prelert.get_categories:
+      xpack.ml.get_categories:
         job_id: "farequote"
         category_id: "1"
         from: 0
 
   - do:
       catch: request
-      xpack.prelert.get_categories:
+      xpack.ml.get_categories:
         job_id: "farequote"
         category_id: "1"
         size: 1
 
   - do:
       catch: request
-      xpack.prelert.get_categories:
+      xpack.ml.get_categories:
         job_id: "farequote"
         category_id: "1"
         from: 0
@@ -72,7 +72,7 @@ setup:
 "Test with invalid param combinations (via body)":
   - do:
       catch: request
-      xpack.prelert.get_categories:
+      xpack.ml.get_categories:
         job_id: "farequote"
         category_id: "1"
         body:
@@ -80,7 +80,7 @@ setup:
 
   - do:
       catch: request
-      xpack.prelert.get_categories:
+      xpack.ml.get_categories:
         job_id: "farequote"
         category_id: "1"
         body:
@@ -88,7 +88,7 @@ setup:
 
   - do:
       catch: request
-      xpack.prelert.get_categories:
+      xpack.ml.get_categories:
         job_id: "farequote"
         category_id: "1"
         body:

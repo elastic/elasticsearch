@@ -43,11 +43,11 @@ public class PrelertRestTestStateCleaner {
             Map<String, Object> schedulerMap = (Map<String, Object>) scheduler.get("config");
             String schedulerId = (String) schedulerMap.get("scheduler_id");
             try {
-                client.performRequest("POST", "/_xpack/prelert/schedulers/" + schedulerId + "/_stop");
+                client.performRequest("POST", "/_xpack/ml/schedulers/" + schedulerId + "/_stop");
             } catch (Exception e) {
                 // ignore
             }
-            client.performRequest("DELETE", "/_xpack/prelert/schedulers/" + schedulerId);
+            client.performRequest("DELETE", "/_xpack/ml/schedulers/" + schedulerId);
         }
     }
 
@@ -64,11 +64,11 @@ public class PrelertRestTestStateCleaner {
         for (Map<String, Object> jobConfig : jobConfigs) {
             String jobId = (String) jobConfig.get("job_id");
             try {
-                client.performRequest("POST", "/_xpack/prelert/anomaly_detectors/" + jobId + "/_close");
+                client.performRequest("POST", "/_xpack/ml/anomaly_detectors/" + jobId + "/_close");
             } catch (Exception e) {
                 // ignore
             }
-            client.performRequest("DELETE", "/_xpack/prelert/anomaly_detectors/" + jobId);
+            client.performRequest("DELETE", "/_xpack/ml/anomaly_detectors/" + jobId);
         }
     }
 }

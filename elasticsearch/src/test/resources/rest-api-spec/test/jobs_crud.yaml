@@ -1,7 +1,7 @@
 ---
 "Test job crud apis":
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"farequote",
@@ -27,13 +27,13 @@
         index: ".ml-state"
 
   - do:
-      xpack.prelert.get_jobs:
+      xpack.ml.get_jobs:
         job_id: "farequote"
   - match: { count: 1 }
   - match: { jobs.0.job_id: "farequote" }
 
   - do:
-      xpack.prelert.delete_job:
+      xpack.ml.delete_job:
         job_id: "farequote"
   - match: { acknowledged: true }
 
@@ -46,13 +46,13 @@
 "Test get job API with non existing job id":
   - do:
       catch: missing
-      xpack.prelert.get_jobs:
+      xpack.ml.get_jobs:
         job_id: "non-existing"
 
 ---
 "Test put job with id that is already taken":
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"farequote",
@@ -71,7 +71,7 @@
 
   - do:
       catch: /resource_already_exists_exception/
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"farequote",
@@ -88,7 +88,7 @@
           }
   - do:
       catch: /The job cannot be created with the Id 'farequote'. The Id is already used./
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"farequote",
@@ -105,7 +105,7 @@
           }
   - do:
       catch: param
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"farequote",
@@ -124,7 +124,7 @@
 ---
 "Test delete job that is referred by a scheduler":
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"scheduler-job",
@@ -142,7 +142,7 @@
   - match: { job_id: "scheduler-job" }
 
   - do:
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: test-scheduler-1
         body:  >
           {
@@ -154,5 +154,5 @@
 
   - do:
       catch: /Cannot delete job \[scheduler-job\] while scheduler \[test-scheduler-1\] refers to it/
-      xpack.prelert.delete_job:
+      xpack.ml.delete_job:
         job_id: scheduler-job

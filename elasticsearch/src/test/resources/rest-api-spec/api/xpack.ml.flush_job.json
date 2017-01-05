@@ -1,12 +1,12 @@
 {
-  "xpack.prelert.flush_job": {
+  "xpack.ml.flush_job": {
     "methods": [
       "POST"
     ],
     "url": {
-      "path": "/_xpack/prelert/anomaly_detectors/{job_id}/_flush",
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/_flush",
       "paths": [
-        "/_xpack/prelert/anomaly_detectors/{job_id}/_flush"
+        "/_xpack/ml/anomaly_detectors/{job_id}/_flush"
       ],
       "parts": {
         "job_id": {

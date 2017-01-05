@@ -1,7 +1,7 @@
 ---
 setup:
   - do:
-      xpack.prelert.put_list:
+      xpack.ml.put_list:
         body:  >
           {
             "id": "foo",
@@ -9,7 +9,7 @@ setup:
           }
 
   - do:
-      xpack.prelert.put_list:
+      xpack.ml.put_list:
         body:  >
           {
             "id": "foo2",
@@ -24,14 +24,14 @@ setup:
 
   - do:
       catch: missing
-      xpack.prelert.get_lists:
+      xpack.ml.get_lists:
         list_id: "do_not_exist"
 
 ---
 "Test get list API":
 
   - do:
-      xpack.prelert.get_lists:
+      xpack.ml.get_lists:
         list_id: "foo"
 
   - match: { count:   1 }
@@ -44,7 +44,7 @@ setup:
 "Test get lists API":
 
   - do:
-      xpack.prelert.get_lists: {}
+      xpack.ml.get_lists: {}
 
   - match: { count:   2 }
   - match:
@@ -58,7 +58,7 @@ setup:
         items: ["123", "lmnop"]
 
   - do:
-      xpack.prelert.get_lists:
+      xpack.ml.get_lists:
         from: 1
         size: 1
 
@@ -69,26 +69,26 @@ setup:
 
   - do:
       catch: request
-      xpack.prelert.get_lists:
+      xpack.ml.get_lists:
         list_id: "foo"
         from: 0
 
   - do:
         catch: request
-        xpack.prelert.get_lists:
+        xpack.ml.get_lists:
           list_id: "foo"
           size: 1
 
   - do:
         catch: request
-        xpack.prelert.get_lists:
+        xpack.ml.get_lists:
           list_id: "foo"
           from: 0
           size: 1
 ---
 "Test create list api":
   - do:
-      xpack.prelert.put_list:
+      xpack.ml.put_list:
         body:  >
           {
             "id": "foo2",
@@ -98,7 +98,7 @@ setup:
   - match: { acknowledged: true }
 
   - do:
-      xpack.prelert.get_lists:
+      xpack.ml.get_lists:
         list_id: "foo2"
 
   - match: { count:   1 }
@@ -111,7 +111,7 @@ setup:
 "Test create list api without ID":
   - do:
       catch: /illegal_argument_exception/
-      xpack.prelert.put_list:
+      xpack.ml.put_list:
         body:  >
           {
             "items": ["abc", "xyz"]
@@ -120,7 +120,7 @@ setup:
 ---
 "Test delete in-use list":
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"farequote2",
@@ -147,21 +147,21 @@ setup:
           }
   - do:
       catch: conflict
-      xpack.prelert.delete_list:
+      xpack.ml.delete_list:
         list_id: "foo"
 
 ---
 "Test non-existing list":
   - do:
       catch: missing
-      xpack.prelert.delete_list:
+      xpack.ml.delete_list:
         list_id: "does_not_exist"
 
 ---
 "Test valid delete list":
 
   - do:
-      xpack.prelert.get_lists:
+      xpack.ml.get_lists:
         list_id: "foo"
 
   - match: { count:   1 }
@@ -171,10 +171,10 @@ setup:
         items: ["abc", "xyz"]
 
   - do:
-      xpack.prelert.delete_list:
+      xpack.ml.delete_list:
         list_id: "foo"
 
   - do:
       catch: missing
-      xpack.prelert.get_lists:
+      xpack.ml.get_lists:
         list_id: "foo"

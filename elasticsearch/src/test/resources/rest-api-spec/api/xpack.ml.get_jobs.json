@@ -1,10 +1,10 @@
 {
-  "xpack.prelert.get_jobs": {
+  "xpack.ml.get_jobs": {
     "methods": [ "GET"],
     "url": {
-      "path": "/_xpack/prelert/anomaly_detectors/{job_id}",
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}",
       "paths": [
-        "/_xpack/prelert/anomaly_detectors/{job_id}"
+        "/_xpack/ml/anomaly_detectors/{job_id}"
       ],
       "parts": {
         "job_id": {

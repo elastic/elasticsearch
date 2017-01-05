@@ -1,6 +1,6 @@
 setup:
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"farequote",
@@ -17,7 +17,7 @@ setup:
           }
 
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"closed_job",
@@ -31,13 +31,13 @@ setup:
           }
 
   - do:
-      xpack.prelert.open_job:
+      xpack.ml.open_job:
         job_id: farequote
 
 ---
 "Test POST data job api, flush, close and verify DataCounts doc":
   - do:
-      xpack.prelert.job_data:
+      xpack.ml.job_data:
         job_id: farequote
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
@@ -54,17 +54,17 @@ setup:
   - match: { latest_record_timestamp: 1403481700000}
 
   - do:
-      xpack.prelert.flush_job:
+      xpack.ml.flush_job:
         job_id: farequote
   - match: { acknowledged: true }
 
   - do:
-      xpack.prelert.close_job:
+      xpack.ml.close_job:
         job_id: farequote
   - match: { acknowledged: true }
 
   - do:
-      xpack.prelert.get_jobs_stats:
+      xpack.ml.get_jobs_stats:
         job_id: farequote
   - match: { jobs.0.status: "CLOSED" }
 
@@ -87,17 +87,17 @@ setup:
 ---
 "Test flush and close job WITHOUT sending any data":
   - do:
-      xpack.prelert.flush_job:
+      xpack.ml.flush_job:
         job_id: farequote
   - match: { acknowledged: true }
 
   - do:
-      xpack.prelert.close_job:
+      xpack.ml.close_job:
         job_id: farequote
   - match: { acknowledged: true }
 
   - do:
-      xpack.prelert.get_jobs_stats:
+      xpack.ml.get_jobs_stats:
         job_id: farequote
   - match: { jobs.0.status: "CLOSED" }
 
@@ -105,13 +105,13 @@ setup:
 "Test POST data with invalid parameters":
   - do:
       catch: missing
-      xpack.prelert.job_data:
+      xpack.ml.job_data:
         job_id: not_a_job
         body: {}
 
   - do:
       catch: /parse_exception/
-      xpack.prelert.job_data:
+      xpack.ml.job_data:
         job_id: farequote
         reset_start: not_a_date
         body:  >
@@ -120,7 +120,7 @@ setup:
 
   - do:
       catch: /parse_exception/
-      xpack.prelert.job_data:
+      xpack.ml.job_data:
         job_id: farequote
         reset_end: end_not_a_date
         body:  >
@@ -131,24 +131,24 @@ setup:
 "Test Flush data with invalid parameters":
   - do:
       catch: missing
-      xpack.prelert.flush_job:
+      xpack.ml.flush_job:
         job_id: not_a_job
 
   - do:
       catch: /parse_exception/
-      xpack.prelert.flush_job:
+      xpack.ml.flush_job:
         job_id: farequote
         start: not_a_date
 
   - do:
       catch: /parse_exception/
-      xpack.prelert.flush_job:
+      xpack.ml.flush_job:
         job_id: farequote
         end: end_not_a_date
 
   - do:
       catch: /parse_exception/
-      xpack.prelert.flush_job:
+      xpack.ml.flush_job:
         job_id: farequote
         advance_time: advance_time_not_a_date
 
@@ -156,28 +156,28 @@ setup:
 "Test open and close with non-existent job id":
   - do:
       catch: missing
-      xpack.prelert.open_job:
+      xpack.ml.open_job:
         job_id: not_a_job
 
   - do:
       catch: missing
-      xpack.prelert.close_job:
+      xpack.ml.close_job:
         job_id: not_a_job
 
 ---
 "Test flushing, posting and closing a closed job":
   - do:
       catch: /illegal_argument_exception/
-      xpack.prelert.flush_job:
+      xpack.ml.flush_job:
         job_id: closed_job
 
   - do:
       catch: /illegal_argument_exception/
-      xpack.prelert.close_job:
+      xpack.ml.close_job:
         job_id: closed_job
 
   - do:
       catch: /illegal_argument_exception/
-      xpack.prelert.job_data:
+      xpack.ml.job_data:
         job_id: closed_job
         body: {}

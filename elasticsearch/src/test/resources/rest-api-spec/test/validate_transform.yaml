@@ -1,7 +1,7 @@
 ---
 "Test valid transform":
   - do:
-      xpack.prelert.validate_transform:
+      xpack.ml.validate_transform:
         body:  >
           {
             "transform":"concat",
@@ -14,7 +14,7 @@
 "Test invalid transform":
   - do:
       catch: /Transform type concat expected \[2‥\+∞\) input\(s\), got 1/
-      xpack.prelert.validate_transform:
+      xpack.ml.validate_transform:
         body:  >
           {
             "transform":"concat",
@@ -24,7 +24,7 @@
 ---
 "Test valid transforms":
   - do:
-      xpack.prelert.validate_transforms:
+      xpack.ml.validate_transforms:
         body:  >
           {
             "transforms": [
@@ -45,7 +45,7 @@
 "Test invalid transforms":
   - do:
       catch: /Transform type concat with inputs \[one, two\] has a circular dependency/
-      xpack.prelert.validate_transforms:
+      xpack.ml.validate_transforms:
         body:  >
           {
             "transforms": [

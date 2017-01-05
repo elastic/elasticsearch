@@ -1,10 +1,10 @@
 {
-  "xpack.prelert.get_records": {
+  "xpack.ml.get_records": {
     "methods": ["GET", "POST"],
     "url": {
-      "path": "/_xpack/prelert/anomaly_detectors/{job_id}/results/records",
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/results/records",
       "paths": [
-        "/_xpack/prelert/anomaly_detectors/{job_id}/results/records"
+        "/_xpack/ml/anomaly_detectors/{job_id}/results/records"
       ],
       "parts": {
         "job_id": {

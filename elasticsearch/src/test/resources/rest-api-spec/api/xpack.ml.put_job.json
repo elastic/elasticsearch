@@ -1,9 +1,9 @@
 {
-  "xpack.prelert.put_job": {
+  "xpack.ml.put_job": {
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_xpack/prelert/anomaly_detectors",
-      "paths": [ "/_xpack/prelert/anomaly_detectors" ],
+      "path": "/_xpack/ml/anomaly_detectors",
+      "paths": [ "/_xpack/ml/anomaly_detectors" ],
       "params": {
         "overwrite": {
           "type": "boolean",

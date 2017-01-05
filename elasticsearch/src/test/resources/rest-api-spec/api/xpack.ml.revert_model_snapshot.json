@@ -1,9 +1,9 @@
 {
-  "xpack.prelert.revert_model_snapshot": {
+  "xpack.ml.revert_model_snapshot": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/prelert/anomaly_detectors/{job_id}/modelsnapshots/_revert",
-      "paths": [ "/_xpack/prelert/anomaly_detectors/{job_id}/modelsnapshots/_revert" ],
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/modelsnapshots/_revert",
+      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/modelsnapshots/_revert" ],
       "parts": {
         "job_id": {
           "type": "string",

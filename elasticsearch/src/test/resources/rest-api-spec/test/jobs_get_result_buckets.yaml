@@ -34,7 +34,7 @@ setup:
 ---
 "Test result buckets api with time range":
   - do:
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "farequote"
         start: "2016-05-01T00:00:00Z"
         end: "2016-07-01T00:00:00Z"
@@ -47,7 +47,7 @@ setup:
 ---
 "Test result buckets api":
   - do:
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "farequote"
 
   - match: { count: 2 }
@@ -61,7 +61,7 @@ setup:
 ---
 "Test result single bucket api":
   - do:
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "farequote"
         timestamp: "2016-06-01T00:00:00Z"
 
@@ -73,28 +73,28 @@ setup:
 "Test mutually-exclusive params":
   - do:
       catch: request
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "farequote"
         timestamp: "2016-06-01T00:00:00Z"
         start: "2016-05-01T00:00:00Z"
 
   - do:
       catch: request
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "farequote"
         timestamp: "2016-06-01T00:00:00Z"
         end: "2016-05-01T00:00:00Z"
 
   - do:
       catch: request
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "farequote"
         timestamp: "2016-06-01T00:00:00Z"
         from: "2016-05-01T00:00:00Z"
 
   - do:
       catch: request
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "farequote"
         timestamp: "2016-06-01T00:00:00Z"
         end: "2016-05-01T00:00:00Z"
@@ -103,7 +103,7 @@ setup:
 "Test mutually-exclusive params (via body)":
   - do:
       catch: request
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "farequote"
         body:
           timestamp: "2016-06-01T00:00:00Z"
@@ -111,7 +111,7 @@ setup:
 
   - do:
       catch: request
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "farequote"
         body:
           timestamp: "2016-06-01T00:00:00Z"
@@ -119,7 +119,7 @@ setup:
 
   - do:
       catch: request
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "farequote"
         body:
           timestamp: "2016-06-01T00:00:00Z"
@@ -127,7 +127,7 @@ setup:
 
   - do:
       catch: request
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "farequote"
         body:
           timestamp: "2016-06-01T00:00:00Z"

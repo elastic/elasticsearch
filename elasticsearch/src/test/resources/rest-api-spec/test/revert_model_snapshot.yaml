@@ -1,6 +1,6 @@
 setup:
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"foo",
@@ -17,11 +17,11 @@ setup:
           }
 
   - do:
-      xpack.prelert.open_job:
+      xpack.ml.open_job:
         job_id: foo
 
   - do:
-      xpack.prelert.close_job:
+      xpack.ml.close_job:
         job_id: foo
 
   - do:
@@ -135,14 +135,14 @@ setup:
 "Test revert model with only job_id":
   - do:
       catch: request
-      xpack.prelert.revert_model_snapshot:
+      xpack.ml.revert_model_snapshot:
         job_id: "foo"
 
 ---
 "Test revert model with invalid time":
   - do:
       catch: request
-      xpack.prelert.revert_model_snapshot:
+      xpack.ml.revert_model_snapshot:
         job_id: "foo"
         time: "foo"
 
@@ -150,7 +150,7 @@ setup:
 "Test revert model with invalid snapshotId":
   - do:
       catch: /resource_not_found_exception/
-      xpack.prelert.revert_model_snapshot:
+      xpack.ml.revert_model_snapshot:
         job_id: "foo"
         snapshot_id: "not_exist"
 
@@ -158,14 +158,14 @@ setup:
 "Test revert model with invalid description":
   - do:
       catch: /resource_not_found_exception/
-      xpack.prelert.revert_model_snapshot:
+      xpack.ml.revert_model_snapshot:
         job_id: "foo"
         description: "foo"
 
 ---
 "Test revert model with valid snapshotId":
   - do:
-      xpack.prelert.revert_model_snapshot:
+      xpack.ml.revert_model_snapshot:
         job_id: "foo"
         snapshot_id: "foo1"
 
@@ -177,7 +177,7 @@ setup:
   - match: { model.snapshot_doc_count: 0 }
 
   - do:
-      xpack.prelert.revert_model_snapshot:
+      xpack.ml.revert_model_snapshot:
         job_id: "foo"
         snapshot_id: "foo2"
 
@@ -191,7 +191,7 @@ setup:
 ---
 "Test revert model with valid time":
   - do:
-      xpack.prelert.revert_model_snapshot:
+      xpack.ml.revert_model_snapshot:
         job_id: "foo"
         time: "2016-06-02T01:00:00Z"
 
@@ -203,7 +203,7 @@ setup:
   - match: { model.snapshot_doc_count: 0 }
 
   - do:
-        xpack.prelert.revert_model_snapshot:
+        xpack.ml.revert_model_snapshot:
           job_id: "foo"
           time: "2016-06-01T01:00:00Z"
 
@@ -217,7 +217,7 @@ setup:
 ---
 "Test revert model with valid description":
   - do:
-      xpack.prelert.revert_model_snapshot:
+      xpack.ml.revert_model_snapshot:
         job_id: "foo"
         description: "first"
 
@@ -229,7 +229,7 @@ setup:
   - match: { model.snapshot_doc_count: 0 }
 
   - do:
-        xpack.prelert.revert_model_snapshot:
+        xpack.ml.revert_model_snapshot:
           job_id: "foo"
           description: "second"
 
@@ -243,7 +243,7 @@ setup:
 ---
 "Test revert model with deleteInterveningResults":
   - do:
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "foo"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
@@ -251,7 +251,7 @@ setup:
   - match: { count: 3 }
 
   - do:
-      xpack.prelert.revert_model_snapshot:
+      xpack.ml.revert_model_snapshot:
         job_id: "foo"
         snapshot_id: "foo2"
         delete_intervening_results: true
@@ -261,7 +261,7 @@ setup:
         index: .ml-anomalies-foo
 
   - do:
-      xpack.prelert.get_buckets:
+      xpack.ml.get_buckets:
         job_id: "foo"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
@@ -271,7 +271,7 @@ setup:
   - match: { buckets.0.timestamp: 1462060800000 }
 
   - do:
-      xpack.prelert.get_records:
+      xpack.ml.get_records:
         job_id: "foo"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T00:00:00Z"
@@ -281,7 +281,7 @@ setup:
   - match: { records.0.timestamp: 1462060800000 }
 
   - do:
-      xpack.prelert.get_influencers:
+      xpack.ml.get_influencers:
         job_id: "foo"
         start: "2016-01-01T00:00:00Z"
         end: "2016-12-01T01:00:00Z"
@@ -291,7 +291,7 @@ setup:
   - match: { influencers.0.timestamp: 1462060800000 }
 
   - do:
-      xpack.prelert.get_jobs_stats:
+      xpack.ml.get_jobs_stats:
         job_id: foo
 
   - match: { jobs.0.data_counts.latest_record_timestamp: 1464739200000 }

@@ -1,9 +1,9 @@
 {
-  "xpack.prelert.put_model_snapshot_description": {
+  "xpack.ml.put_model_snapshot_description": {
     "methods": [ "PUT" ],
     "url": {
-      "path": "/_xpack/prelert/anomaly_detectors/{job_id}/modelsnapshots/{snapshot_id}/description",
-      "paths": [ "/_xpack/prelert/anomaly_detectors/{job_id}/modelsnapshots/{snapshot_id}/description" ],
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/modelsnapshots/{snapshot_id}/description",
+      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/modelsnapshots/{snapshot_id}/description" ],
       "parts": {
         "job_id": {
           "type": "string",

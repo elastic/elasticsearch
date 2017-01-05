@@ -1,10 +1,10 @@
 {
-  "xpack.prelert.get_schedulers": {
+  "xpack.ml.get_schedulers": {
     "methods": [ "GET"],
     "url": {
-      "path": "/_xpack/prelert/schedulers/{scheduler_id}",
+      "path": "/_xpack/ml/schedulers/{scheduler_id}",
       "paths": [
-        "/_xpack/prelert/schedulers/{scheduler_id}"
+        "/_xpack/ml/schedulers/{scheduler_id}"
       ],
       "parts": {
         "scheduler_id": {

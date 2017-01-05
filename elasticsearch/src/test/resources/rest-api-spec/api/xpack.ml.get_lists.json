@@ -1,9 +1,9 @@
 {
-  "xpack.prelert.get_lists": {
+  "xpack.ml.get_lists": {
     "methods": [ "GET" ],
     "url": {
-      "path": "/_xpack/prelert/lists/{list_id}",
-      "paths": [ "/_xpack/prelert/lists/", "/_xpack/prelert/lists/{list_id}" ],
+      "path": "/_xpack/ml/lists/{list_id}",
+      "paths": [ "/_xpack/ml/lists/", "/_xpack/ml/lists/{list_id}" ],
       "parts": {
         "list_id": {
           "type" : "string",

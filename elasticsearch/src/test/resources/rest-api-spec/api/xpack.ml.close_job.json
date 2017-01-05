@@ -1,9 +1,9 @@
 {
-  "xpack.prelert.close_job": {
+  "xpack.ml.close_job": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/prelert/anomaly_detectors/{job_id}/_close",
-      "paths": [ "/_xpack/prelert/anomaly_detectors/{job_id}/_close" ],
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/_close",
+      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/_close" ],
       "parts": {
         "job_id": {
           "type": "string",

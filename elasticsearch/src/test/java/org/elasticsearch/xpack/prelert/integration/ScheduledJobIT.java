@@ -82,7 +82,7 @@ public class ScheduledJobIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(responseEntityToString(response), equalTo("{\"acknowledged\":true}"));
 
-        client().performRequest("POST", "/_xpack/prelert/anomaly_detectors/" + jobId + "/_close");
+        client().performRequest("POST", "/_xpack/ml/anomaly_detectors/" + jobId + "/_close");
 
         response = client().performRequest("delete", PrelertPlugin.BASE_PATH + "schedulers/" + schedulerId);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));

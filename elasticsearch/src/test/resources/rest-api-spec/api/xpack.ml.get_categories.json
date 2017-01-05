@@ -1,11 +1,11 @@
 {
-  "xpack.prelert.get_categories": {
+  "xpack.ml.get_categories": {
     "methods": [ "GET", "POST" ],
     "url": {
-      "path": "/_xpack/prelert/anomaly_detectors/{job_id}/results/categorydefinitions/{category_id}",
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/results/categorydefinitions/{category_id}",
       "paths": [
-        "/_xpack/prelert/anomaly_detectors/{job_id}/results/categorydefinitions/{category_id}",
-        "/_xpack/prelert/anomaly_detectors/{job_id}/results/categorydefinitions/"
+        "/_xpack/ml/anomaly_detectors/{job_id}/results/categorydefinitions/{category_id}",
+        "/_xpack/ml/anomaly_detectors/{job_id}/results/categorydefinitions/"
       ],
       "parts": {
         "job_id": {

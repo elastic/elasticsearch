@@ -1,9 +1,9 @@
 {
-  "xpack.prelert.job_data": {
+  "xpack.ml.job_data": {
     "methods": [ "POST" ],
     "url": {
-      "path": "/_xpack/prelert/anomaly_detectors/{job_id}/data",
-      "paths": [ "/_xpack/prelert/anomaly_detectors/{job_id}/data" ],
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/data",
+      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/data" ],
       "parts": {
         "job_id": {
           "type": "string",

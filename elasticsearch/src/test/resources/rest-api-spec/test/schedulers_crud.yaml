@@ -1,6 +1,6 @@
 setup:
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"job-1",
@@ -16,7 +16,7 @@ setup:
           }
 
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"job-2",
@@ -34,7 +34,7 @@ setup:
 "Test put scheduler referring to missing job_id":
   - do:
       catch: /resource_not_found_exception/
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: test-scheduler-1
         body:  >
           {
@@ -46,7 +46,7 @@ setup:
 ---
 "Test put scheduler referring to existing job_id":
   - do:
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: test-scheduler-1
         body:  >
           {
@@ -59,7 +59,7 @@ setup:
 ---
 "Test put scheduler whose id is already taken":
   - do:
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: test-scheduler-1
         body:  >
           {
@@ -71,7 +71,7 @@ setup:
 
   - do:
       catch: /resource_already_exists_exception/
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: test-scheduler-1
         body:  >
           {
@@ -83,7 +83,7 @@ setup:
 ---
 "Test put scheduler with job_id that is already used by another scheduler":
   - do:
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: test-scheduler-1
         body:  >
           {
@@ -95,7 +95,7 @@ setup:
 
   - do:
       catch: /A scheduler \[test-scheduler-1\] already exists for job \[job-1\]/
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: test-scheduler-2
         body:  >
           {
@@ -108,7 +108,7 @@ setup:
 "Test put scheduler with invalid query":
   - do:
       catch: /parsing_exception/
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: test-scheduler-1
         body:  >
           {
@@ -122,13 +122,13 @@ setup:
 "Test delete scheduler with missing id":
   - do:
       catch: /resource_not_found_exception/
-      xpack.prelert.delete_scheduler:
+      xpack.ml.delete_scheduler:
         scheduler_id: a-missing-scheduler
 
 ---
 "Test delete scheduler":
   - do:
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: test-scheduler-1
         body:  >
           {
@@ -139,6 +139,6 @@ setup:
   - match: { scheduler_id: "test-scheduler-1" }
 
   - do:
-      xpack.prelert.delete_scheduler:
+      xpack.ml.delete_scheduler:
         scheduler_id: test-scheduler-1
   - match: { acknowledged: true }

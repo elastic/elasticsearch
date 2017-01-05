@@ -64,7 +64,7 @@ setup:
 ---
 "Test result records api":
   - do:
-      xpack.prelert.get_records:
+      xpack.ml.get_records:
         job_id: "farequote"
 
   - match: { count: 2 }
@@ -78,7 +78,7 @@ setup:
 ---
 "Test result records api with time range":
   - do:
-      xpack.prelert.get_records:
+      xpack.ml.get_records:
         job_id: "farequote"
         start: "2016-05-01T00:00:00Z"
         end: "2016-06-01T01:00:00Z"

@@ -1,6 +1,6 @@
 setup:
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"job-1",
@@ -17,7 +17,7 @@ setup:
           }
 
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"job-2",
@@ -38,20 +38,20 @@ setup:
 
   - do:
       catch: missing
-      xpack.prelert.get_jobs:
+      xpack.ml.get_jobs:
         job_id: missing-job
 
 ---
 "Test get single job":
 
   - do:
-      xpack.prelert.get_jobs:
+      xpack.ml.get_jobs:
         job_id: job-1
   - match: { jobs.0.job_id: "job-1"}
   - match: { jobs.0.description: "Job 1"}
 
   - do:
-      xpack.prelert.get_jobs:
+      xpack.ml.get_jobs:
         job_id: job-2
   - match: { jobs.0.job_id: "job-2"}
   - match: { jobs.0.description: "Job 2"}
@@ -60,7 +60,7 @@ setup:
 "Test get all jobs":
 
   - do:
-      xpack.prelert.get_jobs:
+      xpack.ml.get_jobs:
         job_id: _all
   - match: { count: 2 }
   - match: { jobs.0.job_id: "job-1"}

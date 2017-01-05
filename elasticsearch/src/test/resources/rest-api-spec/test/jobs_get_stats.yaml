@@ -1,6 +1,6 @@
 setup:
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"job-stats-test",
@@ -17,11 +17,11 @@ setup:
           }
 
   - do:
-      xpack.prelert.open_job:
+      xpack.ml.open_job:
         job_id: job-stats-test
 
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"scheduled-job",
@@ -37,11 +37,11 @@ setup:
             }
           }
   - do:
-      xpack.prelert.open_job:
+      xpack.ml.open_job:
         job_id: scheduled-job
 
   - do:
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: scheduler-1
         body:  >
           {
@@ -68,20 +68,20 @@ setup:
 "Test get job stats after uploading data prompting the creation of some stats":
 
   - do:
-      xpack.prelert.job_data:
+      xpack.ml.job_data:
         job_id: job-stats-test
         body: >
           {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}
           {"airline":"JZA","responsetime":"990.4628","time":"1403481600"}
 
   - do:
-      xpack.prelert.flush_job:
+      xpack.ml.flush_job:
         job_id: job-stats-test
   - match: { acknowledged: true }
 
 
   - do:
-      xpack.prelert.get_jobs_stats:
+      xpack.ml.get_jobs_stats:
         job_id: job-stats-test
   - match: { jobs.0.job_id : job-stats-test }
   - match: { jobs.0.data_counts.processed_record_count: 2 }
@@ -94,7 +94,7 @@ setup:
 "Test get job stats of scheduled job that has not received and data":
 
   - do:
-      xpack.prelert.get_jobs_stats:
+      xpack.ml.get_jobs_stats:
         job_id: scheduled-job
   - match: { jobs.0.job_id : scheduled-job }
   - match: { jobs.0.data_counts.processed_record_count: 0 }
@@ -106,5 +106,5 @@ setup:
 
   - do:
       catch: missing
-      xpack.prelert.get_jobs_stats:
+      xpack.ml.get_jobs_stats:
         job_id: unknown-job

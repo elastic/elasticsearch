@@ -1,6 +1,6 @@
 setup:
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"job-1",
@@ -16,7 +16,7 @@ setup:
           }
 
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"job-2",
@@ -32,7 +32,7 @@ setup:
           }
 
   - do:
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: scheduler-1
         body: >
           {
@@ -42,7 +42,7 @@ setup:
           }
 
   - do:
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: scheduler-2
         body: >
           {
@@ -56,20 +56,20 @@ setup:
 
   - do:
       catch: missing
-      xpack.prelert.get_schedulers:
+      xpack.ml.get_schedulers:
         scheduler_id: missing-scheduler
 
 ---
 "Test get single scheduler":
 
   - do:
-      xpack.prelert.get_schedulers:
+      xpack.ml.get_schedulers:
         scheduler_id: scheduler-1
   - match: { schedulers.0.scheduler_id: "scheduler-1"}
   - match: { schedulers.0.job_id: "job-1"}
 
   - do:
-      xpack.prelert.get_schedulers:
+      xpack.ml.get_schedulers:
         scheduler_id: scheduler-2
   - match: { schedulers.0.scheduler_id: "scheduler-2"}
   - match: { schedulers.0.job_id: "job-2"}
@@ -78,7 +78,7 @@ setup:
 "Test get all schedulers":
 
   - do:
-      xpack.prelert.get_schedulers:
+      xpack.ml.get_schedulers:
         scheduler_id: _all
   - match: { count: 2 }
   - match: { schedulers.0.scheduler_id: "scheduler-1"}

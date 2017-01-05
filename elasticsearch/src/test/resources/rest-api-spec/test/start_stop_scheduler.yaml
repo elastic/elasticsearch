@@ -4,7 +4,7 @@ setup:
         index: airline-data
 
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
         body:  >
           {
             "job_id":"scheduled-job",
@@ -20,7 +20,7 @@ setup:
             }
           }
   - do:
-      xpack.prelert.put_scheduler:
+      xpack.ml.put_scheduler:
         scheduler_id: scheduler-1
         body:  >
           {
@@ -31,28 +31,28 @@ setup:
 ---
 "Test start and stop scheduler happy path":
   - do:
-      xpack.prelert.open_job:
+      xpack.ml.open_job:
         job_id: "scheduled-job"
   - do:
-      xpack.prelert.start_scheduler:
+      xpack.ml.start_scheduler:
         "scheduler_id": "scheduler-1"
         "start": 0
   - do:
-      xpack.prelert.get_schedulers_stats:
+      xpack.ml.get_schedulers_stats:
         scheduler_id: "scheduler-1"
   - match: { schedulers.0.status: STARTED }
   - do:
-      xpack.prelert.stop_scheduler:
+      xpack.ml.stop_scheduler:
         "scheduler_id": "scheduler-1"
   - do:
-      xpack.prelert.get_schedulers_stats:
+      xpack.ml.get_schedulers_stats:
         scheduler_id: "scheduler-1"
   - match: { schedulers.0.status: STOPPED }
 ---
 "Test start non existing scheduler":
     - do:
         catch: missing
-        xpack.prelert.start_scheduler:
+        xpack.ml.start_scheduler:
           "scheduler_id": "non-existing-scheduler"
           "start": 0
 
@@ -60,33 +60,33 @@ setup:
 "Test start scheduled job, but not open":
     - do:
         catch: conflict
-        xpack.prelert.start_scheduler:
+        xpack.ml.start_scheduler:
           "scheduler_id": "scheduler-1"
           "start": 0
     - do:
         catch: /cannot start scheduler, expected job status \[OPENED\], but got \[CLOSED\]/
-        xpack.prelert.start_scheduler:
+        xpack.ml.start_scheduler:
           "scheduler_id": "scheduler-1"
           "start": 0
 
 ---
 "Test start already started scheduled job":
   - do:
-      xpack.prelert.open_job:
+      xpack.ml.open_job:
         job_id: "scheduled-job"
   - do:
-      xpack.prelert.start_scheduler:
+      xpack.ml.start_scheduler:
         "scheduler_id": "scheduler-1"
         "start": 0
   - do:
       catch: conflict
-      xpack.prelert.start_scheduler:
+      xpack.ml.start_scheduler:
         "scheduler_id": "scheduler-1"
         "start": 0
 
   - do:
       catch: /scheduler already started, expected scheduler status \[STOPPED\], but got \[STARTED\]/
-      xpack.prelert.start_scheduler:
+      xpack.ml.start_scheduler:
         "scheduler_id": "scheduler-1"
         "start": 0
 
@@ -94,16 +94,16 @@ setup:
 "Test stop non existing scheduler":
     - do:
         catch: missing
-        xpack.prelert.stop_scheduler:
+        xpack.ml.stop_scheduler:
           "scheduler_id": "non-existing-scheduler"
 
 ---
 "Test stop already stopped scheduled job":
   - do:
       catch: conflict
-      xpack.prelert.stop_scheduler:
+      xpack.ml.stop_scheduler:
         "scheduler_id": "scheduler-1"
   - do:
       catch: /scheduler already stopped, expected scheduler status \[STARTED\], but got \[STOPPED\]/
-      xpack.prelert.stop_scheduler:
+      xpack.ml.stop_scheduler:
         "scheduler_id": "scheduler-1"

@@ -1,12 +1,12 @@
 {
-  "xpack.prelert.stop_scheduler": {
+  "xpack.ml.stop_scheduler": {
     "methods": [
       "POST"
     ],
     "url": {
-      "path": "/_xpack/prelert/schedulers/{scheduler_id}/_stop",
+      "path": "/_xpack/ml/schedulers/{scheduler_id}/_stop",
       "paths": [
-        "/_xpack/prelert/schedulers/{scheduler_id}/_stop"
+        "/_xpack/ml/schedulers/{scheduler_id}/_stop"
       ],
       "parts": {
         "scheduler_id": {

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.prelert.job.process.autodetect.output;
 
+import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -16,7 +17,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -60,9 +60,11 @@ public class StateProcessorTests extends ESTestCase {
     }
 
     /**
-     * This test is designed to pick up N-squared processing in the state consumption code.
-     * The size of the state document is comparable to those that the C++ code will create for a huge model.
+     * This test is designed to pick up N-squared processing in the state consumption code.  The size of the state document
+     * is comparable to those that the C++ code will create for a huge model.  5 seconds is an overestimate of the time
+     * required to avoid spurious failures due to VM stalls - on a reasonable spec laptop this should take around 1 second.
      */
+    @Timeout(millis = 5 * 1000)
     public void testLargeStateRead() throws Exception {
         StringBuilder builder = new StringBuilder(NUM_LARGE_DOCS * (LARGE_DOC_SIZE + 10)); // 10 for header and separators
         for (int docNum = 1; docNum <= NUM_LARGE_DOCS; ++docNum) {
@@ -78,10 +80,7 @@ public class StateProcessorTests extends ESTestCase {
         JobResultsPersister persister = Mockito.mock(JobResultsPersister.class);
 
         StateProcessor stateParser = new StateProcessor(Settings.EMPTY, persister);
-
-        // 5 seconds is an overestimate to avoid spurious failures due to VM stalls - on a
-        // reasonable spec laptop this should take around 1 second
-        assertBusy(() -> stateParser.process("_id", stream), 5, TimeUnit.SECONDS);
+        stateParser.process("_id", stream);
 
         verify(persister, times(NUM_LARGE_DOCS)).persistBulkState(eq("_id"), any());
     }

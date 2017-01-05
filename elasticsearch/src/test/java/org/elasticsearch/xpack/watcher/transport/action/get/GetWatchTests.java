@@ -5,8 +5,7 @@
  */
 package org.elasticsearch.xpack.watcher.transport.action.get;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -25,7 +24,6 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -62,7 +60,10 @@ public class GetWatchTests extends AbstractWatcherIntegrationTestCase {
     }
 
     public void testGetNotFound() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
+        GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases(Watch.INDEX).get();
+        if (aliasesResponse.getAliases().isEmpty()) {
+            assertAcked(client().admin().indices().prepareCreate(Watch.INDEX));
+        }
         GetWatchResponse getResponse = watcherClient().getWatch(new GetWatchRequest("_name")).get();
         assertThat(getResponse, notNullValue());
         assertThat(getResponse.getId(), is("_name"));

@@ -228,7 +228,7 @@
           {
             "trigger": {
               "schedule": {
-                "interval": "1s"
+                "interval": "1d"
               }
             },
             "input": {
@@ -279,7 +279,7 @@
           {
             "trigger": {
               "schedule": {
-                "interval": "1s"
+                "interval": "1d"
               }
             },
             "input": {

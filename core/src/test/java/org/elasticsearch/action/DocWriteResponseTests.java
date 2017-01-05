@@ -99,18 +99,14 @@ public class DocWriteResponseTests extends ESTestCase {
         response.setShardInfo(new ShardInfo(1, 1));
         response.setForcedRefresh(false);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes())) {
                 assertThat(parser.map(), not(hasKey("forced_refresh")));
             }
         }
         response.setForcedRefresh(true);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes())) {
                 assertThat(parser.map(), hasEntry("forced_refresh", true));
             }

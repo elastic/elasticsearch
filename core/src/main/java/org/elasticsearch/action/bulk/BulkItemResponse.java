@@ -54,7 +54,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(opType.getLowercase());
         if (failure == null) {
-            response.toXContent(builder, params);
+            response.innerToXContent(builder, params);
             builder.field(Fields.STATUS, response.status().getStatus());
         } else {
             builder.field(Fields._INDEX, failure.getIndex());

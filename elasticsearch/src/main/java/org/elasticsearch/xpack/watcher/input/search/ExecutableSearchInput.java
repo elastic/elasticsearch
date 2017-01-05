@@ -12,9 +12,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.input.search.SearchInput.TYPE;
 
 /**
@@ -80,9 +79,9 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
 
         final Payload payload;
         if (input.getExtractKeys() != null) {
-            XContentBuilder builder = jsonBuilder().startObject().value(response).endObject();
+            BytesReference bytes = XContentHelper.toXContent(response, XContentType.JSON);
             // EMPTY is safe here because we never use namedObject
-            XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, builder.bytes());
+            XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, bytes);
             Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(input.getExtractKeys(), parser);
             payload = new Payload.Simple(filteredKeys);
         } else {

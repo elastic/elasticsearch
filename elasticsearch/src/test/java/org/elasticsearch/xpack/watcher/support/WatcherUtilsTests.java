@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -22,7 +23,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.joda.time.DateTime;
 
-import java.io.IOException;
 import java.time.Clock;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -72,15 +72,14 @@ public class WatcherUtilsTests extends ESTestCase {
         Map<String, Object> otherMap = new HashMap<>();
         otherMap.putAll(expected);
         expected.put("key5", otherMap);
-        ToXContent content = new ToXContent() {
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                for (Map.Entry<String, ?> entry : expected.entrySet()) {
-                    builder.field(entry.getKey());
-                    builder.value(entry.getValue());
-                }
-                return builder;
+        ToXContentObject content = (builder, params) -> {
+            builder.startObject();
+            for (Map.Entry<String, ?> entry : expected.entrySet()) {
+                builder.field(entry.getKey());
+                builder.value(entry.getValue());
             }
+            builder.endObject();
+            return builder;
         };
         Map<String, Object> result = WatcherUtils.responseToData(content);
         assertThat(result, equalTo(expected));

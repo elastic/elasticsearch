@@ -39,6 +39,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Scheduler configuration options. Describes where to proactively pull input
@@ -98,7 +99,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
                 while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                     parsedScriptFields.add(new SearchSourceBuilder.ScriptField(new QueryParseContext(p, ParseFieldMatcher.STRICT)));
                 }
-                Collections.sort(parsedScriptFields, Comparator.comparing(f -> f.fieldName()));
+                Collections.sort(parsedScriptFields, Comparator.comparing((Function<SearchSourceBuilder.ScriptField, String>) f -> f.fieldName()));
                 return parsedScriptFields;
             }, SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
@@ -431,7 +432,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
 
         public void setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
             List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>(scriptFields);
-            Collections.sort(sorted, Comparator.comparing(f -> f.fieldName()));
+            Collections.sort(sorted, Comparator.comparing((Function<SearchSourceBuilder.ScriptField, String>) f -> f.fieldName()));
             this.scriptFields = sorted;
         }
 

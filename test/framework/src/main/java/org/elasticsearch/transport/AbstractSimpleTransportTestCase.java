@@ -1877,7 +1877,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                                            int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)
                 throws IOException {
                 return super.handleRequest(mockChannel, profileName, stream, requestId, messageLengthBytes, version, remoteAddress,
-                    (byte)(status & ~(1<<3))); // we flip the isHandshake bit back and acked like the handler is not found
+                    (byte)(status & ~(1<<3))); // we flip the isHandshake bit back and act like the handler is not found
             }
         }) {
             transport.transportServiceAdapter(serviceA.new Adapter());

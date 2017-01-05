@@ -124,7 +124,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final Map<String, List<String>> remoteIndicesByCluster;
         if (remoteClusterService.isCrossClusterSearchEnabled()) {
             remoteIndicesByCluster = new HashMap<>();
-            localIndices = remoteClusterService.filterIndices(remoteIndicesByCluster);
+            localIndices = remoteClusterService.filterIndices(remoteIndicesByCluster, searchRequest.indices());
         } else {
             remoteIndicesByCluster = Collections.emptyMap();
             localIndices = searchRequest.indices();

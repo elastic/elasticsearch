@@ -86,7 +86,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
 
     /**
      * The name of a node attribute to filter out nodes that should not be connected to in the remote cluster.
-     * For instance a node can be configured with <tt>node.node_attr.gateway: true</tt> in order to be eligable as a gateway node between
+     * For instance a node can be configured with <tt>node.node_attr.gateway: true</tt> in order to be eligible as a gateway node between
      * clusters. In that case <tt>search.remote.node_attribute: gateway</tt> can be used to filter out other nodes in the remote cluster
      */
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString("search.remote.node_attribute",
@@ -157,7 +157,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         return remoteClusters.isEmpty() == false;
     }
 
-    public String[] filterIndices(Map<String, List<String>> perClusterIndices, String... requestIndices) {
+    public String[] filterIndices(Map<String, List<String>> perClusterIndices, String[] requestIndices) {
         List<String> localIndicesList = new ArrayList<>();
         for (String index : requestIndices) {
             int i = index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);

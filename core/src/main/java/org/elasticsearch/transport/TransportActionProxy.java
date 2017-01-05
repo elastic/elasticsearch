@@ -9,7 +9,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 
-// nocommit javadocs
+/**
+ * TransportActionProxy allows an arbitrary action to be executed on a defined target node while the initial request is send to a second
+ * node that acts as a request proxy to the target node. This is useful if a node is not directly connected to a target node but is
+ * connected to an intermediate node that establishes a transitive connection.
+ */
 public final class TransportActionProxy {
 
     private TransportActionProxy() {} // no instance
@@ -119,6 +123,9 @@ public final class TransportActionProxy {
         return "internal:transport/proxy/" + action;
     }
 
+    /**
+     * Wraps the actual request in a proxy request object that encodes the target node.
+     */
     public static TransportRequest wrapRequest(DiscoveryNode node, TransportRequest request) {
         return new ProxyRequest<>(request, node);
     }

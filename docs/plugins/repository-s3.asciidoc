@@ -119,6 +119,7 @@ The available values are:
 * `us-east-2` for US East (Ohio)
 * `us-west` (`us-west-1`) for US West (N. California)
 * `us-west-2` for US West (Oregon)
+* `ca-central` (`ca-central-1`) for Canada (Central)
 * `ap-south` (`ap-south-1`) for Asia Pacific (Mumbai)
 * `ap-southeast` (`ap-southeast-1`) for Asia Pacific (Singapore)
 * `ap-southeast-2` for Asia Pacific (Sydney)

@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.mocksocket.MockHttpServer;
 
 import javax.net.ssl.SSLContext;
 import java.io.Closeable;
@@ -83,11 +84,11 @@ public class MockWebServer implements Closeable {
     public void start() throws IOException {
         InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
         if (sslContext != null) {
-            HttpsServer httpsServer = HttpsServer.create(address, 0);
+            HttpsServer httpsServer = MockHttpServer.createHttps(address, 0);
             httpsServer.setHttpsConfigurator(new CustomHttpsConfigurator(sslContext, needClientAuth));
             server = httpsServer;
         } else {
-            server = HttpServer.create(address, 0);
+            server = MockHttpServer.createHttp(address, 0);
         }
 
         server.start();

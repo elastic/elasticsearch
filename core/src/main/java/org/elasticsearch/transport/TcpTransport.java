@@ -384,6 +384,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             this.channels = channels.channels;
             this.typeMapping = channels.typeMapping;
             this.version = handshakeVersion;
+            assert handshakeVersion != null : "handshakeVersion must not be null";
         }
 
         @Override
@@ -498,6 +499,11 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 connectTimeout : connectionProfile.getHandshakeTimeout();
             final Version version = executeHandshake(node, channel, handshakeTimeout);
             transportServiceAdapter.onConnectionOpened(node);
+            if (version == null) {
+                // if we are talking to a pre 5.2 node we won't be able to retrieve the version since it doesn't implement the handshake
+                // we do since 5.2 - in this case we just go with the version provided by the node.
+                return nodeChannels;
+            }
             return new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
         } catch (ConnectTransportException e) {
             throw e;

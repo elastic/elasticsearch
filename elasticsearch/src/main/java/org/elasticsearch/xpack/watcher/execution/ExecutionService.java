@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.common.stats.Counters;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -262,10 +263,13 @@ public final class ExecutionService extends AbstractComponent {
                 logger.trace("not executing watch [{}] because it is already queued", ctx.watch().id());
                 record = ctx.abortBeforeExecution(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED, "Watch is already queued in thread pool");
             } else {
-                final AtomicBoolean watchExists = new AtomicBoolean(true);
-                client.getWatch(ctx.watch().id(), ActionListener.wrap((r) -> watchExists.set(r.isExists()), (e) -> watchExists.set(false)));
+                boolean watchExists = false;
+                try {
+                    GetResponse response = client.getWatch(ctx.watch().id());
+                    watchExists = response.isExists();
+                } catch (IndexNotFoundException e) {}
 
-                if (ctx.knownWatch() && watchExists.get() == false) {
+                if (ctx.knownWatch() && watchExists == false) {
                     // fail fast if we are trying to execute a deleted watch
                     String message = "unable to find watch for record [" + ctx.id() + "], perhaps it has been deleted, ignoring...";
                     record = ctx.abortBeforeExecution(ExecutionState.NOT_EXECUTED_WATCH_MISSING, message);

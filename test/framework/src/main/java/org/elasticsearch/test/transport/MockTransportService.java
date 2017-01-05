@@ -685,6 +685,11 @@ public final class MockTransportService extends TransportService {
         }
 
         @Override
+        public Version getVersion() {
+            return connection.getVersion();
+        }
+
+        @Override
         public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
             throws IOException, TransportException {
             connection.sendRequest(requestId, action, request, options);

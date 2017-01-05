@@ -43,6 +43,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -1818,6 +1819,52 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
+    public void testHandshakeWithIncompatVersion() {
+        assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        try (MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Settings.EMPTY, Collections.emptyList()),
+            Version.fromString("2.0.0"))) {
+            transport.transportServiceAdapter(serviceA.new Adapter());
+            transport.start();
+            DiscoveryNode node =
+                new DiscoveryNode("TS_TPC", "TS_TPC", transport.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(1,
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE);
+            expectThrows(ConnectTransportException.class, () -> serviceA.openConnection(node, builder.build()));
+        }
+    }
+
+    public void testHandshakeUpdatesVersion() throws IOException {
+        assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+        try (MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Settings.EMPTY, Collections.emptyList()),version)) {
+            transport.transportServiceAdapter(serviceA.new Adapter());
+            transport.start();
+            DiscoveryNode node =
+                new DiscoveryNode("TS_TPC", "TS_TPC", transport.boundAddress().publishAddress(), emptyMap(), emptySet(),
+                    Version.fromString("2.0.0"));
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(1,
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE);
+            try (Transport.Connection connection = serviceA.openConnection(node, builder.build())) {
+                assertEquals(connection.getVersion(), version);
+            }
+        }
+    }
+
+
     public void testTcpHandshake() throws IOException, InterruptedException {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
@@ -1830,7 +1877,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                                            int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)
                 throws IOException {
                 return super.handleRequest(mockChannel, profileName, stream, requestId, messageLengthBytes, version, remoteAddress,
-                    (byte)(status & ~(1<<3))); // we flip the isHanshake bit back and ackt like the handler is not found
+                    (byte)(status & ~(1<<3))); // we flip the isHandshake bit back and act like the handler is not found
             }
         }) {
             transport.transportServiceAdapter(serviceA.new Adapter());

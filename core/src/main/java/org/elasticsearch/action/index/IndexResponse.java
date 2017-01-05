@@ -62,8 +62,8 @@ public class IndexResponse extends DocWriteResponse {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        super.toXContent(builder, params);
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        super.innerToXContent(builder, params);
         builder.field("created", result == Result.CREATED);
         return builder;
     }

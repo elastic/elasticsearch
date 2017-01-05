@@ -134,15 +134,6 @@ public class InternalSearchHit implements SearchHit {
         return this.docId;
     }
 
-    public void shardTarget(SearchShardTarget shardTarget) {
-        shard(shardTarget);
-        if (innerHits != null) {
-            for (InternalSearchHits searchHits : innerHits.values()) {
-                searchHits.shardTarget(shardTarget);
-            }
-        }
-    }
-
     public void score(float score) {
         this.score = score;
     }

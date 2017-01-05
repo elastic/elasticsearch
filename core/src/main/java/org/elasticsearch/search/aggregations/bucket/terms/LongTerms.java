@@ -175,7 +175,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
         List<InternalAggregation> newAggs = new ArrayList<> ();
         for (InternalAggregation agg : aggregations) {
-            if (agg instanceof LongTerms) {
+            if (agg instanceof LongTerms && ((LongTerms) agg).format == DocValueFormat.RAW) {
                 DoubleTerms dTerms = convertLongTermsToDouble((LongTerms) agg, decimalFormat);
                 newAggs.add(dTerms);
             } else {

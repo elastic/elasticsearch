@@ -158,16 +158,14 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         boolean promoteToDouble = false;
-        DocValueFormat decimalFormat = null;
         for (InternalAggregation agg : aggregations) {
-            if (agg instanceof LongTerms) {
+            if (agg instanceof LongTerms && ((LongTerms) agg).format == DocValueFormat.RAW) {
                 /**
                  * this terms agg mixes longs and doubles, we must promote longs to doubles to make the internal aggs
                  * compatible
                  */
                 promoteToDouble = true;
-            } else if (agg instanceof DoubleTerms) {
-                decimalFormat = ((DoubleTerms) agg).format;
+                break;
             }
         }
         if (promoteToDouble == false) {
@@ -176,7 +174,7 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         List<InternalAggregation> newAggs = new ArrayList<>();
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof LongTerms) {
-                DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, decimalFormat);
+                DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);
                 newAggs.add(dTerms);
             } else {
                 newAggs.add(agg);

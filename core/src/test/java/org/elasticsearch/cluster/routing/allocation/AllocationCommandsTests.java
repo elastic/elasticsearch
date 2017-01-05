@@ -38,7 +38,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -490,7 +489,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         parser.nextToken();
         parser.nextToken();
         AllocationCommandRegistry registry = NetworkModule.getAllocationCommandRegistry();
-        AllocationCommands sCommands = AllocationCommands.fromXContent(parser, ParseFieldMatcher.STRICT, registry);
+        AllocationCommands sCommands = AllocationCommands.fromXContent(parser, registry);
 
         assertThat(sCommands.commands().size(), equalTo(5));
         assertThat(((AllocateEmptyPrimaryAllocationCommand) (sCommands.commands().get(0))).shardId(), equalTo(1));

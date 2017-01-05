@@ -479,15 +479,15 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
         try {
             NodeChannels nodeChannels = connectToChannels(node, connectionProfile);
-            Channel channel = nodeChannels.getChannels().get(0);
+            final Channel channel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
             final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
                 defaultConnectionProfile.getConnectTimeout() :
                 connectionProfile.getConnectTimeout();
             final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
                 connectTimeout : connectionProfile.getHandshakeTimeout();
-            Version version = executeHandshake(node, channel, handshakeTimeout);
+            final Version version = executeHandshake(node, channel, handshakeTimeout);
             transportServiceAdapter.onConnectionOpened(node);
-            return new NodeChannels(nodeChannels, version);
+            return new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
         } catch (ConnectTransportException e) {
             throw e;
         } catch (Exception e) {

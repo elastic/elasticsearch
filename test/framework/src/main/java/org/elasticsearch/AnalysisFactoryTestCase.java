@@ -82,6 +82,7 @@ import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.StemmerOverrideTokenFilterFactory;
 import org.elasticsearch.index.analysis.StemmerTokenFilterFactory;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
+import org.elasticsearch.index.analysis.SynonymGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.SynonymTokenFilterFactory;
 import org.elasticsearch.index.analysis.ThaiTokenizerFactory;
 import org.elasticsearch.index.analysis.TrimTokenFilterFactory;
@@ -240,6 +241,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("stop",                      StopTokenFilterFactory.class)
         .put("swedishlightstem",          StemmerTokenFilterFactory.class)
         .put("synonym",                   SynonymTokenFilterFactory.class)
+        .put("synonymgraph",              SynonymGraphTokenFilterFactory.class)
         .put("trim",                      TrimTokenFilterFactory.class)
         .put("truncate",                  TruncateTokenFilterFactory.class)
         .put("turkishlowercase",          LowerCaseTokenFilterFactory.class)
@@ -275,6 +277,8 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("fingerprint",               Void.class)
         // for tee-sinks
         .put("daterecognizer",            Void.class)
+        // to flatten graphs created by the synonym graph filter
+        .put("flattengraph",              Void.class)
 
         .immutableMap();
 

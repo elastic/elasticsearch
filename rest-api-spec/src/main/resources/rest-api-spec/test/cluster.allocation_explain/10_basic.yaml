@@ -1,8 +1,7 @@
 ---
 "cluster shard allocation explanation test":
   - skip:
-      # Set to 6.0.0 for now because the 5.2 snapshot builds are failing, causing these tests to run against an old 5.2 build
-      version: " - 6.0.0"
+      version: " - 5.1.99"
       reason: allocation explain api format is different in versions < 5.2.0
 
   - do:
@@ -40,8 +39,7 @@
 ---
 "cluster shard allocation explanation test with empty request":
   - skip:
-      # Set to 6.0.0 for now because the 5.2 snapshot builds are failing, causing these tests to run against an old 5.2 build
-      version: " - 6.0.0"
+      version: " - 5.1.99"
       reason: allocation explain api format is different in versions < 5.2.0
 
   - do:
@@ -64,5 +62,4 @@
   - match: { shard: 0 }
   - match: { primary: false }
   - is_true: cluster_info
-  - match: { can_allocate: "no" }
-  - match: { allocate_explanation : "cannot allocate because allocation is not permitted to any of the nodes" }
+  - is_true: can_allocate

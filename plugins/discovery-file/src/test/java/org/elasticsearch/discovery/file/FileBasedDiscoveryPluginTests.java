@@ -27,7 +27,7 @@ import java.io.IOException;
 
 public class FileBasedDiscoveryPluginTests extends ESTestCase {
 
-    public void testHostsProviderBwc() throws IOException {
+    public void testHostsProviderBwc() {
         FileBasedDiscoveryPlugin plugin = new FileBasedDiscoveryPlugin(Settings.EMPTY);
         Settings additionalSettings = plugin.additionalSettings();
         assertEquals("file", additionalSettings.get(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey()));
@@ -35,7 +35,7 @@ public class FileBasedDiscoveryPluginTests extends ESTestCase {
                 "Set \"discovery.zen.hosts_provider: file\" instead");
     }
 
-    public void testHostsProviderExplicit() throws IOException {
+    public void testHostsProviderExplicit() {
         Settings settings = Settings.builder().put(DiscoveryModule.DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(), "foo").build();
         FileBasedDiscoveryPlugin plugin = new FileBasedDiscoveryPlugin(settings);
         assertEquals(Settings.EMPTY, plugin.additionalSettings());

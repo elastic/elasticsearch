@@ -891,6 +891,7 @@ Which results in a sensible `total` like this one:
 
 Adding `slices` to `_reindex` just automates the manual process used in the
 section above, creating sub-requests which means it has some quirks:
+
 * You can see these requests in the <<docs-reindex-task-api,Tasks APIs>>. These
 sub-requests are "child" tasks of the task for the request with `slices`.
 * Fetching the status of the task for the request with `slices` only contains

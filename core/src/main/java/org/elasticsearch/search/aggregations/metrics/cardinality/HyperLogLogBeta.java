@@ -84,7 +84,11 @@ public final class HyperLogLogBeta implements Releasable {
         // precision 17
         { -0.339120524001, -72.1994426957, 113.185471625, -62.8282169476, 16.6562758098, -2.26144354617, 0.150939847827, -0.0036642817302 },
         // precision 18
-        { -0.372494978401, 39.9302213478, -69.8219564407, 43.7971215279, -13.1312309526, 2.0820456299, -0.1696126329, 0.00591592212173 }
+        { -0.372494978401, 39.9302213478, -69.8219564407, 43.7971215279, -13.1312309526, 2.0820456299, -0.1696126329, 0.00591592212173 },
+        null,null,null,null,null,null,
+        // precision 25
+            { -0.483989632298, 10736579.3179, -61547.7057585, -101132.984054, 3981.598267, -147.235195282, 15.4398702925,
+                    -0.378594684543 }
     };
 
     /**
@@ -113,12 +117,12 @@ public final class HyperLogLogBeta implements Releasable {
     private final double alphaM;
 
     public HyperLogLogBeta(int precision, BigArrays bigArrays, long initialBucketCount) {
-        if (precision < 4) {
-            throw new IllegalArgumentException("precision must be >= 4");
-        }
-        if (precision > 18) {
-            throw new IllegalArgumentException("precision must be <= 18");
-        }
+        // if (precision < 4) {
+        // throw new IllegalArgumentException("precision must be >= 4");
+        // }
+        // if (precision > 18) {
+        // throw new IllegalArgumentException("precision must be <= 18");
+        // }
         p = precision;
         m = 1 << p;
         this.bigArrays = bigArrays;

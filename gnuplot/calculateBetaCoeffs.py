@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import csv
 from math import log
 
-for precision in range(4,19):
+for precision in range(25,26):
 
     data = []
     with open('coeffData' + str(precision) + '.dat', 'r') as csvfile:
@@ -16,11 +16,13 @@ for precision in range(4,19):
     m = np.shape(input)[0]
     z = input[:,0]
     zl = np.log(z+1)
-    M = np.matrix([z, zl, zl**2, zl**3, zl**4, zl**5, zl**6, zl**7]).T
+    M = np.matrix([z, zl, zl**2, zl**3, zl**4, zl**5, zl**6, zl**7]).T #, zl**8, zl**9, zl**10, zl**11, zl**12]).T
     y = np.matrix(input[:,1]).T
     p = np.linalg.inv(M.T.dot(M)).dot(M.T).dot(y)
 
-    print(precision, 'coefficients: {', p.A[0][0], ',', p.A[1][0], ',', p.A[2][0], ',', p.A[3][0], ',', p.A[4][0], ',', p.A[5][0], ',', p.A[6][0], ',', p.A[7][0], '}')
+    print(precision, 'coefficients: {', p.A[0][0], ',', p.A[1][0], ',', p.A[2][0], ',', p.A[3][0], ',', p.A[4][0], ',',
+          p.A[5][0], ',', p.A[6][0], ',', p.A[7][0], '}') \
+        #, ',', p.A[8][0], ',', p.A[9][0], ',', p.A[10][0], ',', p.A[11][0], ',', p.A[12][0], '}')
 
 # plt.figure(1)
 # zz = np.linspace(0, np.max(z))

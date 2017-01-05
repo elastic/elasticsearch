@@ -35,9 +35,9 @@ public class GenerateBetaFunctionData {
     public static void main(String[] args) throws Exception {
         Random r = new Random();
         boolean compareWithCalculated = false;
-        for (int precision = HyperLogLogBeta.MIN_PRECISION; precision <= HyperLogLogBeta.MAX_PRECISION; precision++) {
+        for (int precision = 18; precision <= 25; precision++) {
             System.out.println("Running precision: " + precision);
-            int numTestRuns = compareWithCalculated ? 1 : 100;
+            int numTestRuns = compareWithCalculated ? 1 : 10;
             int maxCardinality = 10000000;
             int initialCardinality = 100;
             int initialStep = 10;

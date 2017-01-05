@@ -48,7 +48,7 @@ Elasticsearch can be quickly started for development or testing use with the fol
 
 ["source","sh",subs="attributes"]
 --------------------------------------------
-docker run -p 9200:9200 {docker-image} -E "http.host=0.0.0.0" -E "transport.host=127.0.0.1"
+docker run -p 9200:9200 {docker-image} -E "http.bind_host=0.0.0.0" -E "http.publish_host=127.0.0.1" -E "transport.host=127.0.0.1"
 --------------------------------------------
 
 endif::[]

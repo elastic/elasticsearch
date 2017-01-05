@@ -14,7 +14,7 @@
             },
             "trigger": {
               "schedule": {
-                "interval": "1s"
+                "interval": "1d"
               }
             },
             "input": {
@@ -30,7 +30,7 @@
                   "account": "test",
                   "fields": {
                     "summary": "{{ctx.metadata.custom_title}} {{ctx.watch_id}}",
-                    "description": "Issue created by the REST integration test [/watcher/actions/10_jira.yaml]",
+                    "description": "Issue created by the REST integration test [/watcher/actions/20_jira.yaml]",
                     "issuetype" : {
                       "name": "Bug"
                     }
@@ -85,10 +85,10 @@
   - match: { hits.hits.0._source.result.actions.0.jira.account: "test" }
   - match: { hits.hits.0._source.result.actions.0.jira.fields.summary: "Hello from jira_watch" }
   - match: { hits.hits.0._source.result.actions.0.jira.fields.issuetype.name: "Bug" }
-  - match: { hits.hits.0._source.result.actions.0.jira.fields.project.key: "BAS" }
+  - match: { hits.hits.0._source.result.actions.0.jira.fields.project.key: "XWT" }
   - match: { hits.hits.0._source.result.actions.0.jira.fields.labels.0: "integration-tests" }
   - match: { hits.hits.0._source.result.actions.0.jira.result.id: /\d+/ }
-  - match: { hits.hits.0._source.result.actions.0.jira.result.key: /BAS-\d+/ }
+  - match: { hits.hits.0._source.result.actions.0.jira.result.key: /XWT-\d+/ }
   - match: { hits.hits.0._source.result.actions.0.jira.result.self: /http(.)*/ }
 
   - set: { hits.hits.0._id: id }
@@ -100,7 +100,7 @@
         body:
           query:
             match:
-              result.actions.jira.fields.project.key: "BAS"
+              result.actions.jira.fields.project.key: "XWT"
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: $id }
   - match: { hits.hits.0._source.result.actions.0.jira.result.self: $self }
@@ -205,12 +205,12 @@
   - match: { hits.hits.0._source.result.actions.0.jira.account: "test" }
   - match: { hits.hits.0._source.result.actions.0.jira.fields.summary: "Hello from wrong_jira_watch" }
   - is_false: hits.hits.0._source.result.actions.0.jira.fields.issuetype.name
-  - match: { hits.hits.0._source.result.actions.0.jira.fields.project.key: "BAS" }
+  - match: { hits.hits.0._source.result.actions.0.jira.fields.project.key: "XWT" }
   - match: { hits.hits.0._source.result.actions.0.jira.fields.labels.0: "integration-tests" }
   - match: { hits.hits.0._source.result.actions.0.jira.reason: "Bad Request - Field [issuetype] has error [issue type is required]\n" }
   - match: { hits.hits.0._source.result.actions.0.jira.request.method: "post" }
   - match: { hits.hits.0._source.result.actions.0.jira.request.path: "/rest/api/2/issue" }
-  - match: { hits.hits.0._source.result.actions.0.jira.request.auth.basic.username: "jira_user" }
+  - match: { hits.hits.0._source.result.actions.0.jira.request.auth.basic.username: "xpack-user@elastic.co" }
   - is_false: hits.hits.0._source.result.actions.0.jira.request.auth.basic.password
   - match: { hits.hits.0._source.result.actions.0.jira.response.body: "{\"errorMessages\":[],\"errors\":{\"issuetype\":\"issue type is required\"}}" }
 
@@ -244,7 +244,7 @@
                   "account": "test",
                   "fields": {
                     "summary": "Jira watch with custom field of string type",
-                    "description": "Issue created by the REST integration test [/watcher/actions/10_jira.yaml]",
+                    "description": "Issue created by the REST integration test [/watcher/actions/20_jira.yaml]",
                     "issuetype" : {
                       "name": "Bug"
                     },
@@ -295,7 +295,7 @@
                   "account": "test",
                   "fields": {
                     "summary": "Jira watch with custom field of object (Jira's CascadingSelectField) type",
-                    "description": "Issue created by the REST integration test [/watcher/actions/10_jira.yaml]",
+                    "description": "Issue created by the REST integration test [/watcher/actions/20_jira.yaml]",
                     "issuetype" : {
                       "name": "Bug"
                     },

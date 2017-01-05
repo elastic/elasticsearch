@@ -159,7 +159,7 @@ public class MultiSearchResponse extends ActionResponse implements Iterable<Mult
                 ElasticsearchException.renderException(builder, params, item.getFailure());
                 builder.field(Fields.STATUS, ExceptionsHelper.status(item.getFailure()).getStatus());
             } else {
-                item.getResponse().toXContent(builder, params);
+                item.getResponse().innerToXContent(builder, params);
                 builder.field(Fields.STATUS, item.getResponse().status().getStatus());
             }
             builder.endObject();

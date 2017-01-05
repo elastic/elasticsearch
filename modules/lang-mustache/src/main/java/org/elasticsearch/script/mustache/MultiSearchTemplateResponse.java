@@ -150,13 +150,13 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
         builder.startObject();
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
-            builder.startObject();
             if (item.isFailure()) {
+                builder.startObject();
                 ElasticsearchException.renderException(builder, params, item.getFailure());
+                builder.endObject();
             } else {
                 item.getResponse().toXContent(builder, params);
             }
-            builder.endObject();
         }
         builder.endArray();
         builder.endObject();

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -35,10 +34,22 @@ public class MonitoringSettings extends AbstractComponent {
     public static final TimeValue HISTORY_DURATION_MINIMUM = TimeValue.timeValueHours(24);
 
     /**
+     * Minimum value for sampling interval (1 second)
+     */
+    static final TimeValue MIN_INTERVAL = TimeValue.timeValueSeconds(1L);
+
+    /**
      * Sampling interval between two collections (default to 10s)
      */
-    public static final Setting<TimeValue> INTERVAL =
-            timeSetting(collectionKey("interval"), TimeValue.timeValueSeconds(10), Property.Dynamic, Property.NodeScope);
+    public static final Setting<TimeValue> INTERVAL = new Setting<>(collectionKey("interval"), "10s",
+            (s) -> {
+                TimeValue value = TimeValue.parseTimeValue(s, null, collectionKey("interval"));
+                if (TimeValue.MINUS_ONE.equals(value) || value.millis() >= MIN_INTERVAL.millis()) {
+                    return value;
+                }
+                throw new IllegalArgumentException("Failed to parse monitoring interval [" + s + "], value must be >= " + MIN_INTERVAL);
+            },
+            Property.Dynamic, Property.NodeScope);
 
     /**
      * Timeout value when collecting index statistics (default to 10m)

@@ -239,3 +239,9 @@ thirdPartyAudit.excludes = [
     'javax.activation.UnsupportedDataTypeException'
 ]
 
+run {
+  setting 'xpack.graph.enabled', 'true'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.monitoring.enabled', 'true'
+  setting 'xpack.watcher.enabled', 'true'
+}

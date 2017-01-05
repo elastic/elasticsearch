@@ -20,14 +20,13 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope = TEST, transportClientRatio = 0, numClientNodes = 0, numDataNodes = 0)
 public class MonitoringPluginTests extends MonitoringIntegTestCase {
 
-
     @Override
-    protected void startCollection() {
+    protected void startMonitoringService() {
         // do nothing as monitoring is sometime unbound
     }
 
     @Override
-    protected void stopCollection() {
+    protected void stopMonitoringService() {
         // do nothing as monitoring is sometime unbound
     }
 
@@ -44,7 +43,7 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), true)
                 .build());
         assertPluginIsLoaded();
-        assertServiceIsBound(AgentService.class);
+        assertServiceIsBound(MonitoringService.class);
     }
 
     public void testMonitoringDisabled() {
@@ -52,7 +51,7 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
                 .put(XPackSettings.MONITORING_ENABLED.getKey(), false)
                 .build());
         assertPluginIsLoaded();
-        assertServiceIsNotBound(AgentService.class);
+        assertServiceIsNotBound(MonitoringService.class);
     }
 
     public void testMonitoringEnabledOnTribeNode() {
@@ -61,13 +60,13 @@ public class MonitoringPluginTests extends MonitoringIntegTestCase {
                 .put("tribe.name", "t1")
                 .build());
         assertPluginIsLoaded();
-        assertServiceIsBound(AgentService.class);
+        assertServiceIsBound(MonitoringService.class);
     }
 
     public void testMonitoringDisabledOnTribeNode() {
         internalCluster().startNode(Settings.builder().put("tribe.name", "t1").build());
         assertPluginIsLoaded();
-        assertServiceIsNotBound(AgentService.class);
+        assertServiceIsNotBound(MonitoringService.class);
     }
 
     private void assertPluginIsLoaded() {

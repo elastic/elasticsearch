@@ -67,6 +67,14 @@ public class PutIndexTemplateRequestBuilder
     }
 
     /**
+     * Sets whether the index name should be inferred from matching alias.
+     */
+    public PutIndexTemplateRequestBuilder setInferIndexNameFromAlias(boolean inferIndexNameFromAlias) {
+        request.inferIndexNameFromAlias(inferIndexNameFromAlias);
+        return this;
+    }
+
+    /**
      * Sets the optional version of this template.
      */
     public PutIndexTemplateRequestBuilder setVersion(Integer version) {

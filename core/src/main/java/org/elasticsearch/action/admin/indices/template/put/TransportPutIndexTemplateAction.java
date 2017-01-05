@@ -81,6 +81,7 @@ public class TransportPutIndexTemplateAction extends TransportMasterNodeAction<P
         indexTemplateService.putTemplate(new MetaDataIndexTemplateService.PutRequest(cause, request.name())
                 .patterns(request.patterns())
                 .order(request.order())
+                .inferIndexNameFromAlias(request.inferIndexNameFromAlias())
                 .settings(templateSettingsBuilder.build())
                 .mappings(request.mappings())
                 .aliases(request.aliases())

@@ -56,6 +56,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             putRequest.patterns(Arrays.asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));
         }
         putRequest.order(request.paramAsInt("order", putRequest.order()));
+        putRequest.inferIndexNameFromAlias(request.paramAsBoolean("infer_index_name_from_alias", putRequest.inferIndexNameFromAlias()));
         putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));

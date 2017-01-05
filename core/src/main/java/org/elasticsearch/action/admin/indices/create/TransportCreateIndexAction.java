@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -26,12 +28,20 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Create index action.
@@ -71,8 +81,10 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             cause = "api";
         }
 
-        final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
-        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(request, cause, indexName, request.index(), request.updateAllTypes())
+        String providedIndexName = inferIndexNameFromAlias(request.index(), state);
+        final String indexName = indexNameExpressionResolver.resolveDateMathExpression(providedIndexName);
+
+        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(request, cause, indexName, providedIndexName, request.updateAllTypes())
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .settings(request.settings()).mappings(request.mappings())
                 .aliases(request.aliases()).customs(request.customs())
@@ -83,4 +95,52 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             listener::onFailure));
     }
 
+    private String inferIndexNameFromAlias(String providedIndexName, ClusterState state) {
+        final String MATCH_ALL_GROUP = "(.*)";
+        final String GROUP_BACK_REFERENCE = "\\\\1";
+        final String indexNamePlaceHolder = "{index}";
+        final String indexNamePlaceholderForRegex = "\\" + indexNamePlaceHolder;
+
+        final String indexName = indexNameExpressionResolver.resolveDateMathExpression(providedIndexName);
+
+        for (IndexTemplateMetaData templateMetadata : getAllTemplatesByOrder(state)) {
+            if (templateMetadata.inferIndexNameFromAlias()) {
+                for (ObjectCursor<String> stringObjectCursor : templateMetadata.aliases().keys()) {
+                    String aliasName = stringObjectCursor.value;
+                    if (aliasName.contains(indexNamePlaceHolder)) {
+                        for (String template : templateMetadata.patterns()) {
+                            if (Regex.simpleMatch(aliasName.replace(indexNamePlaceHolder, template), indexName)) {
+                                String aliasNameForIndexRegex = aliasName.replaceFirst(indexNamePlaceholderForRegex, MATCH_ALL_GROUP).replaceAll(indexNamePlaceholderForRegex, GROUP_BACK_REFERENCE);
+                                Pattern aliasPattern = Regex.compile(aliasNameForIndexRegex);
+
+                                if (providedIndexName.startsWith("<") && providedIndexName.endsWith(">")) {
+                                    Matcher providedIndexNameMatcher = aliasPattern.matcher(providedIndexName.substring(1, providedIndexName.length() - 1));
+                                    if (providedIndexNameMatcher.matches()) {
+                                        return "<" + providedIndexNameMatcher.group(1) + ">";
+                                    }
+                                } else {
+                                    Matcher providedIndexNameMatcher = aliasPattern.matcher(providedIndexName);
+                                    if (providedIndexNameMatcher.matches()) {
+                                        return providedIndexNameMatcher.group(1);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return providedIndexName;
+    }
+
+    private List<IndexTemplateMetaData> getAllTemplatesByOrder(ClusterState state) {
+        List<IndexTemplateMetaData> templateMetadata = new ArrayList<>();
+        for (ObjectCursor<IndexTemplateMetaData> cursor : state.metaData().templates().values()) {
+            IndexTemplateMetaData metadata = cursor.value;
+            templateMetadata.add(metadata);
+        }
+
+        CollectionUtil.timSort(templateMetadata, Comparator.comparingInt(IndexTemplateMetaData::order).reversed());
+        return templateMetadata;
+    }
 }

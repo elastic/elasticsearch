@@ -212,6 +212,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
             createdIndex = dummyIndexService.index();
 
             templateBuilder.order(request.order);
+            templateBuilder.inferIndexNameFromAlias(request.inferIndexNameFromAlias);
             templateBuilder.version(request.version);
             templateBuilder.patterns(request.indexPatterns);
             templateBuilder.settings(request.settings);
@@ -308,6 +309,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         final String cause;
         boolean create;
         int order;
+        boolean inferIndexNameFromAlias;
         Integer version;
         List<String> indexPatterns;
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
@@ -324,6 +326,11 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
 
         public PutRequest order(int order) {
             this.order = order;
+            return this;
+        }
+
+        public PutRequest inferIndexNameFromAlias(boolean inferIndexNameFromAlias) {
+            this.inferIndexNameFromAlias = inferIndexNameFromAlias;
             return this;
         }
 

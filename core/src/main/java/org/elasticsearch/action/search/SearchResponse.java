@@ -25,8 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.StatusToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
@@ -45,7 +44,7 @@ import static org.elasticsearch.search.internal.InternalSearchResponse.readInter
 /**
  * A response of a search request.
  */
-public class SearchResponse extends ActionResponse implements StatusToXContent, ToXContentObject {
+public class SearchResponse extends ActionResponse implements StatusToXContentObject {
 
     private InternalSearchResponse internalResponse;
 

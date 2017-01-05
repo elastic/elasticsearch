@@ -30,7 +30,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -41,7 +41,7 @@ import java.io.IOException;
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message incase it failed).
  */
-public class BulkItemResponse implements Streamable, StatusToXContent {
+public class BulkItemResponse implements Streamable, StatusToXContentObject {
 
     @Override
     public RestStatus status() {
@@ -50,6 +50,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(opType);
         if (failure == null) {
             response.innerToXContent(builder, params);
@@ -63,6 +64,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
             ElasticsearchException.toXContent(builder, params, failure.getCause());
             builder.endObject();
         }
+        builder.endObject();
         builder.endObject();
         return builder;
     }

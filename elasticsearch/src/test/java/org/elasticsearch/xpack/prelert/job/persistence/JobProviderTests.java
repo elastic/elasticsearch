@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -46,6 +47,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -731,7 +733,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(1200L, records);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
     public void testCategoryDefinitions()
             throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";
@@ -745,22 +746,21 @@ public class JobProviderTests extends ESTestCase {
 
         source.add(map);
 
-        ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
         SearchResponse response = createSearchResponse(true, source);
         int from = 0;
         int size = 10;
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareSearch(AnomalyDetectorsIndex.jobResultsIndexName(jobId),
-                        CategoryDefinition.TYPE.getPreferredName(), from, size, response, queryBuilder);
+        Client client = getMockedClient(q -> {}, response);
 
-        Client client = clientBuilder.build();
         JobProvider provider = createProvider(client);
-        QueryPage<CategoryDefinition> categoryDefinitions = provider.categoryDefinitions(jobId, from, size);
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
+        provider.categoryDefinitions(jobId, null, from, size, r -> {holder[0] = r;},
+                e -> {throw new RuntimeException(e);});
+        QueryPage<CategoryDefinition> categoryDefinitions = holder[0];
         assertEquals(1L, categoryDefinitions.count());
         assertEquals(terms, categoryDefinitions.results().get(0).getTerms());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
     public void testCategoryDefinition()
             throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";
@@ -772,15 +772,14 @@ public class JobProviderTests extends ESTestCase {
         source.put("category_id", categoryId);
         source.put("terms", terms);
 
-        GetResponse getResponse = createGetResponse(true, source);
-
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareGet(AnomalyDetectorsIndex.jobResultsIndexName(jobId),
-                        CategoryDefinition.TYPE.getPreferredName(), categoryId, getResponse);
-
-        Client client = clientBuilder.build();
+        SearchResponse response = createSearchResponse(true, Collections.singletonList(source));
+        Client client = getMockedClient(q -> {}, response);
         JobProvider provider = createProvider(client);
-        QueryPage<CategoryDefinition> categoryDefinitions = provider.categoryDefinition(jobId, categoryId);
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        QueryPage<CategoryDefinition>[] holder = new QueryPage[1];
+        provider.categoryDefinitions(jobId, categoryId, null, null,
+                r -> {holder[0] = r;}, e -> {throw new RuntimeException(e);});
+        QueryPage<CategoryDefinition> categoryDefinitions = holder[0];
         assertEquals(1L, categoryDefinitions.count());
         assertEquals(terms, categoryDefinitions.results().get(0).getTerms());
     }
@@ -1216,6 +1215,14 @@ public class JobProviderTests extends ESTestCase {
             actionListener.onResponse(mresponse);
             return null;
         }).when(client).multiSearch(any(), any());
+        doAnswer(invocationOnMock -> {
+            SearchRequest searchRequest = (SearchRequest) invocationOnMock.getArguments()[0];
+            queryBuilderConsumer.accept(searchRequest.source().query());
+            @SuppressWarnings("unchecked")
+            ActionListener<SearchResponse> actionListener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[1];
+            actionListener.onResponse(response);
+            return null;
+        }).when(client).search(any(), any());
         return client;
     }
 }

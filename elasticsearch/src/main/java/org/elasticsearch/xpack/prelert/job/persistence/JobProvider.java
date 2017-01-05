@@ -38,6 +38,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -621,75 +623,56 @@ public class JobProvider {
      * @param jobId the job id
      * @param from  Skip the first N categories. This parameter is for paging
      * @param size  Take only this number of categories
-     * @return QueryPage of CategoryDefinition
      */
-    public QueryPage<CategoryDefinition> categoryDefinitions(String jobId, int from, int size) {
+    public void categoryDefinitions(String jobId, String categoryId, Integer from, Integer size,
+                                    Consumer<QueryPage<CategoryDefinition>> handler,
+                                    Consumer<Exception> errorHandler) {
+        if (categoryId != null && (from != null || size != null)) {
+            throw new IllegalStateException("Both categoryId and pageParams are specified");
+        }
+
         String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} from {} size {}",
                 CategoryDefinition.TYPE.getPreferredName(), indexName, CategoryDefinition.CATEGORY_ID.getPreferredName(), from, size);
 
         SearchRequest searchRequest = new SearchRequest(indexName);
-        searchRequest.types(CategoryDefinition.TYPE.getPreferredName());
-        searchRequest.source(new SearchSourceBuilder().from(from).size(size)
-                .sort(new FieldSortBuilder(CategoryDefinition.CATEGORY_ID.getPreferredName()).order(SortOrder.ASC)));
-        SearchResponse searchResponse;
-        try {
-            searchResponse = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
-        } catch (IndexNotFoundException e) {
-            throw ExceptionsHelper.missingJobException(jobId);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        if (categoryId != null) {
+            String uid = Uid.createUid(CategoryDefinition.TYPE.getPreferredName(), categoryId);
+            sourceBuilder.query(QueryBuilders.termQuery(UidFieldMapper.NAME, uid));
+            searchRequest.routing(categoryId);
+        } else if (from != null && size != null) {
+            searchRequest.types(CategoryDefinition.TYPE.getPreferredName());
+            sourceBuilder.from(from).size(size)
+                    .sort(new FieldSortBuilder(CategoryDefinition.CATEGORY_ID.getPreferredName()).order(SortOrder.ASC));
+        } else {
+            throw new IllegalStateException("Both categoryId and pageParams are not specified");
         }
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        List<CategoryDefinition> results = new ArrayList<>(hits.length);
-        for (SearchHit hit : hits) {
-            BytesReference source = hit.getSourceRef();
-            XContentParser parser;
-            try {
-                parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse category definition", e);
+        searchRequest.source(sourceBuilder);
+        client.search(searchRequest, ActionListener.wrap(searchResponse -> {
+            SearchHit[] hits = searchResponse.getHits().getHits();
+            List<CategoryDefinition> results = new ArrayList<>(hits.length);
+            for (SearchHit hit : hits) {
+                BytesReference source = hit.getSourceRef();
+                XContentParser parser;
+                try {
+                    parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+                } catch (IOException e) {
+                    throw new ElasticsearchParseException("failed to parse category definition", e);
+                }
+                CategoryDefinition categoryDefinition = CategoryDefinition.PARSER.apply(parser, () -> parseFieldMatcher);
+                results.add(categoryDefinition);
             }
-            CategoryDefinition categoryDefinition = CategoryDefinition.PARSER.apply(parser, () -> parseFieldMatcher);
-            results.add(categoryDefinition);
-        }
-
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
-    }
-
-    /**
-     * Get the specific CategoryDefinition for the given job and category id.
-     *
-     * @param jobId      the job id
-     * @param categoryId Unique id
-     * @return QueryPage CategoryDefinition
-     */
-    public QueryPage<CategoryDefinition> categoryDefinition(String jobId, String categoryId) {
-        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
-        GetResponse response;
-
-        try {
-            LOGGER.trace("ES API CALL: get ID {} type {} from index {}",
-                    categoryId, CategoryDefinition.TYPE, indexName);
-
-            GetRequest getRequest = new GetRequest(indexName, CategoryDefinition.TYPE.getPreferredName(), categoryId);
-            response = FixBlockingClientOperations.executeBlocking(client, GetAction.INSTANCE, getRequest);
-        } catch (IndexNotFoundException e) {
-            throw ExceptionsHelper.missingJobException(jobId);
-        }
-
-
-        if (response.isExists()) {
-            BytesReference source = response.getSourceAsBytesRef();
-            XContentParser parser;
-            try {
-                parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse category definition", e);
+            QueryPage<CategoryDefinition> result =
+                    new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
+            handler.accept(result);
+        }, e -> {
+            if (e instanceof IndexNotFoundException) {
+                errorHandler.accept(ExceptionsHelper.missingJobException(jobId));
+            } else {
+                errorHandler.accept(e);
             }
-            CategoryDefinition definition = CategoryDefinition.PARSER.apply(parser, () -> parseFieldMatcher);
-            return new QueryPage<>(Collections.singletonList(definition), 1, CategoryDefinition.RESULTS_FIELD);
-        }
-
-        throw QueryPage.emptyQueryPage(Bucket.RESULTS_FIELD);
+        }));
     }
 
     /**

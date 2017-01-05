@@ -244,15 +244,10 @@ Action<GetCategoriesDefinitionAction.Request, GetCategoriesDefinitionAction.Resp
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
-            QueryPage<CategoryDefinition> result;
-            if (request.categoryId != null ) {
-                result = jobProvider.categoryDefinition(request.jobId, request.categoryId);
-            } else if (request.pageParams != null) {
-                result = jobProvider.categoryDefinitions(request.jobId, request.pageParams.getFrom(), request.pageParams.getSize());
-            } else {
-                throw new IllegalStateException("Both categoryId and pageParams are null");
-            }
-            listener.onResponse(new Response(result));
+            Integer from = request.pageParams != null ? request.pageParams.getFrom() : null;
+            Integer size = request.pageParams != null ? request.pageParams.getSize() : null;
+            jobProvider.categoryDefinitions(request.jobId, request.categoryId, from, size,
+                    r -> listener.onResponse(new Response(r)), listener::onFailure);
         }
     }
 }

@@ -130,8 +130,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
                 jobProvider.influencers(JOB_ID, new InfluencersQueryBuilder().includeInterim(true).build());
         assertResultsAreSame(influencers, persistedInfluencers);
 
-        QueryPage<CategoryDefinition> persistedDefinition =
-                jobProvider.categoryDefinition(JOB_ID, Long.toString(categoryDefinition.getCategoryId()));
+        QueryPage<CategoryDefinition> persistedDefinition = getCategoryDefinition(Long.toString(categoryDefinition.getCategoryId()));
         assertEquals(1, persistedDefinition.count());
         assertEquals(categoryDefinition, persistedDefinition.results().get(0));
 
@@ -456,6 +455,24 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         AtomicReference<QueryPage<Bucket>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         jobProvider.buckets(JOB_ID, bucketsQuery, r -> {
+            resultHolder.set(r);
+            latch.countDown();
+        }, e -> {
+            errorHolder.set(e);
+            latch.countDown();
+        });
+        latch.await();
+        if (errorHolder.get() != null) {
+            throw errorHolder.get();
+        }
+        return resultHolder.get();
+    }
+
+    private QueryPage<CategoryDefinition> getCategoryDefinition(String categoryId) throws Exception {
+        AtomicReference<Exception> errorHolder = new AtomicReference<>();
+        AtomicReference<QueryPage<CategoryDefinition>> resultHolder = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        jobProvider.categoryDefinitions(JOB_ID, categoryId, null, null, r -> {
             resultHolder.set(r);
             latch.countDown();
         }, e -> {

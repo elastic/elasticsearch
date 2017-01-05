@@ -2,6 +2,12 @@ setup:
   - do:
       indices.create:
         index: airline-data
+        body:
+          mappings:
+            response:
+              properties:
+                time:
+                  type: date
 
   - do:
       xpack.ml.put_job:

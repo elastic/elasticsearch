@@ -107,7 +107,7 @@ public class RecoveriesCollection {
             }
 
             // Closes the current recovery target
-            boolean successfulReset = oldRecoveryTarget.resetRecovery(activityTimeout);
+            boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.CancellableThreads());
             if (successfulReset) {
                 logger.trace("{} restarted recovery from {}, id [{}], previous id [{}]", newRecoveryTarget.shardId(),
                     newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(), oldRecoveryTarget.recoveryId());

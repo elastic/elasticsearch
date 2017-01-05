@@ -185,7 +185,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * Closes the current recovery target and waits up to a certain timeout for resources to be freed.
      * Returns true if resetting the recovery was successful, false if the recovery target is already cancelled / failed or marked as done.
      */
-    boolean resetRecovery(TimeValue activityTimeout) throws InterruptedException, IOException, TimeoutException {
+    boolean resetRecovery(CancellableThreads newTargetCancellableThreads) throws IOException {
         if (finished.compareAndSet(false, true)) {
             try {
                 logger.debug("reset of recovery with shard {} and id [{}]", shardId, recoveryId);
@@ -194,11 +194,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 decRef();
             }
             try {
-                if (closedLatch.await(activityTimeout.millis(), TimeUnit.MILLISECONDS) == false) {
-                    throw new TimeoutException("timed out while waiting on previous recovery attempt to release resources");
-                }
-            } catch (InterruptedException e) {
-                throw new IllegalStateException("Interrupted while waiting on previous recovery attempt to release resources", e);
+                newTargetCancellableThreads.execute(closedLatch::await);
+            } catch (CancellableThreads.ExecutionCancelledException e) {
+                logger.trace("new recovery target cancelled for shard {} while waiting on old recovery target with id [{}] to close",
+                    shardId, recoveryId);
+                return false;
             }
             RecoveryState.Stage stage = indexShard.recoveryState().getStage();
             if (indexShard.recoveryState().getPrimary() && (stage == RecoveryState.Stage.FINALIZE || stage == RecoveryState.Stage.DONE)) {

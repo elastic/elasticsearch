@@ -267,4 +267,20 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         assertEquals("invalid sequence of tokens near ['.'].", e.getMessage());
     }
 
+    public void testBadStringEscape() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'\\a'", false));
+        assertEquals("unexpected character ['\\a]. The only valid escape sequences in strings starting with ['] are [\\\\] and [\\'].",
+                e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("\"\\a\"", false));
+        assertEquals("unexpected character [\"\\a]. The only valid escape sequences in strings starting with [\"] are [\\\\] and [\\\"].",
+                e.getMessage());
+    }
+
+    public void testRegularUnexpectedCharacter() {
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'", false));
+        assertEquals("unexpected character ['].", e.getMessage());
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'cat", false));
+        assertEquals("unexpected character ['cat].", e.getMessage());
+    }
+
 }

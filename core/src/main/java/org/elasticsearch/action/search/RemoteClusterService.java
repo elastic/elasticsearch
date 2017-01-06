@@ -60,7 +60,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-//nocommit this class needs more javadocs and must be unittested
+/**
+ * Basic service for accessing remote clusters via gateway nodes
+ */
 public final class RemoteClusterService extends AbstractComponent implements Closeable {
 
     /**
@@ -157,6 +159,13 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         return remoteClusters.isEmpty() == false;
     }
 
+    /**
+     * Filters out indices that refer to a remote cluster and adds them to the given per cluster indices map.
+     *
+     * @param perClusterIndices a map to fill with remote cluster indices from the given request indices
+     * @param requestIndices the indices in the search request to filter
+     * @return all indices in the requestIndices array that are not remote cluster indices
+     */
     public String[] filterIndices(Map<String, List<String>> perClusterIndices, String[] requestIndices) {
         List<String> localIndicesList = new ArrayList<>();
         for (String index : requestIndices) {

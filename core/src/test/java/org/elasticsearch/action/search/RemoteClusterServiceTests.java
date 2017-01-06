@@ -30,15 +30,29 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingHelper;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -46,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 
 public class RemoteClusterServiceTests extends ESTestCase {
 
@@ -59,6 +74,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
     private MockTransportService startTransport(String id, List<DiscoveryNode> knownNodes, Version version) {
         return RemoteClusterConnectionTests.startTransport(id, knownNodes, version, threadPool);
+    }
+
+    public void testSettingsAreRegistered() {
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CLUSTERS_SEEDS));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_CONNECTIONS_PER_CLUSTER));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING));
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(RemoteClusterService.REMOTE_NODE_ATTRIBUTE));
     }
 
     public void testRemoteClusterSeedSetting() {
@@ -96,7 +118,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
     }
 
 
-    public void testFilterIndices() {
+    public void testFilterIndices() throws IOException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         try (MockTransportService seedTransport = startTransport("cluster_1_node", knownNodes, Version.CURRENT);
              MockTransportService otherSeedTransport = startTransport("cluster_2_node", knownNodes, Version.CURRENT)) {
@@ -113,16 +135,82 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 Settings.Builder builder = Settings.builder();
                 builder.putArray("search.remote.seeds.cluster_1", seedNode.getAddress().toString());
                 builder.putArray("search.remote.seeds.cluster_2", otherSeedNode.getAddress().toString());
-                RemoteClusterService service = new RemoteClusterService(builder.build(), transportService);
-                service.initializeRemoteClusters();
-                Map<String, List<String>> perClusterIndices = new HashMap<>();
-                String[] localIndices = service.filterIndices(perClusterIndices, new String[]{"foo:bar", "cluster_1:bar",
-                    "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"});
-                assertArrayEquals(new String[]{"foo:bar", "foo"}, localIndices);
-                assertEquals(2, perClusterIndices.size());
-                assertEquals(Arrays.asList("bar", "test"), perClusterIndices.get("cluster_1"));
-                assertEquals(Arrays.asList("foo:bar", "foo*"), perClusterIndices.get("cluster_2"));
+                try (RemoteClusterService service = new RemoteClusterService(builder.build(), transportService)) {
+                    assertFalse(service.isCrossClusterSearchEnabled());
+                    service.initializeRemoteClusters();
+                    assertTrue(service.isCrossClusterSearchEnabled());
+                    assertTrue(service.isRemoteClusterRegistered("cluster_1"));
+                    assertTrue(service.isRemoteClusterRegistered("cluster_2"));
+                    assertFalse(service.isRemoteClusterRegistered("foo"));
+                    Map<String, List<String>> perClusterIndices = new HashMap<>();
+                    String[] localIndices = service.filterIndices(perClusterIndices, new String[]{"foo:bar", "cluster_1:bar",
+                        "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"});
+                    assertArrayEquals(new String[]{"foo:bar", "foo"}, localIndices);
+                    assertEquals(2, perClusterIndices.size());
+                    assertEquals(Arrays.asList("bar", "test"), perClusterIndices.get("cluster_1"));
+                    assertEquals(Arrays.asList("foo:bar", "foo*"), perClusterIndices.get("cluster_2"));
+                }
             }
+        }
+    }
+
+    public void testProcessRemoteShards() throws IOException {
+        try (RemoteClusterService service = new RemoteClusterService(Settings.EMPTY, null)) {
+            assertFalse(service.isCrossClusterSearchEnabled());
+            List<ShardIterator> iteratorList = new ArrayList<>();
+            Map<String, ClusterSearchShardsResponse> searchShardsResponseMap = new HashMap<>();
+            DiscoveryNode[] nodes = new DiscoveryNode[] {
+                new DiscoveryNode("node1", buildNewFakeTransportAddress(), Version.CURRENT),
+                new DiscoveryNode("node2", buildNewFakeTransportAddress(), Version.CURRENT)
+            };
+            Map<String, AliasFilter> indicesAndAliases = new HashMap<>();
+            indicesAndAliases.put("foo", new AliasFilter(new TermsQueryBuilder("foo", "bar"), Strings.EMPTY_ARRAY));
+            indicesAndAliases.put("bar", new AliasFilter(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY));
+            ClusterSearchShardsGroup[] groups = new ClusterSearchShardsGroup[] {
+                new ClusterSearchShardsGroup(new ShardId("foo", "foo_id", 0),
+                    new ShardRouting[] {TestShardRouting.newShardRouting("foo", 0, "node1", true, ShardRoutingState.STARTED),
+                        TestShardRouting.newShardRouting("foo", 0, "node2", false, ShardRoutingState.STARTED)}),
+                new ClusterSearchShardsGroup(new ShardId("foo", "foo_id", 1),
+                    new ShardRouting[] {TestShardRouting.newShardRouting("foo", 0, "node1", true, ShardRoutingState.STARTED),
+                        TestShardRouting.newShardRouting("foo", 1, "node2", false, ShardRoutingState.STARTED)}),
+                new ClusterSearchShardsGroup(new ShardId("bar", "bar_id", 0),
+                    new ShardRouting[] {TestShardRouting.newShardRouting("bar", 0, "node2", true, ShardRoutingState.STARTED),
+                        TestShardRouting.newShardRouting("bar", 0, "node1", false, ShardRoutingState.STARTED)})
+            };
+            searchShardsResponseMap.put("test_cluster_1", new ClusterSearchShardsResponse(groups, nodes, indicesAndAliases));
+            Map<String, AliasFilter> remoteAliases = new HashMap<>();
+            service.processRemoteShards(searchShardsResponseMap, iteratorList, remoteAliases);
+            assertEquals(3, iteratorList.size());
+            for (ShardIterator iterator : iteratorList) {
+                if (iterator.shardId().getIndexName().endsWith("foo")) {
+                    assertTrue(iterator.shardId().getId() == 0 || iterator.shardId().getId() == 1);
+                    assertEquals("test_cluster_1:foo", iterator.shardId().getIndexName());
+                    ShardRouting shardRouting = iterator.nextOrNull();
+                    assertNotNull(shardRouting);
+                    assertEquals(shardRouting.getIndexName(), "foo");
+                    shardRouting = iterator.nextOrNull();
+                    assertNotNull(shardRouting);
+                    assertEquals(shardRouting.getIndexName(), "foo");
+
+                    assertNull(iterator.nextOrNull());
+                } else {
+                    assertEquals(0, iterator.shardId().getId());
+                    assertEquals("test_cluster_1:bar", iterator.shardId().getIndexName());
+                    ShardRouting shardRouting = iterator.nextOrNull();
+                    assertNotNull(shardRouting);
+                    assertEquals(shardRouting.getIndexName(), "bar");
+                    shardRouting = iterator.nextOrNull();
+                    assertNotNull(shardRouting);
+                    assertEquals(shardRouting.getIndexName(), "bar");
+
+                    assertNull(iterator.nextOrNull());
+                }
+            }
+            assertEquals(2, remoteAliases.size());
+            assertTrue(remoteAliases.toString(), remoteAliases.containsKey("foo_id"));
+            assertTrue(remoteAliases.toString(), remoteAliases.containsKey("bar_id"));
+            assertEquals(new TermsQueryBuilder("foo", "bar"), remoteAliases.get("foo_id").getQueryBuilder());
+            assertEquals(new MatchAllQueryBuilder(), remoteAliases.get("bar_id").getQueryBuilder());
         }
     }
 }

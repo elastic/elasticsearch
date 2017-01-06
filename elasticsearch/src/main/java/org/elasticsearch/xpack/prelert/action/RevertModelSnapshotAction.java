@@ -36,16 +36,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
+import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleterFactory;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
-import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.OldDataRemover;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
@@ -419,19 +418,20 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
 
             return ActionListener.wrap(response -> {
                 if (response.isAcknowledged()) {
-                    DataCounts counts = jobProvider.dataCounts(jobId);
-                    counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
-                    jobDataCountsPersister.persistDataCounts(jobId, counts, new ActionListener<Boolean>() {
-                        @Override
-                        public void onResponse(Boolean aBoolean) {
-                            listener.onResponse(response);
-                        }
+                    jobProvider.dataCounts(jobId, counts -> {
+                        counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
+                        jobDataCountsPersister.persistDataCounts(jobId, counts, new ActionListener<Boolean>() {
+                            @Override
+                            public void onResponse(Boolean aBoolean) {
+                                listener.onResponse(response);
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.onFailure(e);
-                        }
-                    });
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
+                        });
+                    }, listener::onFailure);
                 }
             }, listener::onFailure);
         }

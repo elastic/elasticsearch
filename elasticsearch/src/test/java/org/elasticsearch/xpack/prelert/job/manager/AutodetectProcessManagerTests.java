@@ -43,10 +43,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -104,13 +103,17 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     public void testOpenJob_exceedMaxNumJobs() {
         when(jobManager.getJobOrThrowIfUnknown("foo")).thenReturn(createJobDetails("foo"));
-        when(jobProvider.dataCounts("foo")).thenReturn(new DataCounts("foo"));
+        doAnswer(invocationOnMock -> {
+            String jobId = (String) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            Consumer<DataCounts> handler = (Consumer<DataCounts>) invocationOnMock.getArguments()[1];
+            handler.accept(new DataCounts(jobId));
+            return null;
+        }).when(jobProvider).dataCounts(any(), any(), any());
+
         when(jobManager.getJobOrThrowIfUnknown("bar")).thenReturn(createJobDetails("bar"));
-        when(jobProvider.dataCounts("bar")).thenReturn(new DataCounts("bar"));
         when(jobManager.getJobOrThrowIfUnknown("baz")).thenReturn(createJobDetails("baz"));
-        when(jobProvider.dataCounts("baz")).thenReturn(new DataCounts("baz"));
         when(jobManager.getJobOrThrowIfUnknown("foobar")).thenReturn(createJobDetails("foobar"));
-        when(jobProvider.dataCounts("foobar")).thenReturn(new DataCounts("foobar"));
 
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
@@ -275,7 +278,13 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         doThrow(new EsRejectedExecutionException("")).when(executorService).execute(any());
         when(threadPool.executor(anyString())).thenReturn(executorService);
         when(jobManager.getJobOrThrowIfUnknown("my_id")).thenReturn(createJobDetails("my_id"));
-        when(jobProvider.dataCounts("my_id")).thenReturn(new DataCounts("my_id"));
+        doAnswer(invocationOnMock -> {
+            String jobId = (String) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            Consumer<DataCounts> handler = (Consumer<DataCounts>) invocationOnMock.getArguments()[1];
+            handler.accept(new DataCounts(jobId));
+            return null;
+        }).when(jobProvider).dataCounts(eq("my_id"), any(), any());
 
         AutodetectResultsParser parser = mock(AutodetectResultsParser.class);
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);

@@ -30,12 +30,15 @@ import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.Future;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -66,27 +69,19 @@ public class ScheduledJobRunner extends AbstractComponent {
 
         Scheduler scheduler = prelertMetadata.getScheduler(schedulerId);
         Job job = prelertMetadata.getJobs().get(scheduler.getJobId());
-        BucketsQueryBuilder.BucketsQuery latestBucketQuery = new BucketsQueryBuilder()
-                .sortField(Bucket.TIMESTAMP.getPreferredName())
-                .sortDescending(true).size(1)
-                .includeInterim(false)
-                .build();
-        jobProvider.buckets(job.getId(), latestBucketQuery, buckets -> {
+        gatherInformation(job.getId(), (buckets, dataCounts) -> {
             long latestFinalBucketEndMs = -1L;
             Duration bucketSpan = Duration.ofSeconds(job.getAnalysisConfig().getBucketSpan());
             if (buckets.results().size() == 1) {
                 latestFinalBucketEndMs = buckets.results().get(0).getTimestamp().getTime() + bucketSpan.toMillis() - 1;
             }
-            Holder holder = createJobScheduler(scheduler, job, latestFinalBucketEndMs, handler, task);
-            innerRun(holder, startTime, endTime);
-        }, e -> {
-            if (e instanceof ResourceNotFoundException) {
-                Holder holder = createJobScheduler(scheduler, job, -1L, handler, task);
-                innerRun(holder, startTime, endTime);
-            } else {
-                handler.accept(e);
+            long latestRecordTimeMs = -1L;
+            if (dataCounts.getLatestRecordTimeStamp() != null) {
+                latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
             }
-        });
+            Holder holder = createJobScheduler(scheduler, job, latestFinalBucketEndMs, latestRecordTimeMs, handler, task);
+            innerRun(holder, startTime, endTime);
+        }, handler);
     }
 
     // Important: Holder must be created and assigned to SchedulerTask before setting status to started,
@@ -192,26 +187,35 @@ public class ScheduledJobRunner extends AbstractComponent {
         ScheduledJobValidator.validate(scheduler.getConfig(), job);
     }
 
-    private Holder createJobScheduler(Scheduler scheduler, Job job, long latestFinalBucketEndMs, Consumer<Exception> handler,
-                                      StartSchedulerAction.SchedulerTask task) {
+    private Holder createJobScheduler(Scheduler scheduler, Job job, long finalBucketEndMs, long latestRecordTimeMs,
+                                      Consumer<Exception> handler, StartSchedulerAction.SchedulerTask task) {
         Auditor auditor = jobProvider.audit(job.getId());
         Duration frequency = getFrequencyOrDefault(scheduler, job);
         Duration queryDelay = Duration.ofSeconds(scheduler.getConfig().getQueryDelay());
         DataExtractor dataExtractor = dataExtractorFactory.newExtractor(scheduler.getConfig(), job);
         ScheduledJob scheduledJob =  new ScheduledJob(job.getId(), frequency.toMillis(), queryDelay.toMillis(),
-                dataExtractor, client, auditor, currentTimeSupplier, latestFinalBucketEndMs, getLatestRecordTimestamp(job.getId()));
+                dataExtractor, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
         Holder holder = new Holder(scheduler, scheduledJob, new ProblemTracker(() -> auditor), handler);
         task.setHolder(holder);
         return holder;
     }
 
-    private long getLatestRecordTimestamp(String jobId) {
-        long latestRecordTimeMs = -1L;
-        DataCounts dataCounts = jobProvider.dataCounts(jobId);
-        if (dataCounts.getLatestRecordTimeStamp() != null) {
-            latestRecordTimeMs = dataCounts.getLatestRecordTimeStamp().getTime();
-        }
-        return latestRecordTimeMs;
+    private void gatherInformation(String jobId, BiConsumer<QueryPage<Bucket>, DataCounts> handler, Consumer<Exception> errorHandler) {
+        BucketsQueryBuilder.BucketsQuery latestBucketQuery = new BucketsQueryBuilder()
+                .sortField(Bucket.TIMESTAMP.getPreferredName())
+                .sortDescending(true).size(1)
+                .includeInterim(false)
+                .build();
+        jobProvider.buckets(jobId, latestBucketQuery, buckets -> {
+            jobProvider.dataCounts(jobId, dataCounts -> handler.accept(buckets, dataCounts), errorHandler);
+        }, e -> {
+            if (e instanceof ResourceNotFoundException) {
+                QueryPage<Bucket> empty = new QueryPage<>(Collections.emptyList(), 0, Bucket.RESULT_TYPE_FIELD);
+                jobProvider.dataCounts(jobId, dataCounts -> handler.accept(empty, dataCounts), errorHandler);
+            } else {
+                errorHandler.accept(e);
+            }
+        });
     }
 
     private static Duration getFrequencyOrDefault(Scheduler scheduler, Job job) {

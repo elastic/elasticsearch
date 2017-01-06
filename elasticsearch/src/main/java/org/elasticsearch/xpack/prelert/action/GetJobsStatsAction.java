@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -41,10 +42,12 @@ import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJobsStatsAction.Response, GetJobsStatsAction.RequestBuilder> {
 
@@ -297,24 +300,36 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
             logger.debug("Get stats for job '{}'", request.getJobId());
-
-            List<Response.JobStats> jobsStats = new ArrayList<>();
             QueryPage<Job> jobs = jobManager.getJob(request.getJobId(), clusterService.state());
             PrelertMetadata prelertMetadata = clusterService.state().metaData().custom(PrelertMetadata.TYPE);
-            for (Job job : jobs.results()) {
-                DataCounts dataCounts = readDataCounts(job.getId());
-                ModelSizeStats modelSizeStats = readModelSizeStats(job.getId());
-                JobStatus status = prelertMetadata.getAllocations().get(job.getId()).getStatus();
-                jobsStats.add(new Response.JobStats(job.getId(), dataCounts, modelSizeStats, status));
-            }
 
-            QueryPage<Response.JobStats> jobsStatsPage = new QueryPage<>(jobsStats, jobsStats.size(), Job.RESULTS_FIELD);
-            listener.onResponse(new GetJobsStatsAction.Response(jobsStatsPage));
+            AtomicInteger counter = new AtomicInteger(0);
+            AtomicArray<Response.JobStats> jobsStats = new AtomicArray<>(jobs.results().size());
+            for (int i  = 0; i < jobs.results().size(); i++) {
+                int slot = i;
+                Job job = jobs.results().get(slot);
+                readDataCounts(job.getId(), dataCounts -> {
+                    ModelSizeStats modelSizeStats = readModelSizeStats(job.getId());
+                    JobStatus status = prelertMetadata.getAllocations().get(job.getId()).getStatus();
+                    jobsStats.setOnce(slot, new Response.JobStats(job.getId(), dataCounts, modelSizeStats, status));
+
+                    if (counter.incrementAndGet() == jobsStats.length()) {
+                        List<Response.JobStats> results =
+                                jobsStats.asList().stream().map(entry ->  entry.value).collect(Collectors.toList());
+                        QueryPage<Response.JobStats> jobsStatsPage = new QueryPage<>(results, results.size(), Job.RESULTS_FIELD);
+                        listener.onResponse(new GetJobsStatsAction.Response(jobsStatsPage));
+                    }
+                }, listener::onFailure);
+            }
         }
 
-        private DataCounts readDataCounts(String jobId) {
+        private void readDataCounts(String jobId, Consumer<DataCounts> handler, Consumer<Exception> errorHandler) {
             Optional<DataCounts> counts = processManager.getDataCounts(jobId);
-            return counts.orElseGet(() -> jobProvider.dataCounts(jobId));
+            if (counts.isPresent()) {
+                handler.accept(counts.get());
+            } else {
+                jobProvider.dataCounts(jobId, handler, errorHandler);
+            }
         }
 
         private ModelSizeStats readModelSizeStats(String jobId) {

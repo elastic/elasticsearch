@@ -338,30 +338,32 @@ public class JobProvider {
      * Get the job's data counts
      *
      * @param jobId The job id
-     * @return The dataCounts or default constructed object if not found
      */
-    public DataCounts dataCounts(String jobId) {
+    public void dataCounts(String jobId, Consumer<DataCounts> handler, Consumer<Exception> errorHandler) {
         String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
-
-        try {
-            GetRequest getRequest = new GetRequest(indexName, DataCounts.TYPE.getPreferredName(), jobId + DataCounts.DOCUMENT_SUFFIX);
-            GetResponse response = FixBlockingClientOperations.executeBlocking(client, GetAction.INSTANCE, getRequest);
-            if (response.isExists() == false) {
-                return new DataCounts(jobId);
-            } else {
-                BytesReference source = response.getSourceAsBytesRef();
-                XContentParser parser;
-                try {
-                    parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
-                    return DataCounts.PARSER.apply(parser, () -> parseFieldMatcher);
-                } catch (IOException e) {
-                    throw new ElasticsearchParseException("failed to parse bucket", e);
-                }
-            }
-
-        } catch (IndexNotFoundException e) {
-            throw ExceptionsHelper.missingJobException(jobId);
-        }
+        GetRequest getRequest = new GetRequest(indexName, DataCounts.TYPE.getPreferredName(), jobId + DataCounts.DOCUMENT_SUFFIX);
+        client.get(getRequest, ActionListener.wrap(
+                response -> {
+                    if (response.isExists() == false) {
+                        handler.accept(new DataCounts(jobId));
+                    } else {
+                        BytesReference source = response.getSourceAsBytesRef();
+                        XContentParser parser;
+                        try {
+                            parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+                            handler.accept(DataCounts.PARSER.apply(parser, () -> parseFieldMatcher));
+                        } catch (IOException e) {
+                            throw new ElasticsearchParseException("failed to parse bucket", e);
+                        }
+                    }
+                },
+                e -> {
+                    if (e instanceof IndexNotFoundException) {
+                        errorHandler.accept(ExceptionsHelper.missingJobException(jobId));
+                    } else {
+                        errorHandler.accept(e);
+                    }
+                }));
     }
 
     /**

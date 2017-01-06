@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,7 +86,13 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         }).when(client).execute(same(UpdateSchedulerStatusAction.INSTANCE), any(), any());
 
         JobProvider jobProvider = mock(JobProvider.class);
-        when(jobProvider.dataCounts(anyString())).thenReturn(new DataCounts("foo"));
+        Mockito.doAnswer(invocationOnMock -> {
+            String jobId = (String) invocationOnMock.getArguments()[0];
+            @SuppressWarnings("unchecked")
+            Consumer<DataCounts> handler = (Consumer<DataCounts>) invocationOnMock.getArguments()[1];
+            handler.accept(new DataCounts(jobId));
+            return null;
+        }).when(jobProvider).dataCounts(any(), any(), any());
         dataExtractorFactory = mock(DataExtractorFactory.class);
         Auditor auditor = mock(Auditor.class);
         threadPool = mock(ThreadPool.class);

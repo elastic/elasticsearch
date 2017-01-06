@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -24,10 +23,10 @@ import org.elasticsearch.xpack.prelert.job.ModelSizeStats;
 import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataCountsPersister;
-import org.elasticsearch.xpack.prelert.job.persistence.JobRenormalizedResultsPersister;
-import org.elasticsearch.xpack.prelert.job.persistence.UsagePersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
+import org.elasticsearch.xpack.prelert.job.persistence.JobRenormalizedResultsPersister;
 import org.elasticsearch.xpack.prelert.job.persistence.JobResultsPersister;
+import org.elasticsearch.xpack.prelert.job.persistence.UsagePersister;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectCommunicator;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.prelert.job.process.autodetect.AutodetectProcessFactory;
@@ -52,8 +51,10 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 public class AutodetectProcessManager extends AbstractComponent implements DataProcessor {
@@ -190,7 +191,7 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
         ExecutorService executorService = threadPool.executor(PrelertPlugin.AUTODETECT_PROCESS_THREAD_POOL_NAME);
 
         UsageReporter usageReporter = new UsageReporter(settings, job.getId(), usagePersister);
-        try (StatusReporter statusReporter = new StatusReporter(threadPool, settings, job.getId(), jobProvider.dataCounts(jobId),
+        try (StatusReporter statusReporter = new StatusReporter(threadPool, settings, job.getId(), fetchDataCounts(jobId),
                 usageReporter, jobDataCountsPersister)) {
             ScoresUpdater scoresUpdator = new ScoresUpdater(job, jobProvider, jobRenormalizedResultsPersister, normalizerFactory);
             Renormalizer renormalizer = new ShortCircuitingRenormalizer(jobId, scoresUpdator,
@@ -210,6 +211,28 @@ public class AutodetectProcessManager extends AbstractComponent implements DataP
                 throw e;
             }
         }
+    }
+
+    private DataCounts fetchDataCounts(String jobId) {
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<DataCounts> holder = new AtomicReference<>();
+        AtomicReference<Exception> errorHolder = new AtomicReference<>();
+        jobProvider.dataCounts(jobId, dataCounts -> {
+            holder.set(dataCounts);
+            latch.countDown();
+        }, e -> {
+            errorHolder.set(e);
+            latch.countDown();
+        });
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        if (errorHolder.get() != null) {
+            throw org.elasticsearch.ExceptionsHelper.convertToElastic(errorHolder.get());
+        }
+        return holder.get();
     }
 
     @Override

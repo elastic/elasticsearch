@@ -229,14 +229,6 @@ public class InternalSearchHit implements SearchHit {
         return sourceRef();
     }
 
-    /**
-     * Internal source representation, might be compressed....
-     */
-    public BytesReference internalSourceRef() {
-        return source;
-    }
-
-
     @Override
     public byte[] source() {
         if (source == null) {

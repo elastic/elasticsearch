@@ -363,9 +363,13 @@ public class PrelertMetadata implements MetaData.Custom {
                 }
             }
 
-
-            // Once a job goes into Deleting, it cannot be changed
             if (previous.getStatus().equals(JobStatus.DELETING)) {
+                // If we're already Deleting there's nothing to do
+                if (jobStatus.equals(JobStatus.DELETING)) {
+                    return this;
+                }
+
+                // Once a job goes into Deleting, it cannot be changed
                 throw new ElasticsearchStatusException("Cannot change status of job [" + jobId + "] to [" + jobStatus + "] because " +
                         "it is currently in [" + JobStatus.DELETING + "] status.", RestStatus.CONFLICT);
             }

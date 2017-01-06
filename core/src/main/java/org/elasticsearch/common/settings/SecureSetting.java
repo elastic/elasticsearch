@@ -25,6 +25,8 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
+import org.elasticsearch.common.util.ArrayUtils;
+
 
 /**
  * A secure setting.
@@ -36,8 +38,16 @@ public abstract class SecureSetting<T> extends Setting<T> {
         Arrays.asList(Property.Deprecated, Property.Shared)
     );
 
-    private SecureSetting(String key, Setting.Property... properties) {
-        super(key, (String)null, null, properties);
+    private static final Property[] FIXED_PROPERTIES = {
+        Property.NodeScope
+    };
+
+    private static final Property[] LEGACY_PROPERTIES = {
+        Property.NodeScope, Property.Deprecated, Property.Filtered
+    };
+
+    private SecureSetting(String key, Property... properties) {
+        super(key, (String)null, null, ArrayUtils.concat(properties, FIXED_PROPERTIES, Property.class));
         assert assertAllowedProperties(properties);
     }
 
@@ -68,19 +78,19 @@ public abstract class SecureSetting<T> extends Setting<T> {
     @Override
     public T get(Settings settings) {
         checkDeprecation(settings);
-        final KeyStoreWrapper keystore = Objects.requireNonNull(settings.getKeyStore());
-        if (keystore.getSettings().contains(getKey()) == false) {
+        final SecureSettings secureSettings = Objects.requireNonNull(settings.getSecureSettings());
+        if (secureSettings.hasSetting(getKey()) == false) {
             return getFallback(settings);
         }
         try {
-            return getSecret(keystore);
+            return getSecret(secureSettings);
         } catch (GeneralSecurityException e) {
             throw new RuntimeException("failed to read secure setting " + getKey(), e);
         }
     }
 
     /** Returns the secret setting from the keyStoreReader store. */
-    abstract T getSecret(KeyStoreWrapper keystore) throws GeneralSecurityException;
+    abstract T getSecret(SecureSettings secureSettings) throws GeneralSecurityException;
 
     /** Returns the value from a fallback setting. Returns null if no fallback exists. */
     abstract T getFallback(Settings settings);
@@ -92,18 +102,35 @@ public abstract class SecureSetting<T> extends Setting<T> {
      *
      * This may be any sensitive string, e.g. a username, a password, an auth token, etc.
      */
-    public static SecureSetting<SecureString> stringSetting(String name, Setting<String> fallback, Property... properties) {
+    public static SecureSetting<SecureString> secureString(String name, SecureSetting<SecureString> fallback, boolean allowLegacy, Property... properties) {
+        final Setting<String> legacy;
+        if (allowLegacy) {
+            Property[] legacyProperties = ArrayUtils.concat(properties, LEGACY_PROPERTIES, Property.class);
+            legacy = Setting.simpleString(name, legacyProperties);
+        } else {
+            legacy = null;
+        }
         return new SecureSetting<SecureString>(name, properties) {
             @Override
-            protected SecureString getSecret(KeyStoreWrapper keystore) throws GeneralSecurityException {
-                return keystore.getStringSetting(getKey());
+            protected SecureString getSecret(SecureSettings secureSettings) throws GeneralSecurityException {
+                return secureSettings.getString(getKey());
             }
             @Override
             SecureString getFallback(Settings settings) {
                 if (fallback != null) {
-                    return new SecureString(fallback.get(settings).toCharArray());
+                    return fallback.get(settings);
+                }
+                if (legacy != null) {
+                    return new SecureString(legacy.get(settings).toCharArray());
                 }
                 return null;
+            }
+            @Override
+            protected void checkDeprecation(Settings settings) {
+                super.checkDeprecation(settings);
+                if (legacy != null) {
+                    legacy.checkDeprecation(settings);
+                }
             }
         };
     }

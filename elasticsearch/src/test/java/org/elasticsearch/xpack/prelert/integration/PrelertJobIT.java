@@ -233,6 +233,58 @@ public class PrelertJobIT extends ESRestTestCase {
         assertThat(responseAsString, not(containsString(indexName)));
     }
 
+    public void testDeleteJob() throws Exception {
+        String jobId = "foo";
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        createFarequoteJob(jobId);
+
+        Response response = client().performRequest("get", "_cat/indices");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        String responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString(indexName));
+
+        response = client().performRequest("delete", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        // check index was deleted
+        response = client().performRequest("get", "_cat/indices");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, not(containsString(indexName)));
+
+        // check that the job itself is gone
+        expectThrows(ResponseException.class, () ->
+                client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+    }
+
+    public void testDeleteJobAfterMissingIndex() throws Exception {
+        String jobId = "foo";
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        createFarequoteJob(jobId);
+
+        Response response = client().performRequest("get", "_cat/indices");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        String responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, containsString(indexName));
+
+        // Manually delete the index so that we can test that deletion proceeds
+        // normally anyway
+        response = client().performRequest("delete", indexName);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        response = client().performRequest("delete", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+
+        // check index was deleted
+        response = client().performRequest("get", "_cat/indices");
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        responseAsString = responseEntityToString(response);
+        assertThat(responseAsString, not(containsString(indexName)));
+
+        expectThrows(ResponseException.class, () ->
+                client().performRequest("get", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+    }
+
     private Response addBucketResult(String jobId, String timestamp, long bucketSpan) throws Exception {
         try {
             client().performRequest("put", AnomalyDetectorsIndex.jobResultsIndexName(jobId),

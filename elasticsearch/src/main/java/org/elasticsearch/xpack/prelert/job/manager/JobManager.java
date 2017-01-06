@@ -20,6 +20,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.prelert.action.DeleteJobAction;
 import org.elasticsearch.xpack.prelert.action.OpenJobAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -240,20 +242,13 @@ public class JobManager extends AbstractComponent {
 
         // Step 2. Listen for the Deleted Index response
         //         If successful, delete from cluster state and chain onto deleteStatusListener
-        CheckedConsumer<DeleteIndexResponse, Exception> deleteIndexConsumer = response -> {
-            logger.info("Deleting index [" + indexName + "] successful");
-
-            if (response.isAcknowledged()) {
-                logger.info("Index deletion acknowledged");
-            } else {
-                logger.warn("Index deletion not acknowledged");
-            }
+        CheckedConsumer<Boolean, Exception> deleteIndexConsumer = response -> {
             clusterService.submitStateUpdateTask("delete-job-" + jobId,
                 new AckedClusterStateUpdateTask<Boolean>(request, ActionListener.wrap(deleteStatusConsumer, actionListener::onFailure)) {
 
                 @Override
                 protected Boolean newResponse(boolean acknowledged) {
-                    return acknowledged && response.isAcknowledged();
+                    return acknowledged && response;
                 }
 
                 @Override
@@ -276,7 +271,28 @@ public class JobManager extends AbstractComponent {
             }
 
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
-            client.admin().indices().delete(deleteIndexRequest, ActionListener.wrap(deleteIndexConsumer, actionListener::onFailure));
+            client.admin().indices().delete(deleteIndexRequest, ActionListener.wrap(deleteIndexResponse -> {
+                logger.info("Deleting index [" + indexName + "] successful");
+
+                if (deleteIndexResponse.isAcknowledged()) {
+                    logger.info("Index deletion acknowledged");
+                } else {
+                    logger.warn("Index deletion not acknowledged");
+                }
+                deleteIndexConsumer.accept(deleteIndexResponse.isAcknowledged());
+            }, e -> {
+                if (e instanceof IndexNotFoundException) {
+                    logger.warn("Physical index [" + indexName + "] not found. Continuing to delete job.");
+                    try {
+                        deleteIndexConsumer.accept(false);
+                    } catch (Exception e1) {
+                        actionListener.onFailure(e1);
+                    }
+                } else {
+                    // all other exceptions should die
+                    actionListener.onFailure(e);
+                }
+            }));
         };
 
         UpdateJobStatusAction.Request updateStatusListener = new UpdateJobStatusAction.Request(jobId, JobStatus.DELETING);

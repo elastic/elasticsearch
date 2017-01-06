@@ -60,7 +60,7 @@ public class DateRangeAggregationBuilder extends AbstractRangeBuilder<DateRangeA
     }
 
     private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
-        return Range.fromXContent(parser, context.getParseFieldMatcher());
+        return Range.fromXContent(parser);
     }
 
     public DateRangeAggregationBuilder(String name) {

@@ -50,8 +50,8 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
     }
 
-    public static ContextParser<ParseFieldMatcherSupplier, PipelineConfiguration> getParser() {
-        return (p, c) -> PARSER.apply(p ,c).build();
+    public static ContextParser<Void, PipelineConfiguration> getParser() {
+        return (parser, context) -> PARSER.apply(parser, null).build();
     }
     private static class Builder {
 

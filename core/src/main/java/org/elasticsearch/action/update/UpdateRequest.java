@@ -27,7 +27,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -714,7 +713,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if ("script".equals(currentFieldName)) {
-                script = Script.parse(parser, ParseFieldMatcher.EMPTY);
+                script = Script.parse(parser);
             } else if ("scripted_upsert".equals(currentFieldName)) {
                 scriptedUpsert = parser.booleanValue();
             } else if ("upsert".equals(currentFieldName)) {
@@ -740,7 +739,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
                     fields(fields.toArray(new String[fields.size()]));
                 }
             } else if ("_source".equals(currentFieldName)) {
-                fetchSourceContext = FetchSourceContext.parse(parser);
+                fetchSourceContext = FetchSourceContext.fromXContent(parser);
             }
         }
         if (script != null) {

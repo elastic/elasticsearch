@@ -24,15 +24,26 @@ import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.Task
 import org.gradle.api.plugins.JavaBasePlugin
 
-/** Configures the build to have a rest integration test.  */
-public class StandaloneTestBasePlugin implements Plugin<Project> {
+/**
+ * Configures the build to compile tests against Elasticsearch's test framework
+ * and run REST tests. Use BuildPlugin if you want to build main code as well
+ * as tests.
+ */
+public class StandaloneRestTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        if (project.pluginManager.hasPlugin('elasticsearch.build')) {
+            throw new InvalidUserDataException('elasticsearch.standalone-test, '
+                + 'elasticsearch.standalone-test, and elasticsearch.build are '
+                + 'mutually exclusive')
+        }
         project.pluginManager.apply(JavaBasePlugin)
         project.pluginManager.apply(RandomizedTestingPlugin)
 

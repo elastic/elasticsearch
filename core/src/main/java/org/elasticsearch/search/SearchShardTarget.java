@@ -34,12 +34,14 @@ import java.io.IOException;
  */
 public class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
 
-    private Text nodeId;
-    private ShardId shardId;
+    private final Text nodeId;
+    private final ShardId shardId;
 
     public SearchShardTarget(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             nodeId = in.readText();
+        } else {
+            nodeId = null;
         }
         shardId = ShardId.readShardId(in);
     }

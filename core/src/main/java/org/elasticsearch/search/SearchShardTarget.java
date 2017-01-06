@@ -71,10 +71,6 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
         return shardId.getIndexName();
     }
 
-    public ShardId shardId() {
-        return shardId;
-    }
-
     public ShardId getShardId() {
         return shardId;
     }

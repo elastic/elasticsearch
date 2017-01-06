@@ -448,8 +448,8 @@ public class InternalSearchHit implements SearchHit {
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (explanation() != null && shard != null) {
-            builder.field(Fields._SHARD, shard.shardId());
-            builder.field(Fields._NODE, shard.nodeIdText());
+            builder.field("_shard", shard.getShardId());
+            builder.field("_node", shard.nodeIdText());
         }
         if (nestedIdentity != null) {
             nestedIdentity.toXContent(builder, params);

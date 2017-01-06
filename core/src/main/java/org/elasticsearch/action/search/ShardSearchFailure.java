@@ -104,7 +104,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     @Override
     public int shardId() {
         if (shardTarget != null) {
-            return shardTarget.shardId().id();
+            return shardTarget.getShardId().id();
         }
         return -1;
     }

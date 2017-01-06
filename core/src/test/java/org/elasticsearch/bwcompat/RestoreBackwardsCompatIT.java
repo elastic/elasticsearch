@@ -32,8 +32,10 @@ import org.elasticsearch.repositories.uri.URLRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.VersionUtils;
@@ -163,6 +165,32 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> cleanup");
         cluster().wipeIndices(restoreInfo.indices().toArray(new String[restoreInfo.indices().size()]));
         cluster().wipeTemplates();
+    }
+
+    public void testSnapshotWithUnsupportedCompression() throws Exception {
+        final String repo = "test_repo";
+        final String repoFileId = "compressed-repo-1.7.4";
+        Path repoFile = getBwcIndicesPath().resolve(repoFileId + ".zip");
+        URI repoFileUri = repoFile.toUri();
+        URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
+        logger.info("-->  creating repository [{}] for repo file [{}]", repo, repoFileId);
+        assertAcked(client().admin().cluster().preparePutRepository(repo)
+                        .setType("url")
+                        .setSettings(Settings.builder().put("url", repoJarUri.toString()).put("compress", true)));
+
+        logger.info("--> get snapshots, only uncompressed one should be retrieved");
+        GetSnapshotsResponse getSnapshotsResponse = client().admin().cluster().prepareGetSnapshots(repo).setSnapshots("_all").get();
+        assertEquals(2, getSnapshotsResponse.getSnapshots().size());
+        for (SnapshotInfo snapshotInfo : getSnapshotsResponse.getSnapshots()) {
+            if (snapshotInfo.snapshotId().getName().equals("snap1x_uncompressed")) {
+                assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
+            } else {
+                assertEquals(SnapshotState.INCOMPATIBLE, snapshotInfo.state());
+            }
+        }
+        SnapshotException ex = expectThrows(SnapshotException.class, () ->
+            client().admin().cluster().prepareSnapshotStatus(repo).setSnapshots("snap1x").get());
+        assertThat(ex.getMessage(), containsString("cannot get the status for an incompatible snapshot"));
     }
 
     private List<String> repoVersions() throws Exception {

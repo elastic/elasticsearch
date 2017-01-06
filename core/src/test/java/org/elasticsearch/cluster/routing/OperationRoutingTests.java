@@ -75,6 +75,92 @@ public class OperationRoutingTests extends ESTestCase{
         }
     }
 
+    public void testPartitionedIndex() {
+        // make sure the same routing value always has each _id fall within the configured partition size
+        for (int shards = 1; shards < 5; shards++) {
+            for (int partitionSize = 1; partitionSize == 1 || partitionSize < shards; partitionSize++) {
+                IndexMetaData metaData = IndexMetaData.builder("test")
+                    .settings(settings(Version.CURRENT))
+                    .numberOfShards(shards)
+                    .routingPartitionSize(partitionSize)
+                    .numberOfReplicas(1)
+                    .build();
+
+                for (int i = 0; i < 20; i++) {
+                    String routing = randomUnicodeOfLengthBetween(1, 50);
+                    Set<Integer> shardSet = new HashSet<>();
+
+                    for (int k = 0; k < 150; k++) {
+                        String id = randomUnicodeOfLengthBetween(1, 50);
+
+                        shardSet.add(OperationRouting.generateShardId(metaData, id, routing));
+                    }
+
+                    assertEquals(partitionSize, shardSet.size());
+                }
+            }
+        }
+    }
+
+    public void testPartitionedIndexShrunk() {
+        Map<String, Map<String, Integer>> routingIdToShard = new HashMap<>();
+
+        Map<String, Integer> routingA = new HashMap<>();
+        routingA.put("a_0", 1);
+        routingA.put("a_1", 2);
+        routingA.put("a_2", 2);
+        routingA.put("a_3", 2);
+        routingA.put("a_4", 1);
+        routingA.put("a_5", 2);
+        routingIdToShard.put("a", routingA);
+
+        Map<String, Integer> routingB = new HashMap<>();
+        routingB.put("b_0", 0);
+        routingB.put("b_1", 0);
+        routingB.put("b_2", 0);
+        routingB.put("b_3", 0);
+        routingB.put("b_4", 3);
+        routingB.put("b_5", 3);
+        routingIdToShard.put("b", routingB);
+
+        Map<String, Integer> routingC = new HashMap<>();
+        routingC.put("c_0", 1);
+        routingC.put("c_1", 1);
+        routingC.put("c_2", 0);
+        routingC.put("c_3", 0);
+        routingC.put("c_4", 0);
+        routingC.put("c_5", 1);
+        routingIdToShard.put("c", routingC);
+
+        Map<String, Integer> routingD = new HashMap<>();
+        routingD.put("d_0", 2);
+        routingD.put("d_1", 2);
+        routingD.put("d_2", 3);
+        routingD.put("d_3", 3);
+        routingD.put("d_4", 3);
+        routingD.put("d_5", 3);
+        routingIdToShard.put("d", routingD);
+
+        IndexMetaData metaData = IndexMetaData.builder("test")
+                .settings(settings(Version.CURRENT))
+                .setRoutingNumShards(8)
+                .numberOfShards(4)
+                .routingPartitionSize(3)
+                .numberOfReplicas(1)
+                .build();
+
+        for (Map.Entry<String, Map<String, Integer>> routingIdEntry : routingIdToShard.entrySet()) {
+            String routing = routingIdEntry.getKey();
+
+            for (Map.Entry<String, Integer> idEntry : routingIdEntry.getValue().entrySet()) {
+                String id = idEntry.getKey();
+                int shard = idEntry.getValue();
+
+                assertEquals(shard, OperationRouting.generateShardId(metaData, id, routing));
+            }
+        }
+    }
+
     public void testPartitionedIndexBWC() {
         Map<String, Map<String, Integer>> routingIdToShard = new HashMap<>();
 

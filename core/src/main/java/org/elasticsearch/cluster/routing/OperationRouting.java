@@ -92,13 +92,9 @@ public class OperationRouting extends AbstractComponent {
             final Set<String> effectiveRouting = routing.get(index);
             if (effectiveRouting != null) {
                 for (String r : effectiveRouting) {
-                    if (indexMetaData.isRoutingPartitionedIndex()) {
-                        final int routingPartitionSize = indexMetaData.getRoutingPartitionSize();
-                        for (int partitionOffset = 0; partitionOffset < routingPartitionSize; partitionOffset++) {
-                            set.add(shardRoutingTable(indexRouting, generatePartitionedShardId(indexMetaData, r, partitionOffset)));
-                        }
-                    } else {
-                        set.add(shardRoutingTable(indexRouting, generateShardId(indexMetaData, null, r)));
+                    final int routingPartitionSize = indexMetaData.getRoutingPartitionSize();
+                    for (int partitionOffset = 0; partitionOffset < routingPartitionSize; partitionOffset++) {
+                        set.add(shardRoutingTable(indexRouting, calculateScaledShardId(indexMetaData, r, partitionOffset)));
                     }
                 }
             } else {
@@ -223,34 +219,29 @@ public class OperationRouting extends AbstractComponent {
     }
 
     static int generateShardId(IndexMetaData indexMetaData, @Nullable String id, @Nullable String routing) {
-        if (indexMetaData.isRoutingPartitionedIndex()) {
-            if (routing == null) {
-                throw new IllegalArgumentException("expected a routing value on partitioned index [" + indexMetaData.getIndex().getName() + "]");
-            }
+        final String effectiveRouting;
+        final int partitionOffset;
 
-            return generatePartitionedShardId(indexMetaData, routing, calculatePartitionOffset(indexMetaData, id));
+        if (routing == null) {
+            assert(!indexMetaData.isRoutingPartitionedIndex());
+            effectiveRouting = id;
         } else {
-            final int hash;
-
-            if (routing == null) {
-                hash = Murmur3HashFunction.hash(id);
-            } else {
-                hash = Murmur3HashFunction.hash(routing);
-            }
-
-            return calculateScaledShardId(indexMetaData, hash);
+            effectiveRouting = routing;
         }
+
+        if (indexMetaData.isRoutingPartitionedIndex()) {
+            partitionOffset = Math.floorMod(Murmur3HashFunction.hash(id), indexMetaData.getRoutingPartitionSize());
+        } else {
+            // we would have still got 0 above but this check just saves us an unnecessary hash calculation
+            partitionOffset = 0;
+        }
+
+        return calculateScaledShardId(indexMetaData, effectiveRouting, partitionOffset);
     }
 
-    private static int generatePartitionedShardId(IndexMetaData indexMetaData, String routing, int partitionOffset) {
-        return calculateScaledShardId(indexMetaData, Murmur3HashFunction.hash(routing) + partitionOffset);
-    }
+    private static int calculateScaledShardId(IndexMetaData indexMetaData, String effectiveRouting, int partitionOffset) {
+        final int hash = Murmur3HashFunction.hash(effectiveRouting) + partitionOffset;
 
-    private static int calculatePartitionOffset(IndexMetaData indexMetaData, String id) {
-        return Math.floorMod(Murmur3HashFunction.hash(id), indexMetaData.getRoutingPartitionSize());
-    }
-
-    private static int calculateScaledShardId(IndexMetaData indexMetaData, int hash) {
         // we don't use IMD#getNumberOfShards since the index might have been shrunk such that we need to use the size
         // of original index to hash documents
         return Math.floorMod(hash, indexMetaData.getRoutingNumShards()) / indexMetaData.getRoutingFactor();

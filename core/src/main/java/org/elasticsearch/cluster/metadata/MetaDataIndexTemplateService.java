@@ -196,7 +196,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         final String temporaryIndexName = UUIDs.randomBase64UUID();
         try {
             // use the provided values, otherwise just pick valid dummy values
-            int dummyPartitionSize = request.settings.getAsInt(IndexMetaData.SETTING_ROUTING_PARTITION_SIZE, 1);
+            int dummyPartitionSize = IndexMetaData.INDEX_ROUTING_PARTITION_SIZE_SETTING.get(request.settings);
             int dummyShards = request.settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS,
                     dummyPartitionSize == 1 ? 1 : dummyPartitionSize + 1);
 

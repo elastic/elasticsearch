@@ -980,12 +980,8 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
                 throw new IllegalArgumentException("must specify non-negative number of shards for index [" + index + "]");
             }
 
-            Integer maybeRoutingPartitionSize = settings.getAsInt(SETTING_ROUTING_PARTITION_SIZE, null);
-            if (maybeRoutingPartitionSize == null) {
-                maybeRoutingPartitionSize = 1;
-            }
-            int routingPartitionSize = maybeRoutingPartitionSize;
-            if (routingPartitionSize <= 0 || (routingPartitionSize != 1 && routingPartitionSize >= getRoutingNumShards())) {
+            int routingPartitionSize = INDEX_ROUTING_PARTITION_SIZE_SETTING.get(settings);
+            if (routingPartitionSize != 1 && routingPartitionSize >= getRoutingNumShards()) {
                 throw new IllegalArgumentException("routing partition size [" + routingPartitionSize + "] should be a positive number"
                         + " less than the number of shards [" + getRoutingNumShards() + "] for [" + index + "]");
             }

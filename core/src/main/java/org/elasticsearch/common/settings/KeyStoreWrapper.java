@@ -52,7 +52,7 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
 
 /**
@@ -140,7 +140,7 @@ public class KeyStoreWrapper implements Closeable {
             return null;
         }
 
-        NIOFSDirectory directory = new NIOFSDirectory(configDir);
+        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         try (IndexInput indexInput = directory.openInput(KEYSTORE_FILENAME, IOContext.READONCE)) {
             ChecksumIndexInput input = new BufferedChecksumIndexInput(indexInput);
             CodecUtil.checkHeader(input, KEYSTORE_FILENAME, FORMAT_VERSION, FORMAT_VERSION);
@@ -199,7 +199,7 @@ public class KeyStoreWrapper implements Closeable {
     void save(Path configDir) throws Exception {
         char[] password = this.keystorePassword.get().getPassword();
 
-        NIOFSDirectory directory = new NIOFSDirectory(configDir);
+        SimpleFSDirectory directory = new SimpleFSDirectory(configDir);
         // write to tmp file first, then overwrite
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
         try (IndexOutput output = directory.createOutput(tmpFile, IOContext.DEFAULT)) {
@@ -217,7 +217,7 @@ public class KeyStoreWrapper implements Closeable {
         }
 
         Path keystoreFile = keystorePath(configDir);
-        Files.move(configDir.resolve(tmpFile), keystoreFile, StandardCopyOption.REPLACE_EXISTING);
+        Files.move(configDir.resolve(tmpFile), keystoreFile, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         PosixFileAttributeView attrs = Files.getFileAttributeView(keystoreFile, PosixFileAttributeView.class);
         if (attrs != null) {
             // don't rely on umask: ensure the keystore has minimal permissions
@@ -230,6 +230,7 @@ public class KeyStoreWrapper implements Closeable {
         return settingNames;
     }
 
+    // TODO: make settings accessible only to code that registered the setting
     /** Retrieve a string setting. The {@link SecureString} should be closed once it is used. */
     SecureString getStringSetting(String setting) throws GeneralSecurityException {
         KeyStore.Entry entry = keystore.get().getEntry(setting, keystorePassword.get());

@@ -223,10 +223,10 @@ final class Bootstrap {
         };
     }
 
-    private static KeyStoreWrapper loadKeyStore(Environment env0) throws BootstrapException {
+    private static KeyStoreWrapper loadKeyStore(Environment initialEnv) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
-            keystore = KeyStoreWrapper.load(env0.configFile());
+            keystore = KeyStoreWrapper.load(initialEnv.configFile());
         } catch (IOException e) {
             throw new BootstrapException(e);
         }
@@ -281,7 +281,7 @@ final class Bootstrap {
             final boolean foreground,
             final Path pidFile,
             final boolean quiet,
-            final Environment env0) throws BootstrapException, NodeValidationException, UserException {
+            final Environment initialEnv) throws BootstrapException, NodeValidationException, UserException {
         // Set the system property before anything has a chance to trigger its use
         initLoggerPrefix();
 
@@ -291,8 +291,8 @@ final class Bootstrap {
 
         INSTANCE = new Bootstrap();
 
-        final KeyStoreWrapper keystore = loadKeyStore(env0);
-        Environment environment = initialEnvironment(foreground, pidFile, keystore, env0.settings());
+        final KeyStoreWrapper keystore = loadKeyStore(initialEnv);
+        Environment environment = initialEnvironment(foreground, pidFile, keystore, initialEnv.settings());
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {

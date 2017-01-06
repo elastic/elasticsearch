@@ -348,9 +348,7 @@ public class JobProvider {
                         handler.accept(new DataCounts(jobId));
                     } else {
                         BytesReference source = response.getSourceAsBytesRef();
-                        XContentParser parser;
-                        try {
-                            parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+                        try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
                             handler.accept(DataCounts.PARSER.apply(parser, () -> parseFieldMatcher));
                         } catch (IOException e) {
                             throw new ElasticsearchParseException("failed to parse bucket", e);
@@ -429,16 +427,13 @@ public class JobProvider {
             List<Bucket> results = new ArrayList<>();
             for (SearchHit hit : hits.getHits()) {
                 BytesReference source = hit.getSourceRef();
-                XContentParser parser;
-                try {
-                    parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+                try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                    Bucket bucket = Bucket.PARSER.apply(parser, () -> parseFieldMatcher);
+                    if (query.isIncludeInterim() || bucket.isInterim() == false) {
+                        results.add(bucket);
+                    }
                 } catch (IOException e) {
                     throw new ElasticsearchParseException("failed to parse bucket", e);
-                }
-                Bucket bucket = Bucket.PARSER.apply(parser, () -> parseFieldMatcher);
-
-                if (query.isIncludeInterim() || bucket.isInterim() == false) {
-                    results.add(bucket);
                 }
             }
 
@@ -520,13 +515,11 @@ public class JobProvider {
         List<PerPartitionMaxProbabilities> results = new ArrayList<>();
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
-            XContentParser parser;
-            try {
-                parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+            try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                results.add(PerPartitionMaxProbabilities.PARSER.apply(parser, () -> parseFieldMatcher));
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse PerPartitionMaxProbabilities", e);
             }
-            results.add(PerPartitionMaxProbabilities.PARSER.apply(parser, () -> parseFieldMatcher));
         }
         return results;
     }
@@ -656,14 +649,12 @@ public class JobProvider {
             List<CategoryDefinition> results = new ArrayList<>(hits.length);
             for (SearchHit hit : hits) {
                 BytesReference source = hit.getSourceRef();
-                XContentParser parser;
-                try {
-                    parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+                try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                    CategoryDefinition categoryDefinition = CategoryDefinition.PARSER.apply(parser, () -> parseFieldMatcher);
+                    results.add(categoryDefinition);
                 } catch (IOException e) {
                     throw new ElasticsearchParseException("failed to parse category definition", e);
                 }
-                CategoryDefinition categoryDefinition = CategoryDefinition.PARSER.apply(parser, () -> parseFieldMatcher);
-                results.add(categoryDefinition);
             }
             QueryPage<CategoryDefinition> result =
                     new QueryPage<>(results, searchResponse.getHits().getTotalHits(), CategoryDefinition.RESULTS_FIELD);
@@ -751,14 +742,11 @@ public class JobProvider {
         List<AnomalyRecord> results = new ArrayList<>();
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
-            XContentParser parser;
-            try {
-                parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+            try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                results.add(AnomalyRecord.PARSER.apply(parser, () -> parseFieldMatcher));
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse records", e);
             }
-
-            results.add(AnomalyRecord.PARSER.apply(parser, () -> parseFieldMatcher));
         }
 
         return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), AnomalyRecord.RESULTS_FIELD);
@@ -812,14 +800,11 @@ public class JobProvider {
         List<Influencer> influencers = new ArrayList<>();
         for (SearchHit hit : response.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
-            XContentParser parser;
-            try {
-                parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+            try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                influencers.add(Influencer.PARSER.apply(parser, () -> parseFieldMatcher));
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse influencer", e);
             }
-
-            influencers.add(Influencer.PARSER.apply(parser, () -> parseFieldMatcher));
         }
 
         return new QueryPage<>(influencers, response.getHits().getTotalHits(), Influencer.RESULTS_FIELD);
@@ -965,14 +950,12 @@ public class JobProvider {
 
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
-            XContentParser parser;
-            try {
-                parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+            try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                ModelSnapshot modelSnapshot = ModelSnapshot.PARSER.apply(parser, () -> parseFieldMatcher);
+                results.add(modelSnapshot);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse modelSnapshot", e);
             }
-            ModelSnapshot modelSnapshot = ModelSnapshot.PARSER.apply(parser, () -> parseFieldMatcher);
-            results.add(modelSnapshot);
         }
 
         return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelSnapshot.RESULTS_FIELD);
@@ -1060,7 +1043,6 @@ public class JobProvider {
     }
 
     public QueryPage<ModelDebugOutput> modelDebugOutput(String jobId, int from, int size) {
-
         SearchResponse searchResponse;
         try {
             String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
@@ -1080,14 +1062,12 @@ public class JobProvider {
 
         for (SearchHit hit : searchResponse.getHits().getHits()) {
             BytesReference source = hit.getSourceRef();
-            XContentParser parser;
-            try {
-                parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+            try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                ModelDebugOutput modelDebugOutput = ModelDebugOutput.PARSER.apply(parser, () -> parseFieldMatcher);
+                results.add(modelDebugOutput);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to parse modelDebugOutput", e);
             }
-            ModelDebugOutput modelDebugOutput = ModelDebugOutput.PARSER.apply(parser, () -> parseFieldMatcher);
-            results.add(modelDebugOutput);
         }
 
         return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelDebugOutput.RESULTS_FIELD);

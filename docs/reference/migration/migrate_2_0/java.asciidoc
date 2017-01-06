@@ -73,7 +73,7 @@ In addition some query builders have been removed or renamed:
 * `textPhrasePrefix(...)` removed
 * `textPhrasePrefixQuery(...)` removed
 * `filtered(...)` removed. Use `filteredQuery(...)` instead.
-* `inQuery(...)` removed.
+* `inQuery(...)` removed. Use `termsQuery(...)` instead.
 
 ==== GetIndexRequest
 

@@ -221,6 +221,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
             case "us-gov-west-1":
                 endpoint = "s3-us-gov-west-1.amazonaws.com";
                 break;
+            case "ca-central":
             case "ca-central-1":
                 endpoint = "s3.ca-central-1.amazonaws.com";
                 break;

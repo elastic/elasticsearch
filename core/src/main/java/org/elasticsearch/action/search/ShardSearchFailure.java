@@ -156,7 +156,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         builder.field("shard", shardId());
         builder.field("index", index());
         if (shardTarget != null) {
-            builder.field("node", shardTarget.nodeId());
+            builder.field("node", shardTarget.getNodeId());
         }
         if (cause != null) {
             builder.field("reason");

@@ -242,15 +242,17 @@ final class Bootstrap {
         return keystore;
     }
 
-    private static Environment initialEnvironment(boolean foreground, Path pidFile,
-                                                  KeyStoreWrapper keystore, Settings initialSettings) {
+    private static Environment createEnvironment(boolean foreground, Path pidFile,
+                                                 KeyStoreWrapper keystore, Settings initialSettings) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
         builder.put(initialSettings);
-        builder.setKeyStore(keystore);
+        if (keystore != null) {
+            builder.setKeyStore(keystore);
+        }
         return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap());
     }
 
@@ -292,7 +294,7 @@ final class Bootstrap {
         INSTANCE = new Bootstrap();
 
         final KeyStoreWrapper keystore = loadKeyStore(initialEnv);
-        Environment environment = initialEnvironment(foreground, pidFile, keystore, initialEnv.settings());
+        Environment environment = createEnvironment(foreground, pidFile, keystore, initialEnv.settings());
         try {
             LogConfigurator.configure(environment);
         } catch (IOException e) {

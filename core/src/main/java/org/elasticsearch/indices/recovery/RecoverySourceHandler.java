@@ -329,7 +329,7 @@ public class RecoverySourceHandler {
                 }
             }
 
-            prepareTargetForTranslog(translogView.totalOperations());
+            prepareTargetForTranslog(translogView.totalOperations(), shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp());
 
             logger.trace("[{}][{}] recovery [phase1] to {}: took [{}]", indexName, shardId, request.targetNode(), stopWatch.totalTime());
             response.phase1Time = stopWatch.totalTime().millis();
@@ -341,15 +341,14 @@ public class RecoverySourceHandler {
     }
 
 
-    protected void prepareTargetForTranslog(final int totalTranslogOps) throws IOException {
+    protected void prepareTargetForTranslog(final int totalTranslogOps, long maxUnsafeAutoIdTimestamp) throws IOException {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("{} recovery [phase1] to {}: prepare remote engine for translog", request.shardId(), request.targetNode());
         final long startEngineStart = stopWatch.totalTime().millis();
         // Send a request preparing the new shard's translog to receive
         // operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes
-        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps,
-            shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp()));
+        cancellableThreads.executeIO(() -> recoveryTarget.prepareForTranslogOperations(totalTranslogOps, maxUnsafeAutoIdTimestamp));
         stopWatch.stop();
 
         response.startTime = stopWatch.totalTime().millis() - startEngineStart;

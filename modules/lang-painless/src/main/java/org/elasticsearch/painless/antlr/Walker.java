@@ -805,6 +805,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         int src = 1;
         int dest = 0;
         int end = string.length() - 1;
+        assert string.charAt(0) == '"' || string.charAt(0) == '\'' : "expected string to start with a quote but was [" + string + "]";
+        assert string.charAt(end) == '"' || string.charAt(end) == '\'' : "expected string to end with a quote was [" + string + "]";
         while (src < end) {
             char current = string.charAt(src);
             if (current == '\\') {

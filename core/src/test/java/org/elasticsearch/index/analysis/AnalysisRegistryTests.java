@@ -241,7 +241,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", indexSettings);
         AnalysisRegistry registry = new AnalysisRegistry(new Environment(settings), emptyMap(), emptyMap(), emptyMap(), emptyMap());
         Exception e = expectThrows(IllegalArgumentException.class, () -> registry.buildAnalyzerFactories(idxSettings));
-        assertThat(e.getMessage(), equalTo("do not allow custom analyzers to have the same names [standard] as built-in analyzers"));
+        assertThat(e.getMessage(), equalTo("Custom analysis component [standard] may not reuse the name of a built-in component"));
 
     }
 }

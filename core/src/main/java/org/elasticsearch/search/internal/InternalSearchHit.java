@@ -449,7 +449,7 @@ public class InternalSearchHit implements SearchHit {
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (explanation() != null && shard != null) {
             builder.field("_shard", shard.getShardId());
-            builder.field("_node", shard.nodeIdText());
+            builder.field("_node", shard.getNodeIdText());
         }
         if (nestedIdentity != null) {
             nestedIdentity.toXContent(builder, params);

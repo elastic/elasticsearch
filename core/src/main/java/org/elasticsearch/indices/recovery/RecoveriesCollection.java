@@ -89,10 +89,7 @@ public class RecoveriesCollection {
      * @see IndexShard#performRecoveryRestart()
      * @return newly created RecoveryTarget
      */
-    public RecoveryTarget resetRecovery(
-        final long recoveryId,
-        final TimeValue activityTimeout,
-        final Function<RecoveryTarget, RecoveryTarget> supplier) {
+    public RecoveryTarget resetRecovery(final long recoveryId, final TimeValue activityTimeout) {
         RecoveryTarget oldRecoveryTarget = null;
         final RecoveryTarget newRecoveryTarget;
 
@@ -105,7 +102,7 @@ public class RecoveriesCollection {
                     return null;
                 }
 
-                newRecoveryTarget = supplier.apply(oldRecoveryTarget);
+                newRecoveryTarget = oldRecoveryTarget.retryCopy();
                 startRecoveryInternal(newRecoveryTarget, activityTimeout);
             }
 

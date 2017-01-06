@@ -92,16 +92,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
 
-    private volatile boolean canPerformSeqNoBasedRecovery = true;
-
-    public boolean canPerformSeqNoBasedRecovery() {
-        return canPerformSeqNoBasedRecovery;
-    }
-
-    public void setCanPerformSeqNoBasedRecovery(final boolean canPerformSeqNoBasedRecovery) {
-        this.canPerformSeqNoBasedRecovery = canPerformSeqNoBasedRecovery;
-    }
-
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
 
@@ -117,24 +107,10 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      *                                          version; necessary for primary relocation so that new primary knows about all other ongoing
      *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler})
      */
-    public RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
-                          Callback<Long> ensureClusterStateVersionCallback) {
-        this(indexShard, sourceNode, listener, ensureClusterStateVersionCallback, true);
-    }
-
-    /**
-     * Creates a new recovery target object that represents a recovery to the provided shard.
-     *
-     * @param indexShard                        local shard where we want to recover to
-     * @param sourceNode                        source node of the recovery where we recover from
-     * @param listener                          called when recovery is completed/failed
-     * @param ensureClusterStateVersionCallback callback to ensure that the current node is at least on a cluster state with the provided
-     *                                          version; necessary for primary relocation so that new primary knows about all other ongoing
-     *                                          replica recoveries when replicating documents (see {@link RecoverySourceHandler})
-     * @param canPerformSeqNoBasedRecovery      whether or not sequence number-based recovery can be performed
-     */
-    private RecoveryTarget(IndexShard indexShard, DiscoveryNode sourceNode, PeerRecoveryTargetService.RecoveryListener listener,
-                          Callback<Long> ensureClusterStateVersionCallback, boolean canPerformSeqNoBasedRecovery) {
+    public RecoveryTarget(final IndexShard indexShard,
+                   final DiscoveryNode sourceNode,
+                   final PeerRecoveryTargetService.RecoveryListener listener,
+                   final Callback<Long> ensureClusterStateVersionCallback) {
         super("recovery_status");
         this.cancellableThreads = new CancellableThreads();
         this.recoveryId = idGenerator.incrementAndGet();
@@ -149,7 +125,6 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
         // make sure the store is not released until we are done.
         store.incRef();
         indexShard.recoveryStats().incCurrentAsTarget();
-        this.canPerformSeqNoBasedRecovery = canPerformSeqNoBasedRecovery;
     }
 
     /**
@@ -157,18 +132,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      *
      * @return a copy of this recovery target
      */
-    public RecoveryTarget retry() {
-        return new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback, canPerformSeqNoBasedRecovery);
-    }
-
-    /**
-     * Returns a fresh recovery target to retry recovery from the same source node onto the same shard and using the same listener, but
-     * disabling sequence number-based recovery.
-     *
-     * @return a copy of this recovery target
-     */
-    public RecoveryTarget fileRecoveryRetry() {
-        return new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback, false);
+    public RecoveryTarget retryCopy() {
+        return new RecoveryTarget(indexShard, sourceNode, listener, ensureClusterStateVersionCallback);
     }
 
     public long recoveryId() {
@@ -225,7 +190,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
      * Closes the current recovery target and waits up to a certain timeout for resources to be freed.
      * Returns true if resetting the recovery was successful, false if the recovery target is already cancelled / failed or marked as done.
      */
-    public boolean resetRecovery(CancellableThreads newTargetCancellableThreads) throws IOException {
+    boolean resetRecovery(CancellableThreads newTargetCancellableThreads) throws IOException {
         if (finished.compareAndSet(false, true)) {
             try {
                 logger.debug("reset of recovery with shard {} and id [{}]", shardId, recoveryId);

@@ -57,7 +57,6 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.StreamSupport;
@@ -131,30 +130,22 @@ public class RecoverySourceHandler {
     public RecoveryResponse recoverToTarget() throws IOException {
         try (final Translog.View translogView = shard.acquireTranslogView()) {
             logger.trace("{} captured translog id [{}] for recovery", shard.shardId(), translogView.minTranslogGeneration());
-            final IndexCommit phase1Snapshot;
-            try {
-                phase1Snapshot = shard.acquireIndexCommit(false);
-            } catch (final Exception e) {
-                IOUtils.closeWhileHandlingException(translogView);
-                throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
-            }
 
-            final long startingSeqNo;
-            final long endingSeqNo;
-            if (request.startingSeqNo() == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
-                endingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            boolean isSequenceNumberBasedRecoveryPossible = request.startingSeqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO &&
+                isTranslogReadyForSequenceNumberBasedRecovery(translogView);
+
+            if (!isSequenceNumberBasedRecoveryPossible) {
+                final IndexCommit phase1Snapshot;
                 try {
-                    try {
-                        phase1(phase1Snapshot, translogView);
-                    } catch (final Exception e) {
-                        throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
-                    }
-                    try {
-                        prepareTargetForTranslog(translogView.totalOperations());
-                    } catch (final Exception e) {
-                        throw new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e);
-                    }
+                    phase1Snapshot = shard.acquireIndexCommit(false);
+                } catch (final Exception e) {
+                    IOUtils.closeWhileHandlingException(translogView);
+                    throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
+                }
+                try {
+                    phase1(phase1Snapshot, translogView);
+                } catch (final Exception e) {
+                    throw new RecoveryEngineException(shard.shardId(), 1, "phase1 failed", e);
                 } finally {
                     try {
                         shard.releaseIndexCommit(phase1Snapshot);
@@ -162,33 +153,12 @@ public class RecoverySourceHandler {
                         logger.warn("releasing snapshot caused exception", ex);
                     }
                 }
-            } else {
-                startingSeqNo = request.startingSeqNo();
-                endingSeqNo = shard.seqNoStats().getMaxSeqNo();
-                if (endingSeqNo < startingSeqNo) {
-                    final String message = String.format(
-                        Locale.ROOT,
-                        "requested starting operation [%d] higher than source operation maximum [%d]",
-                        startingSeqNo,
-                        endingSeqNo);
-                    logger.debug("{} {}", shard.shardId(), message);
-                    final ElasticsearchException ex = new ElasticsearchException(message);
-                    ex.addHeader(SEQUENCE_NUMBER_BASED_RECOVERY_FAILED, message);
-                    throw ex;
-                }
-                try {
-                    prepareTargetForTranslog(translogView.totalOperations());
-                } catch (final Exception e) {
-                    throw new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e);
-                }
-                // we need to wait for all operations up to the current max to complete, otherwise we can not guarantee that all operations
-                // in the required range will be available for replaying from the translog of the source
-                logger.trace(
-                    "{} waiting for all operations in the range [{}, {}] to complete",
-                    shard.shardId(),
-                    startingSeqNo,
-                    endingSeqNo);
-                cancellableThreads.execute(() -> shard.waitForOpsToComplete(endingSeqNo));
+            }
+
+            try {
+                prepareTargetForTranslog(translogView.totalOperations());
+            } catch (final Exception e) {
+                throw new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e);
             }
 
             // engine was just started at the end of phase1
@@ -211,7 +181,7 @@ public class RecoverySourceHandler {
 
             logger.trace("{} snapshot translog for recovery; current size is [{}]", shard.shardId(), translogView.totalOperations());
             try {
-                phase2(translogView.snapshot(), startingSeqNo, endingSeqNo);
+                phase2(translogView.snapshot());
             } catch (Exception e) {
                 throw new RecoveryEngineException(shard.shardId(), 2, "phase2 failed", e);
             }
@@ -219,6 +189,30 @@ public class RecoverySourceHandler {
             finalizeRecovery();
         }
         return response;
+    }
+
+    boolean isTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView) {
+        final long startingSeqNo = request.startingSeqNo();
+        final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
+        if (startingSeqNo <= endingSeqNo) {
+            // we need to wait for all operations up to the current max to complete, otherwise we can not guarantee that all
+            // operations in the required range will be available for replaying from the translog of the source
+            logger.trace(
+                "{} waiting for all operations in the range [{}, {}] to complete",
+                shard.shardId(),
+                startingSeqNo,
+                endingSeqNo);
+            cancellableThreads.execute(() -> shard.waitForOpsToComplete(endingSeqNo));
+
+            final LocalCheckpointTracker tracker = new LocalCheckpointTracker(shard.indexSettings(), startingSeqNo, startingSeqNo - 1);
+            final Translog.Snapshot snapshot = translogView.snapshot();
+            Translog.Operation operation;
+            while ((operation = getNextOperationFromSnapshot(snapshot)) != null) {
+                tracker.markSeqNoAsCompleted(operation.seqNo());
+            }
+            return tracker.getCheckpoint() >= endingSeqNo;
+        }
+        return false;
     }
 
     /**
@@ -231,7 +225,6 @@ public class RecoverySourceHandler {
      * checksum can be reused
      */
     public void phase1(final IndexCommit snapshot, final Translog.View translogView) {
-        assert request.startingSeqNo() == SequenceNumbersService.UNASSIGNED_SEQ_NO;
         cancellableThreads.checkForCancel();
         // Total size of segment files that are recovered
         long totalSize = 0;
@@ -402,44 +395,24 @@ public class RecoverySourceHandler {
     /**
      * Perform phase two of the recovery process.
      * <p>
-     * Phase two takes a snapshot of the current translog *without* acquiring the write lock (however, the translog snapshot is
+     * Phase two uses a snapshot of the current translog *without* acquiring the write lock (however, the translog snapshot is
      * point-in-time view of the translog). It then sends each translog operation to the target node so it can be replayed into the new
      * shard.
+     *
+     * @param snapshot a snapshot of the translog
      */
-    void phase2(final Translog.Snapshot snapshot, final long startingSeqNo, final long endingSeqNo) {
+    void phase2(final Translog.Snapshot snapshot) {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
         cancellableThreads.checkForCancel();
-
-        final LocalCheckpointTracker tracker;
-        if (startingSeqNo != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-            tracker = new LocalCheckpointTracker(shard.indexSettings(), startingSeqNo, startingSeqNo - 1);
-        } else {
-            tracker = new LocalCheckpointTracker(shard.indexSettings(), Long.MAX_VALUE, Long.MAX_VALUE);
-        }
 
         final StopWatch stopWatch = new StopWatch().start();
 
         logger.trace("{} recovery [phase2] to {}: sending transaction log operations", request.shardId(), request.targetNode());
 
         // send all the snapshot's translog operations to the target
-        final int totalOperations = sendSnapshot(snapshot, tracker);
-
-        // check to see if all operations in the required range were sent to the target
-        if (tracker.getCheckpoint() < endingSeqNo) {
-            final String message = String.format(
-                Locale.ROOT,
-                "sequence number-based recovery failed due to missing ops in range [%d, %d]; first missed op [%d]",
-                startingSeqNo,
-                endingSeqNo,
-                tracker.getCheckpoint() + 1);
-            logger.debug("{} {}", shard.shardId(), message);
-            final ElasticsearchException ex = new ElasticsearchException(message);
-            ex.setShard(shard.shardId());
-            ex.addHeader(SEQUENCE_NUMBER_BASED_RECOVERY_FAILED, message);
-            throw ex;
-        }
+        final int totalOperations = sendSnapshot(snapshot);
 
         stopWatch.stop();
         logger.trace("{} recovery [phase2] to {}: took [{}]", request.shardId(), request.targetNode(), stopWatch.totalTime());
@@ -492,10 +465,9 @@ public class RecoverySourceHandler {
      * Operations are bulked into a single request depending on an operation count limit or size-in-bytes limit.
      *
      * @param snapshot the translog snapshot to replay operations from
-     * @param tracker  tracks the replayed operations
      * @return the total number of translog operations that were sent
      */
-    protected int sendSnapshot(final Translog.Snapshot snapshot, final LocalCheckpointTracker tracker) {
+    protected int sendSnapshot(final Translog.Snapshot snapshot) {
         int ops = 0;
         long size = 0;
         int totalOperations = 0;
@@ -516,7 +488,6 @@ public class RecoverySourceHandler {
             ops++;
             size += operation.estimateSize();
             totalOperations++;
-            tracker.markSeqNoAsCompleted(operation.seqNo());
 
             // check if this request is past bytes threshold, and if so, send it off
             if (size >= chunkSizeInBytes) {

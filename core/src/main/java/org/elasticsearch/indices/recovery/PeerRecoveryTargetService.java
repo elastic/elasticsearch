@@ -157,26 +157,8 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         retryRecovery(recoveryId, retryAfter, activityTimeout);
     }
 
-    protected void retryRecovery(
-        final long recoveryId,
-        final String reason,
-        final TimeValue retryAfter,
-        final TimeValue activityTimeout,
-        final Function<RecoveryTarget, RecoveryTarget> supplier) {
-        logger.trace("will retry recovery with id [{}] in [{}] (reason [{}])", recoveryId, retryAfter, reason);
-        retryRecovery(recoveryId, retryAfter, activityTimeout, supplier);
-    }
-
-    private void retryRecovery(final long recoveryId, TimeValue retryAfter, TimeValue activityTimeout) {
-        retryRecovery(recoveryId, retryAfter, activityTimeout, RecoveryTarget::retry);
-    }
-
-    private void retryRecovery(
-        final long recoveryId,
-        final TimeValue retryAfter,
-        final TimeValue activityTimeout,
-        final Function<RecoveryTarget, RecoveryTarget> supplier) {
-        RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout, supplier);
+    private void retryRecovery(final long recoveryId, final TimeValue retryAfter, final TimeValue activityTimeout) {
+        RecoveryTarget newTarget = onGoingRecoveries.resetRecovery(recoveryId, activityTimeout);
         if (newTarget != null) {
             threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(newTarget.recoveryId()));
         }
@@ -293,12 +275,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                 return;
             }
 
-            if (sequenceNumberBasedRecoveryFailed(cause)) {
-                final String header = getSequenceNumberBasedRecoveryFailedHeader((ElasticsearchException) cause);
-                retryRecovery(recoveryId, header, TimeValue.ZERO, recoverySettings.activityTimeout(), RecoveryTarget::fileRecoveryRetry);
-                return;
-            }
-
             if (cause instanceof AlreadyClosedException) {
                 onGoingRecoveries.failRecovery(recoveryId,
                     new RecoveryFailedException(request, "source shard is closed", cause), false);
@@ -307,34 +283,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
             onGoingRecoveries.failRecovery(recoveryId, new RecoveryFailedException(request, e), true);
         }
-    }
-
-    /**
-     * Obtain the {@link RecoverySourceHandler#SEQUENCE_NUMBER_BASED_RECOVERY_FAILED} header if it is present, otherwise {@code null}.
-     *
-     * @param ex the exception to inspect
-     * @return the header if it exists, otherwise {@code null}
-     */
-    private static String getSequenceNumberBasedRecoveryFailedHeader(final ElasticsearchException ex) {
-        final List<String> header = ex.getHeader(RecoverySourceHandler.SEQUENCE_NUMBER_BASED_RECOVERY_FAILED);
-        if (header != null && !header.isEmpty()) {
-            return header.get(0);
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * Determine if the specified throwable represents an exception from a failed sequence number-based recovery.
-     *
-     * @param cause the throwable to inspect
-     * @return {@code true} iff the specified throwable represents an exception from a failed sequence number-based recovery
-     */
-    public static boolean sequenceNumberBasedRecoveryFailed(final Throwable cause) {
-        if (cause instanceof ElasticsearchException) {
-            return getSequenceNumberBasedRecoveryFailedHeader((ElasticsearchException) cause) != null;
-        }
-        return false;
     }
 
     @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
@@ -388,7 +336,7 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
         try {
             final long startingSeqNo;
-            if (metadataSnapshot.get().size() > 0 && recoveryTarget.canPerformSeqNoBasedRecovery()) {
+            if (metadataSnapshot.get().size() > 0) {
                 startingSeqNo = getStartingSeqNo(recoveryTarget);
                 logger.trace(
                     "{} preparing for sequence number-based recovery starting at local checkpoint [{}] from [{}]",

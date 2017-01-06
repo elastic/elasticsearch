@@ -82,12 +82,7 @@ public class IndexPrimaryRelocationIT extends ESIntegTestCase {
                 .add(new MoveAllocationCommand("test", 0, relocationSource.getId(), relocationTarget.getId()))
                 .execute().actionGet();
             ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).execute().actionGet();
-            try {
-                assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-            } catch (AssertionError e) {
-                logger.info("hi", e);
-                throw e;
-            }
+            assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
             logger.info("--> [iteration {}] relocation complete", i);
             relocationSource = relocationTarget;
             if (indexingThread.isAlive() == false) { // indexing process aborted early, no need for more relocations as test has already failed

@@ -424,32 +424,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
             e -> () -> {},
             (int) ByteSizeUnit.MB.toBytes(1),
             logger);
-        try {
-            recovery.recoverToTarget();
-            recoveryTarget.markAsDone();
-        } catch (final RecoveryEngineException ree) {
-            if (PeerRecoveryTargetService.sequenceNumberBasedRecoveryFailed(ree.getCause())) {
-                assertThat(request.startingSeqNo(), not(equalTo(SequenceNumbersService.UNASSIGNED_SEQ_NO)));
-                final RecoveryTarget retryRecoveryTarget = targetSupplier.apply(replica, pNode);
-                recoveryTarget.resetRecovery(retryRecoveryTarget.cancellableThreads());
-                replica.performRecoveryRestart();
-                replica.prepareForIndexRecovery();
-                final StartRecoveryRequest retryRequest =
-                    new StartRecoveryRequest(replica.shardId(), pNode, rNode, snapshot, false, 0, SequenceNumbersService.UNASSIGNED_SEQ_NO);
-                final RecoverySourceHandler retryRecovery = new RecoverySourceHandler(
-                    primary,
-                    retryRecoveryTarget,
-                    retryRequest,
-                    () -> 0L,
-                    e -> () -> {},
-                    (int) ByteSizeUnit.MB.toBytes(1),
-                    logger);
-                retryRecovery.recoverToTarget();
-                retryRecoveryTarget.markAsDone();
-            } else {
-                throw ree;
-            }
-        }
+        recovery.recoverToTarget();
+        recoveryTarget.markAsDone();
         replica.updateRoutingEntry(ShardRoutingHelper.moveToStarted(replica.routingEntry()));
     }
 

@@ -69,7 +69,8 @@ public class LocalCheckpointTracker {
      * Initialize the local checkpoint service. The {@code maxSeqNo} should be set to the last sequence number assigned, or
      * {@link SequenceNumbersService#NO_OPS_PERFORMED} and {@code localCheckpoint} should be set to the last known local checkpoint,
      * or {@link SequenceNumbersService#NO_OPS_PERFORMED}.
-     *  @param indexSettings   the index settings
+     *
+     * @param indexSettings   the index settings
      * @param maxSeqNo        the last sequence number assigned, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
      * @param localCheckpoint the last known local checkpoint, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
      */

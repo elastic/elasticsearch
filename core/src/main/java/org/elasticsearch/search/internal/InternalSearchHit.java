@@ -310,10 +310,6 @@ public class InternalSearchHit implements SearchHit {
         this.fields = fields;
     }
 
-    public Map<String, HighlightField> internalHighlightFields() {
-        return highlightFields;
-    }
-
     @Override
     public Map<String, HighlightField> highlightFields() {
         return highlightFields == null ? emptyMap() : highlightFields;

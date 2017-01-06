@@ -157,32 +157,12 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        boolean promoteLongsToDouble = false;
-        DocValueFormat decimalFormat = null;
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof DoubleTerms) {
-                /**
-                 * this terms agg mixes longs and doubles, we must promote longs to doubles to make the internal aggs
-                 * compatible
-                 */
-                promoteLongsToDouble = true;
-                decimalFormat = ((DoubleTerms) agg).format;
-                break;
+                return agg.doReduce(aggregations, reduceContext);
             }
         }
-        if (promoteLongsToDouble == false) {
-            return super.doReduce(aggregations, reduceContext);
-        }
-        List<InternalAggregation> newAggs = new ArrayList<> ();
-        for (InternalAggregation agg : aggregations) {
-            if (agg instanceof LongTerms && ((LongTerms) agg).format == DocValueFormat.RAW) {
-                DoubleTerms dTerms = convertLongTermsToDouble((LongTerms) agg, decimalFormat);
-                newAggs.add(dTerms);
-            } else {
-                newAggs.add(agg);
-            }
-        }
-        return newAggs.get(0).doReduce(newAggs, reduceContext);
+        return super.doReduce(aggregations, reduceContext);
     }
 
     /**

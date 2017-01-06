@@ -548,6 +548,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             throw new IllegalArgumentException("mappings are not allowed when shrinking indices" +
                 ", all mappings are copied from the source index");
         }
+
         if (IndexMetaData.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             // this method applies all necessary checks ie. if the target shards are less than the source shards
             // of if the source shards are divisible by the number of target shards
@@ -591,9 +592,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             .put("index.allocation.max_retries", 1)
             // now copy all similarity / analysis settings - this overrides all settings from the user unless they
             // wanna add extra settings
+            .put(IndexMetaData.SETTING_VERSION_CREATED, sourceMetaData.getCreationVersion())
+            .put(IndexMetaData.SETTING_VERSION_UPGRADED, sourceMetaData.getUpgradedVersion())
             .put(sourceMetaData.getSettings().filter(analysisSimilarityPredicate))
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_NAME.getKey(), shrinkFromIndex.getName())
             .put(IndexMetaData.INDEX_SHRINK_SOURCE_UUID.getKey(), shrinkFromIndex.getUUID());
+        if (sourceMetaData.getMinimumCompatibleVersion() != null) {
+            indexSettingsBuilder.put(IndexMetaData.SETTING_VERSION_MINIMUM_COMPATIBLE, sourceMetaData.getMinimumCompatibleVersion());
+        }
     }
 
 }

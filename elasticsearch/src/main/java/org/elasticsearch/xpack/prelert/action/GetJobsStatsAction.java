@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -308,8 +309,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             for (int i  = 0; i < jobs.results().size(); i++) {
                 int slot = i;
                 Job job = jobs.results().get(slot);
-                readDataCounts(job.getId(), dataCounts -> {
-                    ModelSizeStats modelSizeStats = readModelSizeStats(job.getId());
+                gatherDataCountsAndModelSizeStats(job.getId(), (dataCounts, modelSizeStats) -> {
                     JobStatus status = prelertMetadata.getAllocations().get(job.getId()).getStatus();
                     jobsStats.setOnce(slot, new Response.JobStats(job.getId(), dataCounts, modelSizeStats, status));
 
@@ -323,6 +323,15 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             }
         }
 
+        private void gatherDataCountsAndModelSizeStats(String jobId, BiConsumer<DataCounts, ModelSizeStats> handler,
+                                                       Consumer<Exception> errorHandler) {
+            readDataCounts(jobId, dataCounts -> {
+                readModelSizeStats(jobId, modelSizeStats -> {
+                    handler.accept(dataCounts, modelSizeStats);
+                }, errorHandler);
+            }, errorHandler);
+        }
+
         private void readDataCounts(String jobId, Consumer<DataCounts> handler, Consumer<Exception> errorHandler) {
             Optional<DataCounts> counts = processManager.getDataCounts(jobId);
             if (counts.isPresent()) {
@@ -332,9 +341,13 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
             }
         }
 
-        private ModelSizeStats readModelSizeStats(String jobId) {
+        private void readModelSizeStats(String jobId, Consumer<ModelSizeStats> handler, Consumer<Exception> errorHandler) {
             Optional<ModelSizeStats> sizeStats = processManager.getModelSizeStats(jobId);
-            return sizeStats.orElseGet(() -> jobProvider.modelSizeStats(jobId).orElse(null));
+            if (sizeStats.isPresent()) {
+                handler.accept(sizeStats.get());
+            } else {
+                jobProvider.modelSizeStats(jobId, handler, errorHandler);
+            }
         }
     }
 }

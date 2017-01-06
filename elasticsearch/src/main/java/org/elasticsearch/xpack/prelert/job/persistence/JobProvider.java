@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -853,12 +852,23 @@ public class JobProvider {
 
             LOGGER.trace("ES API CALL: get ID {} type {} from index {}", quantilesId, Quantiles.TYPE.getPreferredName(), indexName);
             GetRequest getRequest = new GetRequest(indexName, Quantiles.TYPE.getPreferredName(), quantilesId);
-            GetResponse response = FixBlockingClientOperations.executeBlocking(client, GetAction.INSTANCE, getRequest);
+            // can be blocking as it is called from a thread from generic pool:
+            GetResponse response = client.get(getRequest).actionGet();
             if (!response.isExists()) {
                 LOGGER.info("There are currently no quantiles for job " + jobId);
                 return Optional.empty();
             }
-            return Optional.of(createQuantiles(jobId, response));
+            BytesReference source = response.getSourceAsBytesRef();
+            try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                Quantiles quantiles = Quantiles.PARSER.apply(parser, () -> parseFieldMatcher);
+                if (quantiles.getQuantileState() == null) {
+                    LOGGER.error("Inconsistency - no " + Quantiles.QUANTILE_STATE
+                            + " field in quantiles for job " + jobId);
+                }
+                return Optional.of(quantiles);
+            } catch (IOException e) {
+                throw new ElasticsearchParseException("failed to parse quantiles", e);
+            }
         } catch (IndexNotFoundException e) {
             LOGGER.error("Missing index when getting quantiles", e);
             throw e;
@@ -1026,22 +1036,6 @@ public class JobProvider {
         stream.write(0);
     }
 
-    private Quantiles createQuantiles(String jobId, GetResponse response) {
-        BytesReference source = response.getSourceAsBytesRef();
-        XContentParser parser;
-        try {
-            parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
-        } catch (IOException e) {
-            throw new ElasticsearchParseException("failed to parse quantiles", e);
-        }
-        Quantiles quantiles = Quantiles.PARSER.apply(parser, () -> parseFieldMatcher);
-        if (quantiles.getQuantileState() == null) {
-            LOGGER.error("Inconsistency - no " + Quantiles.QUANTILE_STATE
-                    + " field in quantiles for job " + jobId);
-        }
-        return quantiles;
-    }
-
     public QueryPage<ModelDebugOutput> modelDebugOutput(String jobId, int from, int size) {
         SearchResponse searchResponse;
         try {
@@ -1076,35 +1070,34 @@ public class JobProvider {
     /**
      * Get the job's model size stats.
      */
-    public Optional<ModelSizeStats> modelSizeStats(String jobId) {
+    public void modelSizeStats(String jobId, Consumer<ModelSizeStats> handler, Consumer<Exception> errorHandler) {
         String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
-        try {
-            LOGGER.trace("ES API CALL: get result type {} ID {} from index {}",
-                    ModelSizeStats.RESULT_TYPE_VALUE, ModelSizeStats.RESULT_TYPE_FIELD, indexName);
+        LOGGER.trace("ES API CALL: get result type {} ID {} from index {}",
+                ModelSizeStats.RESULT_TYPE_VALUE, ModelSizeStats.RESULT_TYPE_FIELD, indexName);
 
-            GetRequest getRequest =
-                    new GetRequest(indexName, Result.TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
-            GetResponse modelSizeStatsResponse = FixBlockingClientOperations.executeBlocking(client, GetAction.INSTANCE, getRequest);
-
-            if (!modelSizeStatsResponse.isExists()) {
-                String msg = "No memory usage details for job with id " + jobId;
-                LOGGER.warn(msg);
-                return Optional.empty();
-            } else {
-                BytesReference source = modelSizeStatsResponse.getSourceAsBytesRef();
-                XContentParser parser;
-                try {
-                    parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+        GetRequest getRequest =
+                new GetRequest(indexName, Result.TYPE.getPreferredName(), ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName());
+        client.get(getRequest, ActionListener.wrap(response -> {
+            if (response.isExists()) {
+                BytesReference source = response.getSourceAsBytesRef();
+                try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                    ModelSizeStats modelSizeStats = ModelSizeStats.PARSER.apply(parser, () -> parseFieldMatcher).build();
+                    handler.accept(modelSizeStats);
                 } catch (IOException e) {
                     throw new ElasticsearchParseException("failed to parse model size stats", e);
                 }
-                ModelSizeStats modelSizeStats = ModelSizeStats.PARSER.apply(parser, () -> parseFieldMatcher).build();
-                return Optional.of(modelSizeStats);
+            } else {
+                String msg = "No memory usage details for job with id " + jobId;
+                LOGGER.warn(msg);
+                handler.accept(null);
             }
-        } catch (IndexNotFoundException e) {
-            LOGGER.warn("Missing index " + indexName, e);
-            return Optional.empty();
-        }
+        }, e -> {
+            if (e instanceof IndexNotFoundException) {
+                handler.accept(null);
+            } else {
+                errorHandler.accept(e);
+            }
+        }));
     }
 
     /**
@@ -1115,19 +1108,18 @@ public class JobProvider {
      */
     public Optional<ListDocument> getList(String listId) {
         GetRequest getRequest = new GetRequest(PRELERT_INFO_INDEX, ListDocument.TYPE.getPreferredName(), listId);
-        GetResponse response = FixBlockingClientOperations.executeBlocking(client, GetAction.INSTANCE, getRequest);
+        // can be blocking as it is called from a thread from generic pool:
+        GetResponse response = client.get(getRequest).actionGet();
         if (!response.isExists()) {
             return Optional.empty();
         }
         BytesReference source = response.getSourceAsBytesRef();
-        XContentParser parser;
-        try {
-            parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source);
+        try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+            ListDocument listDocument = ListDocument.PARSER.apply(parser, () -> parseFieldMatcher);
+            return Optional.of(listDocument);
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse list", e);
         }
-        ListDocument listDocument = ListDocument.PARSER.apply(parser, () -> parseFieldMatcher);
-        return Optional.of(listDocument);
     }
 
     /**

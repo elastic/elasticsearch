@@ -138,9 +138,8 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         assertEquals(1, persistedModelDebugOutput.count());
         assertEquals(modelDebugOutput, persistedModelDebugOutput.results().get(0));
 
-        Optional<ModelSizeStats> persistedModelSizeStats = jobProvider.modelSizeStats(JOB_ID);
-        assertTrue(persistedModelSizeStats.isPresent());
-        assertEquals(modelSizeStats, persistedModelSizeStats.get());
+        ModelSizeStats persistedModelSizeStats = getModelSizeStats();
+        assertEquals(modelSizeStats, persistedModelSizeStats);
 
         QueryPage<ModelSnapshot> persistedModelSnapshot = jobProvider.modelSnapshots(JOB_ID, 0, 100);
         assertEquals(1, persistedModelSnapshot.count());
@@ -474,6 +473,24 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         jobProvider.categoryDefinitions(JOB_ID, categoryId, null, null, r -> {
             resultHolder.set(r);
+            latch.countDown();
+        }, e -> {
+            errorHolder.set(e);
+            latch.countDown();
+        });
+        latch.await();
+        if (errorHolder.get() != null) {
+            throw errorHolder.get();
+        }
+        return resultHolder.get();
+    }
+
+    private ModelSizeStats getModelSizeStats() throws Exception {
+        AtomicReference<Exception> errorHolder = new AtomicReference<>();
+        AtomicReference<ModelSizeStats> resultHolder = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        jobProvider.modelSizeStats(JOB_ID, modelSizeStats -> {
+            resultHolder.set(modelSizeStats);
             latch.countDown();
         }, e -> {
             errorHolder.set(e);

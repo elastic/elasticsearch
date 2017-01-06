@@ -118,15 +118,14 @@ might look like:
 }
 --------------------------------------------------
 
-The new `description` field contains a description of the task. In the above
-example (a search) the `description` is a normalized copy of the search request
-body so it can get quite large but should be useful for telling individual
-searches from one another. Other tasks will have different descriptions, like
-<<docs-reindex,`_reindex`>> which has the search and the destination, or
-<<docs-bulk,`_bulk`>> which just has the number of requests and the destination
-indices. Many requests will only have an empty description because we haven't
-thought of good description. We expect to add and change these `description`
-values as they seem more use and we learn more.
+The new `description` field contains human readable text that identifies the
+particular request that the task is performing such as identifying the search
+request being performed by a search task like the example above. Other kinds of
+task have have different descriptions, like <<docs-reindex,`_reindex`>> which
+has the search and the destination, or <<docs-bulk,`_bulk`>> which just has the
+number of requests and the destination indices. Many requests will only have an
+empty description because more detailed information about the request is not
+easily available or particularly helpful in identifying the request.
 
 The task API can also be used to wait for completion of a particular task. The
 following call will block for 10 seconds or until the task with id

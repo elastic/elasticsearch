@@ -67,12 +67,8 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
         return this.nodeId;
     }
 
-    public String index() {
-        return shardId.getIndexName();
-    }
-
     public String getIndex() {
-        return index();
+        return shardId.getIndexName();
     }
 
     public ShardId shardId() {
@@ -85,7 +81,7 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
 
     @Override
     public int compareTo(SearchShardTarget o) {
-        int i = shardId.getIndexName().compareTo(o.index());
+        int i = shardId.getIndexName().compareTo(o.getIndex());
         if (i == 0) {
             i = shardId.getId() - o.shardId.id();
         }

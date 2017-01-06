@@ -93,7 +93,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     @Override
     public String index() {
         if (shardTarget != null) {
-            return shardTarget.index();
+            return shardTarget.getIndex();
         }
         return null;
     }

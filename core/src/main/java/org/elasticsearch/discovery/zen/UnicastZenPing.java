@@ -387,6 +387,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                 if (result == null) {
                     ensureOpen();
                     boolean success = false;
+                    logger.trace("[{}] opening connection to [{}]", id(), node);
                     result = transportService.openConnection(node, connectionProfile);
                     try {
                         transportService.handshake(result, connectionProfile.getHandshakeTimeout().millis());
@@ -399,6 +400,7 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
                         }
                     } finally {
                         if (success == false) {
+                            logger.trace("[{}] closing connection to [{}] due to failure", id(), node);
                             IOUtils.closeWhileHandlingException(result);
                         }
                     }

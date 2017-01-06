@@ -21,6 +21,7 @@ package org.elasticsearch.gradle
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -54,6 +55,11 @@ class BuildPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
+        if (project.pluginManager.hasPlugin('elasticsearch.standalone-rest-test')) {
+              throw new InvalidUserDataException('elasticsearch.standalone-test, '
+                + 'elasticearch.standalone-rest-test, and elasticsearch.build '
+                + 'are mutually exclusive')
+        }
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
         // these plugins add lots of info to our jars

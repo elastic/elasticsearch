@@ -78,7 +78,8 @@ public class EqualsHashCodeTestUtils {
             assertThat(objectName + " hashcode returns different values if called multiple times", original.hashCode(),
                     equalTo(original.hashCode()));
             if (mutationFunction != null) {
-                assertThat(objectName + " mutation should not be equal to original", mutationFunction.mutate(original),
+                T mutation = mutationFunction.mutate(original);
+                assertThat(objectName + " mutation should not be equal to original", mutation,
                         not(equalTo(original)));
             }
 

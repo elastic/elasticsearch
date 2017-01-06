@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.pipeline.movavg.models;
 
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -143,11 +142,10 @@ public abstract class MovAvgModel implements NamedWriteable, ToXContent {
          * @param settings           Map of settings, extracted from the request
          * @param pipelineName       Name of the parent pipeline agg
          * @param windowSize         Size of the window for this moving avg
-         * @param parseFieldMatcher  Matcher for field names
          * @return                   A fully built moving average model
          */
         public abstract MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName,
-                                          int windowSize, ParseFieldMatcher parseFieldMatcher) throws ParseException;
+                                          int windowSize) throws ParseException;
 
 
         /**

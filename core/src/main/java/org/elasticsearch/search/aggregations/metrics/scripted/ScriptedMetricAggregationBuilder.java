@@ -38,7 +38,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -254,16 +253,16 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.VALUE_STRING) {
-                if (context.getParseFieldMatcher().match(currentFieldName, INIT_SCRIPT_FIELD)) {
-                    initScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, MAP_SCRIPT_FIELD)) {
-                    mapScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, COMBINE_SCRIPT_FIELD)) {
-                    combineScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, REDUCE_SCRIPT_FIELD)) {
-                    reduceScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                if (INIT_SCRIPT_FIELD.match(currentFieldName)) {
+                    initScript = Script.parse(parser, context.getDefaultScriptLanguage());
+                } else if (MAP_SCRIPT_FIELD.match(currentFieldName)) {
+                    mapScript = Script.parse(parser, context.getDefaultScriptLanguage());
+                } else if (COMBINE_SCRIPT_FIELD.match(currentFieldName)) {
+                    combineScript = Script.parse(parser, context.getDefaultScriptLanguage());
+                } else if (REDUCE_SCRIPT_FIELD.match(currentFieldName)) {
+                    reduceScript = Script.parse(parser, context.getDefaultScriptLanguage());
                 } else if (token == XContentParser.Token.START_OBJECT &&
-                        context.getParseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
+                        PARAMS_FIELD.match(currentFieldName)) {
                     params = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

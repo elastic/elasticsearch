@@ -156,9 +156,9 @@ PUT /transactions/stock/_bulk?refresh
 {"type": "sale","amount": 80}
 {"index":{"_id":2}}
 {"type": "cost","amount": 10}
-{"index":{"_id":2}}
+{"index":{"_id":3}}
 {"type": "cost","amount": 30}
-{"index":{"_id":2}}
+{"index":{"_id":4}}
 {"type": "sale","amount": 130}
 --------------------------------------------------
 // CONSOLE

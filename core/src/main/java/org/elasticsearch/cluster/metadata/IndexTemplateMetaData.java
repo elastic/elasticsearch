@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -51,7 +52,6 @@ import java.util.Set;
 
 public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaData> {
 
-    public static final IndexTemplateMetaData PROTO = IndexTemplateMetaData.builder("").build();
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(IndexTemplateMetaData.class));
 
     private final String name;
@@ -206,8 +206,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         return result;
     }
 
-    @Override
-    public IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
+    public static IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder(in.readString());
         builder.order(in.readInt());
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
@@ -222,7 +221,7 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
         }
         int aliasesSize = in.readVInt();
         for (int i = 0; i < aliasesSize; i++) {
-            AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
+            AliasMetaData aliasMd = new AliasMetaData(in);
             builder.putAlias(aliasMd);
         }
         int customSize = in.readVInt();
@@ -235,6 +234,10 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             builder.version(in.readOptionalVInt());
         }
         return builder.build();
+    }
+
+    public static Diff<IndexTemplateMetaData> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(IndexTemplateMetaData::readFrom, in);
     }
 
     @Override
@@ -524,10 +527,6 @@ public class IndexTemplateMetaData extends AbstractDiffable<IndexTemplateMetaDat
             }
 
             return null;
-        }
-
-        public static IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
-            return PROTO.readFrom(in);
         }
     }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -72,8 +73,9 @@ public class FsRepository extends BlobStoreRepository {
     /**
      * Constructs a shared file system repository.
      */
-    public FsRepository(RepositoryMetaData metadata, Environment environment) throws IOException {
-        super(metadata, environment.settings());
+    public FsRepository(RepositoryMetaData metadata, Environment environment,
+                        NamedXContentRegistry namedXContentRegistry) throws IOException {
+        super(metadata, environment.settings(), namedXContentRegistry);
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
             logger.warn("the repository location is missing, it should point to a shared file system location that is available on all master and data nodes");

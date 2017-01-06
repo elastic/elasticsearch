@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -222,7 +221,7 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         }));
 
-        assertNotNull(module.getAggregatorParsers().parser("test", ParseFieldMatcher.STRICT));
+        assertNotNull(module.getAggregatorParsers().parser("test"));
     }
 
     public void testRegisterPipelineAggregation() {
@@ -233,7 +232,7 @@ public class SearchModuleTests extends ModuleTestCase {
             }
         }));
 
-        assertNotNull(module.getAggregatorParsers().pipelineParser("test", ParseFieldMatcher.STRICT));
+        assertNotNull(module.getAggregatorParsers().pipelineParser("test"));
     }
 
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {

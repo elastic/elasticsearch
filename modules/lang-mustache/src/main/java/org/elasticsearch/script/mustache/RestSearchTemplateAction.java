@@ -23,8 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -47,7 +45,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchTemplateAction extends BaseRestHandler {
 
-    private static final ObjectParser<SearchTemplateRequest, ParseFieldMatcherSupplier> PARSER;
+    private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
     static {
         PARSER = new ObjectParser<>("search_template");
         PARSER.declareField((parser, request, s) ->
@@ -105,7 +103,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            searchTemplateRequest = PARSER.parse(parser, new SearchTemplateRequest(), () -> ParseFieldMatcher.EMPTY);
+            searchTemplateRequest = PARSER.parse(parser, new SearchTemplateRequest(), null);
         }
         searchTemplateRequest.setRequest(searchRequest);
 
@@ -113,6 +111,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     }
 
     public static SearchTemplateRequest parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new SearchTemplateRequest(), () -> ParseFieldMatcher.EMPTY);
+        return PARSER.parse(parser, new SearchTemplateRequest(), null);
     }
 }

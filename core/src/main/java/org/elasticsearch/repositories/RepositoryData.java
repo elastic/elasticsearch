@@ -44,8 +44,19 @@ import java.util.stream.Collectors;
  */
 public final class RepositoryData implements ToXContent {
 
-    public static final RepositoryData EMPTY = new RepositoryData(Collections.emptyList(), Collections.emptyMap());
+    /**
+     * The generation value indicating the repository has no index generational files.
+     */
+    public static final long EMPTY_REPO_GEN = -1L;
+    /**
+     * An instance initialized for an empty repository.
+     */
+    public static final RepositoryData EMPTY = new RepositoryData(EMPTY_REPO_GEN, Collections.emptyList(), Collections.emptyMap());
 
+    /**
+     * The generational id of the index file from which the repository data was read.
+     */
+    private final long genId;
     /**
      * The ids of the snapshots in the repository.
      */
@@ -59,7 +70,8 @@ public final class RepositoryData implements ToXContent {
      */
     private final Map<IndexId, Set<SnapshotId>> indexSnapshots;
 
-    public RepositoryData(List<SnapshotId> snapshotIds, Map<IndexId, Set<SnapshotId>> indexSnapshots) {
+    private RepositoryData(long genId, List<SnapshotId> snapshotIds, Map<IndexId, Set<SnapshotId>> indexSnapshots) {
+        this.genId = genId;
         this.snapshotIds = Collections.unmodifiableList(snapshotIds);
         this.indices = Collections.unmodifiableMap(indexSnapshots.keySet()
                                                        .stream()
@@ -67,8 +79,22 @@ public final class RepositoryData implements ToXContent {
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
     }
 
+    /**
+     * Creates an instance of {@link RepositoryData} on a fresh repository (one that has no index-N files).
+     */
+    public static RepositoryData initRepositoryData(List<SnapshotId> snapshotIds, Map<IndexId, Set<SnapshotId>> indexSnapshots) {
+        return new RepositoryData(EMPTY_REPO_GEN, snapshotIds, indexSnapshots);
+    }
+
     protected RepositoryData copy() {
-        return new RepositoryData(snapshotIds, indexSnapshots);
+        return new RepositoryData(genId, snapshotIds, indexSnapshots);
+    }
+
+    /**
+     * Gets the generational index file id from which this instance was read.
+     */
+    public long getGenId() {
+        return genId;
     }
 
     /**
@@ -91,7 +117,10 @@ public final class RepositoryData implements ToXContent {
      */
     public RepositoryData addSnapshot(final SnapshotId snapshotId, final List<IndexId> snapshottedIndices) {
         if (snapshotIds.contains(snapshotId)) {
-            throw new IllegalArgumentException("[" + snapshotId + "] already exists in the repository data");
+            // if the snapshot id already exists in the repository data, it means an old master
+            // that is blocked from the cluster is trying to finalize a snapshot concurrently with
+            // the new master, so we make the operation idempotent
+            return this;
         }
         List<SnapshotId> snapshots = new ArrayList<>(snapshotIds);
         snapshots.add(snapshotId);
@@ -110,14 +139,7 @@ public final class RepositoryData implements ToXContent {
                 allIndexSnapshots.put(indexId, ids);
             }
         }
-        return new RepositoryData(snapshots, allIndexSnapshots);
-    }
-
-    /**
-     * Initializes the indices in the repository metadata; returns a new instance.
-     */
-    public RepositoryData initIndices(final Map<IndexId, Set<SnapshotId>> indexSnapshots) {
-        return new RepositoryData(snapshotIds, indexSnapshots);
+        return new RepositoryData(genId, snapshots, allIndexSnapshots);
     }
 
     /**
@@ -146,7 +168,7 @@ public final class RepositoryData implements ToXContent {
             indexSnapshots.put(indexId, set);
         }
 
-        return new RepositoryData(newSnapshotIds, indexSnapshots);
+        return new RepositoryData(genId, newSnapshotIds, indexSnapshots);
     }
 
     /**
@@ -256,7 +278,7 @@ public final class RepositoryData implements ToXContent {
         return builder;
     }
 
-    public static RepositoryData fromXContent(final XContentParser parser) throws IOException {
+    public static RepositoryData fromXContent(final XContentParser parser, final long genId) throws IOException {
         List<SnapshotId> snapshots = new ArrayList<>();
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
@@ -305,7 +327,7 @@ public final class RepositoryData implements ToXContent {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        return new RepositoryData(snapshots, indexSnapshots);
+        return new RepositoryData(genId, snapshots, indexSnapshots);
     }
 
 }

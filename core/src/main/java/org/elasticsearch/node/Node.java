@@ -325,9 +325,6 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.addListener(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
-            final TribeService tribeService = new TribeService(settings, clusterService, nodeId,
-                s -> newTribeClientNode(s, classpathPlugins));
-            resourcesToClose.add(tribeService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
                 scriptModule.getScriptService(), analysisModule.getAnalysisRegistry(), pluginsService.filterPlugins(IngestPlugin.class));
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
@@ -349,7 +346,6 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings(), threadPool, pluginsService.filterPlugins(ActionPlugin.class));
             modules.add(actionModule);
             modules.add(new GatewayModule());
-            modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class)));
             CircuitBreakerService circuitBreakerService = createCircuitBreakerService(settingsModule.getSettings(),
                 settingsModule.getClusterSettings());
             resourcesToClose.add(circuitBreakerService);
@@ -361,15 +357,21 @@ public class Node implements Closeable {
                 indicesModule.getNamedWriteables().stream(),
                 searchModule.getNamedWriteables().stream(),
                 pluginsService.filterPlugins(Plugin.class).stream()
-                    .flatMap(p -> p.getNamedWriteables().stream()))
+                    .flatMap(p -> p.getNamedWriteables().stream()),
+                ClusterModule.getNamedWriteables().stream())
                 .flatMap(Function.identity()).collect(Collectors.toList());
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
-                    searchModule.getNamedXContents().stream(),
-                    pluginsService.filterPlugins(Plugin.class).stream()
-                            .flatMap(p -> p.getNamedXContent().stream())
-                    ).flatMap(Function.identity()).collect(toList()));
-            final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment);
+                searchModule.getNamedXContents().stream(),
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .flatMap(p -> p.getNamedXContent().stream()),
+                ClusterModule.getNamedXWriteables().stream())
+                .flatMap(Function.identity()).collect(toList()));
+            final TribeService tribeService = new TribeService(settings, clusterService, nodeId, namedWriteableRegistry,
+                s -> newTribeClientNode(s, classpathPlugins));
+            resourcesToClose.add(tribeService);
+            modules.add(new RepositoriesModule(this.environment, pluginsService.filterPlugins(RepositoryPlugin.class), xContentRegistry));
+            final MetaStateService metaStateService = new MetaStateService(settings, nodeEnvironment, xContentRegistry);
             final IndicesService indicesService = new IndicesService(settings, pluginsService, nodeEnvironment, xContentRegistry,
                 settingsModule.getClusterSettings(), analysisModule.getAnalysisRegistry(),
                 clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
@@ -407,7 +409,7 @@ public class Node implements Closeable {
             }
 
             final DiscoveryModule discoveryModule = new DiscoveryModule(this.settings, threadPool, transportService,
-                networkService, clusterService, pluginsService.filterPlugins(DiscoveryPlugin.class));
+                namedWriteableRegistry, networkService, clusterService, pluginsService.filterPlugins(DiscoveryPlugin.class));
             modules.add(b -> {
                     b.bind(SearchRequestParsers.class).toInstance(searchModule.getSearchRequestParsers());
                     b.bind(SearchExtRegistry.class).toInstance(searchModule.getSearchExtRegistry());
@@ -564,6 +566,7 @@ public class Node implements Closeable {
         injector.getInstance(ResourceWatcherService.class).start();
         injector.getInstance(GatewayService.class).start();
         Discovery discovery = injector.getInstance(Discovery.class);
+        clusterService.setDiscoverySettings(discovery.getDiscoverySettings());
         clusterService.addInitialStateBlock(discovery.getDiscoverySettings().getNoMasterBlock());
         clusterService.setClusterStatePublisher(discovery::publish);
 

@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
+import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -204,6 +205,13 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
                     RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);
                     if (restoreInProgress != null && !restoreInProgress.entries().isEmpty()) {
                         throw new ConcurrentSnapshotExecutionException(snapshot, "Restore process is already running in this cluster");
+                    }
+                    // Check if the snapshot to restore is currently being deleted
+                    SnapshotDeletionsInProgress deletionsInProgress = currentState.custom(SnapshotDeletionsInProgress.TYPE);
+                    if (deletionsInProgress != null && deletionsInProgress.hasDeletionsInProgress()) {
+                        throw new ConcurrentSnapshotExecutionException(snapshot,
+                            "cannot restore a snapshot while a snapshot deletion is in-progress [" +
+                                deletionsInProgress.getEntries().get(0).getSnapshot() + "]");
                     }
 
                     // Updating cluster state
@@ -628,8 +636,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
         }
 
         @Override
-        public BatchResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
-            final BatchResult.Builder<Task> resultBuilder = BatchResult.<Task>builder().successes(tasks);
+        public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
+            final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
             Set<Snapshot> completedSnapshots = tasks.stream().map(e -> e.snapshot).collect(Collectors.toSet());
             final List<RestoreInProgress.Entry> entries = new ArrayList<>();
             final RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE);

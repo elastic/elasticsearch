@@ -941,7 +941,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             .should(boolQuery()
                 .should(termQuery("field1", "value1"))
                 .should(termQuery("field1", "value2"))
-                .minimumNumberShouldMatch(3));
+                .minimumShouldMatch(3));
         SearchResponse searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("1"));
@@ -951,9 +951,9 @@ public class SearchQueryIT extends ESIntegTestCase {
             .should(boolQuery()
                 .should(termQuery("field1", "value1"))
                 .should(termQuery("field1", "value2"))
-                .minimumNumberShouldMatch(1))
+                .minimumShouldMatch(1))
             // Only one should clause is defined, returns no docs.
-            .minimumNumberShouldMatch(2);
+            .minimumShouldMatch(2);
         searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 0L);
 
@@ -962,8 +962,8 @@ public class SearchQueryIT extends ESIntegTestCase {
             .should(boolQuery()
                 .should(termQuery("field1", "value1"))
                 .should(termQuery("field1", "value2"))
-                .minimumNumberShouldMatch(3))
-            .minimumNumberShouldMatch(1);
+                .minimumShouldMatch(3))
+            .minimumShouldMatch(1);
         searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("1"));
@@ -973,7 +973,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             .must(boolQuery()
                 .should(termQuery("field1", "value1"))
                 .should(termQuery("field1", "value2"))
-                .minimumNumberShouldMatch(3));
+                .minimumShouldMatch(3));
         searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 0L);
     }

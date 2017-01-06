@@ -27,6 +27,7 @@ import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.cloud.azure.storage.AzureStorageSettings;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -47,7 +48,8 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             .putArray(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
-        return new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings), new Environment(internalSettings), null);
+        return new AzureRepository(new RepositoryMetaData("foo", "azure", internalSettings), new Environment(internalSettings),
+            NamedXContentRegistry.EMPTY, null);
     }
 
 

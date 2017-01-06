@@ -32,3 +32,25 @@
         index: test_index
 
  - match: { hits.total: 5 }
+
+---
+"Add stuff to cluster state so that we can verify that it remains to exist during and after the rolling upgrade":
+  - do:
+      snapshot.create_repository:
+        repository: my_repo
+        body:
+          type: url
+          settings:
+            url: "http://snapshot.test"
+  - match: { "acknowledged": true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+            ]
+          }
+  - match: { "acknowledged": true }

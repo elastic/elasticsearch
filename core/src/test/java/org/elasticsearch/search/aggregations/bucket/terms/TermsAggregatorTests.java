@@ -52,7 +52,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         indexWriter.close();
 
         IndexReader indexReader = DirectoryReader.open(directory);
-        IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+        // We do not use LuceneTestCase.newSearcher because we need a DirectoryReader
+        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
         for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
             TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name", ValueType.STRING)

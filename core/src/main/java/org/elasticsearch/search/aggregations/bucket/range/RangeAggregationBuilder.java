@@ -57,7 +57,7 @@ public class RangeAggregationBuilder extends AbstractRangeBuilder<RangeAggregati
     }
 
     private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
-        return Range.fromXContent(parser, context.getParseFieldMatcher());
+        return Range.fromXContent(parser);
     }
 
     public RangeAggregationBuilder(String name) {

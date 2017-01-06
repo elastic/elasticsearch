@@ -21,10 +21,9 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -45,9 +44,8 @@ import java.util.Map;
 public final class IngestMetadata implements MetaData.Custom {
 
     public static final String TYPE = "ingest";
-    public static final IngestMetadata PROTO = new IngestMetadata();
     private static final ParseField PIPELINES_FIELD = new ParseField("pipeline");
-    private static final ObjectParser<List<PipelineConfiguration>, ParseFieldMatcherSupplier> INGEST_METADATA_PARSER = new ObjectParser<>(
+    private static final ObjectParser<List<PipelineConfiguration>, Void> INGEST_METADATA_PARSER = new ObjectParser<>(
             "ingest_metadata", ArrayList::new);
 
     static {
@@ -67,7 +65,7 @@ public final class IngestMetadata implements MetaData.Custom {
     }
 
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 
@@ -75,15 +73,14 @@ public final class IngestMetadata implements MetaData.Custom {
         return pipelines;
     }
 
-    @Override
-    public IngestMetadata readFrom(StreamInput in) throws IOException {
+    public IngestMetadata(StreamInput in) throws IOException {
         int size = in.readVInt();
         Map<String, PipelineConfiguration> pipelines = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            PipelineConfiguration pipeline = PipelineConfiguration.readPipelineConfiguration(in);
+            PipelineConfiguration pipeline = PipelineConfiguration.readFrom(in);
             pipelines.put(pipeline.getId(), pipeline);
         }
-        return new IngestMetadata(pipelines);
+        this.pipelines = Collections.unmodifiableMap(pipelines);
     }
 
     @Override
@@ -94,10 +91,9 @@ public final class IngestMetadata implements MetaData.Custom {
         }
     }
 
-    @Override
-    public IngestMetadata fromXContent(XContentParser parser) throws IOException {
+    public static IngestMetadata fromXContent(XContentParser parser) throws IOException {
         Map<String, PipelineConfiguration> pipelines = new HashMap<>();
-        List<PipelineConfiguration> configs = INGEST_METADATA_PARSER.parse(parser, () -> ParseFieldMatcher.STRICT);
+        List<PipelineConfiguration> configs = INGEST_METADATA_PARSER.parse(parser, null);
         for (PipelineConfiguration pipeline : configs) {
             pipelines.put(pipeline.getId(), pipeline);
         }
@@ -124,12 +120,11 @@ public final class IngestMetadata implements MetaData.Custom {
         return new IngestMetadataDiff((IngestMetadata) before, this);
     }
 
-    @Override
-    public Diff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+    public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
         return new IngestMetadataDiff(in);
     }
 
-    static class IngestMetadataDiff implements Diff<MetaData.Custom> {
+    static class IngestMetadataDiff implements NamedDiff<MetaData.Custom> {
 
         final Diff<Map<String, PipelineConfiguration>> pipelines;
 
@@ -138,7 +133,8 @@ public final class IngestMetadata implements MetaData.Custom {
         }
 
         public IngestMetadataDiff(StreamInput in) throws IOException {
-            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), PipelineConfiguration.PROTOTYPE);
+            pipelines = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), PipelineConfiguration::readFrom,
+                PipelineConfiguration::readDiffFrom);
         }
 
         @Override
@@ -149,6 +145,11 @@ public final class IngestMetadata implements MetaData.Custom {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             pipelines.writeTo(out);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return TYPE;
         }
     }
 

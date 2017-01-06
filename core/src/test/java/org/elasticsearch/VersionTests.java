@@ -38,7 +38,10 @@ import static org.elasticsearch.Version.V_5_0_0_alpha1;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class VersionTests extends ESTestCase {
@@ -64,6 +67,10 @@ public class VersionTests extends ESTestCase {
         assertTrue(Version.fromString("5.0.0").onOrAfter(Version.fromString("5.0.0-beta2")));
         assertTrue(Version.fromString("5.0.0-rc1").onOrAfter(Version.fromString("5.0.0-beta24")));
         assertTrue(Version.fromString("5.0.0-alpha24").before(Version.fromString("5.0.0-beta0")));
+
+        assertThat(V_2_2_0, is(lessThan(V_5_0_0_alpha1)));
+        assertThat(V_2_2_0.compareTo(V_2_2_0), is(0));
+        assertThat(V_5_0_0_alpha1, is(greaterThan(V_2_2_0)));
     }
 
     public void testMin() {

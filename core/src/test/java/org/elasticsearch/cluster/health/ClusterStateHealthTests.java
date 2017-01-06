@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -130,21 +131,16 @@ public class ClusterStateHealthTests extends ESTestCase {
         });
 
         logger.info("--> submit task to restore master");
-        clusterService.submitStateUpdateTask("restore master", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("restore master", new LocalClusterUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
-                final DiscoveryNodes nodes = currentState.nodes();
-                return ClusterState.builder(currentState).nodes(DiscoveryNodes.builder(nodes).masterNodeId(nodes.getLocalNodeId())).build();
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+                return newState(ClusterState.builder(currentState).nodes(
+                    DiscoveryNodes.builder(currentState.nodes()).masterNodeId(currentState.nodes().getLocalNodeId())).build());
             }
 
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn("unexpected failure", e);
-            }
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                return false;
             }
         });
 

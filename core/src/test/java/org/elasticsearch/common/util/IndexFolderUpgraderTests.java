@@ -29,6 +29,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -223,7 +224,7 @@ public class IndexFolderUpgraderTests extends ESTestCase {
             assertEquals(indexFolders.size(), 1);
 
             // ensure index metadata is moved
-            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger,
+            IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
                 nodeEnvironment.resolveIndexFolder(indexFolders.iterator().next()));
             assertNotNull(indexMetaData);
             Index index = indexMetaData.getIndex();
@@ -265,7 +266,8 @@ public class IndexFolderUpgraderTests extends ESTestCase {
                             int numIdxFiles, int numTranslogFiles) throws IOException {
         final Index index = indexSettings.getIndex();
         // ensure index state can be loaded
-        IndexMetaData loadLatestState = IndexMetaData.FORMAT.loadLatestState(logger, nodeEnv.indexPaths(index));
+        IndexMetaData loadLatestState = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+            nodeEnv.indexPaths(index));
         assertNotNull(loadLatestState);
         assertEquals(loadLatestState.getIndex(), index);
         for (int shardId = 0; shardId < indexSettings.getNumberOfShards(); shardId++) {

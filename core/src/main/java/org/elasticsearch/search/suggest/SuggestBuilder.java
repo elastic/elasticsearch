@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -140,7 +139,6 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable {
 
     public static SuggestBuilder fromXContent(QueryParseContext parseContext, Suggesters suggesters) throws IOException {
         XContentParser parser = parseContext.parser();
-        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         String fieldName = null;
 
@@ -154,7 +152,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseFieldMatcher.match(fieldName, GLOBAL_TEXT_FIELD)) {
+                if (GLOBAL_TEXT_FIELD.match(fieldName)) {
                     suggestBuilder.setGlobalText(parser.text());
                 } else {
                     throw new IllegalArgumentException("[suggest] does not support [" + fieldName + "]");

@@ -2158,7 +2158,7 @@ public class InternalEngineTests extends ESTestCase {
             final long size = Files.size(tlogFile);
             logger.debug("upgrading index {} file: {} size: {}", indexName, tlogFiles[0].getFileName(), size);
             Directory directory = newFSDirectory(src.resolve("0").resolve("index"));
-            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, src);
+            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, xContentRegistry(), src);
             final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetaData);
             final Store store = createStore(indexSettings, directory);
             final int iters = randomIntBetween(0, 2);
@@ -2313,7 +2313,7 @@ public class InternalEngineTests extends ESTestCase {
             Index index = new Index(indexName, "_na_");
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
             NamedAnalyzer defaultAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
-            IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultAnalyzer, defaultAnalyzer, Collections.emptyMap());
+            IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, defaultAnalyzer, defaultAnalyzer, defaultAnalyzer, Collections.emptyMap(), Collections.emptyMap());
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
             MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
             mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
@@ -2546,33 +2546,6 @@ public class InternalEngineTests extends ESTestCase {
             }
         }
 
-    }
-
-    public void testDocStats() throws IOException {
-        final int numDocs = randomIntBetween(2, 10); // at least 2 documents otherwise we don't see any deletes below
-        for (int i = 0; i < numDocs; i++) {
-            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, testDocument(), new BytesArray("{}"), null);
-            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
-            Engine.IndexResult indexResult = engine.index(firstIndexRequest);
-            assertThat(indexResult.getVersion(), equalTo(1L));
-        }
-        DocsStats docStats = engine.getDocStats();
-        assertEquals(numDocs, docStats.getCount());
-        assertEquals(0, docStats.getDeleted());
-        engine.forceMerge(randomBoolean(), 1, false, false, false);
-
-        ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, testDocument(), new BytesArray("{}"), null);
-        Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(0)), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
-        Engine.IndexResult index = engine.index(firstIndexRequest);
-        assertThat(index.getVersion(), equalTo(2L));
-        engine.flush(); // flush - buffered deletes are not counted
-        docStats = engine.getDocStats();
-        assertEquals(1, docStats.getDeleted());
-        assertEquals(numDocs, docStats.getCount());
-        engine.forceMerge(randomBoolean(), 1, false, false, false);
-        docStats = engine.getDocStats();
-        assertEquals(0, docStats.getDeleted());
-        assertEquals(numDocs, docStats.getCount());
     }
 
     public void testDoubleDelivery() throws IOException {

@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,11 +40,6 @@ import java.util.Map;
  */
 public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContent {
 
-    static final PipelineConfiguration PROTOTYPE = new PipelineConfiguration(null, null);
-
-    public static PipelineConfiguration readPipelineConfiguration(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
     private static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
     static {
         PARSER.declareString(Builder::setId, new ParseField("id"));
@@ -54,8 +50,8 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
     }
 
-    public static ContextParser<ParseFieldMatcherSupplier, PipelineConfiguration> getParser() {
-        return (p, c) -> PARSER.apply(p ,c).build();
+    public static ContextParser<Void, PipelineConfiguration> getParser() {
+        return (parser, context) -> PARSER.apply(parser, null).build();
     }
     private static class Builder {
 
@@ -103,9 +99,12 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         return builder;
     }
 
-    @Override
-    public PipelineConfiguration readFrom(StreamInput in) throws IOException {
+    public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
         return new PipelineConfiguration(in.readString(), in.readBytesReference());
+    }
+
+    public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
+        return readDiffFrom(PipelineConfiguration::readFrom, in);
     }
 
     @Override

@@ -182,7 +182,7 @@ public abstract class MetaDataStateFormat<T> {
      * Reads the state from a given file and compares the expected version against the actual version of
      * the state.
      */
-    public final T read(Path file) throws IOException {
+    public final T read(NamedXContentRegistry namedXContentRegistry, Path file) throws IOException {
         try (Directory dir = newDirectory(file.getParent())) {
             try (final IndexInput indexInput = dir.openInput(file.getFileName().toString(), IOContext.DEFAULT)) {
                  // We checksum the entire file before we even go and parse it. If it's corrupted we barf right here.
@@ -197,8 +197,7 @@ public abstract class MetaDataStateFormat<T> {
                 long filePointer = indexInput.getFilePointer();
                 long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
                 try (IndexInput slice = indexInput.slice("state_xcontent", filePointer, contentSize)) {
-                    // It is safe to use EMPTY here because this never uses namedObject
-                    try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
+                    try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(namedXContentRegistry,
                             new InputStreamIndexInput(slice, contentSize))) {
                         return fromXContent(parser);
                     }
@@ -262,7 +261,7 @@ public abstract class MetaDataStateFormat<T> {
      * @param dataLocations the data-locations to try.
      * @return the latest state or <code>null</code> if no state was found.
      */
-    public  T loadLatestState(Logger logger, Path... dataLocations) throws IOException {
+    public  T loadLatestState(Logger logger, NamedXContentRegistry namedXContentRegistry, Path... dataLocations) throws IOException {
         List<PathAndStateId> files = new ArrayList<>();
         long maxStateId = -1;
         boolean maxStateIdIsLegacy = true;
@@ -313,15 +312,14 @@ public abstract class MetaDataStateFormat<T> {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                         continue;
                     }
-                    // EMPTY is safe here because no parser uses namedObject
-                    try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, new BytesArray(data))) {
+                    try (XContentParser parser = XContentHelper.createParser(namedXContentRegistry, new BytesArray(data))) {
                         state = fromXContent(parser);
                     }
                     if (state == null) {
                         logger.debug("{}: no data for [{}], ignoring...", prefix, stateFile.toAbsolutePath());
                     }
                 } else {
-                    state = read(stateFile);
+                    state = read(namedXContentRegistry, stateFile);
                     logger.trace("state id [{}] read from [{}]", id, stateFile.getFileName());
                 }
                 return state;

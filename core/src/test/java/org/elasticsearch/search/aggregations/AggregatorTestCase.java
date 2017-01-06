@@ -24,7 +24,6 @@ import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.IndexSettings;
@@ -89,7 +88,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.searcher()).thenReturn(contextIndexSearcher);
-        when(searchContext.parseFieldMatcher()).thenReturn(ParseFieldMatcher.STRICT);
         when(searchContext.bigArrays()).thenReturn(new MockBigArrays(Settings.EMPTY, circuitBreakerService));
         when(searchContext.fetchPhase())
             .thenReturn(new FetchPhase(Arrays.asList(new FetchSourceSubPhase(), new DocValueFieldsFetchSubPhase())));

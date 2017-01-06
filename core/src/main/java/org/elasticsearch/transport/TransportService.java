@@ -64,6 +64,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.listSetting;
@@ -807,20 +808,20 @@ public class TransportService extends AbstractLifecycleComponent {
 
         @Override
         public void onNodeConnected(final DiscoveryNode node) {
-            threadPool.generic().execute(() -> {
-                for (TransportConnectionListener connectionListener : connectionListeners) {
-                    connectionListener.onNodeConnected(node);
-                }
-            });
+            // capture listeners before spawning the background callback so the following pattern won't trigger a call
+            // connectToNode(); connection is completed successfully
+            // addConnectionListener(); this listener shouldn't be called
+            final Stream<TransportConnectionListener> listenersToNotify = TransportService.this.connectionListeners.stream();
+            threadPool.generic().execute(() -> listenersToNotify.forEach(listener -> listener.onNodeConnected(node)));
         }
 
         @Override
         public void onConnectionOpened(DiscoveryNode node) {
-            threadPool.generic().execute(() -> {
-                for (TransportConnectionListener connectionListener : connectionListeners) {
-                    connectionListener.onConnectionOpened(node);
-                }
-            });
+            // capture listeners before spawning the background callback so the following pattern won't trigger a call
+            // connectToNode(); connection is completed successfully
+            // addConnectionListener(); this listener shouldn't be called
+            final Stream<TransportConnectionListener> listenersToNotify = TransportService.this.connectionListeners.stream();
+            threadPool.generic().execute(() -> listenersToNotify.forEach(listener -> listener.onConnectionOpened(node)));
         }
 
         @Override

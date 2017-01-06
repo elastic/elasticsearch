@@ -23,7 +23,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -395,9 +395,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // disable relocations when we do this, to make sure the shards are not relocated from node2
         // due to rebalancing, and delete its content
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)).get();
-        internalCluster().getInstance(ClusterService.class, nonMasterNode).submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        internalCluster().getInstance(ClusterService.class, nonMasterNode).submitStateUpdateTask("test", new LocalClusterUpdateTask(Priority.IMMEDIATE) {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                 IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index);
                 for (int i = 0; i < numShards; i++) {
                     indexRoutingTableBuilder.addIndexShard(
@@ -406,14 +406,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                                     .build()
                     );
                 }
-                return ClusterState.builder(currentState)
+                return newState(ClusterState.builder(currentState)
                         .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
-                        .build();
-            }
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                return false;
+                        .build());
             }
 
             @Override

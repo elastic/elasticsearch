@@ -141,6 +141,18 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
+    public void testPrefixLoggerMarkersCanBeCollected() throws IOException, UserException {
+        setupLogging("prefix");
+
+        for (int i = 0; i < 1 << 20; i++) {
+            // this has the side effect of caching a marker with this prefix
+            Loggers.getLogger("prefix" + i, "prefix" + i);
+        }
+
+        // this will free the weakly referenced keys in the marker cache
+        System.gc();
+        assertThat(PrefixLogger.markersSize() < 1 << 20, equalTo(true));
+    }
 
     public void testLog4jShutdownHack() {
         final AtomicBoolean denied = new AtomicBoolean();

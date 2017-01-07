@@ -1,5 +1,8 @@
 ---
 "Help":
+  - skip:
+      version: " - 5.1.99"
+      reason:  refresh listeners is new in 5.2.0
   - do:
       cat.shards:
         help: true

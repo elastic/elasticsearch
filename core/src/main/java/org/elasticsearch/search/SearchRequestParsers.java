@@ -19,25 +19,11 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.search.suggest.Suggesters;
-
 /**
  * A container for all parsers used to parse
  * {@link org.elasticsearch.action.search.SearchRequest} objects from a rest request.
  */
 public class SearchRequestParsers {
-    // TODO: this class should be renamed to SearchRequestParser, and all the parse
-    // methods split across RestSearchAction and SearchSourceBuilder should be moved here
-    // TODO: make all members private once parsing functions are moved here
-
-    // TODO: Suggesters should be removed and the underlying map moved here
-    /**
-     * Suggesters that may be used in search requests.
-     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, Suggesters)
-     */
-    public final Suggesters suggesters;
-
-    public SearchRequestParsers(Suggesters suggesters) {
-        this.suggesters = suggesters;
+    public SearchRequestParsers() {
     }
 }

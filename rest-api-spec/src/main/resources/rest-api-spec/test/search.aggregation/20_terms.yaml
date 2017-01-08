@@ -288,8 +288,8 @@ setup:
 ---
 "Scaled float test":
   - skip:
-    version: " - 5.2.0"
-    reason:  scaled_float were considered as longs in aggregations, this was fixed in 5.2.0
+      version: " - 5.2.0"
+      reason:  scaled_float were considered as longs in aggregations, this was fixed in 5.2.0
 
   - do:
       index:
@@ -409,9 +409,9 @@ setup:
 "Partitioned string test":
 
   - skip:
-    version: " - 5.1.99"
-    reason:  Partitioning is a 5.2.0 feature
-    
+      version: " - 5.1.99"
+      reason:  Partitioning is a 5.2.0 feature
+
   - do:
       index:
         index: test_1
@@ -468,8 +468,8 @@ setup:
 "Partitioned integer test":
 
   - skip:
-    version: " - 5.1.99"
-    reason:  Partitioning is a 5.2.0 feature
+      version: " - 5.1.99"
+      reason:  Partitioning is a 5.2.0 feature
 
   - do:
       index:
@@ -650,7 +650,7 @@ setup:
       index:
         index: test_1
         type: test
-        id: 1 
+        id: 1
         body: {}
 
   - do:

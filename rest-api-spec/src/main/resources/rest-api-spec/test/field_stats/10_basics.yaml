@@ -164,8 +164,8 @@ setup:
 ---
 "Geopoint field stats with level set to indices":
   - skip:
-    version: " - 5.2.0"
-    reason:  geo_point fields don't return min/max for versions greater than 5.2.0
+      version: " - 5.2.0"
+      reason:  geo_point fields don't return min/max for versions greater than 5.2.0
 
   - do:
       field_stats:

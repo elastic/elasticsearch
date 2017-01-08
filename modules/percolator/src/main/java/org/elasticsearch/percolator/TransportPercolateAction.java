@@ -45,7 +45,6 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.SearchExtRegistry;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchRequestParsers;
@@ -105,7 +104,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         SearchRequest searchRequest;
         try {
             searchRequest = createSearchRequest(request, docSource,
-                searchRequestParsers.aggParsers, searchRequestParsers.searchExtParsers, xContentRegistry, parseFieldMatcher);
+                searchRequestParsers.aggParsers, xContentRegistry, parseFieldMatcher);
         } catch (IOException e) {
             listener.onFailure(e);
             return;
@@ -129,7 +128,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
 
     public static SearchRequest createSearchRequest(PercolateRequest percolateRequest, BytesReference documentSource,
                                                     AggregatorParsers aggParsers,
-                                                    SearchExtRegistry searchExtRegistry, NamedXContentRegistry xContentRegistry,
+                                                    NamedXContentRegistry xContentRegistry,
                                                     ParseFieldMatcher parseFieldMatcher)
             throws IOException {
         SearchRequest searchRequest = new SearchRequest();
@@ -230,7 +229,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContentRegistry, source)) {
             QueryParseContext context = new QueryParseContext(parser, parseFieldMatcher);
-            searchSourceBuilder.parseXContent(context, aggParsers, null, searchExtRegistry);
+            searchSourceBuilder.parseXContent(context, aggParsers, null);
             searchRequest.source(searchSourceBuilder);
             return searchRequest;
         }

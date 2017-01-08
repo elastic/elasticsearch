@@ -124,7 +124,7 @@ public class RestReindexActionTests extends ESTestCase {
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             ReindexRequest r = new ReindexRequest(new SearchRequest(), new IndexRequest());
-            SearchRequestParsers searchParsers = new SearchRequestParsers(null, null, null);
+            SearchRequestParsers searchParsers = new SearchRequestParsers(null, null);
             RestReindexAction.PARSER.parse(p, r, new ReindexParseContext(searchParsers, ParseFieldMatcher.STRICT));
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] {"source"}, r.getSearchRequest().indices());
@@ -132,7 +132,7 @@ public class RestReindexActionTests extends ESTestCase {
     }
 
     public void testPipelineQueryParameterIsError() throws IOException {
-        SearchRequestParsers parsers = new SearchRequestParsers(null, null, null);
+        SearchRequestParsers parsers = new SearchRequestParsers(null, null);
         RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class), parsers, null);
 
         FakeRestRequest.Builder request = new FakeRestRequest.Builder(xContentRegistry());

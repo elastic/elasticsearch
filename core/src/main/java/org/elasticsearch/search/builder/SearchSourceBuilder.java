@@ -38,8 +38,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.SearchExtBuilder;
-import org.elasticsearch.search.SearchExtParser;
-import org.elasticsearch.search.SearchExtRegistry;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorParsers;
@@ -107,9 +105,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField ALL_FIELDS_FIELDS = new ParseField("all_fields");
 
     public static SearchSourceBuilder fromXContent(QueryParseContext context, AggregatorParsers aggParsers,
-            Suggesters suggesters, SearchExtRegistry searchExtRegistry) throws IOException {
+            Suggesters suggesters) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(context, aggParsers, suggesters, searchExtRegistry);
+        builder.parseXContent(context, aggParsers, suggesters);
         return builder;
     }
 
@@ -914,10 +912,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
      * different defaults than a regular SearchSourceBuilder would have and use
-     * {@link #fromXContent(QueryParseContext, AggregatorParsers, Suggesters, SearchExtRegistry)} if you have normal defaults.
+     * {@link #fromXContent(QueryParseContext, AggregatorParsers, Suggesters)} if you have normal defaults.
      */
     public void parseXContent(QueryParseContext context, AggregatorParsers aggParsers,
-                              Suggesters suggesters, SearchExtRegistry searchExtRegistry)
+                              Suggesters suggesters)
         throws IOException {
 
         XContentParser parser = context.parser();
@@ -1008,8 +1006,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                         if (token == XContentParser.Token.FIELD_NAME) {
                             extSectionName = parser.currentName();
                         } else {
-                            SearchExtParser searchExtParser = searchExtRegistry.lookup(extSectionName, parser.getTokenLocation());
-                            SearchExtBuilder searchExtBuilder = searchExtParser.fromXContent(parser);
+                            SearchExtBuilder searchExtBuilder = parser.namedObject(SearchExtBuilder.class, extSectionName, null);
                             if (searchExtBuilder.getWriteableName().equals(extSectionName) == false) {
                                 throw new IllegalStateException("The parsed [" + searchExtBuilder.getClass().getName() + "] object has a "
                                         + "different writeable name compared to the name of the section that it was parsed from: found ["

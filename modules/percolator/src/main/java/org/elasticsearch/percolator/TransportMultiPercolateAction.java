@@ -158,7 +158,7 @@ public class TransportMultiPercolateAction extends HandledTransportAction<MultiP
             try {
                 SearchRequest searchRequest = TransportPercolateAction.createSearchRequest(
                     percolateRequest, docSource,
-                    searchRequestParsers.aggParsers, searchRequestParsers.searchExtParsers, xContentRegistry, parseFieldMatcher);
+                    searchRequestParsers.aggParsers, xContentRegistry, parseFieldMatcher);
                 multiSearchRequest.add(searchRequest);
             } catch (Exception e) {
                 preFailures.put(i, new MultiPercolateResponse.Item(e));

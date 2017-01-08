@@ -287,6 +287,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         }, 20, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack/issues/4561")
     public void testFailingActionDoesGetThrottled() throws Exception {
         TimeValue throttlePeriod = new TimeValue(60, TimeUnit.MINUTES);
 

@@ -84,6 +84,6 @@ public interface AzureStorageService {
     Map<String,BlobMetaData> listBlobsByPrefix(String account, LocationMode mode, String container, String keyPath, String prefix)
         throws URISyntaxException, StorageException;
 
-    void moveBlob(String account, LocationMode mode, String container, String sourceBlob, String targetBlob)
+    void moveBlob(String account, String targetAccount, LocationMode mode, String container, String sourceBlob, String targetBlob)
         throws URISyntaxException, StorageException;
 }

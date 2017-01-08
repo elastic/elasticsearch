@@ -105,9 +105,9 @@ public final class AzureStorageSettings {
      * @param settings settings to parse
      * @return A tuple with v1 = primary storage and v2 = secondary storage
      */
-    public static Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> parse(Settings settings) {
+    public static Tuple<Map<String, AzureStorageSettings>, Map<String, AzureStorageSettings>> parse(Settings settings) {
         List<AzureStorageSettings> storageSettings = createStorageSettings(settings);
-        return Tuple.tuple(getPrimary(storageSettings), getSecondaries(storageSettings));
+        return Tuple.tuple(getPrimaries(storageSettings), getSecondaries(storageSettings));
     }
 
     private static List<AzureStorageSettings> createStorageSettings(Settings settings) {
@@ -133,29 +133,26 @@ public final class AzureStorageSettings {
         return setting.getConcreteSetting(fullKey).get(settings);
     }
 
-    private static AzureStorageSettings getPrimary(List<AzureStorageSettings> settings) {
+    private static Map<String, AzureStorageSettings> getPrimaries(List<AzureStorageSettings> settings) {
+        Map<String, AzureStorageSettings> primaries = new HashMap<>();
+
         if (settings.isEmpty()) {
             return null;
         } else if (settings.size() == 1) {
             // the only storage settings belong (implicitly) to the default primary storage
             AzureStorageSettings storage = settings.get(0);
-            return new AzureStorageSettings(storage.getName(), storage.getAccount(), storage.getKey(), storage.getTimeout(), true);
+            primaries.put(storage.getName(), new AzureStorageSettings(storage.getName(), storage.getAccount(), storage.getKey(), storage.getTimeout(), true));
         } else {
-            AzureStorageSettings primary = null;
             for (AzureStorageSettings setting : settings) {
                 if (setting.isActiveByDefault()) {
-                    if (primary == null) {
-                        primary = setting;
-                    } else {
-                        throw new SettingsException("Multiple default Azure data stores configured: [" + primary.getName() + "] and [" + setting.getName() + "]");
-                    }
+                    primaries.put(setting.getName(), setting);
                 }
             }
-            if (primary == null) {
+            if (primaries.size() == 0) {
                 throw new SettingsException("No default Azure data store configured");
             }
-            return primary;
         }
+        return Collections.unmodifiableMap(primaries);
     }
 
     private static Map<String, AzureStorageSettings> getSecondaries(List<AzureStorageSettings> settings) {

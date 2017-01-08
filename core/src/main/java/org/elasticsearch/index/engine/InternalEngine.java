@@ -671,7 +671,7 @@ public class InternalEngine extends Engine {
             if (checkVersionConflictResult.isPresent()) {
                 indexResult = checkVersionConflictResult.get();
                 // norelease: this is not correct as this does not force an fsync, and we need to handle failures including replication
-                if (indexResult.hasFailure()) {
+                if (indexResult.hasFailure() || seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                     location = null;
                 } else {
                     final Translog.NoOp operation = new Translog.NoOp(seqNo, index.primaryTerm(), "version conflict during recovery");
@@ -809,7 +809,7 @@ public class InternalEngine extends Engine {
             if (result.isPresent()) {
                 deleteResult = result.get();
                 // norelease: this is not correct as this does not force an fsync, and we need to handle failures including replication
-                if (deleteResult.hasFailure()) {
+                if (deleteResult.hasFailure() || seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                     location = null;
                 } else {
                     final Translog.NoOp operation = new Translog.NoOp(seqNo, delete.primaryTerm(), "version conflict during recovery");

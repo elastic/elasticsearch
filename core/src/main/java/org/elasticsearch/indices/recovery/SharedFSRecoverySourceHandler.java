@@ -50,6 +50,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
         boolean engineClosed = false;
         try {
             logger.trace("{} recovery [phase1] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
+            long maxUnsafeAutoIdTimestamp = shard.segmentStats(false).getMaxUnsafeAutoIdTimestamp();
             if (request.isPrimaryRelocation()) {
                 logger.debug("[phase1] closing engine on primary for shared filesystem recovery");
                 try {
@@ -62,7 +63,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
                     shard.failShard("failed to close engine (phase1)", e);
                 }
             }
-            prepareTargetForTranslog(0);
+            prepareTargetForTranslog(0, maxUnsafeAutoIdTimestamp);
             finalizeRecovery();
             return response;
         } catch (Exception e) {

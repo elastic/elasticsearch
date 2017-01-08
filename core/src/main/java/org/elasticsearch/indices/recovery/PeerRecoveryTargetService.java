@@ -41,6 +41,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -338,14 +339,18 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
             final long startingSeqNo;
             if (metadataSnapshot.get().size() > 0) {
                 startingSeqNo = getStartingSeqNo(recoveryTarget);
-                logger.trace(
-                    "{} preparing for sequence number-based recovery starting at local checkpoint [{}] from [{}]",
-                    recoveryTarget.shardId(),
-                    startingSeqNo,
-                    recoveryTarget.sourceNode());
             } else {
-                logger.trace("{} preparing for file-based recovery from [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
                 startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
+            }
+
+            if (startingSeqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                logger.trace("{} preparing for file-based recovery from [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
+            } else {
+                logger.trace(
+                        "{} preparing for sequence number-based recovery starting at local checkpoint [{}] from [{}]",
+                        recoveryTarget.shardId(),
+                        startingSeqNo,
+                        recoveryTarget.sourceNode());
             }
 
             logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
@@ -370,9 +375,23 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
         return Optional.of(request);
     }
 
-    public static long getStartingSeqNo(RecoveryTarget recoveryTarget) throws IOException {
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.indexShard().shardPath().resolveTranslog());
-        return recoveryTarget.store().loadSeqNoStats(globalCheckpoint).getLocalCheckpoint() + 1;
+    /**
+     * Get the starting sequence number for a sequence-number-based request.
+     *
+     * @param recoveryTarget the target of the recovery
+     * @return the starting sequence number or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if obtaining the starting sequence number
+     * failed
+     */
+    public static long getStartingSeqNo(final RecoveryTarget recoveryTarget) {
+        try {
+            final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.indexShard().shardPath().resolveTranslog());
+            return recoveryTarget.store().loadSeqNoStats(globalCheckpoint).getLocalCheckpoint() + 1;
+        } catch (final IOException e) {
+            // this can happen, for example, if a phase one of the recovery completed successfully, a network partition happens before the
+            // translog on the recovery target is opened, the recovery enters a retry loop seeing now that the index files are on disk to
+            // proceeds to attempt a sequence-number-based recovery
+            return SequenceNumbersService.UNASSIGNED_SEQ_NO;
+        }
     }
 
     public interface RecoveryListener {

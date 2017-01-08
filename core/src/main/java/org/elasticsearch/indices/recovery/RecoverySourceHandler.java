@@ -74,8 +74,6 @@ import java.util.stream.StreamSupport;
  */
 public class RecoverySourceHandler {
 
-    public static final String SEQUENCE_NUMBER_BASED_RECOVERY_FAILED = "sequence_number_based_recovery_failed";
-
     protected final Logger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;

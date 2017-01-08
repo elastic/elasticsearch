@@ -41,6 +41,7 @@ import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -69,6 +70,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -284,6 +286,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
                 attemptSequenceNumberBasedRecovery ? randomNonNegativeLong() : SequenceNumbersService.UNASSIGNED_SEQ_NO);
         final IndexShard shard = mock(IndexShard.class);
         when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
+        when(shard.segmentStats(anyBoolean())).thenReturn(mock(SegmentsStats.class));
         final Translog.View translogView = mock(Translog.View.class);
         when(shard.acquireTranslogView()).thenReturn(translogView);
         when(shard.state()).thenReturn(IndexShardState.RELOCATED);
@@ -301,7 +304,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             logger) {
 
             @Override
-            boolean isTranslogReadyForSequenceNumberBasedRecovery(Translog.View translogView) {
+            boolean isTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView) {
                 return isTranslogReadyForSequenceNumberBasedRecovery;
             }
 
@@ -311,7 +314,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            void prepareTargetForTranslog(int totalTranslogOps) throws IOException {
+            void prepareTargetForTranslog(final int totalTranslogOps, final long maxUnsafeAutoIdTimestamp) throws IOException {
                 prepareTargetForTranslogCalled.set(true);
             }
 
@@ -350,6 +353,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
         final IndexShard shard = mock(IndexShard.class);
         when(shard.seqNoStats()).thenReturn(mock(SeqNoStats.class));
+        when(shard.segmentStats(anyBoolean())).thenReturn(mock(SegmentsStats.class));
         final Translog.View translogView = mock(Translog.View.class);
         when(shard.acquireTranslogView()).thenReturn(translogView);
         when(shard.state()).then(i -> relocated.get() ? IndexShardState.RELOCATED : IndexShardState.STARTED);
@@ -400,7 +404,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            void prepareTargetForTranslog(final int totalTranslogOps) throws IOException {
+            void prepareTargetForTranslog(final int totalTranslogOps, final long maxUnsafeAutoIdTimestamp) throws IOException {
                 prepareTargetForTranslogCalled.set(true);
             }
 

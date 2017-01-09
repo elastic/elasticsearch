@@ -8,6 +8,7 @@ package org.elasticsearch.smoketest;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.After;
@@ -19,6 +20,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 /** Runs rest tests against external cluster */
+@Network // Needed to access to an external Jira server
 public class SmokeTestWatcherClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     public SmokeTestWatcherClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

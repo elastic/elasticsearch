@@ -1,8 +1,20 @@
+import groovy.json.JsonSlurper
+
+import javax.net.ssl.HttpsURLConnection
+import java.nio.charset.StandardCharsets
+
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testCompile project(path: ':x-pack:elasticsearch', configuration: 'runtime')
+}
+
+ext {
+  jiraUrl      = 'https://elasticsearch.atlassian.net/'
+  jiraUser     = 'xpack-user@elastic.co'
+  jiraPassword = 'N9M4ea9rfy'
+  jiraProject  =  'XWT'
 }
 
 integTest {
@@ -21,10 +33,60 @@ integTest {
     // has been created by Edward Sy [edward@elastic.co]. It uses the "XPACK WATCHER TEST"
     // Jira project available at https://elasticsearch.atlassian.net/projects/XWT/issues/?filter=allopenissues
     // and the "xpack-user@elastic.co" username which is also an internal Google Group.
-    setting 'xpack.notification.jira.account.test.url', 'https://elasticsearch.atlassian.net/'
-    setting 'xpack.notification.jira.account.test.user', 'xpack-user@elastic.co'
-    setting 'xpack.notification.jira.account.test.password', 'N9M4ea9rfy'
-    setting 'xpack.notification.jira.account.test.issue_defaults.project.key', 'XWT'
+    setting 'xpack.notification.jira.account.test.url', jiraUrl
+    setting 'xpack.notification.jira.account.test.user', jiraUser
+    setting 'xpack.notification.jira.account.test.password', jiraPassword
+    setting 'xpack.notification.jira.account.test.issue_defaults.project.key', jiraProject
     setting 'xpack.notification.jira.account.test.issue_defaults.labels', ['integration-tests', project.version]
   }
+}
+
+/** Clean up JIRA after tests: delete all created issues **/
+task cleanJira(type: DefaultTask) {
+  doLast {
+    def issues = jiraIssues(jiraProject)
+    assert issues instanceof List
+    issues.forEach {
+      // See https://docs.atlassian.com/jira/REST/cloud/#api/2/issue-deleteIssue
+      logger.debug("Deleting JIRA issue [${it}]")
+      jiraHttpRequest("issue/${it}", "DELETE", 204)
+    }
+  }
+}
+integTest.finalizedBy cleanJira
+
+/** List all issues associated to a given Jira project **/
+def jiraIssues(String projectKey) {
+  // See https://docs.atlassian.com/jira/REST/cloud/#api/2/search-search
+  def response = jiraHttpRequest("search?maxResults=100&fields=id,self,key&jql=project%3D${projectKey}", "GET", 200)
+  assert response.issues instanceof List
+  return response.issues.findAll {it.key.startsWith(projectKey)}.collect {it.key}
+}
+
+/** Execute a HTTP request against the Jira server instance **/
+def jiraHttpRequest(String endpoint, String method, int successCode) {
+  HttpsURLConnection connection = null;
+  try {
+    byte[] credentials = "${jiraUser}:${jiraPassword}".getBytes(StandardCharsets.UTF_8);
+    connection = (HttpsURLConnection) new URL("${jiraUrl}/rest/api/2/${endpoint}").openConnection();
+    connection.setRequestProperty("Authorization", "Basic " + Base64.getEncoder().encodeToString(credentials));
+    connection.setRequestMethod(method);
+    connection.connect();
+
+    if (connection.getResponseCode() == successCode) {
+      String response = connection.getInputStream().getText(StandardCharsets.UTF_8.name());
+      if (response != null && response.length() > 0) {
+        return new JsonSlurper().parseText(response)
+      }
+    } else {
+      throw new GradleException("Unexpected response code for [${endpoint}]: got ${connection.getResponseCode()} but expected ${successCode}")
+    }
+  } catch (Exception e) {
+    logger.error("Failed to delete JIRA issues after test execution", e)
+  } finally {
+    if (connection != null) {
+      connection.disconnect();
+    }
+  }
+  return null
 }

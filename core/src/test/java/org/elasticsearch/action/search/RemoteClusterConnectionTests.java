@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.CancellableThreads;
@@ -276,6 +277,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
+    @SuppressForbidden(reason = "calls getLocalHost here but it's fine in this case")
     public void testSlowNodeCanBeCanceled() throws IOException, InterruptedException {
         try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);

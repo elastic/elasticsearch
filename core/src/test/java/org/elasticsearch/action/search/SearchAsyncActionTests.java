@@ -99,9 +99,11 @@ public class SearchAsyncActionTests extends ESTestCase {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
-            protected void sendExecuteFirstPhase(Transport.Connection connection, ShardSearchTransportRequest request, ActionListener listener) {
+            protected void sendExecuteFirstPhase(Transport.Connection connection, ShardSearchTransportRequest request,
+                                                 ActionListener listener) {
                 assertTrue("shard: " + request.shardId() + " has been queried twice", response.queried.add(request.shardId()));
-                TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(), connection.getNode());
+                TestSearchPhaseResult testSearchPhaseResult = new TestSearchPhaseResult(contextIdGenerator.incrementAndGet(),
+                    connection.getNode());
                 Set<Long> ids = nodeToContextMap.computeIfAbsent(connection.getNode(), (n) -> new HashSet<>());
                 ids.add(testSearchPhaseResult.id);
                 if (randomBoolean()) {
@@ -236,7 +238,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
 
         @Override
-        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+        public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+            throws IOException, TransportException {
             throw new UnsupportedOperationException();
         }
 

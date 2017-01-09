@@ -238,21 +238,17 @@ public class KeyStoreWrapper implements SecureSettings {
     // TODO: make settings accessible only to code that registered the setting
     /** Retrieve a string setting. The {@link SecureString} should be closed once it is used. */
     @Override
-    public SecureString getString(String setting) {
-        try {
-            KeyStore.Entry entry = keystore.get().getEntry(setting, keystorePassword.get());
-            if (entry instanceof KeyStore.SecretKeyEntry == false) {
-                throw new IllegalStateException("Secret setting " + setting + " is not a string");
-            }
-            // TODO: only allow getting a setting once?
-            KeyStore.SecretKeyEntry secretKeyEntry = (KeyStore.SecretKeyEntry) entry;
-            PBEKeySpec keySpec = (PBEKeySpec) secretFactory.getKeySpec(secretKeyEntry.getSecretKey(), PBEKeySpec.class);
-            SecureString value = new SecureString(keySpec.getPassword());
-            keySpec.clearPassword();
-            return value;
-        } catch (GeneralSecurityException e) {
-            throw new ElasticsearchException(e);
+    public SecureString getString(String setting) throws GeneralSecurityException {
+        KeyStore.Entry entry = keystore.get().getEntry(setting, keystorePassword.get());
+        if (entry instanceof KeyStore.SecretKeyEntry == false) {
+            throw new IllegalStateException("Secret setting " + setting + " is not a string");
         }
+        // TODO: only allow getting a setting once?
+        KeyStore.SecretKeyEntry secretKeyEntry = (KeyStore.SecretKeyEntry) entry;
+        PBEKeySpec keySpec = (PBEKeySpec) secretFactory.getKeySpec(secretKeyEntry.getSecretKey(), PBEKeySpec.class);
+        SecureString value = new SecureString(keySpec.getPassword());
+        keySpec.clearPassword();
+        return value;
     }
 
     /**

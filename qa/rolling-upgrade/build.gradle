@@ -52,12 +52,12 @@ task oldClusterTest(type: RestIntegTestTask) {
     cluster {
         plugin ':x-pack:elasticsearch'
         distribution = 'zip'
-        bwcVersion = '6.0.0-alpha1-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
+        bwcVersion = '5.3.0-SNAPSHOT' // TODO: either randomize, or make this settable with sysprop
         numBwcNodes = 2
         numNodes = 2
         clusterName = 'rolling-upgrade'
         waitCondition = waitWithAuth
-        systemProperty 'es.logger.org.elasticsearch.xpack.security', 'TRACE'
+        setting 'logger.org.elasticsearch.xpack.security', 'TRACE'
     }
     systemProperty 'tests.rest.suite', 'old_cluster'
 }
@@ -105,7 +105,15 @@ dependencies {
 
 // copy x-pack plugin info so it is on the classpath and security manager has the right permissions
 String outputDir = "generated-resources/${project.name}"
+task copyXPackRestSpec(type: Copy) {
+    dependsOn(project.configurations.restSpec, 'processTestResources')
+    from project(':x-pack:elasticsearch').sourceSets.test.resources
+    include 'rest-api-spec/api/**'
+    into project.sourceSets.test.output.resourcesDir
+}
+
 task copyXPackPluginProps(type: Copy) {
+    dependsOn(copyXPackRestSpec)
     from project(':x-pack:elasticsearch').file('src/main/plugin-metadata')
     from project(':x-pack:elasticsearch').tasks.pluginProperties
     into outputDir

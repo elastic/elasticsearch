@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +22,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
@@ -28,6 +30,7 @@ import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.ContextRestoreResponseHandler;
+import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -37,10 +40,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.verifyZeroInteractions;
@@ -63,7 +68,7 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
         threadContext = new ThreadContext(settings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
         cryptoService = new CryptoService(settings, new Environment(settings));
-        securityContext = spy(new SecurityContext(settings, threadPool, cryptoService));
+        securityContext = spy(new SecurityContext(settings, threadPool.getThreadContext(), cryptoService));
         xPackLicenseState = mock(XPackLicenseState.class);
         when(xPackLicenseState.isAuthAllowed()).thenReturn(true);
     }
@@ -112,7 +117,9 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 sendingUser.set(securityContext.getUser());
             }
         });
-        sender.sendRequest(null, "indices:foo", null, null, null);
+        Transport.Connection connection = mock(Transport.Connection.class);
+        when(connection.getVersion()).thenReturn(Version.CURRENT);
+        sender.sendRequest(connection, "indices:foo", null, null, null);
         assertTrue(calledWrappedSender.get());
         assertEquals(user, sendingUser.get());
         assertEquals(user, securityContext.getUser());
@@ -168,12 +175,74 @@ public class SecurityServerTransportInterceptorTests extends ESTestCase {
                 fail("sender should not be called!");
             }
         });
+        Transport.Connection connection = mock(Transport.Connection.class);
+        when(connection.getVersion()).thenReturn(Version.CURRENT);
         IllegalStateException e =
-                expectThrows(IllegalStateException.class, () -> sender.sendRequest(null, "indices:foo", null, null, null));
+                expectThrows(IllegalStateException.class, () -> sender.sendRequest(connection, "indices:foo", null, null, null));
         assertEquals("there should always be a user when sending a message", e.getMessage());
         assertNull(securityContext.getUser());
         verify(xPackLicenseState).isAuthAllowed();
         verify(securityContext, never()).executeAsUser(any(User.class), any(Consumer.class));
+        verifyNoMoreInteractions(xPackLicenseState);
+    }
+
+    public void testSendWithKibanaUser() throws Exception {
+        final User user = new KibanaUser(true);
+        final Authentication authentication = new Authentication(user, new RealmRef("reserved", "reserved", "node1"), null);
+        authentication.writeToContext(threadContext, cryptoService, AuthenticationService.SIGN_USER_HEADER.get(settings));
+        threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, "indices:foo");
+
+        SecurityServerTransportInterceptor interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
+                mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
+                securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))));
+
+        AtomicBoolean calledWrappedSender = new AtomicBoolean(false);
+        AtomicReference<User> sendingUser = new AtomicReference<>();
+        AsyncSender intercepted = new AsyncSender() {
+            @Override
+            public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action, TransportRequest request,
+                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                if (calledWrappedSender.compareAndSet(false, true) == false) {
+                    fail("sender called more than once!");
+                }
+                sendingUser.set(securityContext.getUser());
+            }
+        };
+        AsyncSender sender = interceptor.interceptSender(intercepted);
+        Transport.Connection connection = mock(Transport.Connection.class);
+        when(connection.getVersion()).thenReturn(Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_2_0_ID_UNRELEASED - 100)));
+        sender.sendRequest(connection, "indices:foo[s]", null, null, null);
+        assertTrue(calledWrappedSender.get());
+        assertNotEquals(user, sendingUser.get());
+        assertEquals(KibanaUser.NAME, sendingUser.get().principal());
+        assertThat(sendingUser.get().roles(), arrayContaining("kibana"));
+        assertEquals(user, securityContext.getUser());
+
+        // reset and test with version that was changed
+        calledWrappedSender.set(false);
+        sendingUser.set(null);
+        when(connection.getVersion()).thenReturn(Version.V_5_2_0_UNRELEASED);
+        sender.sendRequest(connection, "indices:foo[s]", null, null, null);
+        assertTrue(calledWrappedSender.get());
+        assertEquals(user, sendingUser.get());
+
+        // reset and disable reserved realm
+        calledWrappedSender.set(false);
+        sendingUser.set(null);
+        when(connection.getVersion()).thenReturn(Version.V_5_0_0);
+        settings = Settings.builder().put(settings).put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
+        interceptor = new SecurityServerTransportInterceptor(settings, threadPool,
+                mock(AuthenticationService.class), mock(AuthorizationService.class), xPackLicenseState, mock(SSLService.class),
+                securityContext, new DestructiveOperations(Settings.EMPTY, new ClusterSettings(Settings.EMPTY,
+                Collections.singleton(DestructiveOperations.REQUIRES_NAME_SETTING))));
+        sender = interceptor.interceptSender(intercepted);
+        sender.sendRequest(connection, "indices:foo[s]", null, null, null);
+        assertTrue(calledWrappedSender.get());
+        assertEquals(user, sendingUser.get());
+
+        verify(xPackLicenseState, times(3)).isAuthAllowed();
+        verify(securityContext, times(1)).executeAsUser(any(User.class), any(Consumer.class));
         verifyNoMoreInteractions(xPackLicenseState);
     }
 

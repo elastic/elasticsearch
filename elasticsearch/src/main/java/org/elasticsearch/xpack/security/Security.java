@@ -241,7 +241,7 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         }
 
         List<Object> components = new ArrayList<>();
-        final SecurityContext securityContext = new SecurityContext(settings, threadPool, cryptoService);
+        final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext(), cryptoService);
         components.add(securityContext);
 
         // realms construction

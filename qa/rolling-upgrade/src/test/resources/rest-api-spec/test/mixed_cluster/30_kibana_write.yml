@@ -1,0 +1,52 @@
+---
+"Verify kibana user role works in mixed cluster":
+  - do:
+      headers:
+        Authorization: "Basic a2liYW5hOmNoYW5nZW1l"
+      cluster.health:
+        wait_for_status: yellow
+        wait_for_nodes: 2
+        timeout: 25s
+  - match: { timed_out: false }
+
+ - do:
+     headers:
+       Authorization: "Basic a2liYW5hOmNoYW5nZW1l"
+     indices.create:
+       index: .kibana-foo
+       wait_for_active_shards : all
+       body:
+         settings:
+           index:
+             number_of_replicas: 1
+
+ - do:
+     headers:
+       Authorization: "Basic a2liYW5hOmNoYW5nZW1l"
+     bulk:
+       refresh: true
+       body:
+         - '{"index": {"_index": ".kibana-foo", "_type": "test_type"}}'
+         - '{"f1": "v1_old", "f2": 0}'
+         - '{"index": {"_index": ".kibana-foo", "_type": "test_type"}}'
+         - '{"f1": "v2_old", "f2": 1}'
+         - '{"index": {"_index": ".kibana-foo", "_type": "test_type"}}'
+         - '{"f1": "v3_old", "f2": 2}'
+         - '{"index": {"_index": ".kibana-foo", "_type": "test_type"}}'
+         - '{"f1": "v4_old", "f2": 3}'
+         - '{"index": {"_index": ".kibana-foo", "_type": "test_type"}}'
+         - '{"f1": "v5_old", "f2": 4}'
+
+ - do:
+     headers:
+       Authorization: "Basic a2liYW5hOmNoYW5nZW1l"
+     indices.flush:
+        index: .kibana-foo
+
+ - do:
+     headers:
+       Authorization: "Basic a2liYW5hOmNoYW5nZW1l"
+     search:
+       index: .kibana-foo
+
+ - match: { hits.total: 5 }

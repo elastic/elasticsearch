@@ -515,11 +515,9 @@ class BuildPlugin implements Plugin<Project> {
                 }
             }
 
-            // System assertions (-esa) are disabled for now because of what looks like a
-            // JDK bug triggered by Groovy on JDK7. We should look at re-enabling system
-            // assertions when we upgrade to a new version of Groovy (currently 2.4.4) or
-            // require JDK8. See https://issues.apache.org/jira/browse/GROOVY-7528.
-            enableSystemAssertions false
+            boolean assertionsEnabled = Boolean.parseBoolean(System.getProperty('tests.asserts', 'true'))
+            enableSystemAssertions assertionsEnabled
+            enableAssertions assertionsEnabled
 
             testLogging {
                 showNumFailuresAtEnd 25

@@ -16,18 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.rest.RestStatus;
+package org.elasticsearch.common.settings;
+
+import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.cli.Terminal;
 
 /**
- * Objects that can both render themselves in as json/yaml/etc and can provide a {@link RestStatus} for their response. Usually should be
- * implemented by top level responses sent back to users from REST endpoints.
+ * A cli tool for managing secrets in the elasticsearch keystore.
  */
-public interface StatusToXContent extends ToXContent {
+public class KeyStoreCli extends MultiCommand {
 
-    /**
-     * Returns the REST status to make sure it is returned correctly
-     */
-    RestStatus status();
+    private KeyStoreCli() {
+        super("A tool for managing settings stored in the elasticsearch keystore");
+        subcommands.put("create", new CreateKeyStoreCommand());
+        subcommands.put("list", new ListKeyStoreCommand());
+        subcommands.put("add", new AddStringKeyStoreCommand());
+        subcommands.put("remove", new RemoveSettingKeyStoreCommand());
+    }
+
+    public static void main(String[] args) throws Exception {
+        exit(new KeyStoreCli().main(args, Terminal.DEFAULT));
+    }
 }

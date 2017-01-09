@@ -274,7 +274,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns the default value string representation for this setting.
      * @param settings a settings object for settings that has a default value depending on another setting if available
      */
-    public final String getDefaultRaw(Settings settings) {
+    public String getDefaultRaw(Settings settings) {
         return defaultValue.apply(settings);
     }
 
@@ -282,7 +282,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns the default value for this setting.
      * @param settings a settings object for settings that has a default value depending on another setting if available
      */
-    public final T getDefault(Settings settings) {
+    public T getDefault(Settings settings) {
         return parser.apply(getDefaultRaw(settings));
     }
 
@@ -290,7 +290,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
      */
     public boolean exists(Settings settings) {
-        return settings.get(getKey()) != null;
+        return settings.contains(getKey());
     }
 
     /**
@@ -330,14 +330,19 @@ public class Setting<T> extends ToXContentToBytes {
      * instead. This is useful if the value can't be parsed due to an invalid value to access the actual value.
      */
     public String getRaw(Settings settings) {
+        checkDeprecation(settings);
+        return settings.get(getKey(), defaultValue.apply(settings));
+    }
+
+    /** Logs a deprecation warning if the setting is deprecated and used. */
+    protected void checkDeprecation(Settings settings) {
         // They're using the setting, so we need to tell them to stop
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final DeprecationLogger deprecationLogger = new DeprecationLogger(Loggers.getLogger(getClass()));
             deprecationLogger.deprecated("[{}] setting was deprecated in Elasticsearch and it will be removed in a future release! " +
-                    "See the breaking changes lists in the documentation for details", getKey());
+                "See the breaking changes lists in the documentation for details", getKey());
         }
-        return settings.get(getKey(), defaultValue.apply(settings));
     }
 
     /**

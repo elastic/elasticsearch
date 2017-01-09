@@ -116,7 +116,7 @@ public class TransportWriteActionTests extends ESTestCase {
         Result result = action.apply(new TestAction(), request, indexShard);
         CapturingActionListener<Response> listener = new CapturingActionListener<>();
         responder.accept(result, listener);
-        assertNull(listener.response); // Haven't reallresponded yet
+        assertNull(listener.response); // Haven't responded yet
 
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);

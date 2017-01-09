@@ -48,9 +48,9 @@ public class DeleteResponse extends DocWriteResponse {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("found", result == Result.DELETED);
-        super.toXContent(builder, params);
+        super.innerToXContent(builder, params);
         return builder;
     }
 

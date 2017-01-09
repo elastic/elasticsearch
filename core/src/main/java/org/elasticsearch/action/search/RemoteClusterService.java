@@ -108,7 +108,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     }
 
     /**
-     * This method updates the list of remote clusters. it's intendet to be used as a update consumer on the settings infrastructure
+     * This method updates the list of remote clusters. It's intended to be used as an update consumer on the settings infrastructure
      * @param seedSettings the group settings returned from {@link #REMOTE_CLUSTERS_SEEDS}
      * @param connectionListener a listener invoked once every configured cluster has been connected to
      */
@@ -288,7 +288,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
      * Returns a connection to the given node on the given remote cluster
      * @throws IllegalArgumentException if the remote cluster is unknown
      */
-    Transport.Connection getConnection(DiscoveryNode node, String cluster) {
+    private Transport.Connection getConnection(DiscoveryNode node, String cluster) {
         RemoteClusterConnection connection = remoteClusters.get(cluster);
         if (connection == null) {
             throw new IllegalArgumentException("no such remote cluster: " + cluster);

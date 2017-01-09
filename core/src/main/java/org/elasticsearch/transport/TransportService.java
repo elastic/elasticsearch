@@ -351,7 +351,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * Executes a high-level handshake using the given connection
      * and returns the discovery node of the node the connection
      * was established with. The handshake will fail if the cluster
-     * name on the target node mismatches the local cluster name.
+     * name on the target node doesn't match the local cluster name.
      *
      * @param connection       the connection to a specific node
      * @param handshakeTimeout handshake timeout

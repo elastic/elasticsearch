@@ -411,6 +411,4 @@ public class SearchTransportService extends AbstractLifecycleComponent {
     protected void doClose() throws IOException {
         remoteClusterService.close();
     }
-
-
 }

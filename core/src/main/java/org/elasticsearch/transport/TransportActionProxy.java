@@ -28,7 +28,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 /**
- * TransportActionProxy allows an arbitrary action to be executed on a defined target node while the initial request is send to a second
+ * TransportActionProxy allows an arbitrary action to be executed on a defined target node while the initial request is sent to a second
  * node that acts as a request proxy to the target node. This is useful if a node is not directly connected to a target node but is
  * connected to an intermediate node that establishes a transitive connection.
  */
@@ -42,7 +42,7 @@ public final class TransportActionProxy {
         private final String action;
         private final Supplier<TransportResponse> responseFactory;
 
-        public ProxyRequestHandler(TransportService service, String action, Supplier<TransportResponse> responseFactory) {
+        ProxyRequestHandler(TransportService service, String action, Supplier<TransportResponse> responseFactory) {
             this.service = service;
             this.action = action;
             this.responseFactory = responseFactory;
@@ -61,7 +61,7 @@ public final class TransportActionProxy {
         private final Supplier<T> responseFactory;
         private final TransportChannel channel;
 
-        public ProxyResponseHandler(TransportChannel channel, Supplier<T> responseFactory) {
+        ProxyResponseHandler(TransportChannel channel, Supplier<T> responseFactory) {
             this.responseFactory = responseFactory;
             this.channel = channel;
 
@@ -100,11 +100,11 @@ public final class TransportActionProxy {
         Supplier<T> supplier;
         DiscoveryNode targetNode;
 
-        public ProxyRequest(Supplier<T>  supplier) {
+        ProxyRequest(Supplier<T>  supplier) {
             this.supplier = supplier;
         }
 
-        public ProxyRequest(T wrapped, DiscoveryNode targetNode) {
+        ProxyRequest(T wrapped, DiscoveryNode targetNode) {
             this.wrapped = wrapped;
             this.targetNode = targetNode;
         }

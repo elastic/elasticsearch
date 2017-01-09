@@ -46,6 +46,7 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.suggest.Suggester;
+import org.elasticsearch.search.suggest.SuggestionBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -99,8 +100,8 @@ public interface SearchPlugin {
     /**
      * The new {@link Suggester}s defined by this plugin.
      */
-    default Map<String, Suggester<?>> getSuggesters() {
-        return emptyMap();
+    default List<SuggesterSpec<?>> getSuggesters() {
+        return emptyList();
     }
     /**
      * The new {@link Query}s defined by this plugin.
@@ -130,6 +131,38 @@ public interface SearchPlugin {
         }
 
         public ScoreFunctionSpec(String name, Writeable.Reader<T> reader, ScoreFunctionParser<T> parser) {
+            super(name, reader, parser);
+        }
+    }
+
+    /**
+     * Specification for a {@link Suggester}.
+     */
+    class SuggesterSpec<T extends SuggestionBuilder<T>> extends SearchExtensionSpec<T, NoContextParser<T>> {
+        /**
+         * Specification of custom {@link Suggester}.
+         *
+         * @param name holds the names by which this suggester might be parsed. The {@link ParseField#getPreferredName()} is special as it
+         *        is the name by under which the reader is registered. So it is the name that the query should use as its
+         *        {@link NamedWriteable#getWriteableName()} too.
+         * @param reader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the query suggester from xcontent
+         */
+        public SuggesterSpec(ParseField name, Writeable.Reader<T> reader, NoContextParser<T> parser) {
+            super(name, reader, parser);
+        }
+
+        /**
+         * Specification of custom {@link Suggester}.
+         *
+         * @param name the name by which this suggester might be parsed or deserialized. Make sure that the query builder returns this name
+         *        for {@link NamedWriteable#getWriteableName()}.
+         * @param reader the reader registered for this suggester's builder. Typically a reference to a constructor that takes a
+         *        {@link StreamInput}
+         * @param parser the parser the reads the suggester builder from xcontent
+         */
+        public SuggesterSpec(String name, Writeable.Reader<T> reader, NoContextParser<T> parser) {
             super(name, reader, parser);
         }
     }

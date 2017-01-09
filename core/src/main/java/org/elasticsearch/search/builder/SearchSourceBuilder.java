@@ -53,7 +53,6 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
-import org.elasticsearch.search.suggest.Suggesters;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -103,9 +102,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField ALL_FIELDS_FIELDS = new ParseField("all_fields");
 
-    public static SearchSourceBuilder fromXContent(QueryParseContext context, Suggesters suggesters) throws IOException {
+    public static SearchSourceBuilder fromXContent(QueryParseContext context) throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
-        builder.parseXContent(context, suggesters);
+        builder.parseXContent(context);
         return builder;
     }
 
@@ -910,9 +909,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Parse some xContent into this SearchSourceBuilder, overwriting any values specified in the xContent. Use this if you need to set up
      * different defaults than a regular SearchSourceBuilder would have and use
-     * {@link #fromXContent(QueryParseContext, Suggesters)} if you have normal defaults.
+     * {@link #fromXContent(QueryParseContext)} if you have normal defaults.
      */
-    public void parseXContent(QueryParseContext context, Suggesters suggesters) throws IOException {
+    public void parseXContent(QueryParseContext context) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         String currentFieldName = null;
@@ -988,7 +987,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (HIGHLIGHT_FIELD.match(currentFieldName)) {
                     highlightBuilder = HighlightBuilder.fromXContent(context);
                 } else if (SUGGEST_FIELD.match(currentFieldName)) {
-                    suggestBuilder = SuggestBuilder.fromXContent(context, suggesters);
+                    suggestBuilder = SuggestBuilder.fromXContent(context.parser());
                 } else if (SORT_FIELD.match(currentFieldName)) {
                     sorts = new ArrayList<>(SortBuilder.fromXContent(context));
                 } else if (RESCORE_FIELD.match(currentFieldName)) {

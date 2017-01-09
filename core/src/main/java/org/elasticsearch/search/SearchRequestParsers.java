@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.suggest.Suggesters;
 
 /**
@@ -32,25 +30,14 @@ public class SearchRequestParsers {
     // methods split across RestSearchAction and SearchSourceBuilder should be moved here
     // TODO: make all members private once parsing functions are moved here
 
-    // TODO: AggregatorParsers should be removed and the underlying maps of agg
-    // and pipeline agg parsers should be here
-    /**
-     * Agg and pipeline agg parsers that may be used in search requests.
-     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
-     *      Suggesters)
-     */
-    public final AggregatorParsers aggParsers;
-
     // TODO: Suggesters should be removed and the underlying map moved here
     /**
      * Suggesters that may be used in search requests.
-     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
-     *      Suggesters)
+     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, Suggesters)
      */
     public final Suggesters suggesters;
 
-    public SearchRequestParsers(AggregatorParsers aggParsers, Suggesters suggesters) {
-        this.aggParsers = aggParsers;
+    public SearchRequestParsers(Suggesters suggesters) {
         this.suggesters = suggesters;
     }
 }

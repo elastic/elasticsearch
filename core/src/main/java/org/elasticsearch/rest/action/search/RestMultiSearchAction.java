@@ -90,8 +90,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             try {
                 final QueryParseContext queryParseContext = new QueryParseContext(parser, parseFieldMatcher);
-                searchRequest.source(SearchSourceBuilder.fromXContent(queryParseContext,
-                    searchRequestParsers.aggParsers, searchRequestParsers.suggesters));
+                searchRequest.source(SearchSourceBuilder.fromXContent(queryParseContext, searchRequestParsers.suggesters));
                 multiRequest.add(searchRequest);
             } catch (IOException e) {
                 throw new ElasticsearchParseException("Exception when parsing search request", e);

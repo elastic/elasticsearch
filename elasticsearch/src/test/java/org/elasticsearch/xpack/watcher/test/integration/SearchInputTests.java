@@ -144,7 +144,7 @@ public class SearchInputTests extends ESIntegTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        SearchRequestParsers searchParsers = new SearchRequestParsers(null, null);
+        SearchRequestParsers searchParsers = new SearchRequestParsers(null);
         SearchInputFactory factory = new SearchInputFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
                                                             searchParsers, xContentRegistry(), scriptService());
 

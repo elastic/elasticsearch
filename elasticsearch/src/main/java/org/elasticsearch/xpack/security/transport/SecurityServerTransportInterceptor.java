@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.security.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.CheckedConsumer;
@@ -24,13 +25,16 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
 import org.elasticsearch.xpack.security.authz.accesscontrol.RequestContext;
 import org.elasticsearch.xpack.security.transport.netty4.SecurityNetty4Transport;
+import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
+import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.ssl.SSLService;
 
 import java.io.IOException;
@@ -56,6 +60,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
     private final ThreadPool threadPool;
     private final Settings settings;
     private final SecurityContext securityContext;
+    private final boolean reservedRealmEnabled;
 
     public SecurityServerTransportInterceptor(Settings settings,
                                               ThreadPool threadPool,
@@ -73,6 +78,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
         this.sslService = sslService;
         this.securityContext = securityContext;
         this.profileFilters = initializeProfileFilters(destructiveOperations);
+        this.reservedRealmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
     }
 
     @Override
@@ -86,6 +92,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     // which means that the user is copied over to system actions so we need to change the user
                     if (AuthorizationUtils.shouldReplaceUserWithSystem(threadPool.getThreadContext(), action)) {
                         securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> sendWithUser(connection, action, request, options,
+                                new ContextRestoreResponseHandler<>(threadPool.getThreadContext(), original, handler), sender));
+                    } else if (reservedRealmEnabled && connection.getVersion().before(Version.V_5_2_0_UNRELEASED) &&
+                            KibanaUser.NAME.equals(securityContext.getUser().principal())) {
+                        final User kibanaUser = securityContext.getUser();
+                        final User bwcKibanaUser = new User(kibanaUser.principal(), new String[] { "kibana" }, kibanaUser.fullName(),
+                                kibanaUser.email(), kibanaUser.metadata(), kibanaUser.enabled());
+                        securityContext.executeAsUser(bwcKibanaUser, (original) -> sendWithUser(connection, action, request, options,
                                 new ContextRestoreResponseHandler<>(threadPool.getThreadContext(), original, handler), sender));
                     } else {
                         sendWithUser(connection, action, request, options, handler, sender);
@@ -134,11 +147,13 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             switch (type) {
                 case "client":
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.ClientProfile(authcService, authzService,
-                            threadPool.getThreadContext(), extractClientCert, destructiveOperations));
+                            threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
+                            securityContext));
                     break;
                 default:
                     profileFilters.put(entry.getKey(), new ServerTransportFilter.NodeProfile(authcService, authzService,
-                            threadPool.getThreadContext(), extractClientCert, destructiveOperations));
+                            threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled,
+                            securityContext));
             }
         }
 
@@ -147,7 +162,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
             final boolean clientAuth = sslService.isSSLClientAuthEnabled(transportSSLSettings);
             final boolean extractClientCert = profileSsl && clientAuth;
             profileFilters.put(TransportSettings.DEFAULT_PROFILE, new ServerTransportFilter.NodeProfile(authcService, authzService,
-                    threadPool.getThreadContext(), extractClientCert, destructiveOperations));
+                    threadPool.getThreadContext(), extractClientCert, destructiveOperations, reservedRealmEnabled, securityContext));
         }
 
         return Collections.unmodifiableMap(profileFilters);

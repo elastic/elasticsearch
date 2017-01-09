@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 
+import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 
 public class ReservedRolesStore {
@@ -53,7 +54,7 @@ public class ReservedRolesStore {
                 .put("reporting_user", new RoleDescriptor("reporting_user", null, new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".reporting-*").privileges("read", "write").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("kibana", new RoleDescriptor("kibana", new String[] { "monitor", MonitoringBulkAction.NAME},
+                .put(KibanaUser.ROLE_NAME, new RoleDescriptor(KibanaUser.ROLE_NAME, new String[] { "monitor", MonitoringBulkAction.NAME},
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder().indices(".kibana*", ".reporting-*").privileges("all").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))

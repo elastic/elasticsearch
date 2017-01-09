@@ -37,9 +37,9 @@ public class SecurityContext {
      * If cryptoService is null, security is disabled and {@link #getUser()}
      * and {@link #getAuthentication()} will always return null.
      */
-    public SecurityContext(Settings settings, ThreadPool threadPool, CryptoService cryptoService) {
+    public SecurityContext(Settings settings, ThreadContext threadContext, CryptoService cryptoService) {
         this.logger = Loggers.getLogger(getClass(), settings);
-        this.threadContext = threadPool.getThreadContext();
+        this.threadContext = threadContext;
         this.cryptoService = cryptoService;
         this.signUserHeader = AuthenticationService.SIGN_USER_HEADER.get(settings);
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);

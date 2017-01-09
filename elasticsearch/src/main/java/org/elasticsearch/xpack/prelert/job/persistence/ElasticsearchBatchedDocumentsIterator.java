@@ -6,10 +6,8 @@
 package org.elasticsearch.xpack.prelert.job.persistence;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -19,7 +17,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
-import org.elasticsearch.xpack.prelert.utils.FixBlockingClientOperations;
 
 import java.util.ArrayDeque;
 import java.util.Arrays;
@@ -88,9 +85,13 @@ abstract class ElasticsearchBatchedDocumentsIterator<T> implements BatchedDocume
             throw new NoSuchElementException();
         }
 
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest(scrollId).scroll(CONTEXT_ALIVE_DURATION);
-        SearchResponse searchResponse = (scrollId == null) ? initScroll()
-                : FixBlockingClientOperations.executeBlocking(client, SearchScrollAction.INSTANCE, searchScrollRequest);
+        SearchResponse searchResponse;
+        if (scrollId == null) {
+            searchResponse = initScroll();
+        } else {
+            SearchScrollRequest searchScrollRequest = new SearchScrollRequest(scrollId).scroll(CONTEXT_ALIVE_DURATION);
+            searchResponse = client.searchScroll(searchScrollRequest).actionGet();
+        }
         scrollId = searchResponse.getScrollId();
         return mapHits(searchResponse);
     }
@@ -108,7 +109,7 @@ abstract class ElasticsearchBatchedDocumentsIterator<T> implements BatchedDocume
                 .query(filterBuilder.build())
                 .sort(SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)));
 
-        SearchResponse searchResponse = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
+        SearchResponse searchResponse = client.search(searchRequest).actionGet();
         totalHits = searchResponse.getHits().getTotalHits();
         scrollId = searchResponse.getScrollId();
         return searchResponse;

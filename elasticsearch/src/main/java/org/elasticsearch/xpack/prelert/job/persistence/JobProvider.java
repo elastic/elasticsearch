@@ -629,25 +629,14 @@ public class JobProvider {
                 .score(AnomalyRecord.NORMALIZED_PROBABILITY.getPreferredName(), query.getNormalizedProbabilityThreshold())
                 .interim(AnomalyRecord.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
                 .term(AnomalyRecord.PARTITION_FIELD_VALUE.getPreferredName(), query.getPartitionFieldValue()).build();
-
-        return records(jobId, query.getFrom(), query.getSize(), fb, query.getSortField(), query.isSortDescending());
-    }
-
-
-    private QueryPage<AnomalyRecord> records(String jobId,
-                                             int from, int size, QueryBuilder recordFilter,
-                                             String sortField, boolean descending)
-            throws ResourceNotFoundException {
         FieldSortBuilder sb = null;
-        if (sortField != null) {
-            sb = new FieldSortBuilder(sortField)
+        if (query.getSortField() != null) {
+            sb = new FieldSortBuilder(query.getSortField())
                     .missing("_last")
-                    .order(descending ? SortOrder.DESC : SortOrder.ASC);
+                    .order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
         }
-
-        return records(jobId, from, size, recordFilter, sb, SECONDARY_SORT, descending);
+        return records(jobId, query.getFrom(), query.getSize(), fb, sb, SECONDARY_SORT, query.isSortDescending());
     }
-
 
     /**
      * The returned records have their id set.
@@ -755,17 +744,6 @@ public class JobProvider {
      */
     public BatchedDocumentsIterator<Influencer> newBatchedInfluencersIterator(String jobId) {
         return new ElasticsearchBatchedInfluencersIterator(client, jobId, parseFieldMatcher);
-    }
-
-    /**
-     * Returns a {@link BatchedDocumentsIterator} that allows querying
-     * and iterating over a number of model snapshots of the given job
-     *
-     * @param jobId the id of the job for which model snapshots are requested
-     * @return a model snapshot {@link BatchedDocumentsIterator}
-     */
-    public BatchedDocumentsIterator<ModelSnapshot> newBatchedModelSnapshotIterator(String jobId) {
-        return new ElasticsearchBatchedModelSnapshotIterator(client, jobId, parseFieldMatcher);
     }
 
     /**

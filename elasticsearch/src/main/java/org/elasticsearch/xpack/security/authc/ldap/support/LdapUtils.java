@@ -263,6 +263,7 @@ public final class LdapUtils {
                 // either no referrals to follow or we have explicitly disabled referral following on the connection so we just create
                 // a new search result that has the values we've collected. The search result passed to this method will not have of the
                 // entries as we are using a result listener and the results are not being collected by the LDAP library
+                LOGGER.trace("LDAP Search {} => {} ({})", searchRequest, searchResult, entryList);
                 SearchResult resultWithValues = new SearchResult(searchResult.getMessageID(), searchResult.getResultCode(), searchResult
                         .getDiagnosticMessage(), searchResult.getMatchedDN(), referralUrls, entryList, referenceList, entryList.size(),
                         referenceList.size(), searchResult.getResponseControls());
@@ -270,11 +271,15 @@ public final class LdapUtils {
             } else if (depth >= ldapConnection.getConnectionOptions().getReferralHopLimit()) {
                 // we've gone through too many levels of referrals so we terminate with the values collected so far and the proper result
                 // code to indicate the search was terminated early
+                LOGGER.trace("Referral limit exceeded {} => {} ({})", searchRequest, searchResult, entryList);
                 SearchResult resultWithValues = new SearchResult(searchResult.getMessageID(), ResultCode.REFERRAL_LIMIT_EXCEEDED,
                         searchResult.getDiagnosticMessage(), searchResult.getMatchedDN(), referralUrls, entryList, referenceList,
                         entryList.size(), referenceList.size(), searchResult.getResponseControls());
                 consumer.accept(requestID, resultWithValues);
             } else {
+                if (LOGGER.isTraceEnabled()) {
+                    LOGGER.trace("LDAP referred elsewhere {} => {}", searchRequest, Arrays.toString(referralUrls));
+                }
                 // there are referrals to follow, so we start the process to follow the referrals
                 final CountDown countDown = new CountDown(referralUrls.length);
                 final List<String> referralUrlsList = new ArrayList<>(Arrays.asList(referralUrls));

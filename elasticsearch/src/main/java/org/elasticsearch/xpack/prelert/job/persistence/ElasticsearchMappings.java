@@ -198,9 +198,6 @@ public class ElasticsearchMappings {
                                     .endObject()
                                 .endObject()
                             .endObject()
-                            .startObject(BucketInfluencer.INFLUENCER_FIELD_NAME.getPreferredName())
-                                .field(TYPE, KEYWORD)
-                            .endObject()
 
                             // per-partition max probabilities mapping
                             .startObject(PerPartitionMaxProbabilities.PER_PARTITION_MAX_PROBABILITIES.getPreferredName())

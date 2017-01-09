@@ -33,8 +33,7 @@ public class SearchRequestParsers {
     // TODO: Suggesters should be removed and the underlying map moved here
     /**
      * Suggesters that may be used in search requests.
-     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
-     *      Suggesters)
+     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, Suggesters)
      */
     public final Suggesters suggesters;
 

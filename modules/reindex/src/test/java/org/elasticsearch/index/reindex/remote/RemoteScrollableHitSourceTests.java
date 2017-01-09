@@ -61,7 +61,9 @@ import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -503,8 +505,27 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
                 } else {
                     StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "");
                     HttpResponse httpResponse = new BasicHttpResponse(statusLine);
-                    httpResponse.setEntity(new InputStreamEntity(resource.openStream(),
-                            randomBoolean() ? ContentType.APPLICATION_JSON : null));
+                    final InputStream originalStream = resource.openStream();
+                    /* Randomly return a stream that doesn't support mark because the client sometimes returns one that supports it and
+                     * sometimes doesn't. */
+                    boolean supportsMark = randomBoolean();
+                    InputStream stream;
+                    if (supportsMark) {
+                        stream = new InputStream() {
+                            public boolean markSupported() {
+                                return false;
+                            }
+
+                            @Override
+                            public int read() throws IOException {
+                                return originalStream.read();
+                            }
+                        };
+                    } else {
+                        // originalStream is almost certainly a BufferedInputStream already but let's be paranoid
+                        stream = new BufferedInputStream(originalStream);
+                    }
+                    httpResponse.setEntity(new InputStreamEntity(stream, randomBoolean() ? ContentType.APPLICATION_JSON : null));
                     futureCallback.completed(httpResponse);
                 }
                 return null;

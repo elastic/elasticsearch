@@ -49,6 +49,7 @@ import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Iterator;
@@ -165,6 +166,9 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             }
                             if (xContentType == null) {
                                 //auto-detect as a fallback
+                                if (false == content.markSupported()) {
+                                    content = new BufferedInputStream(content);
+                                }
                                 xContentType = XContentFactory.xContentType(content);
                             }
                             if (xContentType == null) {

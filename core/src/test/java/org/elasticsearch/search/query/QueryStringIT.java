@@ -19,43 +19,36 @@
 
 package org.elasticsearch.search.query;
 
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class QueryStringIT extends ESIntegTestCase {
 
@@ -245,6 +238,92 @@ public class QueryStringIT extends ESIntegTestCase {
         SearchResponse resp = client().prepareSearch("test").setQuery(queryStringQuery("\"eggplant parmesan\"")).get();
         assertHits(resp.getHits(), "1");
         assertHitCount(resp, 1L);
+    }
+
+    private void setupIndexWithGraph(String index) throws Exception {
+        CreateIndexRequestBuilder builder = prepareCreate(index).setSettings(
+            Settings.builder()
+                .put(indexSettings())
+                .put("index.analysis.filter.graphsyns.type", "synonym_graph")
+                .putArray("index.analysis.filter.graphsyns.synonyms", "wtf, what the fudge", "foo, bar baz")
+                .put("index.analysis.analyzer.lower_graphsyns.type", "custom")
+                .put("index.analysis.analyzer.lower_graphsyns.tokenizer", "standard")
+                .putArray("index.analysis.analyzer.lower_graphsyns.filter", "lowercase", "graphsyns")
+        );
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject(index).startObject("properties")
+            .startObject("field").field("type", "text").endObject().endObject().endObject().endObject();
+
+        assertAcked(builder.addMapping(index, mapping));
+        ensureGreen();
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex(index, index, "1").setSource("field", "say wtf happened foo"));
+        builders.add(client().prepareIndex(index, index, "2").setSource("field", "bar baz what the fudge man"));
+        builders.add(client().prepareIndex(index, index, "3").setSource("field", "wtf"));
+        builders.add(client().prepareIndex(index, index, "4").setSource("field", "what is the name for fudge"));
+        builders.add(client().prepareIndex(index, index, "5").setSource("field", "bar two three"));
+        builders.add(client().prepareIndex(index, index, "6").setSource("field", "bar baz two three"));
+
+        indexRandom(true, false, builders);
+    }
+
+    public void testGraphQueries() throws Exception {
+        String index = "graph_test_index";
+        setupIndexWithGraph(index);
+
+        // phrase
+        SearchResponse searchResponse = client().prepareSearch(index).setQuery(
+            QueryBuilders.queryStringQuery("\"foo two three\"")
+                .defaultField("field")
+                .analyzer("lower_graphsyns")).get();
+
+        assertHitCount(searchResponse, 1L);
+        assertSearchHits(searchResponse, "6");
+
+        // and
+        searchResponse = client().prepareSearch(index).setQuery(
+            QueryBuilders.queryStringQuery("say what the fudge")
+                .defaultField("field")
+                .splitOnWhitespace(false)
+                .defaultOperator(Operator.AND)
+                .analyzer("lower_graphsyns")).get();
+
+        assertHitCount(searchResponse, 1L);
+        assertSearchHits(searchResponse, "1");
+
+        // and, split on whitespace means we should not recognize the multi-word synonym
+        searchResponse = client().prepareSearch(index).setQuery(
+            QueryBuilders.queryStringQuery("say what the fudge")
+                .defaultField("field")
+                .splitOnWhitespace(true)
+                .defaultOperator(Operator.AND)
+                .analyzer("lower_graphsyns")).get();
+
+        assertNoSearchHits(searchResponse);
+
+        // or
+        searchResponse = client().prepareSearch(index).setQuery(
+            QueryBuilders.queryStringQuery("three what the fudge foo")
+                .defaultField("field")
+                .splitOnWhitespace(false)
+                .defaultOperator(Operator.OR)
+                .analyzer("lower_graphsyns")).get();
+
+        assertHitCount(searchResponse, 6L);
+        assertSearchHits(searchResponse, "1", "2", "3", "4", "5", "6");
+
+        // min should match
+        searchResponse = client().prepareSearch(index).setQuery(
+            QueryBuilders.queryStringQuery("three what the fudge foo")
+                .defaultField("field")
+                .splitOnWhitespace(false)
+                .defaultOperator(Operator.OR)
+                .analyzer("lower_graphsyns")
+                .minimumShouldMatch("80%")).get();
+
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse, "1", "2", "6");
     }
 
     private void assertHits(SearchHits hits, String... ids) {

@@ -74,7 +74,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         indexDocs(numDocs, lastWeek, now);
 
         Job.Builder job = createJob();
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true));
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true, job.getId()));
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
         OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
@@ -108,7 +108,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         indexDocs(numDocs1, lastWeek, now);
 
         Job.Builder job = createJob();
-        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true));
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true, job.getId()));
         PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
         assertTrue(putJobResponse.isAcknowledged());
         OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();

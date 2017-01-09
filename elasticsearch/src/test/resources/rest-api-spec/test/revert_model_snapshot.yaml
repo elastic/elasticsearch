@@ -1,6 +1,7 @@
 setup:
   - do:
       xpack.ml.put_job:
+        job_id: foo
         body:  >
           {
             "job_id":"foo",

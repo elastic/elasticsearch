@@ -9,7 +9,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,7 +29,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -672,10 +670,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
         }
 
         public Job build() {
-            return build(false);
+            return build(false, null);
         }
 
-        public Job build(boolean fromApi) {
+        public Job build(boolean fromApi, String urlJobId) {
             if (analysisConfig == null) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_MISSING_ANALYSISCONFIG));
             }
@@ -699,45 +697,37 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
             checkValueNotLessThan(0, "modelSnapshotRetentionDays", modelSnapshotRetentionDays);
             checkValueNotLessThan(0, "resultsRetentionDays", resultsRetentionDays);
 
-            String id;
             Date createTime;
             Date finishedTime;
             Date lastDataTime;
             String modelSnapshotId;
             if (fromApi) {
-                if (this.id != null) {
-                    id = this.id;
-                } else {
-                    // Base64 UUIDs are not necessarily valid job IDs
-                    id = "auto-" + UUIDs.base64UUID().toLowerCase(Locale.ROOT).replaceAll("[/+=-]", "_");
-                    if (id.endsWith("_")) {
-                        // Job IDs cannot end with underscores
-                        id = id.substring(0, id.length() - 1) + "z";
-                    }
+                if (id == null) {
+                    id = urlJobId;
+                } else if (!id.equals(urlJobId)) {
+                    throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, ID.getPreferredName(), id, urlJobId));
                 }
                 createTime = this.createTime == null ? new Date() : this.createTime;
                 finishedTime = null;
                 lastDataTime = null;
                 modelSnapshotId = null;
             } else {
-                id = this.id;
                 createTime = this.createTime;
                 finishedTime = this.finishedTime;
                 lastDataTime = this.lastDataTime;
                 modelSnapshotId = this.modelSnapshotId;
             }
-            if (id.length() > MAX_JOB_ID_LENGTH) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
-            }
+
             if (!PrelertStrings.isValidId(id)) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, ID.getPreferredName(), id));
+            }
+            if (id.length() > MAX_JOB_ID_LENGTH) {
+                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_ID_TOO_LONG, MAX_JOB_ID_LENGTH));
             }
 
             if (Strings.isNullOrEmpty(indexName)) {
                 indexName = id;
-            }
-
-            if (!PrelertStrings.isValidId(indexName)) {
+            } else if (!PrelertStrings.isValidId(indexName)) {
                 throw new IllegalArgumentException(Messages.getMessage(Messages.INVALID_ID, INDEX_NAME.getPreferredName()));
             }
 

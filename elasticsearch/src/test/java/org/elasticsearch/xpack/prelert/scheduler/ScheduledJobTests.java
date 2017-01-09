@@ -9,7 +9,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.action.FlushJobAction;
-import org.elasticsearch.xpack.prelert.action.JobDataAction;
+import org.elasticsearch.xpack.prelert.action.PostDataAction;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
@@ -47,7 +47,7 @@ public class ScheduledJobTests extends ESTestCase {
         auditor = mock(Auditor.class);
         dataExtractor = mock(DataExtractor.class);
         client = mock(Client.class);
-        ActionFuture<JobDataAction.Response> jobDataFuture = mock(ActionFuture.class);
+        ActionFuture<PostDataAction.Response> jobDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
         currentTime = 0;
 
@@ -55,9 +55,9 @@ public class ScheduledJobTests extends ESTestCase {
         InputStream inputStream = new ByteArrayInputStream("content".getBytes(StandardCharsets.UTF_8));
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
         DataCounts dataCounts = new DataCounts("_job_id", 1, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0));
-        when(client.execute(same(JobDataAction.INSTANCE), eq(new JobDataAction.Request("_job_id")))).thenReturn(jobDataFuture);
+        when(client.execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("_job_id")))).thenReturn(jobDataFuture);
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
-        when(jobDataFuture.get()).thenReturn(new JobDataAction.Response(dataCounts));
+        when(jobDataFuture.get()).thenReturn(new PostDataAction.Response(dataCounts));
     }
 
     public void testLookBackRunWithEndTime() throws Exception {
@@ -152,7 +152,7 @@ public class ScheduledJobTests extends ESTestCase {
     public void testAnalysisProblem() throws Exception {
         client = mock(Client.class);
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
-        when(client.execute(same(JobDataAction.INSTANCE), eq(new JobDataAction.Request("_job_id")))).thenThrow(new RuntimeException());
+        when(client.execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("_job_id")))).thenThrow(new RuntimeException());
 
         ScheduledJob scheduledJob = createScheduledJob(1000, 500, -1, -1);
         expectThrows(ScheduledJob.AnalysisProblemException.class, () -> scheduledJob.runLookBack(0L, 1000L));

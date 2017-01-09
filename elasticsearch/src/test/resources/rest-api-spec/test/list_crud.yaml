@@ -121,6 +121,7 @@ setup:
 "Test delete in-use list":
   - do:
       xpack.ml.put_job:
+        job_id: farequote2
         body:  >
           {
             "job_id":"farequote2",

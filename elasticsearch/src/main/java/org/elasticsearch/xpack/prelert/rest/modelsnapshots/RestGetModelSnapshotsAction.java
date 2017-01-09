@@ -39,10 +39,10 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
         super(settings);
         this.transportGetModelSnapshotsAction = transportGetModelSnapshotsAction;
         controller.registerHandler(RestRequest.Method.GET, PrelertPlugin.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/modelsnapshots/", this);
+                + Job.ID.getPreferredName() + "}/model_snapshots/", this);
         // endpoints that support body parameters must also accept POST
         controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/modelsnapshots/", this);
+                + Job.ID.getPreferredName() + "}/model_snapshots/", this);
     }
 
     @Override

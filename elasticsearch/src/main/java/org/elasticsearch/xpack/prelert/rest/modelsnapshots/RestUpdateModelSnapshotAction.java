@@ -14,32 +14,31 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
-import org.elasticsearch.xpack.prelert.action.PutModelSnapshotDescriptionAction;
+import org.elasticsearch.xpack.prelert.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 
 import java.io.IOException;
 
-public class RestPutModelSnapshotDescriptionAction extends BaseRestHandler {
+public class RestUpdateModelSnapshotAction extends BaseRestHandler {
 
-    private final PutModelSnapshotDescriptionAction.TransportAction transportAction;
+    private final UpdateModelSnapshotAction.TransportAction transportAction;
 
     @Inject
-    public RestPutModelSnapshotDescriptionAction(Settings settings, RestController controller,
-            PutModelSnapshotDescriptionAction.TransportAction transportAction) {
+    public RestUpdateModelSnapshotAction(Settings settings, RestController controller,
+                                         UpdateModelSnapshotAction.TransportAction transportAction) {
         super(settings);
         this.transportAction = transportAction;
 
-        // NORELEASE: should be a POST action
-        controller.registerHandler(RestRequest.Method.PUT, PrelertPlugin.BASE_PATH + "anomaly_detectors/{"
-                + Job.ID.getPreferredName() + "}/modelsnapshots/{" + ModelSnapshot.SNAPSHOT_ID +"}/description",
+        controller.registerHandler(RestRequest.Method.POST, PrelertPlugin.BASE_PATH + "anomaly_detectors/{"
+                + Job.ID.getPreferredName() + "}/model_snapshots/{" + ModelSnapshot.SNAPSHOT_ID +"}/_update",
                 this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         XContentParser parser = restRequest.contentParser();
-        PutModelSnapshotDescriptionAction.Request getModelSnapshots = PutModelSnapshotDescriptionAction.Request.parseRequest(
+        UpdateModelSnapshotAction.Request getModelSnapshots = UpdateModelSnapshotAction.Request.parseRequest(
                 restRequest.param(Job.ID.getPreferredName()),
                 restRequest.param(ModelSnapshot.SNAPSHOT_ID.getPreferredName()),
                 parser, () -> parseFieldMatcher

@@ -45,7 +45,7 @@ public class GetModelSnapshotsAction
 extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response, GetModelSnapshotsAction.RequestBuilder> {
 
     public static final GetModelSnapshotsAction INSTANCE = new GetModelSnapshotsAction();
-    public static final String NAME = "cluster:admin/prelert/modelsnapshots/get";
+    public static final String NAME = "cluster:admin/prelert/model_snapshots/get";
 
     private GetModelSnapshotsAction() {
         super(NAME);

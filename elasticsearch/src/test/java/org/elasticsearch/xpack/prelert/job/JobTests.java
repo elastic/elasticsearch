@@ -44,7 +44,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public void testConstructor_GivenEmptyJobConfiguration() {
-        Job job = buildJobBuilder("foo").build(true);
+        Job job = buildJobBuilder("foo").build(true, "foo");
 
         assertEquals("foo", job.getId());
         assertNotNull(job.getCreateTime());
@@ -77,15 +77,13 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         assertEquals(IgnoreDowntime.ONCE, job.getIgnoreDowntime());
     }
 
-    public void testEquals_noId() {
-        expectThrows(IllegalArgumentException.class, () -> buildJobBuilder("").build(true));
-        assertNotNull(buildJobBuilder(null).build(true).getId()); // test auto id generation
+    public void testNoId() {
+        expectThrows(IllegalArgumentException.class, () -> buildJobBuilder("").build(true, ""));
     }
 
-    public void testNoIdStartsWithAuto() {
-        String autoId = buildJobBuilder(null).build(true).getId();
-        assertTrue(autoId, autoId.startsWith("auto-"));
-        assertFalse(autoId, autoId.endsWith("_"));
+    public void testInconsistentId() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> buildJobBuilder("foo").build(true, "bar"));
+        assertEquals(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(), "foo", "bar"), e.getMessage());
     }
 
     public void testEquals_GivenDifferentClass() {
@@ -358,7 +356,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.SINGLE_LINE);
         builder.setDataDescription(dataDescription);
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, builder::build);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertEquals(errorMessage, e.getMessage());
     }
 
@@ -371,7 +369,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setFormat(DataDescription.DataFormat.SINGLE_LINE);
         builder.setDataDescription(dataDescription);
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, builder::build);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
 
         assertEquals(errorMessage, e.getMessage());
     }
@@ -403,7 +401,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "modelSnapshotRetentionDays", 0, -1);
         Job.Builder builder = buildJobBuilder("foo");
         builder.setModelSnapshotRetentionDays(-1L);
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, builder::build);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
 
         assertEquals(errorMessage, e.getMessage());
     }
@@ -412,7 +410,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         String errorMessage = Messages.getMessage(Messages.JOB_CONFIG_FIELD_VALUE_TOO_LOW, "backgroundPersistInterval", 3600, 3599);
         Job.Builder builder = buildJobBuilder("foo");
         builder.setBackgroundPersistInterval(3599L);
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, builder::build);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertEquals(errorMessage, e.getMessage());
     }
 
@@ -421,7 +419,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
                 "resultsRetentionDays", 0, -1);
         Job.Builder builder = buildJobBuilder("foo");
         builder.setResultsRetentionDays(-1L);
-        IllegalArgumentException e = ESTestCase.expectThrows(IllegalArgumentException.class, builder::build);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
         assertEquals(errorMessage, e.getMessage());
     }
 

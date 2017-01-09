@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.prelert.PrelertPlugin;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
+import org.elasticsearch.xpack.prelert.job.Job;
 
 import java.io.IOException;
 
@@ -26,13 +27,15 @@ public class RestPutJobAction extends BaseRestHandler {
     public RestPutJobAction(Settings settings, RestController controller, PutJobAction.TransportAction transportPutJobAction) {
         super(settings);
         this.transportPutJobAction = transportPutJobAction;
-        controller.registerHandler(RestRequest.Method.PUT, PrelertPlugin.BASE_PATH + "anomaly_detectors", this);
+        controller.registerHandler(RestRequest.Method.PUT,
+                PrelertPlugin.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}", this);
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        String jobId = restRequest.param(Job.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
-        PutJobAction.Request putJobRequest = PutJobAction.Request.parseRequest(parser, () -> parseFieldMatcher);
+        PutJobAction.Request putJobRequest = PutJobAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
         boolean overwrite = restRequest.paramAsBoolean("overwrite", false);
         putJobRequest.setOverwrite(overwrite);
         return channel -> transportPutJobAction.execute(putJobRequest, new RestToXContentListener<>(channel));

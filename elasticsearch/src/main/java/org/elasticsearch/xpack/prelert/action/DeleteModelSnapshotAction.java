@@ -41,7 +41,7 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
         DeleteModelSnapshotAction.Response, DeleteModelSnapshotAction.RequestBuilder> {
 
     public static final DeleteModelSnapshotAction INSTANCE = new DeleteModelSnapshotAction();
-    public static final String NAME = "cluster:admin/prelert/modelsnapshots/delete";
+    public static final String NAME = "cluster:admin/prelert/model_snapshots/delete";
 
     private DeleteModelSnapshotAction() {
         super(NAME);

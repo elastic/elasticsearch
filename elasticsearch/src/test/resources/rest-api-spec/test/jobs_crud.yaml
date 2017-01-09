@@ -2,9 +2,9 @@
 "Test job crud apis":
   - do:
       xpack.ml.put_job:
+        job_id: farequote
         body:  >
           {
-            "job_id":"farequote",
             "description":"Analysis of response time by airline",
             "analysis_config" : {
                 "bucket_span":3600,
@@ -50,9 +50,50 @@
         job_id: "non-existing"
 
 ---
+"Test put job with inconsistent body/param ids":
+  - do:
+      catch: /illegal_argument_exception/
+      xpack.ml.put_job:
+        job_id: an_id
+        body:  >
+          {
+            "job_id":"a_different_id",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+  - do:
+      catch: /Inconsistent job_id; 'a_different_id' specified in the body differs from 'an_id' specified as a URL argument/
+      xpack.ml.put_job:
+        job_id: an_id
+        body:  >
+          {
+            "job_id":"a_different_id",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span":3600,
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
+            },
+            "data_description" : {
+                "field_delimiter":",",
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+---
 "Test put job with id that is already taken":
   - do:
       xpack.ml.put_job:
+        job_id: farequote
         body:  >
           {
             "job_id":"farequote",
@@ -72,6 +113,7 @@
   - do:
       catch: /resource_already_exists_exception/
       xpack.ml.put_job:
+        job_id: farequote
         body:  >
           {
             "job_id":"farequote",
@@ -89,6 +131,7 @@
   - do:
       catch: /The job cannot be created with the Id 'farequote'. The Id is already used./
       xpack.ml.put_job:
+        job_id: farequote
         body:  >
           {
             "job_id":"farequote",
@@ -106,6 +149,7 @@
   - do:
       catch: param
       xpack.ml.put_job:
+        job_id: farequote
         body:  >
           {
             "job_id":"farequote",
@@ -125,6 +169,7 @@
 "Test delete job that is referred by a scheduler":
   - do:
       xpack.ml.put_job:
+        job_id: scheduler-job
         body:  >
           {
             "job_id":"scheduler-job",

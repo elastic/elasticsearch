@@ -1,6 +1,7 @@
 setup:
   - do:
       xpack.ml.put_job:
+        job_id: farequote
         body:  >
           {
             "job_id":"farequote",
@@ -18,6 +19,7 @@ setup:
 
   - do:
       xpack.ml.put_job:
+        job_id: closed_job
         body:  >
           {
             "job_id":"closed_job",
@@ -37,7 +39,7 @@ setup:
 ---
 "Test POST data job api, flush, close and verify DataCounts doc":
   - do:
-      xpack.ml.job_data:
+      xpack.ml.post_data:
         job_id: farequote
         body: >
           {"airline":"AAL","responsetime":"132.2046","sourcetype":"farequote","time":"1403481600"}
@@ -105,13 +107,13 @@ setup:
 "Test POST data with invalid parameters":
   - do:
       catch: missing
-      xpack.ml.job_data:
+      xpack.ml.post_data:
         job_id: not_a_job
         body: {}
 
   - do:
       catch: /parse_exception/
-      xpack.ml.job_data:
+      xpack.ml.post_data:
         job_id: farequote
         reset_start: not_a_date
         body:  >
@@ -120,7 +122,7 @@ setup:
 
   - do:
       catch: /parse_exception/
-      xpack.ml.job_data:
+      xpack.ml.post_data:
         job_id: farequote
         reset_end: end_not_a_date
         body:  >
@@ -178,6 +180,6 @@ setup:
 
   - do:
       catch: /illegal_argument_exception/
-      xpack.ml.job_data:
+      xpack.ml.post_data:
         job_id: closed_job
         body: {}

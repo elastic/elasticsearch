@@ -62,7 +62,7 @@ public class TooManyJobsIT extends ESIntegTestCase {
         logger.info("[{}] is [{}]", AutodetectProcessManager.MAX_RUNNING_JOBS_PER_NODE.getKey(), maxRunningJobsPerNode);
         for (int i = 1; i <= (maxRunningJobsPerNode + 1); i++) {
             Job.Builder job = createJob(Integer.toString(i));
-            PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true));
+            PutJobAction.Request putJobRequest = new PutJobAction.Request(job.build(true, job.getId()));
             PutJobAction.Response putJobResponse = client().execute(PutJobAction.INSTANCE, putJobRequest).get();
             assertTrue(putJobResponse.isAcknowledged());
 

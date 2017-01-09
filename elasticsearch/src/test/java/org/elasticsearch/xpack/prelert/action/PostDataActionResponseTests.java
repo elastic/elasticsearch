@@ -9,20 +9,20 @@ import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 import org.joda.time.DateTime;
 
-public class PostDataActionResponseTests extends AbstractStreamableTestCase<JobDataAction.Response> {
+public class PostDataActionResponseTests extends AbstractStreamableTestCase<PostDataAction.Response> {
 
     @Override
-    protected JobDataAction.Response createTestInstance() {
+    protected PostDataAction.Response createTestInstance() {
         DataCounts counts = new DataCounts(randomAsciiOfLength(10), randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                 randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000), randomIntBetween(1, 1_000_000),
                 new DateTime(randomDateTimeZone()).toDate(), new DateTime(randomDateTimeZone()).toDate());
 
-        return new JobDataAction.Response(counts);
+        return new PostDataAction.Response(counts);
     }
 
     @Override
-    protected JobDataAction.Response createBlankInstance() {
-        return new JobDataAction.Response("foo") ;
+    protected PostDataAction.Response createBlankInstance() {
+        return new PostDataAction.Response("foo") ;
     }
 }

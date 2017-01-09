@@ -11,6 +11,7 @@ setup:
 
   - do:
       xpack.ml.put_job:
+        job_id: scheduled-job
         body:  >
           {
             "job_id":"scheduled-job",

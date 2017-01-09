@@ -2,8 +2,8 @@
   "xpack.ml.delete_model_snapshot": {
     "methods": [ "DELETE" ],
     "url": {
-      "path": "/_xpack/ml/anomaly_detectors/{job_id}/modelsnapshots/{snapshot_id}",
-      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/modelsnapshots/{snapshot_id}" ],
+      "path": "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}",
+      "paths": [ "/_xpack/ml/anomaly_detectors/{job_id}/model_snapshots/{snapshot_id}" ],
       "parts": {
         "job_id": {
           "type": "string",
@@ -13,7 +13,7 @@
         "snapshot_id": {
           "type": "string",
           "required": true,
-          "description": "The Snapshot ID of the job to fetch"
+          "description": "The ID of the snapshot to delete"
         }
       }
     },

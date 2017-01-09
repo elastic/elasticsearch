@@ -5,11 +5,11 @@
  */
 package org.elasticsearch.xpack.prelert.action;
 
-import org.elasticsearch.xpack.prelert.action.PutModelSnapshotDescriptionAction.Response;
+import org.elasticsearch.xpack.prelert.action.UpdateModelSnapshotAction.Response;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableTestCase;
 
-public class PutModelSnapshotDescriptionActionResponseTests extends AbstractStreamableTestCase<PutModelSnapshotDescriptionAction.Response> {
+public class PutModelSnapshotDescriptionActionResponseTests extends AbstractStreamableTestCase<UpdateModelSnapshotAction.Response> {
 
     @Override
     protected Response createTestInstance() {

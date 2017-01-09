@@ -1,6 +1,7 @@
 setup:
   - do:
       xpack.ml.put_job:
+        job_id: job-1
         body:  >
           {
             "job_id":"job-1",
@@ -17,6 +18,7 @@ setup:
 
   - do:
       xpack.ml.put_job:
+        job_id: job-2
         body:  >
           {
             "job_id":"job-2",

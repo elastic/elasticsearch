@@ -58,8 +58,8 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
 
-        public static Request parseRequest(XContentParser parser, ParseFieldMatcherSupplier matcherSupplier) {
-            Job job = Job.PARSER.apply(parser, matcherSupplier).build(true);
+        public static Request parseRequest(String jobId, XContentParser parser, ParseFieldMatcherSupplier matcherSupplier) {
+            Job job = Job.PARSER.apply(parser, matcherSupplier).build(true, jobId);
             return new Request(job);
         }
 

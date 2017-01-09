@@ -7,15 +7,15 @@ package org.elasticsearch.xpack.prelert.action;
 
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.prelert.action.PutModelSnapshotDescriptionAction.Request;
+import org.elasticsearch.xpack.prelert.action.UpdateModelSnapshotAction.Request;
 import org.elasticsearch.xpack.prelert.support.AbstractStreamableXContentTestCase;
 
 public class PutModelSnapshotDescriptionActionRequestTests
-extends AbstractStreamableXContentTestCase<PutModelSnapshotDescriptionAction.Request> {
+extends AbstractStreamableXContentTestCase<UpdateModelSnapshotAction.Request> {
 
     @Override
     protected Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return PutModelSnapshotDescriptionAction.Request.parseRequest(null, null, parser, () -> matcher);
+        return UpdateModelSnapshotAction.Request.parseRequest(null, null, parser, () -> matcher);
     }
 
     @Override

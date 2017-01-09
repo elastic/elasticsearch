@@ -56,6 +56,6 @@ public final class PrelertStrings {
     }
 
     public static boolean isValidId(String id) {
-        return VALID_ID_CHAR_PATTERN.matcher(id).matches();
+        return id != null && VALID_ID_CHAR_PATTERN.matcher(id).matches();
     }
 }

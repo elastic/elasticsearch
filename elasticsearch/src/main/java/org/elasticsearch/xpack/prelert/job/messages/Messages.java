@@ -28,6 +28,7 @@ public final class Messages {
     public static final String DATASTORE_ERROR_EXECUTING_SCRIPT = "datastore.error.executing.script";
 
     public static final String INVALID_ID = "invalid.id";
+    public static final String INCONSISTENT_ID = "inconsistent.id";
 
     public static final String LICENSE_LIMIT_DETECTORS = "license.limit.detectors";
     public static final String LICENSE_LIMIT_JOBS = "license.limit.jobs";

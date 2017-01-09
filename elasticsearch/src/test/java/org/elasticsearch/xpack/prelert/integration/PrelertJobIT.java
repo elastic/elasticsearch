@@ -100,14 +100,14 @@ public class PrelertJobIT extends ESRestTestCase {
     }
 
     private Response createFarequoteJob(String jobId) throws Exception {
-        String job = "{\n" + "    \"job_id\":\"" + jobId + "\",\n" + "    \"description\":\"Analysis of response time by airline\",\n"
+        String job = "{\n" + "    \"description\":\"Analysis of response time by airline\",\n"
                 + "    \"analysis_config\" : {\n" + "        \"bucket_span\":3600,\n"
                 + "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
                 + "    },\n" + "    \"data_description\" : {\n" + "        \"field_delimiter\":\",\",\n" + "        " +
                 "\"time_field\":\"time\",\n"
                 + "        \"time_format\":\"yyyy-MM-dd HH:mm:ssX\"\n" + "    }\n" + "}";
 
-        return client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors" ,
+        return client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId,
                 Collections.emptyMap(), new StringEntity(job));
     }
 
@@ -176,7 +176,7 @@ public class PrelertJobIT extends ESRestTestCase {
     }
 
     public void testCreateJobWithIndexNameOption() throws Exception {
-        String jobTemplate = "{\"job_id\":\"%s\",\n" +
+        String jobTemplate = "{\n" +
                 "  \"analysis_config\" : {\n" +
                 "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\"}]\n" +
                 "    },\n" +
@@ -184,9 +184,9 @@ public class PrelertJobIT extends ESRestTestCase {
 
         String jobId = "aliased-job";
         String indexName = "non-default-index";
-        String jobConfig = String.format(Locale.ROOT, jobTemplate, jobId, indexName);
+        String jobConfig = String.format(Locale.ROOT, jobTemplate, indexName);
 
-        Response response = client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors", Collections.emptyMap(),
+        Response response = client().performRequest("put", PrelertPlugin.BASE_PATH + "anomaly_detectors/" + jobId, Collections.emptyMap(),
                 new StringEntity(jobConfig));
         assertEquals(200, response.getStatusLine().getStatusCode());
 

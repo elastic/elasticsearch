@@ -47,11 +47,11 @@ import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.prelert.action.GetRecordsAction;
 import org.elasticsearch.xpack.prelert.action.GetSchedulersAction;
 import org.elasticsearch.xpack.prelert.action.GetSchedulersStatsAction;
-import org.elasticsearch.xpack.prelert.action.JobDataAction;
+import org.elasticsearch.xpack.prelert.action.PostDataAction;
 import org.elasticsearch.xpack.prelert.action.OpenJobAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
 import org.elasticsearch.xpack.prelert.action.PutListAction;
-import org.elasticsearch.xpack.prelert.action.PutModelSnapshotDescriptionAction;
+import org.elasticsearch.xpack.prelert.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.action.PutSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.action.StartSchedulerAction;
@@ -90,7 +90,7 @@ import org.elasticsearch.xpack.prelert.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestFlushJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsStatsAction;
-import org.elasticsearch.xpack.prelert.rest.job.RestJobDataAction;
+import org.elasticsearch.xpack.prelert.rest.job.RestPostDataAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestOpenJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestPutJobAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestDeleteListAction;
@@ -98,7 +98,7 @@ import org.elasticsearch.xpack.prelert.rest.list.RestGetListAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestPutListAction;
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestGetModelSnapshotsAction;
-import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestPutModelSnapshotDescriptionAction;
+import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestRevertModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetBucketsAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetCategoriesAction;
@@ -256,7 +256,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 RestGetInfluencersAction.class,
                 RestGetRecordsAction.class,
                 RestGetBucketsAction.class,
-                RestJobDataAction.class,
+                RestPostDataAction.class,
                 RestCloseJobAction.class,
                 RestFlushJobAction.class,
                 RestValidateDetectorAction.class,
@@ -265,7 +265,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 RestGetCategoriesAction.class,
                 RestGetModelSnapshotsAction.class,
                 RestRevertModelSnapshotAction.class,
-                RestPutModelSnapshotDescriptionAction.class,
+                RestUpdateModelSnapshotAction.class,
                 RestGetSchedulersAction.class,
                 RestGetSchedulersStatsAction.class,
                 RestPutSchedulerAction.class,
@@ -292,7 +292,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetBucketsAction.INSTANCE, GetBucketsAction.TransportAction.class),
                 new ActionHandler<>(GetInfluencersAction.INSTANCE, GetInfluencersAction.TransportAction.class),
                 new ActionHandler<>(GetRecordsAction.INSTANCE, GetRecordsAction.TransportAction.class),
-                new ActionHandler<>(JobDataAction.INSTANCE, JobDataAction.TransportAction.class),
+                new ActionHandler<>(PostDataAction.INSTANCE, PostDataAction.TransportAction.class),
                 new ActionHandler<>(CloseJobAction.INSTANCE, CloseJobAction.TransportAction.class),
                 new ActionHandler<>(FlushJobAction.INSTANCE, FlushJobAction.TransportAction.class),
                 new ActionHandler<>(ValidateDetectorAction.INSTANCE, ValidateDetectorAction.TransportAction.class),
@@ -301,7 +301,7 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 new ActionHandler<>(GetCategoriesDefinitionAction.INSTANCE, GetCategoriesDefinitionAction.TransportAction.class),
                 new ActionHandler<>(GetModelSnapshotsAction.INSTANCE, GetModelSnapshotsAction.TransportAction.class),
                 new ActionHandler<>(RevertModelSnapshotAction.INSTANCE, RevertModelSnapshotAction.TransportAction.class),
-                new ActionHandler<>(PutModelSnapshotDescriptionAction.INSTANCE, PutModelSnapshotDescriptionAction.TransportAction.class),
+                new ActionHandler<>(UpdateModelSnapshotAction.INSTANCE, UpdateModelSnapshotAction.TransportAction.class),
                 new ActionHandler<>(GetSchedulersAction.INSTANCE, GetSchedulersAction.TransportAction.class),
                 new ActionHandler<>(GetSchedulersStatsAction.INSTANCE, GetSchedulersStatsAction.TransportAction.class),
                 new ActionHandler<>(PutSchedulerAction.INSTANCE, PutSchedulerAction.TransportAction.class),

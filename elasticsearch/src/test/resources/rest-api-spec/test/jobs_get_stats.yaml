@@ -1,6 +1,7 @@
 setup:
   - do:
       xpack.ml.put_job:
+        job_id: job-stats-test
         body:  >
           {
             "job_id":"job-stats-test",
@@ -22,6 +23,7 @@ setup:
 
   - do:
       xpack.ml.put_job:
+        job_id: scheduled-job
         body:  >
           {
             "job_id":"scheduled-job",
@@ -68,7 +70,7 @@ setup:
 "Test get job stats after uploading data prompting the creation of some stats":
 
   - do:
-      xpack.ml.job_data:
+      xpack.ml.post_data:
         job_id: job-stats-test
         body: >
           {"airline":"AAL","responsetime":"132.2046","time":"1403481600"}

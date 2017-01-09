@@ -12,7 +12,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xpack.prelert.action.FlushJobAction;
-import org.elasticsearch.xpack.prelert.action.JobDataAction;
+import org.elasticsearch.xpack.prelert.action.PostDataAction;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
@@ -133,11 +133,11 @@ class ScheduledJob {
             if (extractedData.isPresent()) {
                 DataCounts counts;
                 try (InputStream in = extractedData.get()) {
-                    JobDataAction.Request request = new JobDataAction.Request(jobId);
+                    PostDataAction.Request request = new PostDataAction.Request(jobId);
                     ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
                     Streams.copy(in, outputStream);
                     request.setContent(new BytesArray(outputStream.toByteArray()));
-                    JobDataAction.Response response = client.execute(JobDataAction.INSTANCE, request).get();
+                    PostDataAction.Response response = client.execute(PostDataAction.INSTANCE, request).get();
                     counts = response.getDataCounts();
                 } catch (Exception e) {
                     if (e instanceof InterruptedException) {

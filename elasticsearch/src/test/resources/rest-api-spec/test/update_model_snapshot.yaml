@@ -46,7 +46,7 @@ setup:
 "Test without description":
   - do:
       catch: request
-      xpack.ml.put_model_snapshot_description:
+      xpack.ml.update_model_snapshot:
         job_id: "foo"
         snapshot_id: "foo"
         body: >
@@ -65,7 +65,7 @@ setup:
   - length: { model_snapshots: 0 }
 
   - do:
-      xpack.ml.put_model_snapshot_description:
+      xpack.ml.update_model_snapshot:
         job_id: "foo"
         snapshot_id: "foo"
         body: >
@@ -103,7 +103,7 @@ setup:
 
   - do:
       catch: request
-      xpack.ml.put_model_snapshot_description:
+      xpack.ml.update_model_snapshot:
         job_id: "foo"
         snapshot_id: "foo"
         body: >

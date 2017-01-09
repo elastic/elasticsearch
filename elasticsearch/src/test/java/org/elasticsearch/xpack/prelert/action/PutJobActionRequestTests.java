@@ -16,10 +16,12 @@ import static org.elasticsearch.xpack.prelert.job.JobTests.randomValidJobId;
 
 public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase<Request> {
 
+    private final String jobId = randomValidJobId();
+
     @Override
     protected Request createTestInstance() {
-        Job.Builder jobConfiguration = buildJobBuilder(randomValidJobId());
-        return new Request(jobConfiguration.build(true));
+        Job.Builder jobConfiguration = buildJobBuilder(jobId);
+        return new Request(jobConfiguration.build(true, jobConfiguration.getId()));
     }
 
     @Override
@@ -29,7 +31,7 @@ public class PutJobActionRequestTests extends AbstractStreamableXContentTestCase
 
     @Override
     protected Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return Request.parseRequest(parser, () -> matcher);
+        return Request.parseRequest(jobId, parser, () -> matcher);
     }
 
 }

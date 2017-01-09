@@ -60,7 +60,7 @@ public class RevertModelSnapshotAction
 extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Response, RevertModelSnapshotAction.RequestBuilder> {
 
     public static final RevertModelSnapshotAction INSTANCE = new RevertModelSnapshotAction();
-    public static final String NAME = "indices:admin/prelert/modelsnapshots/revert";
+    public static final String NAME = "indices:admin/prelert/model_snapshots/revert";
 
     private RevertModelSnapshotAction() {
         super(NAME);

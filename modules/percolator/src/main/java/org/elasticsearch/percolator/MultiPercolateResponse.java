@@ -24,7 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import java.util.Iterator;
  * @deprecated Instead use multi search API with {@link PercolateQueryBuilder}
  */
 @Deprecated
-public class MultiPercolateResponse extends ActionResponse implements Iterable<MultiPercolateResponse.Item>, ToXContent {
+public class MultiPercolateResponse extends ActionResponse implements Iterable<MultiPercolateResponse.Item>, ToXContentObject {
 
     private Item[] items;
 
@@ -73,17 +73,19 @@ public class MultiPercolateResponse extends ActionResponse implements Iterable<M
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startArray(Fields.RESPONSES);
         for (MultiPercolateResponse.Item item : items) {
-            builder.startObject();
             if (item.isFailure()) {
+                builder.startObject();
                 ElasticsearchException.renderException(builder, params, item.getFailure());
+                builder.endObject();
             } else {
                 item.getResponse().toXContent(builder, params);
             }
-            builder.endObject();
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 

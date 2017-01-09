@@ -27,7 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
@@ -42,7 +42,7 @@ import java.util.Locale;
 /**
  * A base class for the response of a write operation that involves a single doc
  */
-public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContent {
+public abstract class DocWriteResponse extends ReplicationResponse implements WriteResponse, StatusToXContentObject {
 
     /**
      * An enum that represents the the results of CRUD operations, primarily used to communicate the type of
@@ -244,15 +244,22 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        innerToXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
         builder.field("_index", shardId.getIndexName())
-            .field("_type", type)
-            .field("_id", id)
-            .field("_version", version)
-            .field("result", getResult().getLowercase());
+                .field("_type", type)
+                .field("_id", id)
+                .field("_version", version)
+                .field("result", getResult().getLowercase());
         if (forcedRefresh) {
-            builder.field("forced_refresh", forcedRefresh);
+            builder.field("forced_refresh", true);
         }
         shardInfo.toXContent(builder, params);
         if (getSeqNo() >= 0) {

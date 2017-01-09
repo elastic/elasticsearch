@@ -117,6 +117,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         return (AB) this;
     }
 
+    @Override
     public String getType() {
         return type.name();
     }

@@ -137,9 +137,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         assertThat(iterator.next(), Matchers.nullValue());
 
         XContentBuilder xBuilder = XContentFactory.jsonBuilder();
-        xBuilder.startObject();
         response.toXContent(xBuilder, null);
-        xBuilder.endObject();
         String utf8 = xBuilder.bytes().utf8ToString().replaceFirst("\"took\":\\d+,", "");;
         String expectedString = "{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\""
                 + i
@@ -193,9 +191,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         assertThat(iterator.next(), Matchers.nullValue());
 
         XContentBuilder xBuilder = XContentFactory.jsonBuilder();
-        xBuilder.startObject();
         response.toXContent(xBuilder, null);
-        xBuilder.endObject();
         String utf8 = xBuilder.bytes().utf8ToString().replaceFirst("\"took\":\\d+,", "");;
         String expectedString = "{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\""
                 + i
@@ -252,9 +248,7 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
         assertThat(iterator.next(), Matchers.nullValue());
 
         XContentBuilder xBuilder = XContentFactory.jsonBuilder();
-        xBuilder.startObject();
         response.toXContent(xBuilder, ToXContent.EMPTY_PARAMS);
-        xBuilder.endObject();
         String utf8 = xBuilder.bytes().utf8ToString().replaceFirst("\"took\":\\d+,", "");;
         String expectedString = "{\"_index\":\"test\",\"_type\":\"type1\",\"_id\":\""
                 + i

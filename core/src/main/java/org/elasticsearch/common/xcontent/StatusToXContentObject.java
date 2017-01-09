@@ -16,16 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.common.xcontent;
 
-package org.elasticsearch.cluster.routing.allocation.command;
-
-import org.elasticsearch.common.xcontent.ParseFieldRegistry;
+import org.elasticsearch.rest.RestStatus;
 
 /**
- * Registry of allocation commands. This is it's own class just to make Guice happy.
+ * Objects that can both render themselves in as json/yaml/etc and can provide a {@link RestStatus} for their response. Usually should be
+ * implemented by top level responses sent back to users from REST endpoints.
  */
-public class AllocationCommandRegistry extends ParseFieldRegistry<AllocationCommand.Parser<?>> {
-    public AllocationCommandRegistry() {
-        super("allocation_command");
-    }
+public interface StatusToXContentObject extends ToXContentObject {
+
+    /**
+     * Returns the REST status to make sure it is returned correctly
+     */
+    RestStatus status();
 }

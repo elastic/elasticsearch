@@ -27,7 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +46,7 @@ import java.util.Objects;
  * compile and execute a script from the {@link ScriptService}
  * based on the {@link ScriptType}.
  */
-public final class Script implements ToXContent, Writeable {
+public final class Script implements ToXContentObject, Writeable {
 
     /**
      * The name of the of the default scripting language.

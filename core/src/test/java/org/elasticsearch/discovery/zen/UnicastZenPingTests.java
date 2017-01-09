@@ -72,7 +72,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -80,6 +79,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -797,21 +797,22 @@ public class UnicastZenPingTests extends ESTestCase {
 
         volatile CountDownLatch allTasksCompleted;
         volatile AtomicInteger pendingTasks;
+        volatile CountDownLatch pingingRoundClosed;
 
         PingCollection pingAndWait() throws ExecutionException, InterruptedException {
             allTasksCompleted = new CountDownLatch(1);
+            pingingRoundClosed = new CountDownLatch(1);
             pendingTasks = new AtomicInteger();
-            // make the three sending rounds to come as started
+            // mark the three sending rounds as ongoing
             markTaskAsStarted("send pings");
             markTaskAsStarted("send pings");
             markTaskAsStarted("send pings");
-            final CompletableFuture<PingCollection> response = new CompletableFuture<>();
-            try {
-                ping(response::complete, TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(1));
-            } catch (Exception ex) {
-                response.completeExceptionally(ex);
-            }
-            return response.get();
+            final AtomicReference<PingCollection> response = new AtomicReference<>();
+            ping(response::set, TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(1));
+            pingingRoundClosed.await();
+            final PingCollection result = response.get();
+            assertNotNull("pinging didn't complete",  result);
+            return result;
         }
 
         @Override
@@ -823,6 +824,7 @@ public class UnicastZenPingTests extends ESTestCase {
                 // ok, finish anyway
             }
             super.finishPingingRound(pingingRound);
+            pingingRoundClosed.countDown();
         }
 
         @Override

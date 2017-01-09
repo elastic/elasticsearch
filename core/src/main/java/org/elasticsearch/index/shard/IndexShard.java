@@ -661,7 +661,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public RefreshStats refreshStats() {
-        return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()));
+        // Null refreshListeners means this shard doesn't support them so there can't be any.
+        int listeners = refreshListeners == null ? 0 : refreshListeners.pendingCount();
+        return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()), listeners);
     }
 
     public FlushStats flushStats() {
@@ -932,8 +934,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (engine != null && flushEngine) {
                         engine.flushAndClose();
                     }
-                } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    IOUtils.close(engine);
+                } finally {
+                    // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                    // Also closing refreshListeners to prevent us from accumulating any more listeners
+                    IOUtils.close(engine, refreshListeners);
                     indexShardOperationsLock.close();
                 }
             }

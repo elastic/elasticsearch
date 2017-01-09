@@ -19,44 +19,11 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
-import org.elasticsearch.search.suggest.Suggesters;
-
 /**
  * A container for all parsers used to parse
  * {@link org.elasticsearch.action.search.SearchRequest} objects from a rest request.
  */
 public class SearchRequestParsers {
-    // TODO: this class should be renamed to SearchRequestParser, and all the parse
-    // methods split across RestSearchAction and SearchSourceBuilder should be moved here
-    // TODO: make all members private once parsing functions are moved here
-
-    // TODO: AggregatorParsers should be removed and the underlying maps of agg
-    // and pipeline agg parsers should be here
-    /**
-     * Agg and pipeline agg parsers that may be used in search requests.
-     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
-     *      Suggesters, SearchExtRegistry)
-     */
-    public final AggregatorParsers aggParsers;
-
-    // TODO: Suggesters should be removed and the underlying map moved here
-    /**
-     * Suggesters that may be used in search requests.
-     * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
-     *      Suggesters, SearchExtRegistry)
-     */
-    public final Suggesters suggesters;
-
-    /**
-     * Pluggable section that can be parsed out of a search section, within the ext element
-     */
-    public final SearchExtRegistry searchExtParsers;
-
-    public SearchRequestParsers(AggregatorParsers aggParsers, Suggesters suggesters, SearchExtRegistry searchExtParsers) {
-        this.aggParsers = aggParsers;
-        this.suggesters = suggesters;
-        this.searchExtParsers = searchExtParsers;
+    public SearchRequestParsers() {
     }
 }

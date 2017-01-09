@@ -176,6 +176,11 @@ public class RestoreService extends AbstractComponent implements ClusterStateApp
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repositoryName);
             final RepositoryData repositoryData = repository.getRepositoryData();
+            final Optional<SnapshotId> incompatibleSnapshotId =
+                repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> request.snapshotName.equals(s.getName())).findFirst();
+            if (incompatibleSnapshotId.isPresent()) {
+                throw new SnapshotRestoreException(request.repositoryName, request.snapshotName, "cannot restore incompatible snapshot");
+            }
             final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
                 .filter(s -> request.snapshotName.equals(s.getName())).findFirst();
             if (matchingSnapshotId.isPresent() == false) {

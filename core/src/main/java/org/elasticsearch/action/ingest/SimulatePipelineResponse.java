@@ -22,7 +22,7 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class SimulatePipelineResponse extends ActionResponse implements ToXContent {
+public class SimulatePipelineResponse extends ActionResponse implements ToXContentObject {
     private String pipelineId;
     private boolean verbose;
     private List<SimulateDocumentResult> results;
@@ -88,11 +88,13 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startArray(Fields.DOCUMENTS);
         for (SimulateDocumentResult response : results) {
             response.toXContent(builder, params);
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 

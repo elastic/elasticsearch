@@ -16,25 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.suggest;
 
-import java.util.Map;
+package org.elasticsearch.common.xcontent;
 
 /**
- * Registry of Suggesters. This is only its own class to make Guice happy.
+ * An interface allowing to transfer an object to "XContent" using an {@link XContentBuilder}.
+ * The difference between {@link ToXContent} and {@link ToXContentObject} is that the former may output a fragment that
+ * requires to start and end a new anonymous object externally, while the latter guarantees that what gets printed
+ * out is fully valid syntax without any external addition.
  */
-public final class Suggesters {
-    private final Map<String, Suggester<?>> suggesters;
+public interface ToXContentObject extends ToXContent {
 
-    public Suggesters(Map<String, Suggester<?>> suggesters) {
-        this.suggesters = suggesters;
-    }
-
-    public Suggester<?> getSuggester(String suggesterName) {
-        Suggester<?> suggester = suggesters.get(suggesterName);
-        if (suggester == null) {
-            throw new IllegalArgumentException("suggester with name [" + suggesterName + "] not supported");
-        }
-        return suggester;
+    @Override
+    default boolean isFragment() {
+        return false;
     }
 }

@@ -43,6 +43,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
@@ -637,11 +638,12 @@ public final class Settings implements ToXContent {
             return map.get(key);
         }
 
-        public void setSecureSettings(SecureSettings secureSettings) {
+        public Builder setSecureSettings(SecureSettings secureSettings) {
             if (secureSettings.isLoaded()) {
                 throw new IllegalStateException("Secure settings must already be loaded");
             }
             this.secureSettings.set(secureSettings);
+            return this;
         }
 
         /**
@@ -1191,7 +1193,7 @@ public final class Settings implements ToXContent {
         }
 
         @Override
-        public SecureString getString(String setting) {
+        public SecureString getString(String setting) throws GeneralSecurityException{
             return delegate.getString(prefix + setting);
         }
 

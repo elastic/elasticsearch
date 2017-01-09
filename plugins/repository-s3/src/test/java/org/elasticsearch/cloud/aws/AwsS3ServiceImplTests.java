@@ -24,6 +24,7 @@ import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.s3.S3Repository;
 import org.elasticsearch.test.ESTestCase;
@@ -41,6 +42,103 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithElasticsearchAwsSettings() {
         Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(AwsS3Service.KEY_SETTING.getKey(), "aws_key");
+        secureSettings.setString(AwsS3Service.SECRET_SETTING.getKey(), "aws_secret");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "aws_key", "aws_secret");
+    }
+
+    public void testAWSCredentialsWithElasticsearchS3Settings() {
+        Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(AwsS3Service.CLOUD_S3.KEY_SETTING.getKey(), "s3_key");
+        secureSettings.setString(AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey(), "s3_secret");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "s3_key", "s3_secret");
+    }
+
+    public void testAWSCredentialsWithElasticsearchAwsAndS3Settings() {
+        Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(AwsS3Service.KEY_SETTING.getKey(), "aws_key");
+        secureSettings.setString(AwsS3Service.SECRET_SETTING.getKey(), "aws_secret");
+        secureSettings.setString(AwsS3Service.CLOUD_S3.KEY_SETTING.getKey(), "s3_key");
+        secureSettings.setString(AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey(), "s3_secret");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "s3_key", "s3_secret");
+    }
+
+    public void testAWSCredentialsWithElasticsearchRepositoriesSettings() {
+        Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(S3Repository.Repositories.KEY_SETTING.getKey(), "repositories_key");
+        secureSettings.setString(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret");
+        Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
+        launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
+    }
+
+    /*
+    public void testAWSCredentialsWithElasticsearchAwsAndRepositoriesSettingsBackcompat() {
+        Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
+        Settings settings = Settings.builder()
+            .put(AwsS3Service.KEY_SETTING.getKey(), "aws_key")
+            .put(AwsS3Service.SECRET_SETTING.getKey(), "aws_secret")
+            .put(S3Repository.Repositories.KEY_SETTING.getKey(), "repositories_key")
+            .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
+            .build();
+        launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
+    }
+
+    public void testAWSCredentialsWithElasticsearchAwsAndS3AndRepositoriesSettingsBackcompat() {
+        Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
+        Settings settings = Settings.builder()
+            .put(AwsS3Service.KEY_SETTING.getKey(), "aws_key")
+            .put(AwsS3Service.SECRET_SETTING.getKey(), "aws_secret")
+            .put(AwsS3Service.CLOUD_S3.KEY_SETTING.getKey(), "s3_key")
+            .put(AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey(), "s3_secret")
+            .put(S3Repository.Repositories.KEY_SETTING.getKey(), "repositories_key")
+            .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
+            .build();
+        launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
+    }
+
+    public void testAWSCredentialsWithElasticsearchRepositoriesSettingsAndRepositorySettingsBackcompat() {
+        Settings repositorySettings = generateRepositorySettings("repository_key", "repository_secret", "eu-central", null, null);
+        Settings settings = Settings.builder()
+            .put(S3Repository.Repositories.KEY_SETTING.getKey(), "repositories_key")
+            .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
+            .build();
+        launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
+    }
+
+    public void testAWSCredentialsWithElasticsearchAwsAndRepositoriesSettingsAndRepositorySettingsBackcompat() {
+        Settings repositorySettings = generateRepositorySettings("repository_key", "repository_secret", "eu-central", null, null);
+        Settings settings = Settings.builder()
+            .put(AwsS3Service.KEY_SETTING.getKey(), "aws_key")
+            .put(AwsS3Service.SECRET_SETTING.getKey(), "aws_secret")
+            .put(S3Repository.Repositories.KEY_SETTING.getKey(), "repositories_key")
+            .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
+            .build();
+        launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
+    }
+
+    public void testAWSCredentialsWithElasticsearchAwsAndS3AndRepositoriesSettingsAndRepositorySettingsBackcompat() {
+        Settings repositorySettings = generateRepositorySettings("repository_key", "repository_secret", "eu-central", null, null);
+        Settings settings = Settings.builder()
+            .put(AwsS3Service.KEY_SETTING.getKey(), "aws_key")
+            .put(AwsS3Service.SECRET_SETTING.getKey(), "aws_secret")
+            .put(AwsS3Service.CLOUD_S3.KEY_SETTING.getKey(), "s3_key")
+            .put(AwsS3Service.CLOUD_S3.SECRET_SETTING.getKey(), "s3_secret")
+            .put(S3Repository.Repositories.KEY_SETTING.getKey(), "repositories_key")
+            .put(S3Repository.Repositories.SECRET_SETTING.getKey(), "repositories_secret")
+            .build();
+        launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
+    }
+    */
+
+    public void testAWSCredentialsWithElasticsearchAwsSettingsBackcompat() {
+        Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
         Settings settings = Settings.builder()
             .put(AwsS3Service.KEY_SETTING.getKey(), "aws_key")
             .put(AwsS3Service.SECRET_SETTING.getKey(), "aws_secret")
@@ -48,7 +146,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "aws_key", "aws_secret");
     }
 
-    public void testAWSCredentialsWithElasticsearchS3Settings() {
+    public void testAWSCredentialsWithElasticsearchS3SettingsBackcompat() {
         Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
         Settings settings = Settings.builder()
             .put(AwsS3Service.CLOUD_S3.KEY_SETTING.getKey(), "s3_key")
@@ -57,7 +155,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "s3_key", "s3_secret");
     }
 
-    public void testAWSCredentialsWithElasticsearchAwsAndS3Settings() {
+    public void testAWSCredentialsWithElasticsearchAwsAndS3SettingsBackcompat() {
         Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
         Settings settings = Settings.builder()
             .put(AwsS3Service.KEY_SETTING.getKey(), "aws_key")
@@ -68,7 +166,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "s3_key", "s3_secret");
     }
 
-    public void testAWSCredentialsWithElasticsearchRepositoriesSettings() {
+    public void testAWSCredentialsWithElasticsearchRepositoriesSettingsBackcompat() {
         Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
         Settings settings = Settings.builder()
             .put(S3Repository.Repositories.KEY_SETTING.getKey(), "repositories_key")
@@ -77,7 +175,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
     }
 
-    public void testAWSCredentialsWithElasticsearchAwsAndRepositoriesSettings() {
+    public void testAWSCredentialsWithElasticsearchAwsAndRepositoriesSettingsBackcompat() {
         Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
         Settings settings = Settings.builder()
             .put(AwsS3Service.KEY_SETTING.getKey(), "aws_key")
@@ -88,7 +186,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
     }
 
-    public void testAWSCredentialsWithElasticsearchAwsAndS3AndRepositoriesSettings() {
+    public void testAWSCredentialsWithElasticsearchAwsAndS3AndRepositoriesSettingsBackcompat() {
         Settings repositorySettings = generateRepositorySettings(null, null, "eu-central", null, null);
         Settings settings = Settings.builder()
             .put(AwsS3Service.KEY_SETTING.getKey(), "aws_key")
@@ -101,7 +199,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repositories_key", "repositories_secret");
     }
 
-    public void testAWSCredentialsWithElasticsearchRepositoriesSettingsAndRepositorySettings() {
+    public void testAWSCredentialsWithElasticsearchRepositoriesSettingsAndRepositorySettingsBackcompat() {
         Settings repositorySettings = generateRepositorySettings("repository_key", "repository_secret", "eu-central", null, null);
         Settings settings = Settings.builder()
             .put(S3Repository.Repositories.KEY_SETTING.getKey(), "repositories_key")
@@ -110,7 +208,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
     }
 
-    public void testAWSCredentialsWithElasticsearchAwsAndRepositoriesSettingsAndRepositorySettings() {
+    public void testAWSCredentialsWithElasticsearchAwsAndRepositoriesSettingsAndRepositorySettingsBackcompat() {
         Settings repositorySettings = generateRepositorySettings("repository_key", "repository_secret", "eu-central", null, null);
         Settings settings = Settings.builder()
             .put(AwsS3Service.KEY_SETTING.getKey(), "aws_key")
@@ -121,7 +219,7 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         launchAWSCredentialsWithElasticsearchSettingsTest(repositorySettings, settings, "repository_key", "repository_secret");
     }
 
-    public void testAWSCredentialsWithElasticsearchAwsAndS3AndRepositoriesSettingsAndRepositorySettings() {
+    public void testAWSCredentialsWithElasticsearchAwsAndS3AndRepositoriesSettingsAndRepositorySettingsBackcompat() {
         Settings repositorySettings = generateRepositorySettings("repository_key", "repository_secret", "eu-central", null, null);
         Settings settings = Settings.builder()
             .put(AwsS3Service.KEY_SETTING.getKey(), "aws_key")

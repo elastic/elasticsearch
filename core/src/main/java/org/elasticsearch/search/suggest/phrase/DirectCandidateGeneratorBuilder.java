@@ -35,8 +35,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
 
@@ -414,8 +414,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         }
     }
 
-    private static ObjectParser<Tuple<Set<String>, DirectCandidateGeneratorBuilder>, QueryParseContext> PARSER = new ObjectParser<>(TYPE);
-
+    private static final ObjectParser<Tuple<Set<String>, DirectCandidateGeneratorBuilder>, Void> PARSER = new ObjectParser<>(TYPE);
     static {
         PARSER.declareString((tp, s) -> tp.v1().add(s), FIELDNAME_FIELD);
         PARSER.declareString((tp, s) -> tp.v2().preFilter(s), PREFILTER_FIELD);
@@ -433,12 +432,11 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         PARSER.declareInt((tp, i) -> tp.v2().prefixLength(i), PREFIX_LENGTH_FIELD);
     }
 
-    public static DirectCandidateGeneratorBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+    public static DirectCandidateGeneratorBuilder fromXContent(XContentParser parser) throws IOException {
         DirectCandidateGeneratorBuilder tempGenerator = new DirectCandidateGeneratorBuilder("_na_");
         // bucket for the field name, needed as constructor arg later
         Set<String> tmpFieldName = new HashSet<>(1);
-        PARSER.parse(parseContext.parser(), new Tuple<>(tmpFieldName, tempGenerator),
-                parseContext);
+        PARSER.parse(parser, new Tuple<>(tmpFieldName, tempGenerator), null);
         if (tmpFieldName.size() != 1) {
             throw new IllegalArgumentException("[" + TYPE + "] expects exactly one field parameter, but found " + tmpFieldName);
         }

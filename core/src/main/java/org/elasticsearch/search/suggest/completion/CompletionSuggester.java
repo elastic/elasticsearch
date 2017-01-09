@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -35,18 +34,10 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.index.fielddata.AtomicFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggester;
-import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.completion2x.Completion090PostingsFormat;
 
 import java.io.IOException;
@@ -315,15 +306,5 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 return TopSuggestDocs.EMPTY;
             }
         }
-    }
-
-    @Override
-    public SuggestionBuilder<?> innerFromXContent(QueryParseContext context) throws IOException {
-        return CompletionSuggestionBuilder.innerFromXContent(context);
-    }
-
-    @Override
-    public SuggestionBuilder<?> read(StreamInput in) throws IOException {
-        return new CompletionSuggestionBuilder(in);
     }
 }

@@ -28,7 +28,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
@@ -72,8 +71,7 @@ public class RestSuggestAction extends BaseRestHandler {
                 Strings.splitStringByCommaToArray(request.param("index")), new SearchSourceBuilder());
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            final QueryParseContext context = new QueryParseContext(parser, parseFieldMatcher);
-            searchRequest.source().suggest(SuggestBuilder.fromXContent(context, searchRequestParsers.suggesters));
+            searchRequest.source().suggest(SuggestBuilder.fromXContent(parser));
         }
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -28,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionContext.DirectCandidateGenerator;
 import org.elasticsearch.test.ESTestCase;
 
@@ -107,9 +105,8 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
             }
             generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentParser parser = createParser(shuffleXContent(builder));
-            QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
             parser.nextToken();
-            DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.fromXContent(context);
+            DirectCandidateGeneratorBuilder secondGenerator = DirectCandidateGeneratorBuilder.fromXContent(parser);
             assertNotSame(generator, secondGenerator);
             assertEquals(generator, secondGenerator);
             assertEquals(generator.hashCode(), secondGenerator.hashCode());
@@ -167,8 +164,7 @@ public class DirectCandidateGeneratorTests extends ESTestCase {
     private void assertIllegalXContent(String directGenerator, Class<? extends Exception> exceptionClass, String exceptionMsg)
             throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, directGenerator);
-        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
-        Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.fromXContent(context));
+        Exception e = expectThrows(exceptionClass, () -> DirectCandidateGeneratorBuilder.fromXContent(parser));
         assertEquals(exceptionMsg, e.getMessage());
     }
 

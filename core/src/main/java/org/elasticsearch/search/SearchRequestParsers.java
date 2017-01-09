@@ -37,7 +37,7 @@ public class SearchRequestParsers {
     /**
      * Agg and pipeline agg parsers that may be used in search requests.
      * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
-     *      Suggesters, SearchExtRegistry)
+     *      Suggesters)
      */
     public final AggregatorParsers aggParsers;
 
@@ -45,18 +45,12 @@ public class SearchRequestParsers {
     /**
      * Suggesters that may be used in search requests.
      * @see org.elasticsearch.search.builder.SearchSourceBuilder#fromXContent(QueryParseContext, AggregatorParsers,
-     *      Suggesters, SearchExtRegistry)
+     *      Suggesters)
      */
     public final Suggesters suggesters;
 
-    /**
-     * Pluggable section that can be parsed out of a search section, within the ext element
-     */
-    public final SearchExtRegistry searchExtParsers;
-
-    public SearchRequestParsers(AggregatorParsers aggParsers, Suggesters suggesters, SearchExtRegistry searchExtParsers) {
+    public SearchRequestParsers(AggregatorParsers aggParsers, Suggesters suggesters) {
         this.aggParsers = aggParsers;
         this.suggesters = suggesters;
-        this.searchExtParsers = searchExtParsers;
     }
 }

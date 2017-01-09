@@ -25,13 +25,13 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
+import org.elasticsearch.common.xcontent.AbstractObjectParser.NoContextParser;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.search.SearchExtBuilder;
-import org.elasticsearch.search.SearchExtParser;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -85,7 +85,7 @@ public interface SearchPlugin {
         return emptyList();
     }
     /**
-     * The new {@link SearchExtParser}s defined by this plugin.
+     * The new {@link SearchExtBuilder}s defined by this plugin.
      */
     default List<SearchExtSpec<?>> getSearchExts() {
         return emptyList();
@@ -302,12 +302,12 @@ public interface SearchPlugin {
      * Specification for a {@link SearchExtBuilder} which represents an additional section that can be
      * parsed in a search request (within the ext element).
      */
-    class SearchExtSpec<T extends SearchExtBuilder> extends SearchExtensionSpec<T, SearchExtParser<T>> {
-        public SearchExtSpec(ParseField name, Writeable.Reader<? extends T> reader, SearchExtParser<T> parser) {
+    class SearchExtSpec<T extends SearchExtBuilder> extends SearchExtensionSpec<T, NoContextParser<T>> {
+        public SearchExtSpec(ParseField name, Writeable.Reader<? extends T> reader, NoContextParser<T> parser) {
             super(name, reader, parser);
         }
 
-        public SearchExtSpec(String name, Writeable.Reader<? extends T> reader, SearchExtParser<T> parser) {
+        public SearchExtSpec(String name, Writeable.Reader<? extends T> reader, NoContextParser<T> parser) {
             super(name, reader, parser);
         }
     }

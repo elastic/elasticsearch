@@ -36,6 +36,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
+import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
@@ -60,10 +61,17 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     protected final Path path;
 
+    protected final OpenOption[] writeBlobFileOptions;
+
     public FsBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path) {
         super(blobPath);
         this.blobStore = blobStore;
         this.path = path;
+        if (blobStore.writeOnce()) {
+            writeBlobFileOptions = new OpenOption[] { StandardOpenOption.CREATE_NEW };
+        } else {
+            writeBlobFileOptions = new OpenOption[] { StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING };
+        }
     }
 
     @Override
@@ -127,7 +135,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
             throw new FileAlreadyExistsException("blob [" + blobName + "] already exists, cannot overwrite");
         }
         final Path file = path.resolve(blobName);
-        try (OutputStream outputStream = Files.newOutputStream(file, StandardOpenOption.CREATE_NEW)) {
+        try (OutputStream outputStream = Files.newOutputStream(file, writeBlobFileOptions)) {
             Streams.copy(inputStream, outputStream, new byte[blobStore.bufferSizeInBytes()]);
         }
         IOUtils.fsync(file, false);

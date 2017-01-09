@@ -180,6 +180,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                     FsRepository.REPOSITORIES_CHUNK_SIZE_SETTING,
                     FsRepository.REPOSITORIES_COMPRESS_SETTING,
                     FsRepository.REPOSITORIES_LOCATION_SETTING,
+                    FsRepository.REPOSITORIES_ENFORCE_WRITE_ONCE_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_SIZE_SETTING,
                     IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING,
                     IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING,

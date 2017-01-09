@@ -39,11 +39,14 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
 
     private final int bufferSizeInBytes;
 
-    public FsBlobStore(Settings settings, Path path) throws IOException {
+    private final boolean writeOnce;
+
+    public FsBlobStore(Settings settings, Path path, boolean writeOnce) throws IOException {
         super(settings);
         this.path = path;
         Files.createDirectories(path);
         this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.fs.buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).getBytes();
+        this.writeOnce = writeOnce;
     }
 
     @Override
@@ -57,6 +60,10 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
 
     public int bufferSizeInBytes() {
         return this.bufferSizeInBytes;
+    }
+
+    public boolean writeOnce() {
+        return writeOnce;
     }
 
     @Override

@@ -33,6 +33,6 @@ public class FsBlobStoreTests extends ESBlobStoreTestCase {
     protected BlobStore newBlobStore() throws IOException {
         Path tempDir = createTempDir();
         Settings settings = randomBoolean() ? Settings.EMPTY : Settings.builder().put("buffer_size", new ByteSizeValue(randomIntBetween(1, 100), ByteSizeUnit.KB)).build();
-        return new FsBlobStore(settings, tempDir);
+        return new FsBlobStore(settings, tempDir, randomBoolean());
     }
 }

@@ -61,6 +61,8 @@ public class FsRepository extends BlobStoreRepository {
     public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
     public static final Setting<Boolean> REPOSITORIES_COMPRESS_SETTING =
         Setting.boolSetting("repositories.fs.compress", false, Property.NodeScope);
+    public static final Setting<Boolean> REPOSITORIES_ENFORCE_WRITE_ONCE_SETTING =
+        Setting.boolSetting("repositories.fs.enforce_write_once", true, Property.NodeScope);
 
     private final FsBlobStore blobStore;
 
@@ -92,7 +94,7 @@ public class FsRepository extends BlobStoreRepository {
             }
         }
 
-        blobStore = new FsBlobStore(settings, locationFile);
+        blobStore = new FsBlobStore(settings, locationFile, REPOSITORIES_ENFORCE_WRITE_ONCE_SETTING.get(metadata.settings()));
         if (CHUNK_SIZE_SETTING.exists(metadata.settings())) {
             this.chunkSize = CHUNK_SIZE_SETTING.get(metadata.settings());
         } else if (REPOSITORIES_CHUNK_SIZE_SETTING.exists(settings)) {

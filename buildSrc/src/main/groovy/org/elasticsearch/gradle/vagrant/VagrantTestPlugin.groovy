@@ -442,17 +442,12 @@ class VagrantTestPlugin implements Plugin<Project> {
             Task up = project.tasks.create("vagrant${boxTask}#up", VagrantCommandTask) {
                 boxName box
                 environmentVars vagrantEnvVars
-                /* Its important that we try to reprovision the box even if it already
-                  exists. That way updates to the vagrant configuration take automatically.
-                  That isn't to say that the updates will always be compatible. Its ok to
-                  just destroy the boxes if they get busted but that is a manual step
-                  because its slow-ish. */
                 /* We lock the provider to virtualbox because the Vagrantfile specifies
                   lots of boxes that only work properly in virtualbox. Virtualbox is
                   vagrant's default but its possible to change that default and folks do.
                   But the boxes that we use are unlikely to work properly with other
                   virtualization providers. Thus the lock. */
-                args 'up', box, '--provision', '--provider', 'virtualbox'
+                args 'up', box, '--provider', 'virtualbox'
                 /* It'd be possible to check if the box is already up here and output
                   SKIPPED but that would require running vagrant status which is slow! */
                 dependsOn update

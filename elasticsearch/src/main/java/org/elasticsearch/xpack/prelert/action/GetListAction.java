@@ -32,7 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -154,7 +154,7 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContent {
+    public static class Response extends ActionResponse implements StatusToXContentObject {
 
         private QueryPage<ListDocument> lists;
 

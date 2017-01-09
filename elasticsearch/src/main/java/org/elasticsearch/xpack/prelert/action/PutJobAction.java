@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -145,7 +146,7 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
         }
     }
 
-    public static class Response extends AcknowledgedResponse implements ToXContent {
+    public static class Response extends AcknowledgedResponse implements ToXContentObject {
 
         private Job job;
 

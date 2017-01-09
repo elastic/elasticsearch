@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -275,7 +276,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         }
     }
 
-    public static class Response extends ActionResponse implements ToXContent {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private QueryPage<AnomalyRecord> records;
 

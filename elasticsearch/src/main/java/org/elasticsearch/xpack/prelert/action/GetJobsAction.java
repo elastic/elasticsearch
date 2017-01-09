@@ -23,7 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.RestStatus;
@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.Response, GetJobsAction.RequestBuilder> {
@@ -113,7 +112,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContent {
+    public static class Response extends ActionResponse implements StatusToXContentObject {
 
         private QueryPage<Job> jobs;
 

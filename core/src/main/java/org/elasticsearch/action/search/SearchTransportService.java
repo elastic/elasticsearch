@@ -299,7 +299,8 @@ public class SearchTransportService extends AbstractLifecycleComponent {
                     channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 }
             });
-        TransportActionProxy.registerProxyAction(transportService, CLEAR_SCROLL_CONTEXTS_ACTION_NAME, () -> TransportResponse.Empty.INSTANCE);
+        TransportActionProxy.registerProxyAction(transportService, CLEAR_SCROLL_CONTEXTS_ACTION_NAME,
+            () -> TransportResponse.Empty.INSTANCE);
 
         transportService.registerRequestHandler(DFS_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH,
             new TaskAwareTransportRequestHandler<ShardSearchTransportRequest>() {

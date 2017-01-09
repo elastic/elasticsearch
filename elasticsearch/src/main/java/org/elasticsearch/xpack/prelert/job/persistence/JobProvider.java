@@ -11,11 +11,8 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -140,18 +137,7 @@ public class JobProvider {
             client.admin().indices().prepareCreate(PRELERT_USAGE_INDEX)
                     .setSettings(mlResultsIndexSettings())
                     .addMapping(Usage.TYPE, usageMapping)
-                    .execute(new ActionListener<CreateIndexResponse>() {
-                        @Override
-                        public void onResponse(CreateIndexResponse createIndexResponse) {
-                            listener.accept(true, null);
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            listener.accept(false, e);
-                        }
-                    });
-
+                    .execute(ActionListener.wrap(r -> listener.accept(true, null), e -> listener.accept(false, e)));
         } catch (Exception e) {
             LOGGER.warn("Error creating the usage metering index", e);
         }
@@ -244,34 +230,14 @@ public class JobProvider {
                 listener = ActionListener.wrap(aBoolean -> {
                             client.admin().indices().prepareAliases()
                                     .addAlias(indexName, AnomalyDetectorsIndex.jobResultsIndexName(jobId))
-                                    .execute(new ActionListener<IndicesAliasesResponse>() {
-                                        @Override
-                                        public void onResponse(IndicesAliasesResponse indicesAliasesResponse) {
-                                            responseListener.onResponse(true);
-                                        }
-
-                                        @Override
-                                        public void onFailure(Exception e) {
-                                            responseListener.onFailure(e);
-                                        }
-                                    });
+                                    .execute(ActionListener.wrap(r -> responseListener.onResponse(true), responseListener::onFailure));
                         },
                         listener::onFailure);
             }
 
             final ActionListener<Boolean> createdListener = listener;
-            client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
-                @Override
-                public void onResponse(CreateIndexResponse createIndexResponse) {
-                    createdListener.onResponse(true);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    createdListener.onFailure(e);
-                }
-            });
-
+            client.admin().indices().create(createIndexRequest,
+                    ActionListener.wrap(r -> createdListener.onResponse(true), createdListener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
         }
@@ -290,17 +256,8 @@ public class JobProvider {
             createIndexRequest.mapping(Quantiles.TYPE.getPreferredName(), quantilesMapping);
             createIndexRequest.mapping(ModelState.TYPE.getPreferredName(), modelStateMapping);
 
-            client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
-                @Override
-                public void onResponse(CreateIndexResponse createIndexResponse) {
-                    listener.accept(true, null);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.accept(false, e);
-                }
-            });
+            client.admin().indices().create(createIndexRequest,
+                    ActionListener.wrap(r -> listener.accept(true, null), e -> listener.accept(false, e)));
         } catch (Exception e) {
             LOGGER.error("Error creating the " + AnomalyDetectorsIndex.jobStateIndexName() + " index", e);
         }
@@ -317,17 +274,8 @@ public class JobProvider {
 
         try {
             DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(indexName);
-            client.admin().indices().delete(deleteIndexRequest, new ActionListener<DeleteIndexResponse>() {
-                @Override
-                public void onResponse(DeleteIndexResponse deleteIndexResponse) {
-                    listener.onResponse(new DeleteJobAction.Response(deleteIndexResponse.isAcknowledged()));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            client.admin().indices().delete(deleteIndexRequest,
+                    ActionListener.wrap(r -> listener.onResponse(new DeleteJobAction.Response(r.isAcknowledged())), listener::onFailure));
         } catch (Exception e) {
             listener.onFailure(e);
         }

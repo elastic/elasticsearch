@@ -32,8 +32,6 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -68,7 +66,7 @@ import java.util.function.Predicate;
 
 /**
  * Represents a connection to a single remote cluster. In contrast to a local cluster a remote cluster is not joined such that the
- * current node is part of the cluster and it won't receive cluster state updated from the remote cluster. Remote clusters are also not
+ * current node is part of the cluster and it won't receive cluster state updates from the remote cluster. Remote clusters are also not
  * fully connected with the current node. From a connection perspective a local cluster forms a bi-directional star network while in the
  * remote case we only connect to a subset of the nodes in the cluster in an uni-directional fashion.
  *
@@ -157,7 +155,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
     public void fetchSearchShards(SearchRequest searchRequest, final List<String> indices,
                                   ActionListener<ClusterSearchShardsResponse> listener) {
         if (connectedNodes.isEmpty()) {
-            // just in case if we are not connected for some reason we try to connect and if we fail we to and notify the listener
+            // just in case if we are not connected for some reason we try to connect and if we fail we have to notify the listener
             // this will cause some back pressure on the search end and eventually will cause rejections but that's fine
             // we can't proceed with a search on a cluster level.
             // in the future we might want to just skip the remote nodes in such a case but that can already be implemented on the caller
@@ -198,7 +196,6 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                 }
             });
     }
-
 
     /**
      * Returns a connection to the remote cluster. This connection might be a proxy connection that redirects internally to the
@@ -244,7 +241,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
      * There is at most one connect job running at any time. If such a connect job is triggered
      * while another job is running the provided listeners are queued and batched up once the current running job returns.
      *
-     * The handler has ab built-in queue that can hold up to 100 connect attempts and will reject request once the queue is full.
+     * The handler has a built-in queue that can hold up to 100 connect attempts and will reject requests once the queue is full.
      * In a scenario when a remote cluster becomes unavailable we will queue up immediate request but if we can't connect quick enough
      * we will just reject the connect trigger which will lead to failing searches.
      */
@@ -419,8 +416,8 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             private final Iterator<DiscoveryNode> seedNodes;
             private final CancellableThreads cancellableThreads;
 
-            public StateResponseHandler(TransportService transportService, Transport.Connection connection, ActionListener<Void> listener
-                , Iterator<DiscoveryNode> seedNodes, CancellableThreads cancellableThreads) {
+            StateResponseHandler(TransportService transportService, Transport.Connection connection, ActionListener<Void> listener,
+                                        Iterator<DiscoveryNode> seedNodes, CancellableThreads cancellableThreads) {
                 this.transportService = transportService;
                 this.connection = connection;
                 this.listener = listener;
@@ -492,5 +489,4 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         assert connectHandler.running.availablePermits() == 1;
         return true;
     }
-
 }

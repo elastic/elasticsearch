@@ -270,7 +270,10 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return influencers.doXContentBody(builder, params);
+            builder.startObject();
+            influencers.doXContentBody(builder, params);
+            builder.endObject();
+            return builder;
         }
 
         @Override

@@ -59,6 +59,6 @@ public class RestGetInfluencersAction extends BaseRestHandler {
             request.setDecending(restRequest.paramAsBoolean(GetInfluencersAction.Request.DESCENDING_SORT.getPreferredName(), true));
         }
 
-        return channel -> transportAction.execute(request, new RestToXContentListener<GetInfluencersAction.Response>(channel));
+        return channel -> transportAction.execute(request, new RestToXContentListener<>(channel));
     }
 }

@@ -355,7 +355,10 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return buckets.doXContentBody(builder, params);
+            builder.startObject();
+            buckets.doXContentBody(builder, params);
+            builder.endObject();
+            return builder;
         }
 
         @Override

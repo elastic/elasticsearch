@@ -188,7 +188,10 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return lists.doXContentBody(builder, params);
+            builder.startObject();
+            lists.doXContentBody(builder, params);
+            builder.endObject();
+            return builder;
         }
 
         @Override

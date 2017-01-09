@@ -155,7 +155,9 @@ public class PutSchedulerAction extends Action<PutSchedulerAction.Request, PutSc
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             scheduler.doXContentBody(builder, params);
+            builder.endObject();
             return builder;
         }
 

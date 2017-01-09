@@ -140,7 +140,10 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return jobs.doXContentBody(builder, params);
+            builder.startObject();
+            jobs.doXContentBody(builder, params);
+            builder.endObject();
+            return builder;
         }
 
         @Override

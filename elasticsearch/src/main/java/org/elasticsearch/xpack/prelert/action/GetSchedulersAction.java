@@ -152,7 +152,10 @@ public class GetSchedulersAction extends Action<GetSchedulersAction.Request, Get
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return schedulers.doXContentBody(builder, params);
+            builder.startObject();
+            schedulers.doXContentBody(builder, params);
+            builder.endObject();
+            return builder;
         }
 
         @Override

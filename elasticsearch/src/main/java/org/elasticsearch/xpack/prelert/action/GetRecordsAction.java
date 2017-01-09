@@ -305,7 +305,10 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return records.doXContentBody(builder, params);
+            builder.startObject();
+            records.doXContentBody(builder, params);
+            builder.endObject();
+            return builder;
         }
 
         @Override

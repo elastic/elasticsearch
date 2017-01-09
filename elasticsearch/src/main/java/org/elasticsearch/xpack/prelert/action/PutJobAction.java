@@ -179,7 +179,9 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             // Don't serialize acknowledged because current api directly serializes the job details
+            builder.startObject();
             job.doXContentBody(builder, params);
+            builder.endObject();
             return builder;
         }
 

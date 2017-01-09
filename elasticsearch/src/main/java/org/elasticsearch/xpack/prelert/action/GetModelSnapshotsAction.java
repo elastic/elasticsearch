@@ -260,7 +260,10 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return page.doXContentBody(builder, params);
+            builder.startObject();
+            page.doXContentBody(builder, params);
+            builder.endObject();
+            return builder;
         }
 
         @Override

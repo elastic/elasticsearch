@@ -48,7 +48,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,8 +102,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
     private void innerDoExecute(PercolateRequest request, BytesReference docSource, ActionListener<PercolateResponse> listener) {
         SearchRequest searchRequest;
         try {
-            searchRequest = createSearchRequest(request, docSource,
-                searchRequestParsers.aggParsers, xContentRegistry, parseFieldMatcher);
+            searchRequest = createSearchRequest(request, docSource, xContentRegistry, parseFieldMatcher);
         } catch (IOException e) {
             listener.onFailure(e);
             return;
@@ -127,7 +125,6 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
     }
 
     public static SearchRequest createSearchRequest(PercolateRequest percolateRequest, BytesReference documentSource,
-                                                    AggregatorParsers aggParsers,
                                                     NamedXContentRegistry xContentRegistry,
                                                     ParseFieldMatcher parseFieldMatcher)
             throws IOException {
@@ -229,7 +226,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContentRegistry, source)) {
             QueryParseContext context = new QueryParseContext(parser, parseFieldMatcher);
-            searchSourceBuilder.parseXContent(context, aggParsers, null);
+            searchSourceBuilder.parseXContent(context, null);
             searchRequest.source(searchSourceBuilder);
             return searchRequest;
         }

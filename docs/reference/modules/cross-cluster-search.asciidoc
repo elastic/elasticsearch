@@ -3,13 +3,13 @@
 
 The _cross cluster search_ feature allows any node to act as a federated client across
 multiple clusters. In contrast to the _tribe_ feature, a  _cross cluster search_ node won't
-join the remote cluster, instead it connects to a remote cluster in a light fashion in order to executed
+join the remote cluster, instead it connects to a remote cluster in a light fashion in order to execute
 federated search requests.
 
 The _cross cluster search_ feature works by configuring a remote cluster in the cluster state and connects only to a
 limited number of nodes in the remote cluster. Each remote cluster is referenced by a name and a list of seed nodes.
 Those seed nodes are used to discover other nodes eligible as so-called _gateway nodes_. Each node in a cluster that
-has remote cluster configured connects to one or more _gateway nodes_ and uses them to federate search requests to
+has remote clusters configured connects to one or more _gateway nodes_ and uses them to federate search requests to
 the remote cluster.
 
 Remote clusters can either be configured as part of the `elasticsearch.yml` file or be dynamically updated via

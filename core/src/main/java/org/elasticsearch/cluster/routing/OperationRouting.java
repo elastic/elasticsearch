@@ -223,7 +223,7 @@ public class OperationRouting extends AbstractComponent {
         final int partitionOffset;
 
         if (routing == null) {
-            assert(!indexMetaData.isRoutingPartitionedIndex());
+            assert(indexMetaData.isRoutingPartitionedIndex() == false) : "A routing value is required for gets from a partitioned index";
             effectiveRouting = id;
         } else {
             effectiveRouting = routing;

@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  */
@@ -70,9 +71,10 @@ public class CompressorFactory {
 
     /**
      * Uncompress the provided data, data can be detected as compressed using {@link #isCompressed(BytesReference)}.
+     * @throws NullPointerException a NullPointerException will be thrown when bytes is null
      */
     public static BytesReference uncompressIfNeeded(BytesReference bytes) throws IOException {
-        Compressor compressor = compressor(bytes);
+        Compressor compressor = compressor(Objects.requireNonNull(bytes, "the BytesReference must not be null"));
         BytesReference uncompressed;
         if (compressor != null) {
             uncompressed = uncompress(bytes, compressor);

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.notification.slack.message;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -254,14 +253,14 @@ public class SlackMessage implements MessageElement {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.FROM)) {
+                } else if (XField.FROM.match(currentFieldName)) {
                     try {
                         builder.setFrom(TextTemplate.parse(parser));
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field", pe,
                                 XField.FROM.getPreferredName());
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.TO)) {
+                } else if (XField.TO.match(currentFieldName)) {
                     if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
@@ -279,21 +278,21 @@ public class SlackMessage implements MessageElement {
                                     XField.TO.getPreferredName());
                         }
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.TEXT)) {
+                } else if (XField.TEXT.match(currentFieldName)) {
                     try {
                         builder.setText(TextTemplate.parse(parser));
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field", pe,
                                 XField.TEXT.getPreferredName());
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.ICON)) {
+                } else if (XField.ICON.match(currentFieldName)) {
                     try {
                         builder.setIcon(TextTemplate.parse(parser));
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse slack message. failed to parse [{}] field.", pe,
                                 XField.ICON.getPreferredName());
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.ATTACHMENTS)) {
+                } else if (XField.ATTACHMENTS.match(currentFieldName)) {
                     if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
@@ -311,7 +310,7 @@ public class SlackMessage implements MessageElement {
                                     XField.ATTACHMENTS.getPreferredName());
                         }
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.DYNAMIC_ATTACHMENTS)) {
+                } else if (XField.DYNAMIC_ATTACHMENTS.match(currentFieldName)) {
                     try {
                         builder.setDynamicAttachments(DynamicAttachments.parse(parser));
                     } catch (ElasticsearchParseException pe) {

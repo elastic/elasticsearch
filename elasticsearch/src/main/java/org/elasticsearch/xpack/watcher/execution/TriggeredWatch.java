@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.execution;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -80,7 +79,7 @@ public class TriggeredWatch implements ToXContent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGER_EVENT)) {
+                    if (Field.TRIGGER_EVENT.match(currentFieldName)) {
                         triggerEvent = triggerService.parseTriggerEvent(wid.watchId(), id, parser);
                     } else {
                         parser.skipChildren();

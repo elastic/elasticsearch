@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.user;
 
-import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 /**
@@ -15,7 +14,7 @@ import org.elasticsearch.xpack.security.support.MetadataUtils;
 public class ElasticUser extends User {
 
     public static final String NAME = "elastic";
-    public static final String ROLE_NAME = SuperuserRole.NAME;
+    private static final String ROLE_NAME = "superuser";
 
     public ElasticUser(boolean enabled) {
         super(NAME, new String[] { ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);

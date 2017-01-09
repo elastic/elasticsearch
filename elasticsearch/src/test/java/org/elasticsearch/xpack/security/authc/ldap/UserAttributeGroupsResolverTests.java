@@ -5,11 +5,16 @@
  */
 package org.elasticsearch.xpack.security.authc.ldap;
 
+import com.unboundid.ldap.sdk.Attribute;
+import com.unboundid.ldap.sdk.SearchRequest;
+import com.unboundid.ldap.sdk.SearchScope;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.security.authc.ldap.support.LdapUtils;
 import org.elasticsearch.xpack.security.support.NoOpLogger;
 import org.elasticsearch.test.junit.annotations.Network;
 
+import java.util.Collection;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -27,6 +32,20 @@ public class UserAttributeGroupsResolverTests extends GroupsResolverTestCase {
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(Settings.EMPTY);
         List<String> groups =
                 resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, null);
+        assertThat(groups, containsInAnyOrder(
+                containsString("Avengers"),
+                containsString("SHIELD"),
+                containsString("Geniuses"),
+                containsString("Philanthropists")));
+    }
+
+    public void testResolveFromPreloadedAttributes() throws Exception {
+        SearchRequest preSearch = new SearchRequest(BRUCE_BANNER_DN, SearchScope.BASE, LdapUtils.OBJECT_CLASS_PRESENCE_FILTER, "memberOf");
+        final Collection<Attribute> attributes = ldapConnection.searchForEntry(preSearch).getAttributes();
+
+        UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(Settings.EMPTY);
+        List<String> groups =
+                resolveBlocking(resolver, ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE, attributes);
         assertThat(groups, containsInAnyOrder(
                 containsString("Avengers"),
                 containsString("SHIELD"),

@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.notification.slack.message;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 
-public interface MessageElement extends ToXContent {
+public interface MessageElement extends ToXContentObject {
 
     interface XField {
         ParseField TITLE = new ParseField("title");

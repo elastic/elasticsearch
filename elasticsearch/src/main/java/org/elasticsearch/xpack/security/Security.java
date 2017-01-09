@@ -96,6 +96,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SecurityIndexSearcherWrapper;
 import org.elasticsearch.xpack.security.authz.accesscontrol.SetSecurityUserProcessor;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
@@ -312,16 +313,19 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
             cryptoService, failureHandler, threadPool, anonymousUser));
         components.add(authcService.get());
 
-        final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService);
-        final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client);
-        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore(securityContext);
-        final CompositeRolesStore allRolesStore = new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore);
+        final FileRolesStore fileRolesStore = new FileRolesStore(settings, env, resourceWatcherService, licenseState);
+        final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, licenseState);
+        final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
+        final CompositeRolesStore allRolesStore =
+                new CompositeRolesStore(settings, fileRolesStore, nativeRolesStore, reservedRolesStore, licenseState);
+        // to keep things simple, just invalidate all cached entries on license change. this happens so rarely that the impact should be
+        // minimal
+        licenseState.addListener(allRolesStore::invalidateAll);
         final AuthorizationService authzService = new AuthorizationService(settings, allRolesStore, clusterService,
             auditTrailService, failureHandler, threadPool, anonymousUser);
-        components.add(fileRolesStore); // has lifecycle
         components.add(nativeRolesStore); // used by roles actions
         components.add(reservedRolesStore); // used by roles actions
-        components.add(allRolesStore); // for SecurityFeatureSet
+        components.add(allRolesStore); // for SecurityFeatureSet and clear roles cache
         components.add(authzService);
 
         components.add(new SecurityLifecycleService(settings, clusterService, threadPool, indexAuditTrail,
@@ -404,6 +408,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
         NativeRolesStore.addSettings(settingsList);
         AuthenticationService.addSettings(settingsList);
         AuthorizationService.addSettings(settingsList);
+        settingsList.add(CompositeRolesStore.CACHE_SIZE_SETTING);
+        settingsList.add(FieldPermissionsCache.CACHE_SIZE_SETTING);
 
         // encryption settings
         CryptoService.addSettings(settingsList);

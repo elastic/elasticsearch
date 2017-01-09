@@ -11,7 +11,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
 import java.io.IOException;
 import java.util.Map;
@@ -58,9 +57,9 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         return this;
     }
 
-    public PutRoleRequestBuilder addIndices(String[] indices, String[] privileges,
-                                            FieldPermissions fieldPermissions, @Nullable BytesReference query) {
-        request.addIndex(indices, privileges, fieldPermissions, query);
+    public PutRoleRequestBuilder addIndices(String[] indices, String[] privileges, String[] grantedFields, String[] deniedFields,
+                                            @Nullable BytesReference query) {
+        request.addIndex(indices, privileges, grantedFields, deniedFields, query);
         return this;
     }
 

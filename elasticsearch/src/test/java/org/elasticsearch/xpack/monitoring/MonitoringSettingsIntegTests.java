@@ -78,9 +78,8 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
             assertThat(monitoringSettings.recoveryActiveOnly(), equalTo(recoveryActiveOnly));
         }
 
-        for (final AgentService service : internalCluster().getInstances(AgentService.class)) {
-            assertThat(service.getSamplingInterval().millis(), equalTo(interval.millis()));
-            assertArrayEquals(service.collectors(), collectors);
+        for (final MonitoringService service : internalCluster().getInstances(MonitoringService.class)) {
+            assertThat(service.getInterval().millis(), equalTo(interval.millis()));
 
         }
 
@@ -124,8 +123,8 @@ public class MonitoringSettingsIntegTests extends MonitoringIntegTestCase {
                 continue;
             }
             if (setting == MonitoringSettings.INTERVAL) {
-                for (final AgentService service : internalCluster().getInstances(AgentService.class)) {
-                    assertEquals(service.getSamplingInterval(), setting.get(updatedSettings));
+                for (final MonitoringService service : internalCluster().getInstances(MonitoringService.class)) {
+                    assertEquals(service.getInterval(), setting.get(updatedSettings));
                 }
             } else {
                 for (final MonitoringSettings monitoringSettings1 : internalCluster().getInstances(MonitoringSettings.class)) {

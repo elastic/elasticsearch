@@ -11,6 +11,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.watcher.condition.AlwaysCondition;
 import org.elasticsearch.xpack.watcher.execution.ExecutionState;
@@ -66,6 +67,7 @@ public class HistoryTemplateHttpMappingsTests extends AbstractWatcherIntegration
                 .condition(AlwaysCondition.INSTANCE)
                 .addAction("_webhook", webhookAction(HttpRequestTemplate.builder("localhost", webServer.getPort())
                         .path("/webhook/path")
+                        .method(HttpMethod.POST)
                         .body("_body"))))
                 .get();
 

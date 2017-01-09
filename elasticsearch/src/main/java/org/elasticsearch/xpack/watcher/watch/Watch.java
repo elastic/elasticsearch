@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.watch;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -16,7 +15,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.secret.Secret;
@@ -32,7 +31,6 @@ import org.elasticsearch.xpack.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.watcher.input.InputRegistry;
 import org.elasticsearch.xpack.watcher.input.none.ExecutableNoneInput;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
-import org.elasticsearch.xpack.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.support.xcontent.WatcherXContentParser;
 import org.elasticsearch.xpack.watcher.transform.ExecutableTransform;
 import org.elasticsearch.xpack.watcher.trigger.Trigger;
@@ -46,17 +44,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.createParser;
 import static org.elasticsearch.xpack.watcher.support.Exceptions.ioException;
 import static org.joda.time.DateTimeZone.UTC;
 
-public class Watch implements TriggerEngine.Job, ToXContent {
+public class Watch implements TriggerEngine.Job, ToXContentObject {
 
     public static final String ALL_ACTIONS_ID = "_all";
     public static final String INCLUDE_STATUS_KEY = "include_status";
@@ -198,12 +194,6 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         return builder;
     }
 
-    public BytesReference getAsBytes() throws IOException {
-        // we don't want to cache this and instead rebuild it every time on demand. The watch is in
-        // memory and we don't need this redundancy
-        return toXContent(jsonBuilder(), WatcherParams.builder().put(Watch.INCLUDE_STATUS_KEY, true).build()).bytes();
-    }
-
     public static class Parser extends AbstractComponent {
 
         private final TriggerService triggerService;
@@ -291,17 +281,17 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                     currentFieldName = parser.currentName();
                 } else if (token == null || currentFieldName == null) {
                     throw new ElasticsearchParseException("could not parse watch [{}], unexpected token [{}]", id, token);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGER)) {
+                } else if (Field.TRIGGER.match(currentFieldName)) {
                     trigger = triggerService.parseTrigger(id, parser);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.INPUT)) {
+                } else if (Field.INPUT.match(currentFieldName)) {
                     input = inputRegistry.parse(id, parser);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CONDITION)) {
+                } else if (Field.CONDITION.match(currentFieldName)) {
                     condition = actionRegistry.getConditionRegistry().parseExecutable(id, parser);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRANSFORM)) {
+                } else if (Field.TRANSFORM.match(currentFieldName)) {
                     transform = actionRegistry.getTransformRegistry().parse(id, parser);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD)) {
+                } else if (Field.THROTTLE_PERIOD.match(currentFieldName)) {
                     throttlePeriod = timeValueMillis(parser.longValue());
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.THROTTLE_PERIOD_HUMAN)) {
+                } else if (Field.THROTTLE_PERIOD_HUMAN.match(currentFieldName)) {
                     // Parser for human specified and 2.x backwards compatible throttle period
                     try {
                         throttlePeriod = WatcherDateTimeUtils.parseTimeValue(parser, Field.THROTTLE_PERIOD_HUMAN.toString());
@@ -309,11 +299,11 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                         throw new ElasticsearchParseException("could not parse watch [{}]. failed to parse time value for field [{}]",
                                 pe, id, currentFieldName);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACTIONS)) {
+                } else if (Field.ACTIONS.match(currentFieldName)) {
                     actions = actionRegistry.parseActions(id, parser);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.METADATA)) {
+                } else if (Field.METADATA.match(currentFieldName)) {
                     metatdata = parser.map();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.STATUS)) {
+                } else if (Field.STATUS.match(currentFieldName)) {
                     if (includeStatus) {
                         status = WatchStatus.parse(id, parser, clock);
                     } else {

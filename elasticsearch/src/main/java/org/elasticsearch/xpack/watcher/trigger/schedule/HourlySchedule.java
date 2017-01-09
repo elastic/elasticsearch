@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -101,7 +100,7 @@ public class HourlySchedule extends CronnableSchedule {
                     currentFieldName = parser.currentName();
                 } else if (currentFieldName == null) {
                     throw new ElasticsearchParseException("could not parse [{}] schedule. unexpected token [{}]", TYPE, token);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, MINUTE_FIELD)) {
+                } else if (MINUTE_FIELD.match(currentFieldName)) {
                     if (token.isValue()) {
                         try {
                             minutes.add(DayTimes.parseMinuteValue(parser, token));

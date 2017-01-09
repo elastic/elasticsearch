@@ -5,15 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher.transform.search;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateRequest;
 import org.elasticsearch.xpack.watcher.transform.Transform;
@@ -91,10 +88,7 @@ public class SearchTransform implements Transform {
         return builder;
     }
 
-    public static SearchTransform parse(Logger transformLogger, String watchId,
-                                        XContentParser parser,
-                                        ParseFieldMatcher parseFieldMatcher,
-                                        SearchRequestParsers searchRequestParsers) throws IOException {
+    public static SearchTransform parse(String watchId, XContentParser parser) throws IOException {
         WatcherSearchTemplateRequest request = null;
         TimeValue timeout = null;
         DateTimeZone dynamicNameTimeZone = null;
@@ -104,20 +98,19 @@ public class SearchTransform implements Transform {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.REQUEST)) {
+            } else if (Field.REQUEST.match(currentFieldName)) {
                 try {
-                    request = WatcherSearchTemplateRequest.fromXContent(transformLogger, parser,
-                        ExecutableSearchTransform.DEFAULT_SEARCH_TYPE, parseFieldMatcher, searchRequestParsers);
+                    request = WatcherSearchTemplateRequest.fromXContent(parser, ExecutableSearchTransform.DEFAULT_SEARCH_TYPE);
                 } catch (ElasticsearchParseException srpe) {
                     throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse [{}]", srpe,
                             TYPE, watchId, currentFieldName);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT)) {
+            } else if (Field.TIMEOUT.match(currentFieldName)) {
                 timeout = timeValueMillis(parser.longValue());
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TIMEOUT_HUMAN)) {
+            } else if (Field.TIMEOUT_HUMAN.match(currentFieldName)) {
                 // Parser for human specified timeouts and 2.x compatibility
                 timeout = WatcherDateTimeUtils.parseTimeValue(parser, Field.TIMEOUT_HUMAN.toString());
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.DYNAMIC_NAME_TIMEZONE)) {
+            } else if (Field.DYNAMIC_NAME_TIMEZONE.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dynamicNameTimeZone = DateTimeZone.forID(parser.text());
                 } else {

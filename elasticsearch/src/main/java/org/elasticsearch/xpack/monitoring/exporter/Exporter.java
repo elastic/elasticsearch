@@ -44,10 +44,6 @@ public abstract class Exporter implements AutoCloseable {
         return config;
     }
 
-    public boolean masterOnly() {
-        return false;
-    }
-
     /** Returns true if only one instance of this exporter should be allowed. */
     public boolean isSingleton() {
         return false;

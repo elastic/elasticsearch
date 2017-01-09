@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -110,6 +111,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             }
         });
         clusterService.setClusterStatePublisher((event, ackListener) -> {});
+        clusterService.setDiscoverySettings(new DiscoverySettings(Settings.EMPTY,
+                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         clusterService.start();
 
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
@@ -142,16 +145,11 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         final ClusterBlocks.Builder block = ClusterBlocks.builder().addGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ALL);
         final CountDownLatch latch = new CountDownLatch(1);
 
-        clusterService.submitStateUpdateTask("add blocks to cluster state", new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("add blocks to cluster state", new LocalClusterUpdateTask() {
             @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                 // make sure we increment versions as listener may depend on it for change
-                return ClusterState.builder(currentState).blocks(block).version(currentState.version() + 1).build();
-            }
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                return false;
+                return newState(ClusterState.builder(currentState).blocks(block).version(currentState.version() + 1).build());
             }
 
             @Override

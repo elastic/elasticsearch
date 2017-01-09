@@ -14,14 +14,14 @@ import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.action.role.DeleteRoleResponse;
 import org.elasticsearch.xpack.security.action.role.GetRolesResponse;
 import org.elasticsearch.xpack.security.action.role.PutRoleResponse;
-import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
-import org.elasticsearch.xpack.security.authz.permission.Role;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.client.SecurityClient;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -52,7 +52,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         for (String role : roles) {
             c.preparePutRole(role)
                     .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, new FieldPermissions(), null)
+                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null)
                     .get();
             logger.debug("--> created role [{}]", role);
         }
@@ -61,11 +61,9 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
 
         // warm up the caches on every node
         for (NativeRolesStore rolesStore : internalCluster().getInstances(NativeRolesStore.class)) {
-            for (String role : roles) {
-                PlainActionFuture<Role> future = new PlainActionFuture<>();
-                rolesStore.role(role, future);
-                assertThat(future.actionGet(), notNullValue());
-            }
+            PlainActionFuture<Collection<RoleDescriptor>> future = new PlainActionFuture<>();
+            rolesStore.getRoleDescriptors(roles, future);
+            assertThat(future.actionGet(), notNullValue());
         }
     }
 
@@ -87,7 +85,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         for (String role : toModify) {
             PutRoleResponse response = securityClient.preparePutRole(role)
                     .cluster("none")
-                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, new FieldPermissions(), null)
+                    .addIndices(new String[] { "*" }, new String[] { "ALL" }, null, null, null)
                     .runAs(role)
                     .setRefreshPolicy(randomBoolean() ? IMMEDIATE : NONE)
                     .get();

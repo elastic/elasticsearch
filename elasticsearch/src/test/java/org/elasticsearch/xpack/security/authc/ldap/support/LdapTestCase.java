@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.security.authc.support.DnRoleMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
+import org.elasticsearch.xpack.ssl.VerificationMode;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -91,7 +92,7 @@ public abstract class LdapTestCase extends ESTestCase {
                 .putArray(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
                 .put("group_search.base_dn", groupSearchBase)
                 .put("group_search.scope", scope)
-                .put(HOSTNAME_VERIFICATION_SETTING, false);
+                .put("ssl.verification_mode", VerificationMode.CERTIFICATE);
         if (serverSetType != null) {
             builder.put(LdapLoadBalancing.LOAD_BALANCE_SETTINGS + "." + LdapLoadBalancing.LOAD_BALANCE_TYPE_SETTING,
                     serverSetType.toString());
@@ -100,11 +101,15 @@ public abstract class LdapTestCase extends ESTestCase {
     }
 
     public static Settings buildLdapSettings(String[] ldapUrl, String userTemplate, boolean hostnameVerification) {
-        return Settings.builder()
+        Settings.Builder builder = Settings.builder()
                 .putArray(URLS_SETTING, ldapUrl)
-                .putArray(USER_DN_TEMPLATES_SETTING_KEY, userTemplate)
-                .put(HOSTNAME_VERIFICATION_SETTING, hostnameVerification)
-                .build();
+                .putArray(USER_DN_TEMPLATES_SETTING_KEY, userTemplate);
+        if (randomBoolean()) {
+            builder.put("ssl.verification_mode", hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
+        } else {
+            builder.put(HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
+        }
+        return builder.build();
     }
 
     protected DnRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {

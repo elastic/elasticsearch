@@ -60,7 +60,7 @@ public class RestChangePasswordAction extends BaseRestHandler {
                                     ChangePasswordResponse changePasswordResponse,
                                     XContentBuilder builder)
                                     throws Exception {
-                                return new BytesRestResponse(RestStatus.OK, channel.newBuilder().startObject().endObject());
+                                return new BytesRestResponse(RestStatus.OK, builder.startObject().endObject());
                             }
                         });
     }

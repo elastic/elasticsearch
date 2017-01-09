@@ -1,0 +1,211 @@
+{
+  "template": ".monitoring-logstash-${monitoring.template.version}-*",
+  "settings": {
+    "index.number_of_shards": 1,
+    "index.number_of_replicas": 1,
+    "index.codec": "best_compression"
+  },
+  "mappings": {
+    "_default_": {
+      "_all": {
+        "enabled": false
+      },
+      "properties": {
+        "cluster_uuid": {
+          "type": "keyword"
+        },
+        "timestamp": {
+          "type": "date",
+          "format": "date_time"
+        },
+        "source_node": {
+          "properties": {
+            "uuid": {
+              "type": "keyword"
+            },
+            "host": {
+              "type": "keyword"
+            },
+            "transport_address": {
+              "type": "keyword"
+            },
+            "ip": {
+              "type": "keyword"
+            },
+            "name": {
+              "type": "keyword"
+            },
+            "attributes": {
+              "dynamic": true,
+              "properties": {
+                "data": {
+                  "type": "boolean"
+                },
+                "master": {
+                  "type": "boolean"
+                },
+                "client": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "logstash_stats": {
+      "properties": {
+        "logstash_stats": {
+          "properties": {
+            "logstash": {
+              "properties": {
+                "uuid": {
+                  "type": "keyword"
+                },
+                "name": {
+                  "type": "keyword"
+                },
+                "host": {
+                  "type": "keyword"
+                },
+                "http_address": {
+                  "type": "keyword"
+                },
+                "version": {
+                  "type": "keyword"
+                },
+                "snapshot": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "keyword"
+                },
+                "pipeline": {
+                  "properties": {
+                    "workers": {
+                      "type": "short"
+                    },
+                    "batch_size": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            },
+            "events": {
+              "properties": {
+                "filtered": {
+                  "type": "long"
+                },
+                "in": {
+                  "type": "long"
+                },
+                "out": {
+                  "type": "long"
+                },
+                "duration_in_millis": {
+                  "type": "long"
+                }
+              }
+            },
+            "timestamp": {
+              "type": "date"
+            },
+            "jvm": {
+              "properties": {
+                "uptime_in_millis": {
+                  "type": "long"
+                },
+                "gc": {
+                  "properties": {
+                    "collectors": {
+                      "properties": {
+                        "old": {
+                          "properties": {
+                            "collection_count": {
+                              "type": "long"
+                            },
+                            "collection_time_in_millis": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "young": {
+                          "properties": {
+                            "collection_count": {
+                              "type": "long"
+                            },
+                            "collection_time_in_millis": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "mem": {
+                  "properties": {
+                    "heap_max_in_bytes": {
+                      "type": "long"
+                    },
+                    "heap_used_in_bytes": {
+                      "type": "long"
+                    },
+                    "heap_used_percent": {
+                      "type": "long"
+                    }
+                  }
+                }
+              }
+            },
+            "os": {
+              "properties": {
+                "load": {
+                  "properties": {
+                    "1m": {
+                      "type": "half_float"
+                    },
+                    "5m": {
+                      "type": "half_float"
+                    },
+                    "15m": {
+                      "type": "half_float"
+                    }
+                  }
+                }
+              }
+            },
+            "process": {
+              "properties": {
+                "cpu": {
+                  "properties": {
+                    "percent": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "max_file_descriptors": {
+                  "type": "long"
+                },
+                "open_file_descriptors": {
+                  "type": "long"
+                }
+              }
+            },
+            "reloads": {
+              "properties": {
+                "failures": {
+                  "type": "long"
+                },
+                "successes": {
+                  "type": "long"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

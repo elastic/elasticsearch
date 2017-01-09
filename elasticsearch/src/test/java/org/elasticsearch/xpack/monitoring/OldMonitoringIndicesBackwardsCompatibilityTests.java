@@ -180,8 +180,7 @@ public class OldMonitoringIndicesBackwardsCompatibilityTests extends AbstractOld
         } finally {
             /* Now we stop monitoring and disable the HTTP exporter. We also delete all data and checks multiple times
                 if they have not been re created by some in flight monitoring bulk request */
-            internalCluster().getInstances(AgentService.class).forEach(AgentService::stopCollection);
-            internalCluster().getInstances(AgentService.class).forEach(AgentService::stop);
+            internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::stop);
 
             Settings.Builder settings = Settings.builder().put(MonitoringSettings.INTERVAL.getKey(), "-1");
             if (httpExporter) {

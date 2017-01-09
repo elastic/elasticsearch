@@ -136,7 +136,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         QueryBuilder combined = QueryBuilders.boolQuery()
                 .should(QueryBuilders.termQuery("field2", "value2"))
                 .should(QueryBuilders.termQuery("field1", "value1"))
-                .minimumNumberShouldMatch(1);
+                .minimumShouldMatch(1);
         response = client().filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
                 .prepareSearch("test")
                 .setQuery(randomBoolean() ? combined : QueryBuilders.matchAllQuery())

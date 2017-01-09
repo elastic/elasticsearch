@@ -30,12 +30,12 @@ import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
+import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.junit.Before;
 
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 
@@ -95,15 +95,16 @@ public class SecurityActionFilterTests extends ESTestCase {
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
+        final Role empty = Role.EMPTY;
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            callback.onResponse(Collections.emptyList());
+            callback.onResponse(empty);
             return Void.TYPE;
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
         doReturn(request).when(spy(filter)).unsign(user, "_action", request);
         filter.apply(task, "_action", request, listener, chain);
-        verify(authzService).authorize(authentication, "_action", request, Collections.emptyList(), Collections.emptyList());
+        verify(authzService).authorize(authentication, "_action", request, empty, null);
         verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(ContextPreservingActionListener.class));
     }
 
@@ -123,10 +124,11 @@ public class SecurityActionFilterTests extends ESTestCase {
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq(action), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
+        final Role empty = Role.EMPTY;
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            callback.onResponse(Collections.emptyList());
+            callback.onResponse(empty);
             return Void.TYPE;
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
         doReturn(request).when(spy(filter)).unsign(user, action, request);
@@ -135,7 +137,7 @@ public class SecurityActionFilterTests extends ESTestCase {
             verify(listener).onFailure(isA(IllegalArgumentException.class));
             verifyNoMoreInteractions(authzService, chain);
         } else {
-            verify(authzService).authorize(authentication, action, request, Collections.emptyList(), Collections.emptyList());
+            verify(authzService).authorize(authentication, action, request, empty, null);
             verify(chain).proceed(eq(task), eq(action), eq(request), isA(ContextPreservingActionListener.class));
         }
     }
@@ -157,11 +159,11 @@ public class SecurityActionFilterTests extends ESTestCase {
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            callback.onResponse(Collections.emptyList());
+            callback.onResponse(Role.EMPTY);
             return Void.TYPE;
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
-        doThrow(exception).when(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(Collection.class),
-                any(Collection.class));
+        doThrow(exception).when(authzService).authorize(eq(authentication), eq("_action"), eq(request), any(Role.class),
+                any(Role.class));
         filter.apply(task, "_action", request, listener, chain);
         verify(listener).onFailure(exception);
         verifyNoMoreInteractions(chain);
@@ -182,16 +184,17 @@ public class SecurityActionFilterTests extends ESTestCase {
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(SystemUser.INSTANCE), any(ActionListener.class));
         when(cryptoService.isSigned("signed_scroll_id")).thenReturn(true);
         when(cryptoService.unsignAndVerify("signed_scroll_id")).thenReturn("scroll_id");
+        final Role empty = Role.EMPTY;
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            callback.onResponse(Collections.emptyList());
+            callback.onResponse(empty);
             return Void.TYPE;
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
         filter.apply(task, "_action", request, listener, chain);
         assertThat(request.scrollId(), equalTo("scroll_id"));
 
-        verify(authzService).authorize(authentication, "_action", request, Collections.emptyList(), Collections.emptyList());
+        verify(authzService).authorize(authentication, "_action", request, empty, null);
         verify(chain).proceed(eq(task), eq("_action"), eq(request), isA(ContextPreservingActionListener.class));
     }
 
@@ -214,7 +217,7 @@ public class SecurityActionFilterTests extends ESTestCase {
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            callback.onResponse(Collections.emptyList());
+            callback.onResponse(Role.EMPTY);
             return Void.TYPE;
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
         filter.apply(task, "_action", request, listener, chain);

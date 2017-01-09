@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,12 +31,12 @@ import org.elasticsearch.xpack.XPackClient;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.MonitoringSettings;
-import org.elasticsearch.xpack.monitoring.AgentService;
+import org.elasticsearch.xpack.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
-import org.elasticsearch.xpack.monitoring.client.MonitoringClient;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.file.FileRealm;
 import org.elasticsearch.xpack.security.authc.support.Hasher;
@@ -174,7 +175,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        startCollection();
+        startMonitoringService();
     }
 
     @After
@@ -182,7 +183,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         if (watcherEnabled != null && watcherEnabled) {
             internalCluster().getInstance(WatcherLifeCycleService.class, internalCluster().getMasterName()).stop();
         }
-        stopCollection();
+        stopMonitoringService();
         super.tearDown();
     }
 
@@ -202,36 +203,29 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         return false;
     }
 
-    protected void stopCollection() {
-        for (AgentService agent : internalCluster().getInstances(AgentService.class)) {
-            agent.stopCollection();
-        }
+    protected void startMonitoringService() {
+        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::start);
     }
 
-    protected void startCollection() {
-        for (AgentService agent : internalCluster().getInstances(AgentService.class)) {
-            agent.startCollection();
-        }
+    protected void stopMonitoringService() {
+        internalCluster().getInstances(MonitoringService.class).forEach(MonitoringService::stop);
     }
 
     protected void wipeMonitoringIndices() throws Exception {
         CountDown retries = new CountDown(3);
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    boolean exist = client().admin().indices().prepareExists(MONITORING_INDICES_PREFIX + "*")
-                            .get().isExists();
-                    if (exist) {
-                        deleteMonitoringIndices();
-                    } else {
-                        retries.countDown();
-                    }
-                } catch (IndexNotFoundException e) {
+        assertBusy(() -> {
+            try {
+                boolean exist = client().admin().indices().prepareExists(MONITORING_INDICES_PREFIX + "*")
+                        .get().isExists();
+                if (exist) {
+                    deleteMonitoringIndices();
+                } else {
                     retries.countDown();
                 }
-                assertThat(retries.isCountedDown(), is(true));
+            } catch (IndexNotFoundException e) {
+                retries.countDown();
             }
+            assertThat(retries.isCountedDown(), is(true));
         });
     }
 
@@ -362,6 +356,10 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         }
 
         return parent + "." + field;
+    }
+
+    protected void disableMonitoringInterval() {
+        updateMonitoringInterval(TimeValue.MINUS_ONE.millis(), TimeUnit.MILLISECONDS);
     }
 
     protected void updateMonitoringInterval(long value, TimeUnit timeUnit) {

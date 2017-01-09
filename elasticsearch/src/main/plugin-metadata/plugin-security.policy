@@ -2,9 +2,8 @@ grant {
   // needed because of problems in unbound LDAP library
   permission java.util.PropertyPermission "*", "read,write";
 
-  // needed to set expert SSL options, etc
+  // required to configure the custom mailcap for watcher
   permission java.lang.RuntimePermission "setFactory";
-  permission javax.net.ssl.SSLPermission "setHostnameVerifier";
 
   // needed when sending emails for javax.activation
   // otherwise a classnotfound exception is thrown due to trying

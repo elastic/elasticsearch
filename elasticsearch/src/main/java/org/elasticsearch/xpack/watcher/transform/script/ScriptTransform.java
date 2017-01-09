@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.transform.script;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
@@ -56,7 +55,7 @@ public class ScriptTransform implements Transform {
 
     public static ScriptTransform parse(String watchId, XContentParser parser) throws IOException {
         try {
-            Script script = Script.parse(parser, ParseFieldMatcher.STRICT);
+            Script script = Script.parse(parser);
             return new ScriptTransform(script);
         } catch (ElasticsearchParseException pe) {
             throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. failed to parse script", pe, TYPE,

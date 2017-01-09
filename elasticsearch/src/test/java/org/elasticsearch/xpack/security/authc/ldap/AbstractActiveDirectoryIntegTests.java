@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.VerificationMode;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -39,10 +40,19 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
         if (useGlobalSSL) {
             builder.put("xpack.ssl.keystore.path", keystore)
                     .put("xpack.ssl.keystore.password", "changeit");
+
+            // fake realm to load config with certificate verification mode
+            builder.put("xpack.security.authc.realms.bar.ssl.keystore.path", keystore);
+            builder.put("xpack.security.authc.realms.bar.ssl.keystore.password", "changeit");
+            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         } else {
-            // fake a realm so ssl will get loaded
+            // fake realms so ssl will get loaded
             builder.put("xpack.security.authc.realms.foo.ssl.truststore.path", keystore);
             builder.put("xpack.security.authc.realms.foo.ssl.truststore.password", "changeit");
+            builder.put("xpack.security.authc.realms.foo.ssl.verification_mode", VerificationMode.FULL);
+            builder.put("xpack.security.authc.realms.bar.ssl.truststore.path", keystore);
+            builder.put("xpack.security.authc.realms.bar.ssl.truststore.password", "changeit");
+            builder.put("xpack.security.authc.realms.bar.ssl.verification_mode", VerificationMode.CERTIFICATE);
         }
         globalSettings = builder.build();
         Environment environment = new Environment(globalSettings);
@@ -55,8 +65,12 @@ public class AbstractActiveDirectoryIntegTests extends ESTestCase {
                 .putArray(ActiveDirectorySessionFactory.URLS_SETTING, ldapUrl)
                 .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, adDomainName)
                 .put(ActiveDirectorySessionFactory.AD_USER_SEARCH_BASEDN_SETTING, userSearchDN)
-                .put(ActiveDirectorySessionFactory.AD_USER_SEARCH_SCOPE_SETTING, scope)
-                .put(ActiveDirectorySessionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
+                .put(ActiveDirectorySessionFactory.AD_USER_SEARCH_SCOPE_SETTING, scope);
+        if (randomBoolean()) {
+            builder.put("ssl.verification_mode", hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
+        } else {
+            builder.put(ActiveDirectorySessionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
+        }
         if (useGlobalSSL == false) {
             builder.put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
                     .put("ssl.truststore.password", "changeit");

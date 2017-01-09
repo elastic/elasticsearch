@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule.support;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -112,7 +111,7 @@ public class WeekTimes implements Times {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, DAY_FIELD)) {
+            } else if (DAY_FIELD.match(currentFieldName)) {
                 if (token.isValue()) {
                     daysSet.add(parseDayValue(parser, token));
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -123,7 +122,7 @@ public class WeekTimes implements Times {
                     throw new ElasticsearchParseException("invalid week day value for [{}] field. expected string/number value or an " +
                             "array of string/number values, but found [{}]", currentFieldName, token);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TIME_FIELD)) {
+            } else if (TIME_FIELD.match(currentFieldName)) {
                 if (token != XContentParser.Token.START_ARRAY) {
                     try {
                         timesSet.add(DayTimes.parse(parser, token));

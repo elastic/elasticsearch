@@ -33,28 +33,30 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.common.GroupedActionListener;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
+import org.elasticsearch.xpack.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordAction;
+import org.elasticsearch.xpack.security.action.user.UserRequest;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationFailureHandler;
+import org.elasticsearch.xpack.security.authc.esnative.NativeRealm;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.security.authz.permission.ClusterPermission;
-import org.elasticsearch.xpack.security.authz.permission.DefaultRole;
-import org.elasticsearch.xpack.security.authz.permission.GlobalPermission;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.authz.permission.RunAsPermission;
-import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
 import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.support.Automatons;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -72,6 +74,7 @@ public class AuthorizationService extends AbstractComponent {
     public static final String ORIGINATING_ACTION_KEY = "_originating_action_name";
 
     private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
+    private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(ChangePasswordAction.NAME, AuthenticateAction.NAME);
 
     private final ClusterService clusterService;
     private final CompositeRolesStore rolesStore;
@@ -80,6 +83,7 @@ public class AuthorizationService extends AbstractComponent {
     private final AuthenticationFailureHandler authcFailureHandler;
     private final ThreadContext threadContext;
     private final AnonymousUser anonymousUser;
+    private final FieldPermissionsCache fieldPermissionsCache;
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -96,6 +100,7 @@ public class AuthorizationService extends AbstractComponent {
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
+        this.fieldPermissionsCache = new FieldPermissionsCache(settings);
     }
 
     /**
@@ -108,8 +113,8 @@ public class AuthorizationService extends AbstractComponent {
      * @param request         The request
      * @throws ElasticsearchSecurityException   If the given user is no allowed to execute the given request
      */
-    public void authorize(Authentication authentication, String action, TransportRequest request, Collection<Role> userRoles,
-                          Collection<Role> runAsRoles) throws ElasticsearchSecurityException {
+    public void authorize(Authentication authentication, String action, TransportRequest request, Role userRole,
+                          Role runAsRole) throws ElasticsearchSecurityException {
         final TransportRequest originalRequest = request;
         if (request instanceof ConcreteShardRequest) {
             request = ((ConcreteShardRequest<?>) request).getRequest();
@@ -126,38 +131,20 @@ public class AuthorizationService extends AbstractComponent {
             }
             throw denial(authentication, action, request);
         }
-        Collection<Role> roles = userRoles;
-        // get the roles of the authenticated user, which may be different than the effective
-        GlobalPermission permission = permission(roles);
 
-        final boolean isRunAs = authentication.isRunAs();
-        // permission can be empty as it might be that the user's role is unknown
-        if (permission.isEmpty()) {
-            if (isRunAs) {
-                // the request is a run as request so we should call the specific audit event for a denied run as attempt
-                throw denyRunAs(authentication, action, request);
-            } else {
-                throw denial(authentication, action, request);
-            }
-        }
+        // get the roles of the authenticated user, which may be different than the effective
+        Role permission = userRole;
+
         // check if the request is a run as request
+        final boolean isRunAs = authentication.isRunAs();
         if (isRunAs) {
             // if we are running as a user we looked up then the authentication must contain a lookedUpBy. If it doesn't then this user
             // doesn't really exist but the authc service allowed it through to avoid leaking users that exist in the system
             if (authentication.getLookedUpBy() == null) {
                 throw denyRunAs(authentication, action, request);
-            }
-
-            // first we must authorize for the RUN_AS action
-            RunAsPermission runAs = permission.runAs();
-            if (runAs != null && runAs.check(authentication.getRunAsUser().principal())) {
+            } else if (permission.runAs().check(authentication.getRunAsUser().principal())) {
                 grantRunAs(authentication, action, request);
-                roles = runAsRoles;
-                permission = permission(roles);
-                // permission can be empty as it might be that the run as user's role is unknown
-                if (permission.isEmpty()) {
-                    throw denial(authentication, action, request);
-                }
+                permission = runAsRole;
             } else {
                 throw denyRunAs(authentication, action, request);
             }
@@ -166,8 +153,7 @@ public class AuthorizationService extends AbstractComponent {
         // first, we'll check if the action is a cluster action. If it is, we'll only check it against the cluster permissions
         if (ClusterPrivilege.ACTION_MATCHER.test(action)) {
             ClusterPermission cluster = permission.cluster();
-            // we use the effectiveUser for permission checking since we are running as a user!
-            if (cluster != null && cluster.check(action, request, authentication)) {
+            if (cluster.check(action) || checkSameUserPermissions(action, request, authentication)) {
                 setIndicesAccessControl(IndicesAccessControl.ALLOW_ALL);
                 grant(authentication, action, request);
                 return;
@@ -212,12 +198,12 @@ public class AuthorizationService extends AbstractComponent {
             throw denial(authentication, action, request);
         }
 
-        if (permission.indices() == null || permission.indices().isEmpty()) {
+        if (permission.indices().check(action) == false) {
             throw denial(authentication, action, request);
         }
 
         MetaData metaData = clusterService.state().metaData();
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getRunAsUser(), roles, action, metaData);
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(authentication.getRunAsUser(), permission, action, metaData);
         Set<String> indexNames = resolveIndexNames(authentication, action, request, metaData, authorizedIndices);
         assert !indexNames.isEmpty() : "every indices request needs to have its indices set thus the resolved indices must not be empty";
 
@@ -229,14 +215,14 @@ public class AuthorizationService extends AbstractComponent {
             return;
         }
 
-        IndicesAccessControl indicesAccessControl = permission.authorize(action, indexNames, metaData);
+        IndicesAccessControl indicesAccessControl = permission.authorize(action, indexNames, metaData, fieldPermissionsCache);
         if (!indicesAccessControl.isGranted()) {
             throw denial(authentication, action, request);
         } else if (indicesAccessControl.getIndexPermissions(SecurityTemplateService.SECURITY_INDEX_NAME) != null
                 && indicesAccessControl.getIndexPermissions(SecurityTemplateService.SECURITY_INDEX_NAME).isGranted()
                 && XPackUser.is(authentication.getRunAsUser()) == false
                 && MONITOR_INDEX_PREDICATE.test(action) == false
-                && Arrays.binarySearch(authentication.getRunAsUser().roles(), SuperuserRole.NAME) < 0) {
+                && Arrays.binarySearch(authentication.getRunAsUser().roles(), ReservedRolesStore.SUPERUSER_ROLE.name()) < 0) {
             // only the XPackUser is allowed to work with this index, but we should allow indices monitoring actions through for debugging
             // purposes. These monitor requests also sometimes resolve indices concretely and then requests them
             logger.debug("user [{}] attempted to directly perform [{}] against the security index [{}]",
@@ -255,7 +241,7 @@ public class AuthorizationService extends AbstractComponent {
                 for (Alias alias : aliases) {
                     aliasesAndIndices.add(alias.name());
                 }
-                indicesAccessControl = permission.authorize("indices:admin/aliases", aliasesAndIndices, metaData);
+                indicesAccessControl = permission.authorize("indices:admin/aliases", aliasesAndIndices, metaData, fieldPermissionsCache);
                 if (!indicesAccessControl.isGranted()) {
                     throw denial(authentication, "indices:admin/aliases", request);
                 }
@@ -290,16 +276,7 @@ public class AuthorizationService extends AbstractComponent {
         }
     }
 
-    // pkg-private for testing
-    GlobalPermission permission(Collection<Role> roles) {
-        GlobalPermission.Compound.Builder rolesBuilder = GlobalPermission.Compound.builder();
-        for (Role role : roles) {
-            rolesBuilder.add(role);
-        }
-        return rolesBuilder.build();
-    }
-
-    public void roles(User user, ActionListener<Collection<Role>> roleActionListener) {
+    public void roles(User user, ActionListener<Role> roleActionListener) {
         // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
         // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
         // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
@@ -309,8 +286,8 @@ public class AuthorizationService extends AbstractComponent {
                     " roles");
         }
         if (XPackUser.is(user)) {
-            assert XPackUser.INSTANCE.roles().length == 1 && SuperuserRole.NAME.equals(XPackUser.INSTANCE.roles()[0]);
-            roleActionListener.onResponse(Collections.singleton(SuperuserRole.INSTANCE));
+            assert XPackUser.INSTANCE.roles().length == 1 && ReservedRolesStore.SUPERUSER_ROLE.name().equals(XPackUser.INSTANCE.roles()[0]);
+            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
             return;
         }
 
@@ -323,15 +300,12 @@ public class AuthorizationService extends AbstractComponent {
             Collections.addAll(roleNames, anonymousUser.roles());
         }
 
-        final Collection<Role> defaultRoles = Collections.singletonList(DefaultRole.INSTANCE);
         if (roleNames.isEmpty()) {
-            roleActionListener.onResponse(defaultRoles);
+            roleActionListener.onResponse(Role.EMPTY);
+        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE.name())) {
+            roleActionListener.onResponse(ReservedRolesStore.SUPERUSER_ROLE);
         } else {
-            final GroupedActionListener<Role> listener = new GroupedActionListener<>(roleActionListener, roleNames.size(),
-                    defaultRoles);
-            for (String roleName : roleNames) {
-                rolesStore.roles(roleName, listener);
-            }
+            rolesStore.roles(roleNames, fieldPermissionsCache, roleActionListener);
         }
     }
 
@@ -365,6 +339,49 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals(SearchTransportService.FREE_CONTEXT_SCROLL_ACTION_NAME) ||
                 action.equals(ClearScrollAction.NAME) ||
                 action.equals(SearchTransportService.CLEAR_SCROLL_CONTEXTS_ACTION_NAME);
+    }
+
+    static boolean checkSameUserPermissions(String action, TransportRequest request, Authentication authentication) {
+        final boolean actionAllowed = SAME_USER_PRIVILEGE.test(action);
+        if (actionAllowed) {
+            if (request instanceof UserRequest == false) {
+                assert false : "right now only a user request should be allowed";
+                return false;
+            }
+            UserRequest userRequest = (UserRequest) request;
+            String[] usernames = userRequest.usernames();
+            if (usernames == null || usernames.length != 1 || usernames[0] == null) {
+                assert false : "this role should only be used for actions to apply to a single user";
+                return false;
+            }
+            final String username = usernames[0];
+            final boolean sameUsername = authentication.getRunAsUser().principal().equals(username);
+            if (sameUsername && ChangePasswordAction.NAME.equals(action)) {
+                return checkChangePasswordAction(authentication);
+            }
+
+            assert AuthenticateAction.NAME.equals(action) || sameUsername == false;
+            return sameUsername;
+        }
+        return false;
+    }
+
+    private static boolean checkChangePasswordAction(Authentication authentication) {
+        // we need to verify that this user was authenticated by or looked up by a realm type that support password changes
+        // otherwise we open ourselves up to issues where a user in a different realm could be created with the same username
+        // and do malicious things
+        final boolean isRunAs = authentication.isRunAs();
+        final String realmType;
+        if (isRunAs) {
+            realmType = authentication.getLookedUpBy().getType();
+        } else {
+            realmType = authentication.getAuthenticatedBy().getType();
+        }
+
+        assert realmType != null;
+        // ensure the user was authenticated by a realm that we can change a password for. The native realm is an internal realm and
+        // right now only one can exist in the realm configuration - if this changes we should update this check
+        return ReservedRealm.TYPE.equals(realmType) || NativeRealm.TYPE.equals(realmType);
     }
 
     private ElasticsearchSecurityException denial(Authentication authentication, String action, TransportRequest request) {

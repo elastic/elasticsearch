@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.common.http;
 
-import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.common.http.auth.HttpAuthRegistry;
 import org.elasticsearch.xpack.ssl.SSLService;
 import org.junit.After;
 import org.junit.Before;
+
+import java.net.SocketTimeoutException;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
@@ -47,7 +49,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 .build();
 
         long start = System.nanoTime();
-        expectThrows(ElasticsearchTimeoutException.class, () ->  httpClient.execute(request));
+        expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
         TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
         logger.info("http connection timed out after {}", timeout.format());
 
@@ -69,7 +71,7 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 .build();
 
         long start = System.nanoTime();
-        expectThrows(ElasticsearchTimeoutException.class, () ->  httpClient.execute(request));
+        expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
         TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
         logger.info("http connection timed out after {}", timeout.format());
 
@@ -86,18 +88,18 @@ public class HttpReadTimeoutTests extends ESTestCase {
                 , mock(HttpAuthRegistry.class), new SSLService(environment.settings(), environment));
 
         HttpRequest request = HttpRequest.builder("localhost", webServer.getPort())
-                .readTimeout(TimeValue.timeValueSeconds(5))
+                .readTimeout(TimeValue.timeValueSeconds(3))
                 .method(HttpMethod.POST)
                 .path("/")
                 .build();
 
         long start = System.nanoTime();
-        expectThrows(ElasticsearchTimeoutException.class, () ->  httpClient.execute(request));
+        expectThrows(SocketTimeoutException.class, () ->  httpClient.execute(request));
         TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
         logger.info("http connection timed out after {}", timeout.format());
 
-        // it's supposed to be 5, but we'll give it an error margin of 2 seconds
-        assertThat(timeout.seconds(), greaterThan(3L));
-        assertThat(timeout.seconds(), lessThan(7L));
+        // it's supposed to be 3, but we'll give it an error margin of 2 seconds
+        assertThat(timeout.seconds(), greaterThan(1L));
+        assertThat(timeout.seconds(), lessThan(5L));
     }
 }

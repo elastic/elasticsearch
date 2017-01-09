@@ -71,7 +71,7 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        final long nowInMillis = randomPositiveLong();
+        final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, null, null, mapperService, null,
                 null, xContentRegistry(), client, null, () -> nowInMillis);
         QueryShardContext queryShardContext = spy(realQueryShardContext);

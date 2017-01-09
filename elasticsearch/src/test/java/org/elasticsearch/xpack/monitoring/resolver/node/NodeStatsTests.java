@@ -40,12 +40,11 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
 
     @After
     public void cleanup() throws Exception {
-        updateMonitoringInterval(-1, TimeUnit.SECONDS);
+        disableMonitoringInterval();
         wipeMonitoringIndices();
     }
 
     public void testNodeStats() throws Exception {
-        logger.debug("--> creating some indices for future node stats");
         final int numDocs = between(50, 150);
         for (int i = 0; i < numDocs; i++) {
             client().prepareIndex("test", "foo").setSource("value", randomInt()).get();
@@ -59,11 +58,8 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
 
         awaitMonitoringDocsCount(greaterThan(0L), NodeStatsResolver.TYPE);
 
-        logger.debug("--> searching for monitoring documents of type [{}]", NodeStatsResolver.TYPE);
         SearchResponse response = client().prepareSearch().setTypes(NodeStatsResolver.TYPE).get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
-
-        logger.debug("--> checking that every document contains the expected fields");
 
         for (SearchHit searchHit : response.getHits().getHits()) {
             Map<String, Object> fields = searchHit.sourceAsMap();
@@ -71,20 +67,25 @@ public class NodeStatsTests extends MonitoringIntegTestCase {
             for (String filter : nodeStatsFilters(watcherEnabled)) {
                 if (Constants.WINDOWS) {
                     // load average is unavailable on Windows
-                    if ("node_stats.os.cpu.load_average.1m".equals(filter)) {
+                    if (filter.startsWith("node_stats.os.cpu.load_average")) {
                         continue;
                     }
                 }
-                if (filter.startsWith("node_stats.fs")) {
-                    // NORELEASE what is going on here?
+
+                // fs and cgroup stats are only reported on Linux, but it's acceptable for _node/stats to report them as null if the OS is
+                //  misconfigured or not reporting them for some reason (e.g., older kernel)
+                if (filter.startsWith("node_stats.fs") || filter.startsWith("node_stats.os.cgroup")) {
+                    continue;
+                }
+
+                // load average is unavailable on macOS for 5m and 15m (but we get 1m), but it's also possible on Linux too
+                if ("node_stats.os.cpu.load_average.5m".equals(filter) || "node_stats.os.cpu.load_average.15m".equals(filter)) {
                     continue;
                 }
 
                 assertContains(filter, fields);
             }
         }
-
-        logger.debug("--> node stats successfully collected");
     }
 
     /**

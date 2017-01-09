@@ -38,6 +38,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.ssl.SSLService;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -119,9 +120,10 @@ public class Monitoring implements ActionPlugin {
         collectors.add(new ShardsCollector(settings, clusterService, monitoringSettings, licenseState));
         collectors.add(new NodeStatsCollector(settings, clusterService, monitoringSettings, licenseState, client));
         collectors.add(new IndexRecoveryCollector(settings, clusterService, monitoringSettings, licenseState, client));
-        final AgentService agentService = new AgentService(settings, clusterSettings, collectors, exporters);
+        final MonitoringService monitoringService =
+                new MonitoringService(settings, clusterSettings, threadPool, collectors, exporters);
 
-        return Arrays.asList(agentService, monitoringSettings, exporters, cleanerService);
+        return Arrays.asList(monitoringService, monitoringSettings, exporters, cleanerService);
     }
 
     @Override

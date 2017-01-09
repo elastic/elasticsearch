@@ -5,6 +5,11 @@
  */
 package org.elasticsearch.xpack.security;
 
+import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.Action;
@@ -32,20 +37,23 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTransportClient;
+import org.elasticsearch.xpack.security.authc.esnative.NativeRealmMigrator;
+import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.elasticsearch.xpack.template.TemplateUtils;
 import org.junit.After;
 import org.junit.Before;
-
-import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList;
+import org.mockito.Mockito;
 
 import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_INDEX_NAME;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_INDEX_TEMPLATE_VERSION_PATTERN;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.SECURITY_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.security.SecurityTemplateService.UpgradeState;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingVersionMatches;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.securityTemplateExistsAndVersionMatches;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -54,6 +62,7 @@ public class SecurityTemplateServiceTests extends ESTestCase {
     private TransportClient transportClient;
     private ThreadPool threadPool;
     private ClusterService clusterService;
+    private NativeRealmMigrator nativeRealmMigrator;
     SecurityTemplateService securityTemplateService;
     private static final ClusterState EMPTY_CLUSTER_STATE =
             new ClusterState.Builder(new ClusterName("test-cluster")).build();
@@ -82,8 +91,16 @@ public class SecurityTemplateServiceTests extends ESTestCase {
                 listeners.add(listener);
             }
         }
+
+        nativeRealmMigrator = mock(NativeRealmMigrator.class);
+        Mockito.doAnswer(invocation -> {
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[1];
+            listener.onResponse(false);
+            return null;
+        }).when(nativeRealmMigrator).performUpgrade(any(Version.class), any(ActionListener.class));
+
         client = new IClient(transportClient);
-        securityTemplateService = new SecurityTemplateService(Settings.EMPTY, client);
+        securityTemplateService = new SecurityTemplateService(Settings.EMPTY, client, nativeRealmMigrator);
         listeners = new CopyOnWriteArrayList<>();
     }
 
@@ -145,7 +162,7 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         // now check what happens if we get back an unacknowledged response
         try {
             listeners.get(0).onResponse(new TestPutIndexTemplateResponse());
-            fail("this hould have failed because request was not acknowledged");
+            fail("this should have failed because request was not acknowledged");
         } catch (ElasticsearchException e) {
         }
         assertFalse(securityTemplateService.updateMappingPending.get());
@@ -181,16 +198,38 @@ public class SecurityTemplateServiceTests extends ESTestCase {
 
     public void testOutdatedMappingIsIdentifiedAsNotUpToDate() throws IOException {
         String templateString = "/wrong-version-" + SECURITY_TEMPLATE_NAME + ".json";
+        final Version wrongVersion = Version.fromString("4.0.0");
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(templateString);
         assertFalse(SecurityTemplateService.securityIndexMappingUpToDate(clusterStateBuilder.build(), logger));
-        checkMappingUpdateWorkCorrectly(clusterStateBuilder);
+        assertThat(SecurityTemplateService.oldestSecurityIndexMappingVersion(clusterStateBuilder.build(), logger), equalTo(wrongVersion));
+        checkMappingUpdateWorkCorrectly(clusterStateBuilder, wrongVersion);
     }
 
-    private void checkMappingUpdateWorkCorrectly(ClusterState.Builder clusterStateBuilder) {
+    private void checkMappingUpdateWorkCorrectly(ClusterState.Builder clusterStateBuilder, Version expectedOldVersion) {
+        AtomicReference<Version> migratorVersionRef = new AtomicReference<>(null);
+        AtomicReference<ActionListener<Boolean>> migratorListenerRef = new AtomicReference<>(null);
+        Mockito.doAnswer(invocation -> {
+            migratorVersionRef.set((Version) invocation.getArguments()[0]);
+            migratorListenerRef.set((ActionListener<Boolean>) invocation.getArguments()[1]);
+            return null;
+        }).when(nativeRealmMigrator).performUpgrade(any(Version.class), any(ActionListener.class));
+
+        assertThat(securityTemplateService.upgradeDataState.get(), equalTo(UpgradeState.NOT_STARTED));
+
         securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
+
+        assertThat(migratorVersionRef.get(), equalTo(expectedOldVersion));
+        assertThat(migratorListenerRef.get(), notNullValue());
+        assertThat(listeners.size(), equalTo(0)); // migrator has not responded yet
+        assertThat(securityTemplateService.updateMappingPending.get(), equalTo(false));
+        assertThat(securityTemplateService.upgradeDataState.get(), equalTo(UpgradeState.IN_PROGRESS));
+
+        migratorListenerRef.get().onResponse(true);
+
         assertThat(listeners.size(), equalTo(3)); // we have three types in the mapping
         assertTrue(securityTemplateService.updateMappingPending.get());
+        assertThat(securityTemplateService.upgradeDataState.get(), equalTo(UpgradeState.COMPLETE));
 
         // if we do it again this should not send an update
         ActionListener listener = listeners.get(0);
@@ -254,7 +293,9 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         String templateString = "/missing-version-" + SECURITY_TEMPLATE_NAME + ".json";
         ClusterState.Builder clusterStateBuilder = createClusterStateWithMapping(templateString);
         assertFalse(SecurityTemplateService.securityIndexMappingUpToDate(clusterStateBuilder.build(), logger));
-        checkMappingUpdateWorkCorrectly(clusterStateBuilder);
+        assertThat(SecurityTemplateService.oldestSecurityIndexMappingVersion(clusterStateBuilder.build(), logger),
+                equalTo(Version.V_2_3_0));
+        checkMappingUpdateWorkCorrectly(clusterStateBuilder, Version.V_2_3_0);
     }
 
     public void testMissingIndexIsIdentifiedAsUpToDate() throws IOException {
@@ -267,6 +308,7 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         assertTrue(SecurityTemplateService.securityIndexMappingUpToDate(clusterStateBuilder.build(), logger));
         securityTemplateService.clusterChanged(new ClusterChangedEvent("test-event", clusterStateBuilder.build()
                 , EMPTY_CLUSTER_STATE));
+        assertThat(SecurityTemplateService.oldestSecurityIndexMappingVersion(clusterStateBuilder.build(), logger), nullValue());
         assertThat(listeners.size(), equalTo(0));
     }
 
@@ -274,13 +316,13 @@ public class SecurityTemplateServiceTests extends ESTestCase {
         IndexMetaData.Builder indexMetaData = createIndexMetadata(templateString);
         ImmutableOpenMap.Builder mapBuilder = ImmutableOpenMap.builder();
         mapBuilder.put(SECURITY_INDEX_NAME, indexMetaData.build());
-        MetaData.Builder metaDataBuidler = new MetaData.Builder();
-        metaDataBuidler.indices(mapBuilder.build());
+        MetaData.Builder metaDataBuilder = new MetaData.Builder();
+        metaDataBuilder.indices(mapBuilder.build());
         String mappingString = "/" + SECURITY_TEMPLATE_NAME + ".json";
         IndexTemplateMetaData.Builder templateMeta = getIndexTemplateMetaData(mappingString);
-        metaDataBuidler.put(templateMeta);
+        metaDataBuilder.put(templateMeta);
         ClusterState.Builder clusterStateBuilder = ClusterState.builder(state());
-        clusterStateBuilder.metaData(metaDataBuidler.build());
+        clusterStateBuilder.metaData(metaDataBuilder.build()).routingTable(SecurityTestUtils.buildSecurityIndexRoutingTable());
         return clusterStateBuilder;
     }
 

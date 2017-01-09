@@ -66,6 +66,8 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
             "node_stats.fs.total.free_in_bytes",
             "node_stats.fs.total.available_in_bytes",
             "node_stats.os.cpu.load_average.1m",
+            "node_stats.os.cpu.load_average.5m",
+            "node_stats.os.cpu.load_average.15m",
             "node_stats.process.cpu.percent",
             "node_stats.process.max_file_descriptors",
             "node_stats.process.open_file_descriptors",
@@ -99,6 +101,15 @@ public class NodeStatsResolver extends MonitoringIndexNameResolver.Timestamped<N
             "node_stats.thread_pool.watcher.threads",
             "node_stats.thread_pool.watcher.queue",
             "node_stats.thread_pool.watcher.rejected",
+            // Cgroup data (generally Linux only and only sometimes on those systems)
+            "node_stats.os.cgroup.cpuacct.control_group",
+            "node_stats.os.cgroup.cpuacct.usage_nanos",
+            "node_stats.os.cgroup.cpu.control_group",
+            "node_stats.os.cgroup.cpu.cfs_period_micros",
+            "node_stats.os.cgroup.cpu.cfs_quota_micros",
+            "node_stats.os.cgroup.cpu.stat.number_of_elapsed_periods",
+            "node_stats.os.cgroup.cpu.stat.number_of_times_throttled",
+            "node_stats.os.cgroup.cpu.stat.time_throttled_nanos",
             // Linux Only (at least for now)
             // Disk Info
             "node_stats.fs.data.spins",

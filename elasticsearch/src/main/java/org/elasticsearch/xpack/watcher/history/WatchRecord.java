@@ -10,7 +10,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.actions.ActionWrapper;
@@ -30,7 +30,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class WatchRecord implements ToXContent {
+public abstract class WatchRecord implements ToXContentObject {
 
     protected final Wid id;
     protected final TriggerEvent triggerEvent;
@@ -117,7 +117,7 @@ public abstract class WatchRecord implements ToXContent {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Field.WATCH_ID.getPreferredName(), id.watchId());
         builder.field(Field.STATE.getPreferredName(), state.id());

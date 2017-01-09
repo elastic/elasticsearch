@@ -51,7 +51,7 @@ gradle clean assemble
 gradle clean install
 -----
 
-- If you don't work on the UI side of x-plugins, you can force gradle to skip building kibana by adding
-  `xpack.kibana.build=false` to your `~/.gradle/gradle.properties`. Alternatively you add `-Pxpack.kibana.build=false`
+- If you don't work on the UI/Logstash side of x-plugins, you can force gradle to skip building kibana and/or Logstash by adding
+  `xpack.kibana.build=false`/`xpack.logstash.build=false` to your `~/.gradle/gradle.properties`. Alternatively you add `-Pxpack.kibana.build=false` or `-Pxpack.logstash.build=false`
   on the command line if you only want to do this on individual builds (or `-Pxpack.kibana.build=true` if you need to
   override having added this to your `gradle.properties`).

@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.watcher.support;
 
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.joda.time.DateTime;
 
 import java.io.IOException;
@@ -16,18 +16,15 @@ import java.lang.reflect.Array;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils.formatDate;
 
 public final class WatcherUtils {
 
-
     private WatcherUtils() {
     }
 
-    public static Map<String, Object> responseToData(ToXContent response) throws IOException {
-        XContentBuilder builder = jsonBuilder().startObject().value(response).endObject();
-        return XContentHelper.convertToMap(builder.bytes(), false).v2();
+    public static Map<String, Object> responseToData(ToXContentObject response) throws IOException {
+        return XContentHelper.convertToMap(XContentHelper.toXContent(response, XContentType.JSON), false).v2();
     }
 
     public static Map<String, Object> flattenModel(Map<String, Object> map) {

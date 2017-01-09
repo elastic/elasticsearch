@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -101,7 +100,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.PASSWORD)) {
+                } else if (User.Fields.PASSWORD.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         String password = parser.text();
                         char[] passwordChars = password.toCharArray();
@@ -111,7 +110,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.PASSWORD_HASH)) {
+                } else if (User.Fields.PASSWORD_HASH.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         char[] passwordChars = parser.text().toCharArray();
                         passwordHash(passwordChars);
@@ -119,41 +118,41 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.ROLES)) {
+                } else if (User.Fields.ROLES.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         roles(Strings.commaDelimitedListToStringArray(parser.text()));
                     } else {
                         roles(XContentUtils.readStringArray(parser, false));
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.FULL_NAME)) {
+                } else if (User.Fields.FULL_NAME.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         fullName(parser.text());
                     } else if (token != XContentParser.Token.VALUE_NULL) {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.EMAIL)) {
+                } else if (User.Fields.EMAIL.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         email(parser.text());
                     } else if (token != XContentParser.Token.VALUE_NULL) {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type string, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.METADATA)) {
+                } else if (User.Fields.METADATA.match(currentFieldName)) {
                     if (token == XContentParser.Token.START_OBJECT) {
                         metadata(parser.map());
                     } else {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type object, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.ENABLED)) {
+                } else if (User.Fields.ENABLED.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         enabled(parser.booleanValue());
                     } else {
                         throw new ElasticsearchParseException(
                                 "expected field [{}] to be of type boolean, but found [{}] instead", currentFieldName, token);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.USERNAME)) {
+                } else if (User.Fields.USERNAME.match(currentFieldName)) {
                     if (token == Token.VALUE_STRING) {
                         if (username.equals(parser.text()) == false) {
                             throw new IllegalArgumentException("[username] in source does not match the username provided [" +

@@ -5,58 +5,230 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
-import org.elasticsearch.action.ingest.DeletePipelineRequest;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.xpack.monitoring.exporter.AbstractExporterTemplateTestCase;
+import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.monitoring.MonitoredSystem;
+import org.elasticsearch.xpack.monitoring.MonitoringSettings;
+import org.elasticsearch.xpack.monitoring.collector.Collector;
+import org.elasticsearch.xpack.monitoring.collector.cluster.ClusterStatsCollector;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.Exporters;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringDoc;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
+import org.elasticsearch.xpack.security.InternalClient;
 
-import java.util.Collections;
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.notNullValue;
 
-public class LocalExporterTemplateTests extends AbstractExporterTemplateTestCase {
+@ESIntegTestCase.ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
+public class LocalExporterTemplateTests extends MonitoringIntegTestCase {
+
+    private final Settings localExporter = Settings.builder().put("type", LocalExporter.TYPE).build();
 
     @Override
-    protected Settings exporterSettings() {
-        return Settings.builder().put("type", LocalExporter.TYPE).build();
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings.Builder settings = Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(MonitoringSettings.INTERVAL.getKey(), "-1")
+                .put("xpack.monitoring.exporters._exporter.type", LocalExporter.TYPE);
+        return settings.build();
     }
 
-    @Override
-    protected void deleteTemplates() throws Exception {
-        waitNoPendingTasksOnAll();
-        cluster().wipeAllTemplates(Collections.emptySet());
+    public void testCreateWhenExistingTemplatesAreOld() throws Exception {
+        internalCluster().startNode();
+
+        // put an old variant of the monitoring-data-# index so that types need to be added
+        final CreateIndexRequest request = new CreateIndexRequest(MonitoringTemplateUtils.DATA_INDEX);
+
+        request.settings(Settings.builder().put("index.mapper.dynamic", false).build());
+        // notably absent are: kibana, logstash, and beats
+        request.mapping("cluster_info", "{\"enabled\": false}");
+        request.mapping("node", "{\"enabled\": false}");
+        request.mapping("fake", "{\"enabled\": false}");
+
+        client().admin().indices().create(request).actionGet();
+
+        putTemplate(indexTemplateName());
+        putTemplate(dataTemplateName());
+        putPipeline(Exporter.EXPORT_PIPELINE_NAME);
+
+        doExporting();
+
+        logger.debug("--> existing templates are old");
+        assertTemplateExists(dataTemplateName());
+        assertTemplateExists(indexTemplateName());
+
+        logger.debug("--> existing templates are old: new templates should be created");
+        for (String template : monitoringTemplateNames()) {
+            assertTemplateExists(template);
+        }
+        assertPipelineExists(Exporter.EXPORT_PIPELINE_NAME);
+
+        doExporting();
+
+        logger.debug("--> indices should have been created");
+        awaitIndexExists(currentDataIndexName());
+        assertIndicesExists(currentTimestampedIndexName());
+
+        // ensure that it added mapping types to monitoring-data-2, without throwing away the index
+        assertMapping(MonitoringTemplateUtils.DATA_INDEX, "fake");
+        for (final String type : MonitoringTemplateUtils.NEW_DATA_TYPES) {
+            assertMapping(MonitoringTemplateUtils.DATA_INDEX, type);
+        }
     }
 
-    @Override
-    protected void deletePipeline() throws Exception {
-        waitNoPendingTasksOnAll();
-        cluster().client().admin().cluster().deletePipeline(new DeletePipelineRequest(Exporter.EXPORT_PIPELINE_NAME));
+    private void assertMapping(final String index, final String type) throws Exception {
+        GetMappingsResponse response = client().admin().indices().prepareGetMappings(index).setTypes(type).get();
+        ImmutableOpenMap<String, MappingMetaData> mappings = response.getMappings().get(index);
+        assertThat(mappings, notNullValue());
+        MappingMetaData mappingMetaData = mappings.get(type);
+        assertThat(mappingMetaData, notNullValue());
     }
 
-    @Override
-    protected void putTemplate(String name) throws Exception {
+    public void testCreateWhenExistingTemplateAreUpToDate() throws Exception {
+        internalCluster().startNode();
+
+        putTemplate(indexTemplateName());
+        putTemplate(dataTemplateName());
+        putPipeline(Exporter.EXPORT_PIPELINE_NAME);
+
+        doExporting();
+
+        logger.debug("--> existing templates are up to date");
+        for (String template : monitoringTemplateNames()) {
+            assertTemplateExists(template);
+        }
+        assertPipelineExists(Exporter.EXPORT_PIPELINE_NAME);
+
+        logger.debug("--> existing templates has the same version: they should not be changed");
+        assertTemplateNotUpdated(indexTemplateName());
+        assertTemplateNotUpdated(dataTemplateName());
+        assertPipelineNotUpdated(Exporter.EXPORT_PIPELINE_NAME);
+
+        doExporting();
+
+        logger.debug("--> indices should have been created");
+        awaitIndexExists(currentDataIndexName());
+        awaitIndexExists(currentTimestampedIndexName());
+    }
+
+    protected void doExporting() throws Exception {
+        // TODO: these should be unit tests, not using guice (copied from now-deleted AbstractExporterTemplateTestCase)
+        ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
+        XPackLicenseState licenseState = internalCluster().getInstance(XPackLicenseState.class);
+        LicenseService licenseService = internalCluster().getInstance(LicenseService.class);
+        InternalClient client = internalCluster().getInstance(InternalClient.class);
+        Collector collector = new ClusterStatsCollector(clusterService.getSettings(), clusterService,
+                new MonitoringSettings(clusterService.getSettings(), clusterService.getClusterSettings()),
+                licenseState, client, licenseService);
+
+        Exporters exporters = internalCluster().getInstance(Exporters.class);
+        assertNotNull(exporters);
+
+        Exporter exporter = exporters.getExporter("_exporter");
+
+        // Wait for exporting bulks to be ready to export
+        Runnable busy = () -> assertThat(exporter.openBulk(), notNullValue());
+        assertBusy(busy);
+        exporters.export(collector.collect());
+    }
+
+    private String dataTemplateName() {
+        MockDataIndexNameResolver resolver = new MockDataIndexNameResolver(MonitoringTemplateUtils.TEMPLATE_VERSION);
+        return resolver.templateName();
+    }
+
+    private String indexTemplateName() {
+        MockTimestampedIndexNameResolver resolver =
+                new MockTimestampedIndexNameResolver(MonitoredSystem.ES, localExporter, MonitoringTemplateUtils.TEMPLATE_VERSION);
+        return resolver.templateName();
+    }
+
+    private String currentDataIndexName() {
+        return MonitoringTemplateUtils.DATA_INDEX;
+    }
+
+    private String currentTimestampedIndexName() {
+        MonitoringDoc doc = new MonitoringDoc(MonitoredSystem.ES.getSystem(), Version.CURRENT.toString());
+        doc.setTimestamp(System.currentTimeMillis());
+
+        MockTimestampedIndexNameResolver resolver =
+                new MockTimestampedIndexNameResolver(MonitoredSystem.ES, localExporter, MonitoringTemplateUtils.TEMPLATE_VERSION);
+        return resolver.index(doc);
+    }
+
+    /** Generates a basic template **/
+    private BytesReference generateTemplateSource(String name) throws IOException {
+        return jsonBuilder().startObject()
+                                .field("template", name)
+                                .startObject("settings")
+                                    .field("index.number_of_shards", 1)
+                                    .field("index.number_of_replicas", 1)
+                                .endObject()
+                                .startObject("mappings")
+                                    .startObject("_default_")
+                                        .startObject("_all")
+                                            .field("enabled", false)
+                                        .endObject()
+                                        .field("date_detection", false)
+                                        .startObject("properties")
+                                            .startObject("cluster_uuid")
+                                                .field("type", "keyword")
+                                            .endObject()
+                                            .startObject("timestamp")
+                                                .field("type", "date")
+                                                .field("format", "date_time")
+                                            .endObject()
+                                        .endObject()
+                                    .endObject()
+                                    .startObject("cluster_info")
+                                        .field("enabled", false)
+                                    .endObject()
+                                    .startObject("cluster_stats")
+                                        .startObject("properties")
+                                            .startObject("cluster_stats")
+                                                .field("type", "object")
+                                            .endObject()
+                                        .endObject()
+                                    .endObject()
+                                .endObject()
+                            .endObject().bytes();
+    }
+
+    private void putTemplate(String name) throws Exception {
         waitNoPendingTasksOnAll();
         assertAcked(client().admin().indices().preparePutTemplate(name).setSource(generateTemplateSource(name)).get());
     }
 
-    @Override
-    protected void putPipeline(String name) throws Exception {
+    private void putPipeline(String name) throws Exception {
         waitNoPendingTasksOnAll();
         assertAcked(client().admin().cluster().preparePutPipeline(name, Exporter.emptyPipeline(XContentType.JSON).bytes()).get());
     }
 
-    @Override
-    protected void assertTemplateExists(String name) throws Exception {
+    private void assertTemplateExists(String name) throws Exception {
         waitNoPendingTasksOnAll();
         waitForMonitoringTemplate(name);
     }
 
-    @Override
-    protected void assertPipelineExists(String name) throws Exception {
+    private void assertPipelineExists(String name) throws Exception {
         waitNoPendingTasksOnAll();
         assertPipelineInstalled(name);
     }
@@ -73,21 +245,14 @@ public class LocalExporterTemplateTests extends AbstractExporterTemplateTestCase
         }, 60, TimeUnit.SECONDS);
     }
 
-    @Override
-    protected void assertTemplateNotUpdated(String name) throws Exception {
+    private void assertTemplateNotUpdated(String name) throws Exception {
         waitNoPendingTasksOnAll();
         assertTemplateExists(name);
     }
 
-    @Override
-    protected void assertPipelineNotUpdated(String name) throws Exception {
+    private void assertPipelineNotUpdated(String name) throws Exception {
         waitNoPendingTasksOnAll();
         assertPipelineExists(name);
     }
 
-    @AwaitsFix(bugUrl = "testing locally to determine why this is a race condition on Jenkins")
-    @Override
-    public void testCreateWhenNoExistingTemplates() throws Exception {
-
-    }
 }

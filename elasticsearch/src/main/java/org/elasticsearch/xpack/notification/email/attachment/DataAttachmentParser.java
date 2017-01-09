@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.notification.email.Attachment;
@@ -43,7 +42,7 @@ public class DataAttachmentParser implements EmailAttachmentParser<DataAttachmen
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (Strings.hasLength(currentFieldName) && ParseFieldMatcher.STRICT.match(currentFieldName, Fields.FORMAT)) {
+            } else if (Strings.hasLength(currentFieldName) && Fields.FORMAT.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {

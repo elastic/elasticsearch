@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.security.authz;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -18,12 +18,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.common.xcontent.XContentUtils;
-import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 import org.elasticsearch.xpack.security.support.Validation;
 
@@ -38,13 +38,14 @@ import java.util.Map;
  * A holder for a Role that contains user-readable information about the Role
  * without containing the actual Role object.
  */
-public class RoleDescriptor implements ToXContent {
+public class RoleDescriptor implements ToXContentObject {
 
     private final String name;
     private final String[] clusterPrivileges;
     private final IndicesPrivileges[] indicesPrivileges;
     private final String[] runAs;
     private final Map<String, Object> metadata;
+    private final Map<String, Object> transientMetadata;
 
     public RoleDescriptor(String name,
                           @Nullable String[] clusterPrivileges,
@@ -58,12 +59,23 @@ public class RoleDescriptor implements ToXContent {
                           @Nullable IndicesPrivileges[] indicesPrivileges,
                           @Nullable String[] runAs,
                           @Nullable Map<String, Object> metadata) {
+        this(name, clusterPrivileges, indicesPrivileges, runAs, metadata, null);
+    }
 
+
+    public RoleDescriptor(String name,
+                          @Nullable String[] clusterPrivileges,
+                          @Nullable IndicesPrivileges[] indicesPrivileges,
+                          @Nullable String[] runAs,
+                          @Nullable Map<String, Object> metadata,
+                          @Nullable Map<String, Object> transientMetadata) {
         this.name = name;
         this.clusterPrivileges = clusterPrivileges != null ? clusterPrivileges : Strings.EMPTY_ARRAY;
         this.indicesPrivileges = indicesPrivileges != null ? indicesPrivileges : IndicesPrivileges.NONE;
         this.runAs = runAs != null ? runAs : Strings.EMPTY_ARRAY;
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
+        this.transientMetadata = transientMetadata != null ? Collections.unmodifiableMap(transientMetadata) :
+                Collections.singletonMap("enabled", true);
     }
 
     public String getName() {
@@ -84,6 +96,14 @@ public class RoleDescriptor implements ToXContent {
 
     public Map<String, Object> getMetadata() {
         return metadata;
+    }
+
+    public Map<String, Object> getTransientMetadata() {
+        return transientMetadata;
+    }
+
+    public boolean isUsingDocumentOrFieldLevelSecurity() {
+        return Arrays.stream(indicesPrivileges).anyMatch(ip -> ip.isUsingDocumentLevelSecurity() || ip.isUsingFieldLevelSecurity());
     }
 
     @Override
@@ -126,7 +146,12 @@ public class RoleDescriptor implements ToXContent {
         return result;
     }
 
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return toXContent(builder, params, true);
+    }
+
+    public XContentBuilder toXContent(XContentBuilder builder, Params params, boolean includeTransient) throws IOException {
         builder.startObject();
         builder.array(Fields.CLUSTER.getPreferredName(), clusterPrivileges);
         builder.array(Fields.INDICES.getPreferredName(), (Object[]) indicesPrivileges);
@@ -134,6 +159,9 @@ public class RoleDescriptor implements ToXContent {
             builder.array(Fields.RUN_AS.getPreferredName(), runAs);
         }
         builder.field(Fields.METADATA.getPreferredName(), metadata);
+        if (includeTransient) {
+            builder.field(Fields.TRANSIENT_METADATA.getPreferredName(), transientMetadata);
+        }
         return builder.endObject();
     }
 
@@ -147,7 +175,14 @@ public class RoleDescriptor implements ToXContent {
         }
         String[] runAs = in.readStringArray();
         Map<String, Object> metadata = in.readMap();
-        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAs, metadata);
+
+        final Map<String, Object> transientMetadata;
+        if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            transientMetadata = in.readMap();
+        } else {
+            transientMetadata = Collections.emptyMap();
+        }
+        return new RoleDescriptor(name, clusterPrivileges, indicesPrivileges, runAs, metadata, transientMetadata);
     }
 
     public static void writeTo(RoleDescriptor descriptor, StreamOutput out) throws IOException {
@@ -159,6 +194,9 @@ public class RoleDescriptor implements ToXContent {
         }
         out.writeStringArray(descriptor.runAs);
         out.writeMap(descriptor.metadata);
+        if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+            out.writeMap(descriptor.transientMetadata);
+        }
     }
 
     public static RoleDescriptor parse(String name, BytesReference source, boolean allow2xFormat) throws IOException {
@@ -191,18 +229,26 @@ public class RoleDescriptor implements ToXContent {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.INDICES)) {
+            } else if (Fields.INDICES.match(currentFieldName)) {
                 indicesPrivileges = parseIndices(name, parser, allow2xFormat);
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.RUN_AS)) {
+            } else if (Fields.RUN_AS.match(currentFieldName)) {
                 runAsUsers = readStringArray(name, parser, true);
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.CLUSTER)) {
+            } else if (Fields.CLUSTER.match(currentFieldName)) {
                 clusterPrivileges = readStringArray(name, parser, true);
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.METADATA)) {
+            } else if (Fields.METADATA.match(currentFieldName)) {
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchParseException(
                             "expected field [{}] to be of type object, but found [{}] instead", currentFieldName, token);
                 }
                 metadata = parser.map();
+            } else if (Fields.TRANSIENT_METADATA.match(currentFieldName)) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    // consume object but just drop
+                    parser.map();
+                } else {
+                    throw new ElasticsearchParseException("expected field [{}] to be an object, but found [{}] instead",
+                            currentFieldName, token);
+                }
             } else {
                 throw new ElasticsearchParseException("failed to parse role [{}]. unexpected field [{}]", name, currentFieldName);
             }
@@ -241,14 +287,14 @@ public class RoleDescriptor implements ToXContent {
         }
         String currentFieldName = null;
         String[] names = null;
-        String query = null;
+        BytesReference query = null;
         String[] privileges = null;
         String[] grantedFields = null;
         String[] deniedFields = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.NAMES)) {
+            } else if (Fields.NAMES.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     names = new String[] { parser.text() };
                 } else if (token == XContentParser.Token.START_ARRAY) {
@@ -261,34 +307,35 @@ public class RoleDescriptor implements ToXContent {
                     throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] " +
                             "value to be a string or an array of strings, but found [{}] instead", roleName, currentFieldName, token);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.QUERY)) {
+            } else if (Fields.QUERY.match(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     XContentBuilder builder = JsonXContent.contentBuilder();
                     XContentHelper.copyCurrentStructure(builder.generator(), parser);
-                    query = builder.string();
-                } else if (token == XContentParser.Token.VALUE_STRING){
+                    query = builder.bytes();
+                } else if (token == XContentParser.Token.VALUE_STRING) {
                     final String text = parser.text();
                     if (text.isEmpty() == false) {
-                        query = text;
+                        query = new BytesArray(text);
                     }
                 } else if (token != XContentParser.Token.VALUE_NULL) {
                     throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. expected field [{}] " +
-                            "value to be null, a string, or an object, but found [{}] instead", roleName, currentFieldName, token);
+                            "value to be null, a string, an array, or an object, but found [{}] instead", roleName, currentFieldName,
+                            token);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.FIELD_PERMISSIONS)) {
+            } else if (Fields.FIELD_PERMISSIONS.match(currentFieldName)) {
                 if (token == XContentParser.Token.START_OBJECT) {
                     token = parser.nextToken();
                     do {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
-                            if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.GRANT_FIELDS)) {
+                            if (Fields.GRANT_FIELDS.match(currentFieldName)) {
                                 parser.nextToken();
                                 grantedFields = readStringArray(roleName, parser, true);
                                 if (grantedFields == null) {
                                     throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. {} must not " +
                                             "be null.", roleName, Fields.GRANT_FIELDS);
                                 }
-                            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.EXCEPT_FIELDS)) {
+                            } else if (Fields.EXCEPT_FIELDS.match(currentFieldName)) {
                                 parser.nextToken();
                                 deniedFields = readStringArray(roleName, parser, true);
                                 if (deniedFields == null) {
@@ -317,15 +364,24 @@ public class RoleDescriptor implements ToXContent {
                             " in \"{}\".", roleName, XContentParser.Token.START_OBJECT,
                             XContentParser.Token.START_ARRAY, token, Fields.FIELD_PERMISSIONS);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.PRIVILEGES)) {
+            } else if (Fields.PRIVILEGES.match(currentFieldName)) {
                 privileges = readStringArray(roleName, parser, true);
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Fields.FIELD_PERMISSIONS_2X)) {
+            } else if (Fields.FIELD_PERMISSIONS_2X.match(currentFieldName)) {
                 if (allow2xFormat) {
                     grantedFields = readStringArray(roleName, parser, true);
                 } else {
                     throw new ElasticsearchParseException("[\"fields\": [...]] format has changed for field" +
                             " permissions in role [{}], use [\"{}\": {\"{}\":[...]," + "\"{}\":[...]}] instead",
                             roleName, Fields.FIELD_PERMISSIONS, Fields.GRANT_FIELDS, Fields.EXCEPT_FIELDS, roleName);
+                }
+            } else if (Fields.TRANSIENT_METADATA.match(currentFieldName)) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        // it is transient metadata, skip it
+                    }
+                } else {
+                    throw new ElasticsearchParseException("failed to parse transient metadata for role [{}]. expected {} but got {}" +
+                            " in \"{}\".", roleName, XContentParser.Token.START_OBJECT, token, Fields.TRANSIENT_METADATA);
                 }
             } else {
                 throw new ElasticsearchParseException("failed to parse indices privileges for role [{}]. unexpected field [{}]",
@@ -347,7 +403,8 @@ public class RoleDescriptor implements ToXContent {
         return RoleDescriptor.IndicesPrivileges.builder()
                 .indices(names)
                 .privileges(privileges)
-                .fieldPermissions(new FieldPermissions(grantedFields, deniedFields))
+                .grantedFields(grantedFields)
+                .deniedFields(deniedFields)
                 .query(query)
                 .build();
     }
@@ -362,7 +419,8 @@ public class RoleDescriptor implements ToXContent {
 
         private String[] indices;
         private String[] privileges;
-        private FieldPermissions fieldPermissions = new FieldPermissions();
+        private String[] grantedFields = null;
+        private String[] deniedFields = null;
         private BytesReference query;
 
         private IndicesPrivileges() {
@@ -380,13 +438,43 @@ public class RoleDescriptor implements ToXContent {
             return this.privileges;
         }
 
-        public FieldPermissions getFieldPermissions() {
-            return fieldPermissions;
+        @Nullable
+        public String[] getGrantedFields() {
+            return this.grantedFields;
+        }
+
+        @Nullable
+        public String[] getDeniedFields() {
+            return this.deniedFields;
         }
 
         @Nullable
         public BytesReference getQuery() {
             return this.query;
+        }
+
+        public boolean isUsingDocumentLevelSecurity() {
+            return query != null;
+        }
+
+        public boolean isUsingFieldLevelSecurity() {
+            return hasDeniedFields() || hasGrantedFields();
+        }
+
+        private boolean hasDeniedFields() {
+            return deniedFields != null && deniedFields.length > 0;
+        }
+
+        private boolean hasGrantedFields() {
+            if (grantedFields != null && grantedFields.length >= 0) {
+                // we treat just '*' as no FLS since that's what the UI defaults to
+                if (grantedFields.length == 1 && "*".equals(grantedFields[0])) {
+                    return false;
+                } else {
+                    return true;
+                }
+            }
+            return false;
         }
 
         @Override
@@ -395,9 +483,27 @@ public class RoleDescriptor implements ToXContent {
             sb.append("indices=[").append(Strings.arrayToCommaDelimitedString(indices));
             sb.append("], privileges=[").append(Strings.arrayToCommaDelimitedString(privileges));
             sb.append("], ");
-            sb.append(fieldPermissions.toString());
+            if (grantedFields != null || deniedFields != null) {
+                sb.append(RoleDescriptor.Fields.FIELD_PERMISSIONS).append("=[");
+                if (grantedFields == null) {
+                    sb.append(RoleDescriptor.Fields.GRANT_FIELDS).append("=null");
+                } else {
+                    sb.append(RoleDescriptor.Fields.GRANT_FIELDS).append("=[")
+                            .append(Strings.arrayToCommaDelimitedString(grantedFields));
+                    sb.append("]");
+                }
+                if (deniedFields == null) {
+                    sb.append(", ").append(RoleDescriptor.Fields.EXCEPT_FIELDS).append("=null");
+                } else {
+                    sb.append(", ").append(RoleDescriptor.Fields.EXCEPT_FIELDS).append("=[")
+                            .append(Strings.arrayToCommaDelimitedString(deniedFields));
+                    sb.append("]");
+                }
+                sb.append("]");
+            }
             if (query != null) {
-                sb.append(", query=").append(query.utf8ToString());
+                sb.append(", query=");
+                sb.append(query.utf8ToString());
             }
             sb.append("]");
             return sb.toString();
@@ -412,7 +518,8 @@ public class RoleDescriptor implements ToXContent {
 
             if (!Arrays.equals(indices, that.indices)) return false;
             if (!Arrays.equals(privileges, that.privileges)) return false;
-            if (fieldPermissions.equals(that.fieldPermissions) == false) return false;
+            if (!Arrays.equals(grantedFields, that.grantedFields)) return false;
+            if (!Arrays.equals(deniedFields, that.deniedFields)) return false;
             return !(query != null ? !query.equals(that.query) : that.query != null);
         }
 
@@ -420,7 +527,8 @@ public class RoleDescriptor implements ToXContent {
         public int hashCode() {
             int result = Arrays.hashCode(indices);
             result = 31 * result + Arrays.hashCode(privileges);
-            result = 31 * result + fieldPermissions.hashCode();
+            result = 31 * result + Arrays.hashCode(grantedFields);
+            result = 31 * result + Arrays.hashCode(deniedFields);
             result = 31 * result + (query != null ? query.hashCode() : 0);
             return result;
         }
@@ -430,7 +538,16 @@ public class RoleDescriptor implements ToXContent {
             builder.startObject();
             builder.array("names", indices);
             builder.array("privileges", privileges);
-            builder = fieldPermissions.toXContent(builder, params);
+            if (grantedFields != null || deniedFields != null) {
+                builder.startObject(RoleDescriptor.Fields.FIELD_PERMISSIONS.getPreferredName());
+                if (grantedFields != null) {
+                    builder.array(RoleDescriptor.Fields.GRANT_FIELDS.getPreferredName(), grantedFields);
+                }
+                if (deniedFields != null) {
+                    builder.array(RoleDescriptor.Fields.EXCEPT_FIELDS.getPreferredName(), deniedFields);
+                }
+                builder.endObject();
+            }
             if (query != null) {
                 builder.field("query", query.utf8ToString());
             }
@@ -446,7 +563,8 @@ public class RoleDescriptor implements ToXContent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             this.indices = in.readStringArray();
-            this.fieldPermissions = new FieldPermissions(in);
+            this.grantedFields = in.readOptionalStringArray();
+            this.deniedFields = in.readOptionalStringArray();
             this.privileges = in.readStringArray();
             this.query = in.readOptionalBytesReference();
         }
@@ -454,7 +572,8 @@ public class RoleDescriptor implements ToXContent {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringArray(indices);
-            fieldPermissions.writeTo(out);
+            out.writeOptionalStringArray(grantedFields);
+            out.writeOptionalStringArray(deniedFields);
             out.writeStringArray(privileges);
             out.writeOptionalBytesReference(query);
         }
@@ -476,8 +595,13 @@ public class RoleDescriptor implements ToXContent {
                 return this;
             }
 
-            public Builder fieldPermissions(FieldPermissions fieldPermissions) {
-                indicesPrivileges.fieldPermissions = fieldPermissions;
+            public Builder grantedFields(String... grantedFields) {
+                indicesPrivileges.grantedFields = grantedFields;
+                return this;
+            }
+
+            public Builder deniedFields(String... deniedFields) {
+                indicesPrivileges.deniedFields = deniedFields;
                 return this;
             }
 
@@ -486,7 +610,11 @@ public class RoleDescriptor implements ToXContent {
             }
 
             public Builder query(@Nullable BytesReference query) {
-                indicesPrivileges.query = query;
+                if (query == null) {
+                    indicesPrivileges.query = null;
+                } else {
+                    indicesPrivileges.query = query;
+                }
                 return this;
             }
 
@@ -514,5 +642,6 @@ public class RoleDescriptor implements ToXContent {
         ParseField GRANT_FIELDS = new ParseField("grant");
         ParseField EXCEPT_FIELDS = new ParseField("except");
         ParseField METADATA = new ParseField("metadata");
+        ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");
     }
 }

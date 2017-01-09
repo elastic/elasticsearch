@@ -9,6 +9,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteResponse.Result;
@@ -26,7 +27,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -62,7 +63,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.xpack.security.SecurityTemplateService.oldestSecurityIndexMappingVersion;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateSufficientToRead;
 import static org.elasticsearch.xpack.security.SecurityTemplateService.securityIndexMappingAndTemplateUpToDate;
 
@@ -94,6 +97,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
 
     private volatile boolean securityIndexExists = false;
     private volatile boolean canWrite = false;
+    private volatile Version mappingVersion = null;
 
     public NativeUsersStore(Settings settings, InternalClient client) {
         super(settings);
@@ -404,7 +408,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                     .execute(new ActionListener<UpdateResponse>() {
                         @Override
                         public void onResponse(UpdateResponse updateResponse) {
-                            assert updateResponse.getResult() == Result.UPDATED;
                             clearRealmCache(username, listener, null);
                         }
 
@@ -428,6 +431,16 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         }
     }
 
+    void ensureReservedUserIsDisabled(final String username, final ActionListener<Void> listener) {
+        getReservedUserInfo(username, ActionListener.wrap(userInfo -> {
+            if (userInfo == null || userInfo.enabled) {
+                setReservedUserEnabled(username, false, RefreshPolicy.IMMEDIATE, listener);
+            } else {
+                listener.onResponse(null);
+            }
+        }, listener::onFailure));
+    }
+
     private void setReservedUserEnabled(final String username, final boolean enabled, final RefreshPolicy refreshPolicy,
                                         final ActionListener<Void> listener) {
         try {
@@ -439,7 +452,6 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
                     .execute(new ActionListener<UpdateResponse>() {
                         @Override
                         public void onResponse(UpdateResponse updateResponse) {
-                            assert updateResponse.getResult() == Result.UPDATED || updateResponse.getResult() == Result.CREATED;
                             clearRealmCache(username, listener, null);
                         }
 
@@ -509,19 +521,19 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         if (securityIndexMappingAndTemplateUpToDate(clusterState, logger)) {
             canWrite = true;
         } else if (securityIndexMappingAndTemplateSufficientToRead(clusterState, logger)) {
+            mappingVersion = oldestSecurityIndexMappingVersion(clusterState, logger);
             canWrite = false;
         } else {
             canWrite = false;
             return false;
         }
 
-        IndexMetaData metaData = clusterState.metaData().index(SecurityTemplateService.SECURITY_INDEX_NAME);
-        if (metaData == null) {
+        final IndexRoutingTable routingTable = SecurityTemplateService.getSecurityIndexRoutingTable(clusterState);
+        if (routingTable == null) {
             logger.debug("security index [{}] does not exist, so service can start", SecurityTemplateService.SECURITY_INDEX_NAME);
             return true;
         }
-
-        if (clusterState.routingTable().index(SecurityTemplateService.SECURITY_INDEX_NAME).allPrimaryShardsActive()) {
+        if (routingTable.allPrimaryShardsActive()) {
             logger.debug("security index [{}] all primary shards started, so service can start",
                     SecurityTemplateService.SECURITY_INDEX_NAME);
             securityIndexExists = true;
@@ -578,9 +590,21 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         return securityIndexExists;
     }
 
-    void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {
-        assert started();
+    /**
+     * Test whether the effective (active) version of the security mapping meets the <code>requiredVersion</code>.
+     *
+     * @return <code>true</code> if the effective version passes the predicate, or the security mapping does not exist (<code>null</code>
+     * version). Otherwise, <code>false</code>.
+     */
+    public boolean checkMappingVersion(Predicate<Version> requiredVersion) {
+        return this.mappingVersion == null || requiredVersion.test(this.mappingVersion);
+    }
 
+    void getReservedUserInfo(String username, ActionListener<ReservedUserInfo> listener) {
+        if (!started() && !securityIndexExists()) {
+            listener.onFailure(new IllegalStateException("Attempt to get reserved user info - started=" + started() +
+                    " index-exists=" + securityIndexExists()));
+        }
         client.prepareGet(SecurityTemplateService.SECURITY_INDEX_NAME, RESERVED_USER_DOC_TYPE, username)
                 .execute(new ActionListener<GetResponse>() {
                     @Override
@@ -699,6 +723,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
     public void clusterChanged(ClusterChangedEvent event) {
         securityIndexExists = event.state().metaData().indices().get(SecurityTemplateService.SECURITY_INDEX_NAME) != null;
         canWrite = securityIndexMappingAndTemplateUpToDate(event.state(), logger);
+        mappingVersion = oldestSecurityIndexMappingVersion(event.state(), logger);
     }
 
     public State state() {
@@ -713,6 +738,7 @@ public class NativeUsersStore extends AbstractComponent implements ClusterStateL
         }
         this.securityIndexExists = false;
         this.canWrite = false;
+        this.mappingVersion = null;
         this.state.set(State.INITIALIZED);
     }
 

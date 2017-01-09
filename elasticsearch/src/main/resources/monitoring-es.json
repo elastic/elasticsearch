@@ -581,7 +581,59 @@
               }
             },
             "os": {
-              "type": "object"
+              "properties": {
+                "cgroup": {
+                  "properties": {
+                    "cpuacct": {
+                      "properties": {
+                        "control_group": {
+                          "type": "keyword"
+                        },
+                        "usage_nanos": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "cpu": {
+                      "properties": {
+                        "control_group": {
+                          "type": "keyword"
+                        },
+                        "stat": {
+                          "properties": {
+                            "number_of_elapsed_periods": {
+                              "type": "long"
+                            },
+                            "number_of_times_throttled": {
+                              "type": "long"
+                            },
+                            "time_throttled_nanos": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "cpu": {
+                  "properties": {
+                    "load_average": {
+                      "properties": {
+                        "1m": {
+                          "type": "half_float"
+                        },
+                        "5m": {
+                          "type": "half_float"
+                        },
+                        "15m": {
+                          "type": "half_float"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             },
             "process": {
               "type": "object"

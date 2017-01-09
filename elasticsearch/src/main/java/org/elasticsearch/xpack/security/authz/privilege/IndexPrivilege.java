@@ -20,18 +20,22 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.xpack.security.support.Automatons;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.support.Automatons.patterns;
-import static org.elasticsearch.xpack.security.support.Automatons.unionAndDeterminize;
+import static org.elasticsearch.xpack.security.support.Automatons.unionAndMinimize;
 
-public class IndexPrivilege extends AbstractAutomatonPrivilege<IndexPrivilege> {
+public final class IndexPrivilege extends Privilege {
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*");
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
@@ -42,15 +46,16 @@ public class IndexPrivilege extends AbstractAutomatonPrivilege<IndexPrivilege> {
     private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", PutMappingAction.NAME);
     private static final Automaton MONITOR_AUTOMATON = patterns("indices:monitor/*");
-    private static final Automaton MANAGE_AUTOMATON = unionAndDeterminize(MONITOR_AUTOMATON, patterns("indices:admin/*"));
+    private static final Automaton MANAGE_AUTOMATON =
+            unionAndMinimize(Arrays.asList(MONITOR_AUTOMATON, patterns("indices:admin/*")));
     private static final Automaton CREATE_INDEX_AUTOMATON = patterns(CreateIndexAction.NAME);
     private static final Automaton DELETE_INDEX_AUTOMATON = patterns(DeleteIndexAction.NAME);
     private static final Automaton VIEW_METADATA_AUTOMATON = patterns(GetAliasesAction.NAME, AliasesExistAction.NAME,
             GetIndexAction.NAME, IndicesExistsAction.NAME, GetFieldMappingsAction.NAME + "*", GetMappingsAction.NAME,
             ClusterSearchShardsAction.NAME, TypesExistsAction.NAME, ValidateQueryAction.NAME + "*", GetSettingsAction.NAME);
 
-    public static final IndexPrivilege NONE =                new IndexPrivilege(Name.NONE,             Automatons.EMPTY);
-    public static final IndexPrivilege ALL =                 new IndexPrivilege(Name.ALL,              ALL_AUTOMATON);
+    public static final IndexPrivilege NONE =                new IndexPrivilege("none",             Automatons.EMPTY);
+    public static final IndexPrivilege ALL =                 new IndexPrivilege("all",              ALL_AUTOMATON);
     public static final IndexPrivilege READ =                new IndexPrivilege("read",                READ_AUTOMATON);
     public static final IndexPrivilege CREATE =              new IndexPrivilege("create",              CREATE_AUTOMATON);
     public static final IndexPrivilege INDEX =               new IndexPrivilege("index",               INDEX_AUTOMATON);
@@ -62,106 +67,78 @@ public class IndexPrivilege extends AbstractAutomatonPrivilege<IndexPrivilege> {
     public static final IndexPrivilege CREATE_INDEX =        new IndexPrivilege("create_index",        CREATE_INDEX_AUTOMATON);
     public static final IndexPrivilege VIEW_METADATA =       new IndexPrivilege("view_index_metadata", VIEW_METADATA_AUTOMATON);
 
-    private static final Set<IndexPrivilege> values = new CopyOnWriteArraySet<>();
-
-    static {
-        values.add(NONE);
-        values.add(ALL);
-        values.add(MANAGE);
-        values.add(CREATE_INDEX);
-        values.add(MONITOR);
-        values.add(READ);
-        values.add(INDEX);
-        values.add(DELETE);
-        values.add(WRITE);
-        values.add(CREATE);
-        values.add(DELETE_INDEX);
-        values.add(VIEW_METADATA);
-    }
+    private static final Map<String, IndexPrivilege> VALUES = MapBuilder.<String, IndexPrivilege>newMapBuilder()
+            .put("none", NONE)
+            .put("all", ALL)
+            .put("manage", MANAGE)
+            .put("create_index", CREATE_INDEX)
+            .put("monitor", MONITOR)
+            .put("read", READ)
+            .put("index", INDEX)
+            .put("delete", DELETE)
+            .put("write", WRITE)
+            .put("create", CREATE)
+            .put("delete_index", DELETE_INDEX)
+            .put("view_index_metadata", VIEW_METADATA)
+            .immutableMap();
 
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();
 
-    static Set<IndexPrivilege> values() {
-        return values;
-    }
-
-    private static final ConcurrentHashMap<Name, IndexPrivilege> cache = new ConcurrentHashMap<>();
-
-    private IndexPrivilege(String name, String... patterns) {
-        super(name, patterns);
-    }
+    private static final ConcurrentHashMap<Set<String>, IndexPrivilege> CACHE = new ConcurrentHashMap<>();
 
     private IndexPrivilege(String name, Automaton automaton) {
-        super(new Name(name), automaton);
+        super(Collections.singleton(name), automaton);
     }
 
-    private IndexPrivilege(Name name, Automaton automaton) {
+    private IndexPrivilege(Set<String> name, Automaton automaton) {
         super(name, automaton);
     }
 
-    public static void addCustom(String name, String... actionPatterns) {
-        for (String pattern : actionPatterns) {
-            if (!IndexPrivilege.ACTION_MATCHER.test(pattern)) {
-                throw new IllegalArgumentException("cannot register custom index privilege [" + name + "]." +
-                        " index action must follow the 'indices:*' format");
+    public static IndexPrivilege get(Set<String> name) {
+        return CACHE.computeIfAbsent(name, (theName) -> {
+            if (theName.isEmpty()) {
+                return NONE;
+            } else {
+                return resolve(theName);
             }
-        }
-        IndexPrivilege custom = new IndexPrivilege(name, actionPatterns);
-        if (values.contains(custom)) {
-            throw new IllegalArgumentException("cannot register custom index privilege [" + name + "] as it already exists.");
-        }
-        values.add(custom);
-    }
-
-    @Override
-    protected IndexPrivilege create(Name name, Automaton automaton) {
-        if (name == Name.NONE) {
-            return NONE;
-        }
-        return new IndexPrivilege(name, automaton);
-    }
-
-    @Override
-    protected IndexPrivilege none() {
-        return NONE;
-    }
-
-    public static IndexPrivilege action(String action) {
-        return new IndexPrivilege(action, actionToPattern(action));
-    }
-
-    public static IndexPrivilege get(Name name) {
-        return cache.computeIfAbsent(name, (theName) -> {
-            IndexPrivilege index = NONE;
-            for (String part : theName.parts) {
-                index = index == NONE ? resolve(part) : index.plus(resolve(part));
-            }
-            return index;
         });
     }
 
-    public static IndexPrivilege union(IndexPrivilege... indices) {
-        IndexPrivilege result = NONE;
-        for (IndexPrivilege index : indices) {
-            result = result.plus(index);
+    private static IndexPrivilege resolve(Set<String> name) {
+        final int size = name.size();
+        if (size == 0) {
+            throw new IllegalArgumentException("empty set should not be used");
         }
-        return result;
-    }
 
-    private static IndexPrivilege resolve(String name) {
-        name = name.toLowerCase(Locale.ROOT);
-        if (ACTION_MATCHER.test(name)) {
-            return action(name);
-        }
-        for (IndexPrivilege index : values) {
-            if (name.toLowerCase(Locale.ROOT).equals(index.name.toString())) {
-                return index;
+        Set<String> actions = new HashSet<>();
+        Set<Automaton> automata = new HashSet<>();
+        for (String part : name) {
+            part = part.toLowerCase(Locale.ROOT);
+            if (ACTION_MATCHER.test(part)) {
+                actions.add(actionToPattern(part));
+            } else {
+                IndexPrivilege indexPrivilege = VALUES.get(part);
+                if (indexPrivilege != null && size == 1) {
+                    return indexPrivilege;
+                } else if (indexPrivilege != null) {
+                    automata.add(indexPrivilege.automaton);
+                } else {
+                    throw new IllegalArgumentException("unknown index privilege [" + name + "]. a privilege must be either " +
+                            "one of the predefined fixed indices privileges [" +
+                            Strings.collectionToCommaDelimitedString(VALUES.entrySet()) + "] or a pattern over one of the available index" +
+                            " actions");
+                }
             }
         }
-        throw new IllegalArgumentException("unknown index privilege [" + name + "]. a privilege must be either " +
-                "one of the predefined fixed indices privileges [" + Strings.collectionToCommaDelimitedString(values) +
-                "] or a pattern over one of the available index actions");
+
+        if (actions.isEmpty() == false) {
+            automata.add(patterns(actions));
+        }
+        return new IndexPrivilege(name, Automatons.unionAndMinimize(automata));
     }
 
+    static Map<String, IndexPrivilege> values() {
+        return VALUES;
+    }
 }

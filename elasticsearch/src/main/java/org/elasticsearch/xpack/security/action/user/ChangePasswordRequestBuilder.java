@@ -9,7 +9,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -67,7 +66,7 @@ public class ChangePasswordRequestBuilder
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, User.Fields.PASSWORD)) {
+                } else if (User.Fields.PASSWORD.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         String password = parser.text();
                         char[] passwordChars = password.toCharArray();

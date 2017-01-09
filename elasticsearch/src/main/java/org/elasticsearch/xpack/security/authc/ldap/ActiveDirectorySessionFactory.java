@@ -69,7 +69,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
         String domainDN = buildDnFromDomain(domainName);
         GroupsResolver groupResolver = new ActiveDirectoryGroupsResolver(settings.getAsSettings("group_search"), domainDN);
         defaultADAuthenticator = new DefaultADAuthenticator(settings, timeout, logger, groupResolver, domainDN);
-        downLevelADAuthenticator = new DownLevelADAuthenticator(settings, timeout, logger, groupResolver, domainDN);
+        downLevelADAuthenticator = new DownLevelADAuthenticator(config, timeout, logger, groupResolver, domainDN, sslService);
         upnADAuthenticator = new UpnADAuthenticator(settings, timeout, logger, groupResolver, domainDN);
     }
 
@@ -227,11 +227,16 @@ class ActiveDirectorySessionFactory extends SessionFactory {
 
         final String domainDN;
         final Settings settings;
+        final SSLService sslService;
+        final RealmConfig config;
 
-        DownLevelADAuthenticator(Settings settings, TimeValue timeout, Logger logger, GroupsResolver groupsResolver, String domainDN) {
-            super(settings, timeout, logger, groupsResolver, domainDN);
+        DownLevelADAuthenticator(RealmConfig config, TimeValue timeout, Logger logger, GroupsResolver groupsResolver, String domainDN,
+                                 SSLService sslService) {
+            super(config.settings(), timeout, logger, groupsResolver, domainDN);
             this.domainDN = domainDN;
-            this.settings = settings;
+            this.settings = config.settings();
+            this.sslService = sslService;
+            this.config = config;
         }
 
         @Override
@@ -271,7 +276,7 @@ class ActiveDirectorySessionFactory extends SessionFactory {
                 // the global catalog does not replicate the necessary information to map a netbios dns name to a DN so we need to instead
                 // connect to the normal ports. This code uses the standard ports to avoid adding even more settings and is probably ok as
                 // most AD users do not use non-standard ports
-                final LDAPConnectionOptions options = connectionOptions(settings);
+                final LDAPConnectionOptions options = connectionOptions(config, sslService, logger);
                 boolean startedSearching = false;
                 LDAPConnection searchConnection = null;
                 try {

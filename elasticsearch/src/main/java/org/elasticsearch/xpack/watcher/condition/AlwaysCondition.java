@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 
@@ -38,11 +37,6 @@ public final class AlwaysCondition extends Condition {
     @Override
     public Result execute(WatchExecutionContext ctx) {
         return RESULT_INSTANCE;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().endObject();
     }
 
     @Override

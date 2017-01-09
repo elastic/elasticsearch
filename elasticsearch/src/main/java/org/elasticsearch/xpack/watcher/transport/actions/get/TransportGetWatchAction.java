@@ -70,23 +70,23 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
         }
 
         client.getWatch(request.getId(), ActionListener.wrap(getResponse -> {
-            if (getResponse.isExists() == false) {
+            if (getResponse.isExists()) {
+                try (XContentBuilder builder = jsonBuilder()) {
+                    // When we return the watch via the Get Watch REST API, we want to return the watch as was specified in the put api,
+                    // we don't include the status in the watch source itself, but as a separate top level field, so that
+                    // it indicates the the status is managed by watcher itself.
+                    DateTime now = new DateTime(clock.millis(), UTC);
+                    Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now);
+                    watch.toXContent(builder, WatcherParams.builder()
+                            .hideSecrets(true)
+                            .put(Watch.INCLUDE_STATUS_KEY, false)
+                            .build());
+                    watch.version(getResponse.getVersion());
+                    watch.status().version(getResponse.getVersion());
+                    listener.onResponse(new GetWatchResponse(watch.id(), watch.status(), builder.bytes(), XContentType.JSON));
+                }
+            } else {
                 listener.onResponse(new GetWatchResponse(request.getId()));
-            }
-
-            try (XContentBuilder builder = jsonBuilder()) {
-                // When we return the watch via the Get Watch REST API, we want to return the watch as was specified in the put api,
-                // we don't include the status in the watch source itself, but as a separate top level field, so that
-                // it indicates the the status is managed by watcher itself.
-                DateTime now = new DateTime(clock.millis(), UTC);
-                Watch watch = parser.parseWithSecrets(request.getId(), true, getResponse.getSourceAsBytesRef(), now);
-                watch.toXContent(builder, WatcherParams.builder()
-                        .hideSecrets(true)
-                        .put(Watch.INCLUDE_STATUS_KEY, false)
-                        .build());
-                watch.version(getResponse.getVersion());
-                watch.status().version(getResponse.getVersion());
-                listener.onResponse(new GetWatchResponse(watch.id(), watch.status(), builder.bytes(), XContentType.JSON));
             }
         }, listener::onFailure));
     }

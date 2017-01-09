@@ -11,6 +11,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.http.Scheme;
 import org.elasticsearch.xpack.common.http.auth.basic.BasicAuth;
@@ -69,7 +70,8 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
         HttpRequestTemplate.Builder builder = HttpRequestTemplate.builder("localhost", webServer.getPort())
                 .scheme(Scheme.HTTPS)
                 .path(new TextTemplate("/test/_id"))
-                .body(new TextTemplate("{key=value}"));
+                .body(new TextTemplate("{key=value}"))
+                .method(HttpMethod.POST);
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()
@@ -91,6 +93,7 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
 
         SearchResponse response =
                 searchWatchRecords(b -> b.setQuery(QueryBuilders.termQuery(WatchRecord.Field.STATE.getPreferredName(), "executed")));
+
         assertNoFailures(response);
         XContentSource source = xContentSource(response.getHits().getAt(0).sourceRef());
         String body = source.getValue("result.actions.0.webhook.response.body");
@@ -108,7 +111,8 @@ public class WebhookHttpsIntegrationTests extends AbstractWatcherIntegrationTest
                 .scheme(Scheme.HTTPS)
                 .auth(new BasicAuth("_username", "_password".toCharArray()))
                 .path(new TextTemplate("/test/_id"))
-                .body(new TextTemplate("{key=value}"));
+                .body(new TextTemplate("{key=value}"))
+                .method(HttpMethod.POST);
 
         watcherClient().preparePutWatch("_id")
                 .setSource(watchBuilder()

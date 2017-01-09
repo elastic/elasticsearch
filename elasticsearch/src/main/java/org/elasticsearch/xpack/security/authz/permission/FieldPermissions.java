@@ -13,8 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.AllFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
@@ -26,14 +24,10 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.apache.lucene.util.automaton.MinimizationOperations.minimize;
-import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 import static org.apache.lucene.util.automaton.Operations.isTotal;
 import static org.apache.lucene.util.automaton.Operations.run;
-import static org.apache.lucene.util.automaton.Operations.sameLanguage;
 import static org.apache.lucene.util.automaton.Operations.subsetOf;
-import static org.apache.lucene.util.automaton.Operations.union;
-import static org.elasticsearch.xpack.security.support.Automatons.minusAndDeterminize;
+import static org.elasticsearch.xpack.security.support.Automatons.minusAndMinimize;
 
 /**
  * Stores patterns to fields which access is granted or denied to and maintains an automaton that can be used to check if permission is
@@ -43,30 +37,42 @@ import static org.elasticsearch.xpack.security.support.Automatons.minusAndDeterm
  * 1. It has to match the patterns in grantedFieldsArray
  * 2. it must not match the patterns in deniedFieldsArray
  */
-public class FieldPermissions implements Writeable, ToXContent {
+public final class FieldPermissions implements Writeable {
+
+    public static final FieldPermissions DEFAULT = new FieldPermissions();
 
     // the patterns for fields which we allow access to. if gratedFieldsArray is null we assume that all fields are grated access to
-    String[] grantedFieldsArray;
+    private final String[] grantedFieldsArray;
     // the patterns for fields which we deny access to. if this is an empty list or null we assume that we do not deny access to any
     // field explicitly
-    String[] deniedFieldsArray;
+    private final String[] deniedFieldsArray;
     // an automaton that matches all strings that match the patterns in permittedFieldsArray but does not match those that also match a
     // pattern in deniedFieldsArray. If permittedFieldsAutomaton is null we assume that all fields are granted access to.
-    Automaton permittedFieldsAutomaton;
+    private final Automaton permittedFieldsAutomaton;
 
     // we cannot easily determine if all fields are allowed and we can therefore also allow access to the _all field hence we deny access
     // to _all unless this was explicitly configured.
-    boolean allFieldIsAllowed = false;
+    private final boolean allFieldIsAllowed;
+
+    public FieldPermissions() {
+        this(null, null);
+    }
 
     public FieldPermissions(StreamInput in) throws IOException {
         this(in.readOptionalStringArray(), in.readOptionalStringArray());
     }
 
     public FieldPermissions(@Nullable String[] grantedFieldsArray, @Nullable String[] deniedFieldsArray) {
+        this(grantedFieldsArray, deniedFieldsArray, initializePermittedFieldsAutomaton(grantedFieldsArray, deniedFieldsArray),
+                checkAllFieldIsAllowed(grantedFieldsArray, deniedFieldsArray));
+    }
+
+    FieldPermissions(@Nullable String[] grantedFieldsArray, @Nullable String[] deniedFieldsArray,
+                             Automaton permittedFieldsAutomaton, boolean allFieldIsAllowed) {
         this.grantedFieldsArray = grantedFieldsArray;
         this.deniedFieldsArray = deniedFieldsArray;
-        permittedFieldsAutomaton = initializePermittedFieldsAutomaton(grantedFieldsArray, deniedFieldsArray);
-        allFieldIsAllowed = checkAllFieldIsAllowed(grantedFieldsArray, deniedFieldsArray);
+        this.permittedFieldsAutomaton = permittedFieldsAutomaton;
+        this.allFieldIsAllowed = allFieldIsAllowed;
     }
 
     private static boolean checkAllFieldIsAllowed(String[] grantedFieldsArray, String[] deniedFieldsArray) {
@@ -87,8 +93,7 @@ public class FieldPermissions implements Writeable, ToXContent {
         return false;
     }
 
-    private static Automaton initializePermittedFieldsAutomaton(final String[] grantedFieldsArray,
-                                                                final String[] deniedFieldsArray) {
+    private static Automaton initializePermittedFieldsAutomaton(final String[] grantedFieldsArray, final String[] deniedFieldsArray) {
         Automaton grantedFieldsAutomaton;
         if (grantedFieldsArray == null || containsWildcard(grantedFieldsArray)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
@@ -107,7 +112,7 @@ public class FieldPermissions implements Writeable, ToXContent {
                     Arrays.toString(grantedFieldsArray));
         }
 
-        grantedFieldsAutomaton = minusAndDeterminize(grantedFieldsAutomaton, deniedFieldsAutomaton);
+        grantedFieldsAutomaton = minusAndMinimize(grantedFieldsAutomaton, deniedFieldsAutomaton);
         return grantedFieldsAutomaton;
     }
 
@@ -120,24 +125,10 @@ public class FieldPermissions implements Writeable, ToXContent {
         return false;
     }
 
-    public FieldPermissions() {
-        this(null, null);
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalStringArray(grantedFieldsArray);
         out.writeOptionalStringArray(deniedFieldsArray);
-    }
-
-    @Nullable
-    String[] getGrantedFieldsArray() {
-        return grantedFieldsArray;
-    }
-
-    @Nullable
-    String[] getDeniedFieldsArray() {
-        return deniedFieldsArray;
     }
 
     @Override
@@ -164,21 +155,6 @@ public class FieldPermissions implements Writeable, ToXContent {
         return sb.toString();
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (grantedFieldsArray != null || deniedFieldsArray != null) {
-            builder.startObject(RoleDescriptor.Fields.FIELD_PERMISSIONS.getPreferredName());
-            if (grantedFieldsArray != null) {
-                builder.array(RoleDescriptor.Fields.GRANT_FIELDS.getPreferredName(), grantedFieldsArray);
-            }
-            if (deniedFieldsArray != null) {
-                builder.array(RoleDescriptor.Fields.EXCEPT_FIELDS.getPreferredName(), deniedFieldsArray);
-            }
-            builder.endObject();
-        }
-        return builder;
-    }
-
     /**
      * Returns true if this field permission policy allows access to the field and false if not.
      * fieldName can be a wildcard.
@@ -187,20 +163,26 @@ public class FieldPermissions implements Writeable, ToXContent {
         return isTotal(permittedFieldsAutomaton) || run(permittedFieldsAutomaton, fieldName);
     }
 
-    // Also, if one grants no access to fields and the other grants all access, merging should result in all access...
-    public static FieldPermissions merge(FieldPermissions p1, FieldPermissions p2) {
-        Automaton mergedPermittedFieldsAutomaton;
-        // we only allow the union of the two automatons
-        mergedPermittedFieldsAutomaton = union(p1.permittedFieldsAutomaton, p2.permittedFieldsAutomaton);
-        // need to minimize otherwise isTotal() might return false even if one of the merged ones returned true before
-        mergedPermittedFieldsAutomaton = minimize(mergedPermittedFieldsAutomaton, DEFAULT_MAX_DETERMINIZED_STATES);
-        // if one of them allows access to _all we allow it for the merged too
-        boolean allFieldIsAllowedInMerged = p1.allFieldIsAllowed || p2.allFieldIsAllowed;
-        return new MergedFieldPermissions(mergedPermittedFieldsAutomaton, allFieldIsAllowedInMerged);
+    Automaton getPermittedFieldsAutomaton() {
+        return permittedFieldsAutomaton;
+    }
+
+    @Nullable
+    String[] getGrantedFieldsArray() {
+        return grantedFieldsArray;
+    }
+
+    @Nullable
+    String[] getDeniedFieldsArray() {
+        return deniedFieldsArray;
     }
 
     public boolean hasFieldLevelSecurity() {
         return isTotal(permittedFieldsAutomaton) == false;
+    }
+
+    boolean isAllFieldIsAllowed() {
+        return allFieldIsAllowed;
     }
 
     public Set<String> resolveAllowedFields(Set<String> allowedMetaFields, MapperService mapperService) {
@@ -232,59 +214,14 @@ public class FieldPermissions implements Writeable, ToXContent {
         // Probably incorrect - comparing Object[] arrays with Arrays.equals
         if (!Arrays.equals(grantedFieldsArray, that.grantedFieldsArray)) return false;
         // Probably incorrect - comparing Object[] arrays with Arrays.equals
-        if (!Arrays.equals(deniedFieldsArray, that.deniedFieldsArray)) return false;
-        return sameLanguage(permittedFieldsAutomaton, that.permittedFieldsAutomaton);
-
+        return Arrays.equals(deniedFieldsArray, that.deniedFieldsArray);
     }
 
     @Override
     public int hashCode() {
         int result = Arrays.hashCode(grantedFieldsArray);
         result = 31 * result + Arrays.hashCode(deniedFieldsArray);
-        result = 31 * result + permittedFieldsAutomaton.hashCode();
         result = 31 * result + (allFieldIsAllowed ? 1 : 0);
         return result;
-    }
-
-    /**
-     * When we merge field permissions we need to union all the allowed fields. We do this by a union of the automatons
-     * that define which fields are granted access too. However, that means that after merging we cannot know anymore
-     * which strings defined the automatons. Hence we make a new class that only has an automaton for the fields that
-     * we grant access to and that throws an exception whenever we try to access the original patterns that lead to
-     * the automaton.
-     */
-    public static class MergedFieldPermissions extends FieldPermissions {
-        public MergedFieldPermissions(Automaton grantedFields, boolean allFieldIsAllowed) {
-            assert grantedFields != null;
-            this.permittedFieldsAutomaton = grantedFields;
-            this.grantedFieldsArray = null;
-            this.deniedFieldsArray = null;
-            this.allFieldIsAllowed = allFieldIsAllowed;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            throw new UnsupportedOperationException("Cannot build xcontent for merged field permissions");
-        }
-
-        @Override
-        public String toString() {
-            throw new UnsupportedOperationException("Cannot build string for merged field permissions");
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException("Cannot stream for merged field permissions");
-        }
-
-        @Nullable
-        public String[] getGrantedFieldsArray() {
-            throw new UnsupportedOperationException("Merged field permissions does not maintain sets");
-        }
-
-        @Nullable
-        public String[] getDeniedFieldsArray() {
-            throw new UnsupportedOperationException("Merged field permissions does not maintain sets");
-        }
     }
 }

@@ -2,6 +2,7 @@ import org.elasticsearch.gradle.test.ClusterConfiguration
 import org.elasticsearch.gradle.test.ClusterFormationTasks
 import org.elasticsearch.gradle.test.NodeInfo
 
+apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {

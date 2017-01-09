@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.actions.jira;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.http.HttpProxy;
@@ -83,16 +82,16 @@ public class JiraAction implements Action {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ACCOUNT)) {
+            } else if (Field.ACCOUNT.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     account = parser.text();
                 } else {
                     throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. expected [{}] to be of type string, but " +
                             "found [{}] instead", TYPE, watchId, actionId, Field.ACCOUNT.getPreferredName(), token);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.PROXY)) {
+            } else if (Field.PROXY.match(currentFieldName)) {
                 proxy = HttpProxy.parse(parser);
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FIELDS)) {
+            } else if (Field.FIELDS.match(currentFieldName)) {
                 try {
                     fields = parser.map();
                 } catch (Exception e) {

@@ -31,9 +31,7 @@ public class WatcherSearchTemplateRequestTests extends ESTestCase {
     private void assertTemplate(String source, String expectedScript, String expectedLang, Map<String, Object> expectedParams) {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             parser.nextToken();
-
-            WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(
-                    logger, parser, randomFrom(SearchType.values()), null, null);
+            WatcherSearchTemplateRequest result = WatcherSearchTemplateRequest.fromXContent(parser, randomFrom(SearchType.values()));
             assertNotNull(result.getTemplate());
             assertThat(result.getTemplate().getIdOrCode(), equalTo(expectedScript));
             assertThat(result.getTemplate().getLang(), equalTo(expectedLang));

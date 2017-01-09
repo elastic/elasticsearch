@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.watcher;
 
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.AbstractNamedDiffable;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -17,10 +17,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.EnumSet;
 
-public class WatcherMetaData extends AbstractDiffable<MetaData.Custom> implements MetaData.Custom {
+public class WatcherMetaData extends AbstractNamedDiffable<MetaData.Custom> implements MetaData.Custom {
 
     public static final String TYPE = "watcher";
-    public static final WatcherMetaData PROTO = new WatcherMetaData(false);
 
     private final boolean manuallyStopped;
 
@@ -33,7 +32,7 @@ public class WatcherMetaData extends AbstractDiffable<MetaData.Custom> implement
     }
 
     @Override
-    public String type() {
+    public String getWriteableName() {
         return TYPE;
     }
 
@@ -42,9 +41,12 @@ public class WatcherMetaData extends AbstractDiffable<MetaData.Custom> implement
         return EnumSet.of(MetaData.XContentContext.GATEWAY);
     }
 
-    @Override
-    public MetaData.Custom readFrom(StreamInput streamInput) throws IOException {
-        return new WatcherMetaData(streamInput.readBoolean());
+    public WatcherMetaData(StreamInput streamInput) throws IOException {
+        this(streamInput.readBoolean());
+    }
+
+    public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput streamInput) throws IOException {
+        return readDiffFrom(MetaData.Custom.class, TYPE, streamInput);
     }
 
     @Override
@@ -52,8 +54,7 @@ public class WatcherMetaData extends AbstractDiffable<MetaData.Custom> implement
         streamOutput.writeBoolean(manuallyStopped);
     }
 
-    @Override
-    public MetaData.Custom fromXContent(XContentParser parser) throws IOException {
+    public static MetaData.Custom fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         Boolean manuallyStopped = null;
         String currentFieldName = null;
@@ -63,7 +64,7 @@ public class WatcherMetaData extends AbstractDiffable<MetaData.Custom> implement
                     currentFieldName = parser.currentName();
                     break;
                 case VALUE_BOOLEAN:
-                    if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.MANUALLY_STOPPED)) {
+                    if (Field.MANUALLY_STOPPED.match(currentFieldName)) {
                         manuallyStopped = parser.booleanValue();
                     }
                     break;

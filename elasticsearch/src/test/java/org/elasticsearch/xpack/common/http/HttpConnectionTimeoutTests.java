@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.common.http;
 
+import org.apache.http.conn.ConnectTimeoutException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -37,7 +38,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
         try {
             httpClient.execute(request);
             fail("expected timeout exception");
-        } catch (ElasticsearchTimeoutException ete) {
+        } catch (ConnectTimeoutException ete) {
             TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
             logger.info("http connection timed out after {}", timeout.format());
             // it's supposed to be 10, but we'll give it an error margin of 2 seconds
@@ -63,7 +64,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
         try {
             httpClient.execute(request);
             fail("expected timeout exception");
-        } catch (ElasticsearchTimeoutException ete) {
+        } catch (ConnectTimeoutException ete) {
             TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
             logger.info("http connection timed out after {}", timeout.format());
             // it's supposed to be 7, but we'll give it an error margin of 2 seconds
@@ -90,7 +91,7 @@ public class HttpConnectionTimeoutTests extends ESTestCase {
         try {
             httpClient.execute(request);
             fail("expected timeout exception");
-        } catch (ElasticsearchTimeoutException ete) {
+        } catch (ConnectTimeoutException ete) {
             TimeValue timeout = TimeValue.timeValueNanos(System.nanoTime() - start);
             logger.info("http connection timed out after {}", timeout.format());
             // it's supposed to be 7, but we'll give it an error margin of 2 seconds

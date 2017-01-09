@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.notification.hipchat;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -24,7 +24,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-public class HipChatMessage implements ToXContent {
+public class HipChatMessage implements ToXContentObject {
 
     final String body;
     @Nullable final String[] rooms;
@@ -249,9 +249,9 @@ public class HipChatMessage implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FROM)) {
+                } else if (Field.FROM.match(currentFieldName)) {
                     from = parser.text();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ROOM)) {
+                } else if (Field.ROOM.match(currentFieldName)) {
                     List<TextTemplate> templates = new ArrayList<>();
                     if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -271,7 +271,7 @@ public class HipChatMessage implements ToXContent {
                         }
                     }
                     rooms = templates.toArray(new TextTemplate[templates.size()]);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.USER)) {
+                } else if (Field.USER.match(currentFieldName)) {
                     List<TextTemplate> templates = new ArrayList<>();
                     if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -291,28 +291,28 @@ public class HipChatMessage implements ToXContent {
                         }
                     }
                     users = templates.toArray(new TextTemplate[templates.size()]);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.COLOR)) {
+                } else if (Field.COLOR.match(currentFieldName)) {
                     try {
                         color = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException | IllegalArgumentException e) {
                         throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", e,
                                 Field.COLOR.getPreferredName());
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.NOTIFY)) {
+                } else if (Field.NOTIFY.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         notify = parser.booleanValue();
                     } else {
                         throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field, expected a " +
                                 "boolean value but found [{}]", Field.NOTIFY.getPreferredName(), token);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
+                } else if (Field.BODY.match(currentFieldName)) {
                     try {
                         body = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("failed to parse hipchat message. failed to parse [{}] field", pe,
                                 Field.BODY.getPreferredName());
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FORMAT)) {
+                } else if (Field.FORMAT.match(currentFieldName)) {
                     try {
                         messageFormat = HipChatMessage.Format.parse(parser);
                     } catch (IllegalArgumentException ilae) {

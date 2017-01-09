@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.watch;
 
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -19,7 +20,7 @@ import static org.elasticsearch.xpack.watcher.support.WatcherUtils.responseToDat
 
 public interface Payload extends ToXContent {
 
-    Simple EMPTY = new Simple(Collections.<String, Object>emptyMap());
+    Simple EMPTY = new Simple(Collections.emptyMap());
 
     Map<String, Object> data();
 
@@ -28,7 +29,7 @@ public interface Payload extends ToXContent {
         private final Map<String, Object> data;
 
         public Simple() {
-            this(new HashMap<String, Object>());
+            this(new HashMap<>());
         }
 
         public Simple(String key, Object value) {
@@ -73,10 +74,8 @@ public interface Payload extends ToXContent {
     }
 
     class XContent extends Simple {
-
-        public XContent(ToXContent response) throws IOException {
+        public XContent(ToXContentObject response) throws IOException {
             super(responseToData(response));
         }
-
     }
 }

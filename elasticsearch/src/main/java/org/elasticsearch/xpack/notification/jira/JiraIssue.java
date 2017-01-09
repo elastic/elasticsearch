@@ -9,9 +9,8 @@ import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -25,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class JiraIssue implements ToXContent {
+public class JiraIssue implements ToXContentObject {
 
     @Nullable final String account;
     private final Map<String, Object> fields;
@@ -161,12 +160,12 @@ public class JiraIssue implements ToXContent {
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ERRORS)) {
+                    } else if (Field.ERRORS.match(currentFieldName)) {
                         Map<String, Object> fieldErrors = parser.mapOrdered();
                         for (Map.Entry<String, Object> entry : fieldErrors.entrySet()) {
                             errors.add("Field [" + entry.getKey() + "] has error [" + String.valueOf(entry.getValue()) + "]");
                         }
-                    } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.ERROR_MESSAGES)) {
+                    } else if (Field.ERROR_MESSAGES.match(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             errors.add(parser.text());
                         }

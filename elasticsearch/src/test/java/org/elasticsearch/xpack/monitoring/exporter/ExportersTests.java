@@ -6,9 +6,6 @@
 package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -46,9 +43,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class ExportersTests extends ESTestCase {
@@ -200,57 +194,6 @@ public class ExportersTests extends ESTestCase {
         assertThat(settings, hasEntry("_name1.foo", "bar"));
     }
 
-    public void testOpenBulkOnMaster() throws Exception {
-        Exporter.Factory factory = new MockFactory(false);
-        Exporter.Factory masterOnlyFactory = new MockFactory(true);
-        factories.put("mock", factory);
-        factories.put("mock_master_only", masterOnlyFactory);
-        Exporters exporters = new Exporters(Settings.builder()
-                .put("xpack.monitoring.exporters._name0.type", "mock")
-                .put("xpack.monitoring.exporters._name1.type", "mock_master_only")
-                .build(), factories, clusterService);
-        exporters.start();
-
-        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.isLocalNodeElectedMaster()).thenReturn(true);
-        when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .nodes(nodes).build());
-
-        ExportBulk bulk = exporters.openBulk();
-        assertThat(bulk, notNullValue());
-
-        verify(exporters.getExporter("_name0"), times(1)).masterOnly();
-        verify(exporters.getExporter("_name0"), times(1)).openBulk();
-        verify(exporters.getExporter("_name1"), times(1)).masterOnly();
-        verify(exporters.getExporter("_name1"), times(1)).openBulk();
-    }
-
-    public void testExportNotOnMaster() throws Exception {
-        Exporter.Factory factory = new MockFactory(false);
-        Exporter.Factory masterOnlyFactory = new MockFactory(true);
-        factories.put("mock", factory);
-        factories.put("mock_master_only", masterOnlyFactory);
-        Exporters exporters = new Exporters(Settings.builder()
-                .put("xpack.monitoring.exporters._name0.type", "mock")
-                .put("xpack.monitoring.exporters._name1.type", "mock_master_only")
-                .build(), factories, clusterService);
-        exporters.start();
-
-        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.isLocalNodeElectedMaster()).thenReturn(false);
-        when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-                .nodes(nodes).build());
-
-        ExportBulk bulk = exporters.openBulk();
-        assertThat(bulk, notNullValue());
-
-        verify(exporters.getExporter("_name0"), times(1)).masterOnly();
-        verify(exporters.getExporter("_name0"), times(1)).openBulk();
-        verify(exporters.getExporter("_name1"), times(1)).masterOnly();
-        verify(exporters.getExporter("_name1"), times(1)).isSingleton();
-        verifyNoMoreInteractions(exporters.getExporter("_name1"));
-    }
-
     public void testEmptyPipeline() throws IOException {
         String json = Exporter.emptyPipeline(XContentType.JSON).string();
 
@@ -360,20 +303,15 @@ public class ExportersTests extends ESTestCase {
 
 
     static class MockFactory implements Exporter.Factory {
-        private final boolean masterOnly;
-
-        public MockFactory(boolean masterOnly) {
-            this.masterOnly = masterOnly;
-        }
 
         @Override
         public Exporter create(Exporter.Config config) {
             Exporter exporter = mock(Exporter.class);
             when(exporter.name()).thenReturn(config.name());
-            when(exporter.masterOnly()).thenReturn(masterOnly);
             when(exporter.openBulk()).thenReturn(mock(ExportBulk.class));
             return exporter;
         }
+
     }
 
     static class CountingExporter extends Exporter {

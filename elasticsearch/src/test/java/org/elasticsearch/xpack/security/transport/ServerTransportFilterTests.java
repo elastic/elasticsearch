@@ -26,13 +26,12 @@ import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
 
-import java.util.Collection;
 import java.util.Collections;
 
 import static org.elasticsearch.mock.orig.Mockito.times;
@@ -85,7 +84,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         filter.inbound("_action", request, channel, future);
         //future.get(); // don't block it's not called really just mocked
-        verify(authzService).authorize(authentication, "_action", request, Collections.emptyList(), Collections.emptyList());
+        verify(authzService).authorize(authentication, "_action", request, null, null);
     }
 
     public void testInboundDestructiveOperations() throws Exception {
@@ -108,7 +107,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             verify(listener).onFailure(isA(IllegalArgumentException.class));
             verifyNoMoreInteractions(authzService);
         } else {
-            verify(authzService).authorize(authentication, action, request, Collections.emptyList(), Collections.emptyList());
+            verify(authzService).authorize(authentication, action, request, null, null);
         }
     }
 
@@ -143,24 +142,23 @@ public class ServerTransportFilterTests extends ESTestCase {
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(null), any(ActionListener.class));
+        final Role empty = Role.EMPTY;
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            callback.onResponse(Collections.emptyList());
+            callback.onResponse(empty);
             return Void.TYPE;
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
         when(authentication.getUser()).thenReturn(XPackUser.INSTANCE);
         when(authentication.getRunAsUser()).thenReturn(XPackUser.INSTANCE);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         doThrow(authorizationError("authz failed")).when(authzService).authorize(authentication, "_action", request,
-                Collections.emptyList(), Collections.emptyList());
-        try {
+                empty, null);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             filter.inbound("_action", request, channel, future);
             future.actionGet();
-            fail("expected filter inbound to throw an authorization exception on authorization error");
-        } catch (ElasticsearchSecurityException e) {
-            assertThat(e.getMessage(), equalTo("authz failed"));
-        }
+        });
+        assertThat(e.getMessage(), equalTo("authz failed"));
     }
 
     public void testClientProfileRejectsNodeActions() throws Exception {
@@ -182,11 +180,10 @@ public class ServerTransportFilterTests extends ESTestCase {
         ServerTransportFilter filter = getNodeFilter();
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = new Authentication(new User("test", "superuser"), new RealmRef("test", "test", "node1"), null);
-        final Collection<Role> userRoles = Collections.singletonList(SuperuserRole.INSTANCE);
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            callback.onResponse(authentication.getUser().equals(i.getArguments()[0]) ? userRoles : Collections.emptyList());
+            callback.onResponse(authentication.getUser().equals(i.getArguments()[0]) ? ReservedRolesStore.SUPERUSER_ROLE : null);
             return Void.TYPE;
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
         doAnswer((i) -> {
@@ -205,12 +202,12 @@ public class ServerTransportFilterTests extends ESTestCase {
         filter.inbound(internalAction, request, channel, new PlainActionFuture<>());
         verify(authcService).authenticate(eq(internalAction), eq(request), eq(null), any(ActionListener.class));
         verify(authzService).roles(eq(authentication.getUser()), any(ActionListener.class));
-        verify(authzService).authorize(authentication, internalAction, request, userRoles, Collections.emptyList());
+        verify(authzService).authorize(authentication, internalAction, request, ReservedRolesStore.SUPERUSER_ROLE, null);
 
         filter.inbound(nodeOrShardAction, request, channel, new PlainActionFuture<>());
         verify(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq(null), any(ActionListener.class));
         verify(authzService, times(2)).roles(eq(authentication.getUser()), any(ActionListener.class));
-        verify(authzService).authorize(authentication, nodeOrShardAction, request, userRoles, Collections.emptyList());
+        verify(authzService).authorize(authentication, nodeOrShardAction, request, ReservedRolesStore.SUPERUSER_ROLE, null);
         verifyNoMoreInteractions(authcService, authzService);
     }
 

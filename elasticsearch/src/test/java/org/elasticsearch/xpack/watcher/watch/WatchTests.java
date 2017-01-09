@@ -288,7 +288,7 @@ public class WatchTests extends ESTestCase {
         ActionRegistry actionRegistry = registry(Collections.emptyList(), conditionRegistry, transformRegistry);
         Watch.Parser watchParser = new Watch.Parser(settings, triggerService, actionRegistry, inputRegistry, null, Clock.systemUTC());
 
-        SearchRequestParsers searchParsers = new SearchRequestParsers(null, null);
+        SearchRequestParsers searchParsers = new SearchRequestParsers(null);
         WatcherSearchTemplateService searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, searchParsers,
                 xContentRegistry());
 
@@ -409,7 +409,7 @@ public class WatchTests extends ESTestCase {
         Map<String, InputFactory> parsers = new HashMap<>();
         switch (inputType) {
             case SearchInput.TYPE:
-                SearchRequestParsers searchParsers = new SearchRequestParsers(null, null);
+                SearchRequestParsers searchParsers = new SearchRequestParsers(null);
                 parsers.put(SearchInput.TYPE, new SearchInputFactory(settings, client, searchParsers, xContentRegistry(), scriptService));
                 return new InputRegistry(Settings.EMPTY, parsers);
             default:
@@ -457,7 +457,7 @@ public class WatchTests extends ESTestCase {
     }
 
     private TransformRegistry transformRegistry() {
-        SearchRequestParsers searchParsers = new SearchRequestParsers(null, null);
+        SearchRequestParsers searchParsers = new SearchRequestParsers(null);
         Map<String, TransformFactory> factories = new HashMap<>();
         factories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
         factories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, client, searchParsers, xContentRegistry(), scriptService));

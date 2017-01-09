@@ -66,7 +66,7 @@ import java.util.function.Predicate;
 public final class RemoteClusterService extends AbstractComponent implements Closeable {
 
     /**
-     * A list of initial seed nodes to discover eligibale nodes from the remote cluster
+     * A list of initial seed nodes to discover eligible nodes from the remote cluster
      */
     //TODO this should be an affix settings?
     public static final Setting<Settings> REMOTE_CLUSTERS_SEEDS = Setting.groupSetting("search.remote.seeds.",
@@ -87,9 +87,10 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         Setting.positiveTimeSetting("search.remote.initial_connect_timeout", TimeValue.timeValueSeconds(30), Setting.Property.NodeScope);
 
     /**
-     * The name of a node attribute to filter out nodes that should not be connected to in the remote cluster.
+     * The name of a node attribute to select nodes that should be connected to in the remote cluster.
      * For instance a node can be configured with <tt>node.node_attr.gateway: true</tt> in order to be eligible as a gateway node between
-     * clusters. In that case <tt>search.remote.node_attribute: gateway</tt> can be used to filter out other nodes in the remote cluster
+     * clusters. In that case <tt>search.remote.node_attribute: gateway</tt> can be used to filter out other nodes in the remote cluster.
+     * The value of the setting is expected to be a boolean, <tt><true/tt> for nodes that can become gateways, <tt>false</tt> otherwise.
      */
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString("search.remote.node_attribute",
         Setting.Property.NodeScope);
@@ -326,7 +327,6 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     }
 
     static void validateRemoteClustersSeeds(Settings settings) {
-        //TODO do we need a static whitelist like in reindex from remote?
         for (String clusterName : settings.names()) {
             String[] remoteHosts = settings.getAsArray(clusterName);
             if (remoteHosts.length == 0) {

@@ -773,7 +773,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     public void testCompositeActionsIndicesAreCheckedAtTheShardLevel() {
         String action;
-        switch(randomIntBetween(0, 5)) {
+        switch(randomIntBetween(0, 4)) {
             case 0:
                 action = MultiGetAction.NAME + "[shard]";
                 break;
@@ -790,13 +790,10 @@ public class AuthorizationServiceTests extends ESTestCase {
             case 4:
                 action = "indices:data/read/mpercolate[s]";
                 break;
-            case 5:
-                //reindex delegates to index, other than search covered above
-                action = IndexAction.NAME;
-                break;
             default:
                 throw new UnsupportedOperationException();
         }
+        logger.info("--> action: {}", action);
 
         TransportRequest request = new MockIndicesRequest(IndicesOptions.strictExpandOpen(), "index");
         User userAllowed = new User("userAllowed", "roleAllowed");

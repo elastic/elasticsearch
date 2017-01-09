@@ -90,7 +90,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
      * The name of a node attribute to select nodes that should be connected to in the remote cluster.
      * For instance a node can be configured with <tt>node.node_attr.gateway: true</tt> in order to be eligible as a gateway node between
      * clusters. In that case <tt>search.remote.node_attribute: gateway</tt> can be used to filter out other nodes in the remote cluster.
-     * The value of the setting is expected to be a boolean, <tt><true/tt> for nodes that can become gateways, <tt>false</tt> otherwise.
+     * The value of the setting is expected to be a boolean, <tt>true</tt> for nodes that can become gateways, <tt>false</tt> otherwise.
      */
     public static final Setting<String> REMOTE_NODE_ATTRIBUTE = Setting.simpleString("search.remote.node_attribute",
         Setting.Property.NodeScope);

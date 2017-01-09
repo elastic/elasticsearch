@@ -385,18 +385,22 @@ public class UnicastZenPing extends AbstractComponent implements ZenPing {
             try (Releasable ignore = connectionLock.acquire(node.getAddress())) {
                 result = tempConnections.get(node.getAddress());
                 if (result == null) {
+                    ensureOpen();
                     boolean success = false;
+                    logger.trace("[{}] opening connection to [{}]", id(), node);
                     result = transportService.openConnection(node, connectionProfile);
                     try {
                         transportService.handshake(result, connectionProfile.getHandshakeTimeout().millis());
                         synchronized (this) {
-                            // acquire lock to prevent concurrent closing
+                            // acquire lock and check if closed, to prevent leaving an open connection after closing
+                            ensureOpen();
                             Connection existing = tempConnections.put(node.getAddress(), result);
                             assert existing == null;
                             success = true;
                         }
                     } finally {
                         if (success == false) {
+                            logger.trace("[{}] closing connection to [{}] due to failure", id(), node);
                             IOUtils.closeWhileHandlingException(result);
                         }
                     }

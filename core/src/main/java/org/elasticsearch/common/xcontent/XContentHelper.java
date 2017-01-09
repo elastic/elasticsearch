@@ -378,19 +378,18 @@ public class XContentHelper {
 
     /**
      * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
-     * {@link XContentType}. Wraps the output into a new anonymous object depending on the value of the wrapInObject argument.
+     * {@link XContentType}. Wraps the output into a new anonymous object.
      */
-    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, boolean wrapInObject) throws IOException {
+    public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType) throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-            if (wrapInObject) {
+            if (toXContent.isFragment()) {
                 builder.startObject();
             }
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            if (wrapInObject) {
+            if (toXContent.isFragment()) {
                 builder.endObject();
             }
             return builder.bytes();
         }
     }
-
 }

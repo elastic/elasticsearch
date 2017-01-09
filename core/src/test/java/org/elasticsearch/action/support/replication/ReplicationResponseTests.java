@@ -34,8 +34,11 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
@@ -81,11 +84,16 @@ public class ReplicationResponseTests extends ESTestCase {
             List<Supplier<ReplicationResponse.ShardInfo.Failure>> mutations = new ArrayList<>();
 
             final Index index = failure.fullShardId().getIndex();
-            final ShardId randomIndex = new ShardId(randomUnicodeOfCodepointLength(5), index.getUUID(), failure.shardId());
+            final Set<String> indexNamePool = new HashSet<>(Arrays.asList(
+                    randomUnicodeOfCodepointLength(5), randomUnicodeOfCodepointLength(6)));
+            indexNamePool.remove(index.getName());
+            final ShardId randomIndex = new ShardId(randomFrom(indexNamePool), index.getUUID(), failure.shardId());
             mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(randomIndex, failure.nodeId(), (Exception) failure.getCause(),
                     failure.status(), failure.primary()));
 
-            final ShardId randomUUID = new ShardId(index.getName(), randomUnicodeOfCodepointLength(5), failure.shardId());
+            final Set<String> uuidPool = new HashSet<>(Arrays.asList(randomUnicodeOfCodepointLength(5), randomUnicodeOfCodepointLength(6)));
+            uuidPool.remove(index.getUUID());
+            final ShardId randomUUID = new ShardId(index.getName(), randomFrom(uuidPool), failure.shardId());
             mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(randomUUID, failure.nodeId(), (Exception) failure.getCause(),
                     failure.status(), failure.primary()));
 
@@ -93,15 +101,22 @@ public class ReplicationResponseTests extends ESTestCase {
             mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(randomShardId, failure.nodeId(), (Exception) failure.getCause(),
                     failure.status(), failure.primary()));
 
-            final String randomNode = randomUnicodeOfLength(3);
+            final Set<String> nodeIdPool = new HashSet<>(Arrays.asList(randomUnicodeOfLength(3), randomUnicodeOfLength(4)));
+            nodeIdPool.remove(failure.nodeId());
+            final String randomNode = randomFrom(nodeIdPool);
             mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(failure.fullShardId(), randomNode, (Exception) failure.getCause(),
                     failure.status(), failure.primary()));
 
-            final Exception randomException = randomFrom(new IllegalStateException("a"), new IllegalArgumentException("b"));
+            final Set<Exception> exceptionPool = new HashSet<>(Arrays.asList(
+                    new IllegalStateException("a"), new IllegalArgumentException("b")));
+            exceptionPool.remove(failure.getCause());
+            final Exception randomException = randomFrom(exceptionPool);
             mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(failure.fullShardId(), failure.nodeId(), randomException,
                     failure.status(), failure.primary()));
 
-            final RestStatus randomStatus = randomFrom(RestStatus.values());
+            final Set<RestStatus> otherStatuses = new HashSet<>(Arrays.asList(RestStatus.values()));
+            otherStatuses.remove(failure.status());
+            final RestStatus randomStatus = randomFrom(otherStatuses);
             mutations.add(() -> new ReplicationResponse.ShardInfo.Failure(failure.fullShardId(), failure.nodeId(),
                     (Exception) failure.getCause(), randomStatus, failure.primary()));
 
@@ -119,7 +134,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         final ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(5, 3);
-        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType);
 
         // Expected JSON is {"_shards":{"total":5,"successful":3,"failed":0}}
         try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {
@@ -149,7 +164,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         final ReplicationResponse.ShardInfo shardInfo = new ReplicationResponse.ShardInfo(randomIntBetween(1, 5), randomIntBetween(1, 5));
-        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType);
 
         ReplicationResponse.ShardInfo parsedShardInfo;
         try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {
@@ -162,7 +177,7 @@ public class ReplicationResponseTests extends ESTestCase {
         // We can use assertEquals because the shardInfo doesn't have a failure (and exceptions)
         assertEquals(shardInfo, parsedShardInfo);
 
-        BytesReference parsedShardInfoBytes = XContentHelper.toXContent(parsedShardInfo, xContentType, true);
+        BytesReference parsedShardInfoBytes = XContentHelper.toXContent(parsedShardInfo, xContentType);
         assertEquals(shardInfoBytes, parsedShardInfoBytes);
     }
 
@@ -170,7 +185,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         final ReplicationResponse.ShardInfo shardInfo = randomShardInfo();
-        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType);
 
         try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
@@ -211,7 +226,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         final ReplicationResponse.ShardInfo shardInfo = randomShardInfo();
-        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType, true);
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfo, xContentType);
 
         ReplicationResponse.ShardInfo parsedShardInfo;
         try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {
@@ -252,7 +267,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         final ReplicationResponse.ShardInfo.Failure shardInfoFailure = randomFailure();
-        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfoFailure, xContentType, false);
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfoFailure, xContentType);
 
         try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {
             assertFailure(parser, shardInfoFailure);
@@ -263,7 +278,7 @@ public class ReplicationResponseTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
 
         final ReplicationResponse.ShardInfo.Failure shardInfoFailure = randomFailure();
-        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfoFailure, xContentType, false);
+        final BytesReference shardInfoBytes = XContentHelper.toXContent(shardInfoFailure, xContentType);
 
         ReplicationResponse.ShardInfo.Failure parsedFailure;
         try (XContentParser parser = createParser(xContentType.xContent(), shardInfoBytes)) {

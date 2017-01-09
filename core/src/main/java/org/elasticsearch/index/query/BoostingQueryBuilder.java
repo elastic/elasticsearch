@@ -153,21 +153,21 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, POSITIVE_FIELD)) {
+                if (POSITIVE_FIELD.match(currentFieldName)) {
                     positiveQuery = parseContext.parseInnerQueryBuilder();
                     positiveQueryFound = true;
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, NEGATIVE_FIELD)) {
+                } else if (NEGATIVE_FIELD.match(currentFieldName)) {
                     negativeQuery = parseContext.parseInnerQueryBuilder();
                     negativeQueryFound = true;
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, NEGATIVE_BOOST_FIELD)) {
+                if (NEGATIVE_BOOST_FIELD.match(currentFieldName)) {
                     negativeBoost = parser.floatValue();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                } else if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");

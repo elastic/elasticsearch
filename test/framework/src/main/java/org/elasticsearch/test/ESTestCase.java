@@ -46,6 +46,7 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
@@ -255,6 +256,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Before
     public final void before()  {
         logger.info("[{}]: before test", getTestName());
+        assertNull("Thread context initialized twice", threadContext);
         if (enableWarningsCheck()) {
             this.threadContext = new ThreadContext(Settings.EMPTY);
             DeprecationLogger.setThreadContext(threadContext);
@@ -272,8 +274,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     @After
     public final void after() throws Exception {
         checkStaticState();
-        if (enableWarningsCheck()) {
+        // We check threadContext != null rather than enableWarningsCheck()
+        // because after methods are still called in the event that before
+        // methods failed, in which case threadContext might not have been
+        // initialized
+        if (threadContext != null) {
             ensureNoWarnings();
+            threadContext = null;
         }
         ensureAllSearchContextsReleased();
         ensureCheckIndexPassed();
@@ -287,12 +294,11 @@ public abstract class ESTestCase extends LuceneTestCase {
             final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
             assertNull("unexpected warning headers", warnings);
         } finally {
-            DeprecationLogger.removeThreadContext(this.threadContext);
-            this.threadContext.close();
+            resetDeprecationLogger();
         }
     }
 
-    protected final void assertWarnings(String... expectedWarnings) throws IOException {
+    protected final void assertWarnings(String... expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
@@ -305,12 +311,22 @@ public abstract class ESTestCase extends LuceneTestCase {
                 assertThat(actualWarnings, hasItem(equalTo(msg)));
             }
         } finally {
-            // "clear" current warning headers by setting a new ThreadContext
-            DeprecationLogger.removeThreadContext(this.threadContext);
-            this.threadContext.close();
-            this.threadContext = new ThreadContext(Settings.EMPTY);
-            DeprecationLogger.setThreadContext(this.threadContext);
+            resetDeprecationLogger();
         }
+    }
+
+    private void resetDeprecationLogger() {
+        // "clear" current warning headers by setting a new ThreadContext
+        DeprecationLogger.removeThreadContext(this.threadContext);
+        try {
+            this.threadContext.close();
+            // catch IOException to avoid that call sites have to deal with it. It is only declared because this class implements Closeable
+            // but it is impossible that this implementation will ever throw an IOException.
+        } catch (IOException ex) {
+            throw new AssertionError("IOException thrown while closing deprecation logger's thread context", ex);
+        }
+        this.threadContext = new ThreadContext(Settings.EMPTY);
+        DeprecationLogger.setThreadContext(this.threadContext);
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();
@@ -441,7 +457,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         return random().nextInt();
     }
 
-    public static long randomPositiveLong() {
+    public static long randomNonNegativeLong() {
         long randomLong;
         do {
             randomLong = randomLong();
@@ -972,7 +988,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * The {@link NamedXContentRegistry} to use for this test. Subclasses should override and use liberally.
      */
     protected NamedXContentRegistry xContentRegistry() {
-        return NamedXContentRegistry.EMPTY;
+        return new NamedXContentRegistry(ClusterModule.getNamedXWriteables());
     }
 
     /** Returns the suite failure marker: internal use only! */

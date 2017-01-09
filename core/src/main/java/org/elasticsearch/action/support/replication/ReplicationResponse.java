@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
@@ -250,7 +251,7 @@ public class ReplicationResponse extends ActionResponse {
             return shardInfo;
         }
 
-        public static class Failure implements ShardOperationFailedException, ToXContent {
+        public static class Failure implements ShardOperationFailedException, ToXContentObject {
 
             private static final String _INDEX = "_index";
             private static final String _SHARD = "_shard";

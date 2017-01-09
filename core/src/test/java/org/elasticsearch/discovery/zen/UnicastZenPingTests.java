@@ -72,7 +72,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -80,6 +79,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -115,6 +115,7 @@ public class UnicastZenPingTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         try {
+            logger.info("shutting down...");
             // JDK stack is broken, it does not iterate in the expected order (http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4475301)
             final List<Closeable> reverse = new ArrayList<>();
             while (!closeables.isEmpty()) {
@@ -168,8 +169,8 @@ public class UnicastZenPingTests extends ESTestCase {
         NetworkHandle handleD = startServices(settingsMismatch, threadPool, "UZP_D", versionD, supplier);
         closeables.push(handleD.transportService);
 
-        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
-        final ClusterState stateMismatch = ClusterState.builder(new ClusterName("mismatch")).version(randomPositiveLong()).build();
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
+        final ClusterState stateMismatch = ClusterState.builder(new ClusterName("mismatch")).version(randomNonNegativeLong()).build();
 
         Settings hostsSettings = Settings.builder()
             .putArray("discovery.zen.ping.unicast.hosts",
@@ -329,7 +330,7 @@ public class UnicastZenPingTests extends ESTestCase {
             .put("cluster.name", "test")
             .build();
 
-        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
 
         final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER);
         zenPingA.start(new PingContextProvider() {
@@ -567,7 +568,7 @@ public class UnicastZenPingTests extends ESTestCase {
             hostsSettingsBuilder.put("discovery.zen.ping.unicast.hosts", (String) null);
         }
         final Settings hostsSettings = hostsSettingsBuilder.build();
-        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
 
         // connection to reuse
         handleA.transportService.connectToNode(handleB.node);
@@ -639,7 +640,7 @@ public class UnicastZenPingTests extends ESTestCase {
             .put("cluster.name", "test")
             .put("discovery.zen.ping.unicast.hosts", (String) null) // use nodes for simplicity
             .build();
-        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomPositiveLong()).build();
+        final ClusterState state = ClusterState.builder(new ClusterName("test")).version(randomNonNegativeLong()).build();
 
         final TestUnicastZenPing zenPingA = new TestUnicastZenPing(hostsSettings, threadPool, handleA, EMPTY_HOSTS_PROVIDER);
         zenPingA.start(new PingContextProvider() {
@@ -796,21 +797,22 @@ public class UnicastZenPingTests extends ESTestCase {
 
         volatile CountDownLatch allTasksCompleted;
         volatile AtomicInteger pendingTasks;
+        volatile CountDownLatch pingingRoundClosed;
 
         PingCollection pingAndWait() throws ExecutionException, InterruptedException {
             allTasksCompleted = new CountDownLatch(1);
+            pingingRoundClosed = new CountDownLatch(1);
             pendingTasks = new AtomicInteger();
-            // make the three sending rounds to come as started
+            // mark the three sending rounds as ongoing
             markTaskAsStarted("send pings");
             markTaskAsStarted("send pings");
             markTaskAsStarted("send pings");
-            final CompletableFuture<PingCollection> response = new CompletableFuture<>();
-            try {
-                ping(response::complete, TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(1));
-            } catch (Exception ex) {
-                response.completeExceptionally(ex);
-            }
-            return response.get();
+            final AtomicReference<PingCollection> response = new AtomicReference<>();
+            ping(response::set, TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(1));
+            pingingRoundClosed.await();
+            final PingCollection result = response.get();
+            assertNotNull("pinging didn't complete",  result);
+            return result;
         }
 
         @Override
@@ -822,6 +824,7 @@ public class UnicastZenPingTests extends ESTestCase {
                 // ok, finish anyway
             }
             super.finishPingingRound(pingingRound);
+            pingingRoundClosed.countDown();
         }
 
         @Override

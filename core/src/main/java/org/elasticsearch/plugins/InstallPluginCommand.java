@@ -418,6 +418,18 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     private PluginInfo verify(Terminal terminal, Path pluginRoot, boolean isBatch, Environment env) throws Exception {
         // read and validate the plugin descriptor
         PluginInfo info = PluginInfo.readFromProperties(pluginRoot);
+
+        // checking for existing version of the plugin
+        final Path destination = env.pluginsFile().resolve(info.getName());
+        if (Files.exists(destination)) {
+            final String message = String.format(
+                Locale.ROOT,
+                "plugin directory [%s] already exists; if you need to update the plugin, uninstall it first using command 'remove %s'",
+                destination.toAbsolutePath(),
+                info.getName());
+            throw new UserException(ExitCodes.CONFIG, message);
+        }
+
         terminal.println(VERBOSE, info.toString());
 
         // don't let user install plugin as a module...
@@ -471,14 +483,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
         try {
             PluginInfo info = verify(terminal, tmpRoot, isBatch, env);
-
             final Path destination = env.pluginsFile().resolve(info.getName());
-            if (Files.exists(destination)) {
-                throw new UserException(
-                    ExitCodes.USAGE,
-                    "plugin directory " + destination.toAbsolutePath() +
-                        " already exists. To update the plugin, uninstall it first using 'remove " + info.getName() + "' command");
-            }
 
             Path tmpBinDir = tmpRoot.resolve("bin");
             if (Files.exists(tmpBinDir)) {

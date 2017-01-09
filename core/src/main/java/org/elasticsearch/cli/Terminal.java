@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.nio.charset.Charset;
+import java.util.Locale;
 
 /**
  * A Terminal wraps access to reading input and writing output for a cli.
@@ -89,6 +90,26 @@ public abstract class Terminal {
         if (this.verbosity.ordinal() >= verbosity.ordinal()) {
             getWriter().print(msg);
             getWriter().flush();
+        }
+    }
+
+    /**
+     * Prompt for a yes or no answer from the user. This method will loop until 'y' or 'n'
+     * (or the default empty value) is entered.
+     */
+    public final boolean promptYesNo(String prompt, boolean defaultYes) {
+        String answerPrompt = defaultYes ? " [Y/n]" : " [y/N]";
+        while (true) {
+            String answer = readText(prompt + answerPrompt).toLowerCase(Locale.ROOT);
+            if (answer.isEmpty()) {
+                return defaultYes;
+            }
+            boolean answerYes = answer.equals("y");
+            if (answerYes == false && answer.equals("n") == false) {
+                println("Did not understand answer '" + answer + "'");
+                continue;
+            }
+            return answerYes;
         }
     }
 

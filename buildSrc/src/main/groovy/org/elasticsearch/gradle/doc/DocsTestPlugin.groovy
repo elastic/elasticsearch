@@ -30,6 +30,7 @@ public class DocsTestPlugin extends RestTestPlugin {
 
     @Override
     public void apply(Project project) {
+        project.pluginManager.apply('elasticsearch.standalone-rest-test')
         super.apply(project)
         Map<String, String> defaultSubstitutions = [
             /* These match up with the asciidoc syntax for substitutions but

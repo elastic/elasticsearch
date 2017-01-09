@@ -46,7 +46,7 @@ public class QueryShardContextTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata.build(), Settings.EMPTY);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        final long nowInMillis = randomPositiveLong();
+        final long nowInMillis = randomNonNegativeLong();
         QueryShardContext context = new QueryShardContext(
             0, indexSettings, null, null, mapperService, null, null, xContentRegistry(), null, null,
             () -> nowInMillis);

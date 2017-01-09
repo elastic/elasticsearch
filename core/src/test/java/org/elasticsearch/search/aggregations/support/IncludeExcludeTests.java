@@ -282,10 +282,10 @@ public class IncludeExcludeTests extends ESTestCase {
         IncludeExclude exc = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             assertEquals(XContentParser.Token.FIELD_NAME, token);
-            if (parseFieldMatcher.match(parser.currentName(), IncludeExclude.INCLUDE_FIELD)) {
+            if (IncludeExclude.INCLUDE_FIELD.match(parser.currentName())) {
                 token = parser.nextToken();
                 inc = IncludeExclude.parseInclude(parser, parseContext);
-            } else if (parseFieldMatcher.match(parser.currentName(), IncludeExclude.EXCLUDE_FIELD)) {
+            } else if (IncludeExclude.EXCLUDE_FIELD.match(parser.currentName())) {
                 token = parser.nextToken();
                 exc = IncludeExclude.parseExclude(parser, parseContext);
             } else {

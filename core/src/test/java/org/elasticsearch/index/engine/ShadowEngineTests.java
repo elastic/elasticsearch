@@ -984,33 +984,6 @@ public class ShadowEngineTests extends ESTestCase {
         }
     }
 
-    public void testDocStats() throws IOException {
-        final int numDocs = randomIntBetween(2, 10); // at least 2 documents otherwise we don't see any deletes below
-        for (int i = 0; i < numDocs; i++) {
-            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, testDocument(), new BytesArray("{}"), null);
-            Engine.Index firstIndexRequest = new Engine.Index(newUid(Integer.toString(i)), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, 0, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), -1, false);
-            Engine.IndexResult indexResult = primaryEngine.index(firstIndexRequest);
-            assertThat(indexResult.getVersion(), equalTo(1L));
-        }
-        DocsStats docStats = primaryEngine.getDocStats();
-        assertEquals(numDocs, docStats.getCount());
-        assertEquals(0, docStats.getDeleted());
-
-        docStats = replicaEngine.getDocStats();
-        assertEquals(0, docStats.getCount());
-        assertEquals(0, docStats.getDeleted());
-        primaryEngine.flush();
-
-        docStats = replicaEngine.getDocStats();
-        assertEquals(0, docStats.getCount());
-        assertEquals(0, docStats.getDeleted());
-        replicaEngine.refresh("test");
-        docStats = replicaEngine.getDocStats();
-        assertEquals(numDocs, docStats.getCount());
-        assertEquals(0, docStats.getDeleted());
-        primaryEngine.forceMerge(randomBoolean(), 1, false, false, false);
-    }
-
     public void testRefreshListenersFails() throws IOException {
         EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(),
                 new RefreshListeners(null, null, null, logger));

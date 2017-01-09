@@ -32,6 +32,7 @@ import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.common.Strings;
@@ -84,9 +85,10 @@ public class AzureRepository extends BlobStoreRepository {
     private final boolean compress;
     private final boolean readonly;
 
-    public AzureRepository(RepositoryMetaData metadata, Environment environment, AzureStorageService storageService)
+    public AzureRepository(RepositoryMetaData metadata, Environment environment,
+                           NamedXContentRegistry namedXContentRegistry, AzureStorageService storageService)
         throws IOException, URISyntaxException, StorageException {
-        super(metadata, environment.settings());
+        super(metadata, environment.settings(), namedXContentRegistry);
 
         blobStore = new AzureBlobStore(metadata, environment.settings(), storageService);
         String container = getValue(metadata.settings(), settings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);

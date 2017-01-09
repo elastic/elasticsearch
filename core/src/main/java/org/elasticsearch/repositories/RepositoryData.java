@@ -42,10 +42,22 @@ import java.util.stream.Collectors;
  * A class that represents the data in a repository, as captured in the
  * repository's index blob.
  */
-public final class RepositoryData implements ToXContent {
+public final class RepositoryData {
 
-    public static final RepositoryData EMPTY = new RepositoryData(Collections.emptyList(), Collections.emptyMap());
+    /**
+     * The generation value indicating the repository has no index generational files.
+     */
+    public static final long EMPTY_REPO_GEN = -1L;
+    /**
+     * An instance initialized for an empty repository.
+     */
+    public static final RepositoryData EMPTY =
+        new RepositoryData(EMPTY_REPO_GEN, Collections.emptyList(), Collections.emptyMap(), Collections.emptyList());
 
+    /**
+     * The generational id of the index file from which the repository data was read.
+     */
+    private final long genId;
     /**
      * The ids of the snapshots in the repository.
      */
@@ -58,17 +70,31 @@ public final class RepositoryData implements ToXContent {
      * The snapshots that each index belongs to.
      */
     private final Map<IndexId, Set<SnapshotId>> indexSnapshots;
+    /**
+     * The snapshots that are no longer compatible with the current cluster ES version.
+     */
+    private final List<SnapshotId> incompatibleSnapshotIds;
 
-    public RepositoryData(List<SnapshotId> snapshotIds, Map<IndexId, Set<SnapshotId>> indexSnapshots) {
+    public RepositoryData(long genId, List<SnapshotId> snapshotIds, Map<IndexId, Set<SnapshotId>> indexSnapshots,
+                          List<SnapshotId> incompatibleSnapshotIds) {
+        this.genId = genId;
         this.snapshotIds = Collections.unmodifiableList(snapshotIds);
         this.indices = Collections.unmodifiableMap(indexSnapshots.keySet()
                                                        .stream()
                                                        .collect(Collectors.toMap(IndexId::getName, Function.identity())));
         this.indexSnapshots = Collections.unmodifiableMap(indexSnapshots);
+        this.incompatibleSnapshotIds = Collections.unmodifiableList(incompatibleSnapshotIds);
     }
 
     protected RepositoryData copy() {
-        return new RepositoryData(snapshotIds, indexSnapshots);
+        return new RepositoryData(genId, snapshotIds, indexSnapshots, incompatibleSnapshotIds);
+    }
+
+    /**
+     * Gets the generational index file id from which this instance was read.
+     */
+    public long getGenId() {
+        return genId;
     }
 
     /**
@@ -76,6 +102,25 @@ public final class RepositoryData implements ToXContent {
      */
     public List<SnapshotId> getSnapshotIds() {
         return snapshotIds;
+    }
+
+    /**
+     * Returns an immutable collection of the snapshot ids in the repository that are incompatible with the
+     * current ES version.
+     */
+    public List<SnapshotId> getIncompatibleSnapshotIds() {
+        return incompatibleSnapshotIds;
+    }
+
+    /**
+     * Returns an immutable collection of all the snapshot ids in the repository, both active and
+     * incompatible snapshots.
+     */
+    public List<SnapshotId> getAllSnapshotIds() {
+        List<SnapshotId> allSnapshotIds = new ArrayList<>(snapshotIds.size() + incompatibleSnapshotIds.size());
+        allSnapshotIds.addAll(snapshotIds);
+        allSnapshotIds.addAll(incompatibleSnapshotIds);
+        return Collections.unmodifiableList(allSnapshotIds);
     }
 
     /**
@@ -91,7 +136,10 @@ public final class RepositoryData implements ToXContent {
      */
     public RepositoryData addSnapshot(final SnapshotId snapshotId, final List<IndexId> snapshottedIndices) {
         if (snapshotIds.contains(snapshotId)) {
-            throw new IllegalArgumentException("[" + snapshotId + "] already exists in the repository data");
+            // if the snapshot id already exists in the repository data, it means an old master
+            // that is blocked from the cluster is trying to finalize a snapshot concurrently with
+            // the new master, so we make the operation idempotent
+            return this;
         }
         List<SnapshotId> snapshots = new ArrayList<>(snapshotIds);
         snapshots.add(snapshotId);
@@ -110,14 +158,7 @@ public final class RepositoryData implements ToXContent {
                 allIndexSnapshots.put(indexId, ids);
             }
         }
-        return new RepositoryData(snapshots, allIndexSnapshots);
-    }
-
-    /**
-     * Initializes the indices in the repository metadata; returns a new instance.
-     */
-    public RepositoryData initIndices(final Map<IndexId, Set<SnapshotId>> indexSnapshots) {
-        return new RepositoryData(snapshotIds, indexSnapshots);
+        return new RepositoryData(genId, snapshots, allIndexSnapshots, incompatibleSnapshotIds);
     }
 
     /**
@@ -146,7 +187,21 @@ public final class RepositoryData implements ToXContent {
             indexSnapshots.put(indexId, set);
         }
 
-        return new RepositoryData(newSnapshotIds, indexSnapshots);
+        return new RepositoryData(genId, newSnapshotIds, indexSnapshots, incompatibleSnapshotIds);
+    }
+
+    /**
+     * Returns a new {@link RepositoryData} instance containing the same snapshot data as the
+     * invoking instance, with the given incompatible snapshots added to the new instance.
+     */
+    public RepositoryData addIncompatibleSnapshots(final List<SnapshotId> incompatibleSnapshotIds) {
+        List<SnapshotId> newSnapshotIds = new ArrayList<>(this.snapshotIds);
+        List<SnapshotId> newIncompatibleSnapshotIds = new ArrayList<>(this.incompatibleSnapshotIds);
+        for (SnapshotId snapshotId : incompatibleSnapshotIds) {
+            newSnapshotIds.remove(snapshotId);
+            newIncompatibleSnapshotIds.add(snapshotId);
+        }
+        return new RepositoryData(this.genId, newSnapshotIds, this.indexSnapshots, newIncompatibleSnapshotIds);
     }
 
     /**
@@ -160,6 +215,13 @@ public final class RepositoryData implements ToXContent {
         return snapshotIds;
     }
 
+    /**
+     * Initializes the indices in the repository metadata; returns a new instance.
+     */
+    public RepositoryData initIndices(final Map<IndexId, Set<SnapshotId>> indexSnapshots) {
+        return new RepositoryData(genId, snapshotIds, indexSnapshots, incompatibleSnapshotIds);
+    }
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -171,12 +233,13 @@ public final class RepositoryData implements ToXContent {
         @SuppressWarnings("unchecked") RepositoryData that = (RepositoryData) obj;
         return snapshotIds.equals(that.snapshotIds)
                    && indices.equals(that.indices)
-                   && indexSnapshots.equals(that.indexSnapshots);
+                   && indexSnapshots.equals(that.indexSnapshots)
+                   && incompatibleSnapshotIds.equals(that.incompatibleSnapshotIds);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotIds, indices, indexSnapshots);
+        return Objects.hash(snapshotIds, indices, indexSnapshots, incompatibleSnapshotIds);
     }
 
     /**
@@ -225,11 +288,15 @@ public final class RepositoryData implements ToXContent {
     }
 
     private static final String SNAPSHOTS = "snapshots";
+    private static final String INCOMPATIBLE_SNAPSHOTS = "incompatible-snapshots";
     private static final String INDICES = "indices";
     private static final String INDEX_ID = "id";
 
-    @Override
-    public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
+    /**
+     * Writes the snapshots metadata and the related indices metadata to x-content, omitting the
+     * incompatible snapshots.
+     */
+    public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final ToXContent.Params params) throws IOException {
         builder.startObject();
         // write the snapshots list
         builder.startArray(SNAPSHOTS);
@@ -256,7 +323,10 @@ public final class RepositoryData implements ToXContent {
         return builder;
     }
 
-    public static RepositoryData fromXContent(final XContentParser parser) throws IOException {
+    /**
+     * Reads an instance of {@link RepositoryData} from x-content, loading the snapshots and indices metadata.
+     */
+    public static RepositoryData snapshotsFromXContent(final XContentParser parser, long genId) throws IOException {
         List<SnapshotId> snapshots = new ArrayList<>();
         Map<IndexId, Set<SnapshotId>> indexSnapshots = new HashMap<>();
         if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
@@ -305,7 +375,51 @@ public final class RepositoryData implements ToXContent {
         } else {
             throw new ElasticsearchParseException("start object expected");
         }
-        return new RepositoryData(snapshots, indexSnapshots);
+        return new RepositoryData(genId, snapshots, indexSnapshots, Collections.emptyList());
+    }
+
+    /**
+     * Writes the incompatible snapshot ids to x-content.
+     */
+    public XContentBuilder incompatibleSnapshotsToXContent(final XContentBuilder builder, final ToXContent.Params params)
+        throws IOException {
+
+        builder.startObject();
+        // write the incompatible snapshots list
+        builder.startArray(INCOMPATIBLE_SNAPSHOTS);
+        for (final SnapshotId snapshot : getIncompatibleSnapshotIds()) {
+            snapshot.toXContent(builder, params);
+        }
+        builder.endArray();
+        builder.endObject();
+        return builder;
+    }
+
+    /**
+     * Reads the incompatible snapshot ids from x-content, loading them into a new instance of {@link RepositoryData}
+     * that is created from the invoking instance, plus the incompatible snapshots that are read from x-content.
+     */
+    public RepositoryData incompatibleSnapshotsFromXContent(final XContentParser parser) throws IOException {
+        List<SnapshotId> incompatibleSnapshotIds = new ArrayList<>();
+        if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+            while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
+                String currentFieldName = parser.currentName();
+                if (INCOMPATIBLE_SNAPSHOTS.equals(currentFieldName)) {
+                    if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            incompatibleSnapshotIds.add(SnapshotId.fromXContent(parser));
+                        }
+                    } else {
+                        throw new ElasticsearchParseException("expected array for [" + currentFieldName + "]");
+                    }
+                } else {
+                    throw new ElasticsearchParseException("unknown field name  [" + currentFieldName + "]");
+                }
+            }
+        } else {
+            throw new ElasticsearchParseException("start object expected");
+        }
+        return new RepositoryData(this.genId, this.snapshotIds, this.indexSnapshots, incompatibleSnapshotIds);
     }
 
 }

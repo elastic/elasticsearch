@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -67,7 +66,6 @@ public abstract class SmoothingModel implements NamedWriteable, ToXContent {
 
     public static SmoothingModel fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String fieldName = null;
         SmoothingModel model = null;
@@ -75,11 +73,11 @@ public abstract class SmoothingModel implements NamedWriteable, ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseFieldMatcher.match(fieldName, LinearInterpolation.PARSE_FIELD)) {
+                if (LinearInterpolation.PARSE_FIELD.match(fieldName)) {
                     model = LinearInterpolation.innerFromXContent(parseContext);
-                } else if (parseFieldMatcher.match(fieldName, Laplace.PARSE_FIELD)) {
+                } else if (Laplace.PARSE_FIELD.match(fieldName)) {
                     model = Laplace.innerFromXContent(parseContext);
-                } else if (parseFieldMatcher.match(fieldName, StupidBackoff.PARSE_FIELD)) {
+                } else if (StupidBackoff.PARSE_FIELD.match(fieldName)) {
                     model = StupidBackoff.innerFromXContent(parseContext);
                 } else {
                     throw new IllegalArgumentException("suggester[phrase] doesn't support object field [" + fieldName + "]");

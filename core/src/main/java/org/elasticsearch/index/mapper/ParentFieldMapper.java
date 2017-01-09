@@ -114,7 +114,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
                     iterator.remove();
-                } else if (parserContext.parseFieldMatcher().match(fieldName, FIELDDATA)) {
+                } else if (FIELDDATA.match(fieldName)) {
                     // for bw compat only
                     Map<String, String> fieldDataSettings = SettingsLoader.Helper.loadNestedFromMap(nodeMapValue(fieldNode, "fielddata"));
                     if (fieldDataSettings.containsKey("loading")) {

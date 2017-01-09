@@ -23,8 +23,6 @@ import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -726,7 +724,7 @@ public class InternalSearchHit implements SearchHit {
             return builder;
         }
 
-        private static final ConstructingObjectParser<InternalNestedIdentity, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<InternalNestedIdentity, Void> PARSER = new ConstructingObjectParser<>(
                 "nested_identity",
                 ctorArgs -> new InternalNestedIdentity((String) ctorArgs[0], (int) ctorArgs[1], (InternalNestedIdentity) ctorArgs[2]));
         static {
@@ -736,7 +734,7 @@ public class InternalSearchHit implements SearchHit {
         }
 
         public static InternalNestedIdentity fromXContent(XContentParser parser) {
-            return PARSER.apply(parser, () -> ParseFieldMatcher.EMPTY);
+            return PARSER.apply(parser, null);
         }
 
         @Override

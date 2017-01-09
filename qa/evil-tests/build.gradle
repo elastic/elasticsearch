@@ -42,7 +42,7 @@ thirdPartyAudit.excludes = [
   'com.google.common.cache.Striped64$Cell',
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
   'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-  
+
   // missing class
   'com.ibm.icu.lang.UCharacter',
 ]

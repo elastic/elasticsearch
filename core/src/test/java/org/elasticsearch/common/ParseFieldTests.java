@@ -20,15 +20,13 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.sameInstance;
 import static org.hamcrest.collection.IsArrayContainingInAnyOrder.arrayContainingInAnyOrder;
 
 public class ParseFieldTests extends ESTestCase {
-    public void testParse() throws IOException {
+    public void testParse() {
         String name = "foo_bar";
         ParseField field = new ParseField(name);
         String[] deprecated = new String[]{"barFoo", "bar_foo", "Foobar"};
@@ -48,7 +46,7 @@ public class ParseFieldTests extends ESTestCase {
         }
     }
 
-    public void testAllDeprecated() throws IOException {
+    public void testAllDeprecated() {
         String name = "like_text";
         String[] deprecated = new String[]{"text", "same_as_text"};
         ParseField field = new ParseField(name).withDeprecation(deprecated).withAllDeprecated("like");

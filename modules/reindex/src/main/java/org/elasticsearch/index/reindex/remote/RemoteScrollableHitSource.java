@@ -42,7 +42,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
@@ -164,13 +163,9 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                                  xContentType = XContentType.fromMediaTypeOrFormat(responseEntity.getContentType().getValue());
                             }
                             if (xContentType == null) {
-                                //auto-detect as a fallback
-                                xContentType = XContentFactory.xContentType(content);
-                            }
-                            if (xContentType == null) {
                                 try {
                                     throw new ElasticsearchException(
-                                            "Can't detect content type for response: " + bodyMessage(response.getEntity()));
+                                            "Response didn't include Content-Type: " + bodyMessage(response.getEntity()));
                                 } catch (IOException e) {
                                     ElasticsearchException ee = new ElasticsearchException("Error extracting body from response");
                                     ee.addSuppressed(e);

@@ -278,7 +278,6 @@ public class SearchModule {
             "moving_avg_model");
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
-    private final SearchExtRegistry searchExtParserRegistry = new SearchExtRegistry();
 
     private final Settings settings;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
@@ -302,7 +301,7 @@ public class SearchModule {
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
         registerShapes();
-        searchRequestParsers = new SearchRequestParsers(aggregatorParsers, getSuggesters(), searchExtParserRegistry);
+        searchRequestParsers = new SearchRequestParsers(aggregatorParsers, getSuggesters());
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -699,7 +698,8 @@ public class SearchModule {
     }
 
     private void registerSearchExt(SearchExtSpec<?> spec) {
-        searchExtParserRegistry.register(spec.getParser(), spec.getName());
+        // TODO merge NoContextParser and ToXContent
+        namedXContents.add(new NamedXContentRegistry.Entry(SearchExtBuilder.class, spec.getName(), p -> spec.getParser().parse(p)));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SearchExtBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
@@ -781,9 +781,5 @@ public class SearchModule {
 
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
-    }
-
-    public SearchExtRegistry getSearchExtRegistry() {
-        return searchExtParserRegistry;
     }
 }

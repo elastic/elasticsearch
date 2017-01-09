@@ -36,8 +36,8 @@ public class LiveVersionMapTests extends ESTestCase {
         }
         long actualRamBytesUsed = RamUsageTester.sizeOf(map);
         long estimatedRamBytesUsed = map.ramBytesUsed();
-        // less than 25% off
-        assertEquals(actualRamBytesUsed, estimatedRamBytesUsed, actualRamBytesUsed / 4);
+        // less than 50% off
+        assertEquals(actualRamBytesUsed, estimatedRamBytesUsed, actualRamBytesUsed / 2);
 
         // now refresh
         map.beforeRefresh();

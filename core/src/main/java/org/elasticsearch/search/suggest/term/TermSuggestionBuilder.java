@@ -26,7 +26,6 @@ import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -391,7 +390,6 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     static TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         TermSuggestionBuilder tmpSuggestion = new TermSuggestionBuilder("_na_");
-        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String currentFieldName = null;
         String fieldname = null;
@@ -399,33 +397,33 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.ANALYZER_FIELD)) {
+                if (SuggestionBuilder.ANALYZER_FIELD.match(currentFieldName)) {
                     tmpSuggestion.analyzer(parser.text());
-                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.FIELDNAME_FIELD)) {
+                } else if (SuggestionBuilder.FIELDNAME_FIELD.match(currentFieldName)) {
                     fieldname = parser.text();
-                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SIZE_FIELD)) {
+                } else if (SuggestionBuilder.SIZE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.size(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, SuggestionBuilder.SHARDSIZE_FIELD)) {
+                } else if (SuggestionBuilder.SHARDSIZE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.shardSize(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, SUGGESTMODE_FIELD)) {
+                } else if (SUGGESTMODE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.suggestMode(SuggestMode.resolve(parser.text()));
-                } else if (parseFieldMatcher.match(currentFieldName, ACCURACY_FIELD)) {
+                } else if (ACCURACY_FIELD.match(currentFieldName)) {
                     tmpSuggestion.accuracy(parser.floatValue());
-                } else if (parseFieldMatcher.match(currentFieldName, SORT_FIELD)) {
+                } else if (SORT_FIELD.match(currentFieldName)) {
                     tmpSuggestion.sort(SortBy.resolve(parser.text()));
-                } else if (parseFieldMatcher.match(currentFieldName, STRING_DISTANCE_FIELD)) {
+                } else if (STRING_DISTANCE_FIELD.match(currentFieldName)) {
                     tmpSuggestion.stringDistance(StringDistanceImpl.resolve(parser.text()));
-                } else if (parseFieldMatcher.match(currentFieldName, MAX_EDITS_FIELD)) {
+                } else if (MAX_EDITS_FIELD.match(currentFieldName)) {
                     tmpSuggestion.maxEdits(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, MAX_INSPECTIONS_FIELD)) {
+                } else if (MAX_INSPECTIONS_FIELD.match(currentFieldName)) {
                     tmpSuggestion.maxInspections(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, MAX_TERM_FREQ_FIELD)) {
+                } else if (MAX_TERM_FREQ_FIELD.match(currentFieldName)) {
                     tmpSuggestion.maxTermFreq(parser.floatValue());
-                } else if (parseFieldMatcher.match(currentFieldName, PREFIX_LENGTH_FIELD)) {
+                } else if (PREFIX_LENGTH_FIELD.match(currentFieldName)) {
                     tmpSuggestion.prefixLength(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, MIN_WORD_LENGTH_FIELD)) {
+                } else if (MIN_WORD_LENGTH_FIELD.match(currentFieldName)) {
                     tmpSuggestion.minWordLength(parser.intValue());
-                } else if (parseFieldMatcher.match(currentFieldName, MIN_DOC_FREQ_FIELD)) {
+                } else if (MIN_DOC_FREQ_FIELD.match(currentFieldName)) {
                     tmpSuggestion.minDocFreq(parser.floatValue());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),

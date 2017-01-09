@@ -93,16 +93,15 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
             QueryParseContext context = new QueryParseContext(requestContentParser, parseFieldMatcher);
-            searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters,
-                    searchRequestParsers.searchExtParsers);
+            searchRequest.source().parseXContent(context, searchRequestParsers.aggParsers, searchRequestParsers.suggesters);
         }
 
         // do not allow 'query_and_fetch' or 'dfs_query_and_fetch' search types
         // from the REST layer. these modes are an internal optimization and should
         // not be specified explicitly by the user.
         String searchType = request.param("search_type");
-        if (SearchType.fromString(searchType, parseFieldMatcher).equals(SearchType.QUERY_AND_FETCH) ||
-                SearchType.fromString(searchType, parseFieldMatcher).equals(SearchType.DFS_QUERY_AND_FETCH)) {
+        if (SearchType.fromString(searchType).equals(SearchType.QUERY_AND_FETCH) ||
+                SearchType.fromString(searchType).equals(SearchType.DFS_QUERY_AND_FETCH)) {
             throw new IllegalArgumentException("Unsupported search type [" + searchType + "]");
         } else {
             searchRequest.searchType(searchType);

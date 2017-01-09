@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ParseFieldRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -49,22 +48,20 @@ public class AggregatorParsers {
      * Returns the parser that is registered under the given aggregation type.
      *
      * @param type The aggregation type
-     * @param parseFieldMatcher used for making error messages.
      * @return The parser associated with the given aggregation type or null if it wasn't found.
      */
-    public Aggregator.Parser parser(String type, ParseFieldMatcher parseFieldMatcher) {
-        return aggregationParserRegistry.lookupReturningNullIfNotFound(type, parseFieldMatcher);
+    public Aggregator.Parser parser(String type) {
+        return aggregationParserRegistry.lookupReturningNullIfNotFound(type);
     }
 
     /**
      * Returns the parser that is registered under the given pipeline aggregator type.
      *
      * @param type The pipeline aggregator type
-     * @param parseFieldMatcher used for making error messages.
      * @return The parser associated with the given pipeline aggregator type or null if it wasn't found.
      */
-    public PipelineAggregator.Parser pipelineParser(String type, ParseFieldMatcher parseFieldMatcher) {
-        return pipelineAggregationParserRegistry.lookupReturningNullIfNotFound(type, parseFieldMatcher);
+    public PipelineAggregator.Parser pipelineParser(String type) {
+        return pipelineAggregationParserRegistry.lookupReturningNullIfNotFound(type);
     }
 
     /**
@@ -142,10 +139,9 @@ public class AggregatorParsers {
                                     + aggregationName + "]: [" + pipelineAggregatorFactory + "] and [" + fieldName + "]");
                         }
 
-                        Aggregator.Parser aggregatorParser = parser(fieldName, parseContext.getParseFieldMatcher());
+                        Aggregator.Parser aggregatorParser = parser(fieldName);
                         if (aggregatorParser == null) {
-                            PipelineAggregator.Parser pipelineAggregatorParser = pipelineParser(fieldName,
-                                    parseContext.getParseFieldMatcher());
+                            PipelineAggregator.Parser pipelineAggregatorParser = pipelineParser(fieldName);
                             if (pipelineAggregatorParser == null) {
                                 throw new ParsingException(parser.getTokenLocation(),
                                         "Could not find aggregator type [" + fieldName + "] in [" + aggregationName + "]");

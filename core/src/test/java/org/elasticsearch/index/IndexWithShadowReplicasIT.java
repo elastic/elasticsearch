@@ -364,6 +364,9 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         client().admin().indices().prepareUpdateSettings(IDX).setSettings(build).execute().actionGet();
 
         ensureGreen(IDX);
+        // check if primary has relocated to node3
+        assertEquals(internalCluster().clusterService(node3).localNode().getId(),
+            client().admin().cluster().prepareState().get().getState().routingTable().index(IDX).shard(0).primaryShard().currentNodeId());
         logger.info("--> performing query");
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
         assertHitCount(resp, 2);

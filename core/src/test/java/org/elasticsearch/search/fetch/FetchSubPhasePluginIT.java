@@ -36,7 +36,6 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchExtBuilder;
-import org.elasticsearch.search.SearchExtParser;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchHitField;
@@ -114,7 +113,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         @Override
         public List<SearchExtSpec<?>> getSearchExts() {
             return Collections.singletonList(new SearchExtSpec<>(TermVectorsFetchSubPhase.NAME,
-                    TermVectorsFetchBuilder::new, TermVectorsFetchParser.INSTANCE));
+                    TermVectorsFetchBuilder::new, TermVectorsFetchBuilder::fromXContent));
         }
     }
 
@@ -153,15 +152,8 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         }
     }
 
-    private static final class TermVectorsFetchParser implements SearchExtParser<TermVectorsFetchBuilder> {
-
-        private static final TermVectorsFetchParser INSTANCE = new TermVectorsFetchParser();
-
-        private TermVectorsFetchParser() {
-        }
-
-        @Override
-        public TermVectorsFetchBuilder fromXContent(XContentParser parser) throws IOException {
+    private static final class TermVectorsFetchBuilder extends SearchExtBuilder {
+        public static TermVectorsFetchBuilder fromXContent(XContentParser parser) throws IOException {
             String field;
             XContentParser.Token token = parser.currentToken();
             if (token == XContentParser.Token.VALUE_STRING) {
@@ -174,9 +166,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
             }
             return new TermVectorsFetchBuilder(field);
         }
-    }
 
-    private static final class TermVectorsFetchBuilder extends SearchExtBuilder {
         private final String field;
 
         private TermVectorsFetchBuilder(String field) {

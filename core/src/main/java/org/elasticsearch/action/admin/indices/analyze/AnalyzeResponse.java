@@ -23,7 +23,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -32,9 +32,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, ToXContent {
+public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeResponse.AnalyzeToken>, ToXContentObject {
 
-    public static class AnalyzeToken implements Streamable, ToXContent {
+    public static class AnalyzeToken implements Streamable, ToXContentObject {
         private String term;
         private int startOffset;
         private int endOffset;
@@ -154,6 +154,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         if (tokens != null) {
             builder.startArray(Fields.TOKENS);
             for (AnalyzeToken token : tokens) {
@@ -167,6 +168,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             detail.toXContent(builder, params);
             builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 

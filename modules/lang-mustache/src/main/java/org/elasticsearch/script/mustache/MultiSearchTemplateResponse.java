@@ -22,18 +22,19 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 
-public class MultiSearchTemplateResponse extends ActionResponse implements Iterable<MultiSearchTemplateResponse.Item>, ToXContent {
+public class MultiSearchTemplateResponse extends ActionResponse implements Iterable<MultiSearchTemplateResponse.Item>, ToXContentObject {
 
     /**
      * A search template response item, holding the actual search template response, or an error message if it failed.
@@ -146,36 +147,28 @@ public class MultiSearchTemplateResponse extends ActionResponse implements Itera
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder.startObject();
         builder.startArray(Fields.RESPONSES);
         for (Item item : items) {
-            builder.startObject();
             if (item.isFailure()) {
+                builder.startObject();
                 ElasticsearchException.renderException(builder, params, item.getFailure());
+                builder.endObject();
             } else {
                 item.getResponse().toXContent(builder, params);
             }
-            builder.endObject();
         }
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 
     static final class Fields {
         static final String RESPONSES = "responses";
-        static final String ERROR = "error";
-        static final String ROOT_CAUSE = "root_cause";
     }
 
     @Override
     public String toString() {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            builder.startObject();
-            toXContent(builder, EMPTY_PARAMS);
-            builder.endObject();
-            return builder.string();
-        } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
-        }
+        return Strings.toString(this);
     }
 }

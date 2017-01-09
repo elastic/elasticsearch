@@ -30,7 +30,7 @@ public class FieldDataStatsTests extends ESTestCase {
 
     public void testSerialize() throws IOException {
         FieldMemoryStats map = randomBoolean() ? null : FieldMemoryStatsTests.randomFieldMemoryStats();
-        FieldDataStats stats = new FieldDataStats(randomPositiveLong(), randomPositiveLong(), map == null ? null :
+        FieldDataStats stats = new FieldDataStats(randomNonNegativeLong(), randomNonNegativeLong(), map == null ? null :
             map);
         BytesStreamOutput out = new BytesStreamOutput();
         stats.writeTo(out);

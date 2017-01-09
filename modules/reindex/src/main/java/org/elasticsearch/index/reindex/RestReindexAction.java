@@ -82,8 +82,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             builder.map(source);
             try (XContentParser innerParser = parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.bytes())) {
                 request.getSearchRequest().source().parseXContent(context.queryParseContext(innerParser),
-                        context.searchRequestParsers.aggParsers, context.searchRequestParsers.suggesters,
-                        context.searchRequestParsers.searchExtParsers);
+                        context.searchRequestParsers.aggParsers, context.searchRequestParsers.suggesters);
             }
         };
 
@@ -95,10 +94,10 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         destParser.declareString(IndexRequest::setPipeline, new ParseField("pipeline"));
         destParser.declareString((s, i) -> s.versionType(VersionType.fromString(i)), new ParseField("version_type"));
 
-        PARSER.declareField((p, v, c) -> sourceParser.parse(p, v, c), new ParseField("source"), ValueType.OBJECT);
+        PARSER.declareField(sourceParser::parse, new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ValueType.OBJECT);
         PARSER.declareInt(ReindexRequest::setSize, new ParseField("size"));
-        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p, c.getParseFieldMatcher())), new ParseField("script"),
+        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
                 ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }

@@ -29,6 +29,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
+import org.elasticsearch.mocksocket.MockHttpServer;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -39,7 +40,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +49,6 @@ import static org.elasticsearch.client.RestClientTestUtil.getAllStatusCodes;
 import static org.elasticsearch.client.RestClientTestUtil.getHttpMethods;
 import static org.elasticsearch.client.RestClientTestUtil.randomStatusCode;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -76,8 +75,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         }
 
         httpServer = createHttpServer();
-        int numHeaders = randomIntBetween(0, 5);
-        defaultHeaders = generateHeaders("Header-default", "Header-array", numHeaders);
+        defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
         RestClientBuilder restClientBuilder = RestClient.builder(
                 new HttpHost(httpServer.getAddress().getHostString(), httpServer.getAddress().getPort())).setDefaultHeaders(defaultHeaders);
         if (pathPrefix.length() > 0) {
@@ -87,7 +85,7 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
     }
 
     private static HttpServer createHttpServer() throws Exception {
-        HttpServer httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        HttpServer httpServer = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
         //returns a different status code depending on the path
         for (int statusCode : getAllStatusCodes()) {
@@ -150,17 +148,11 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             if (method.equals("HEAD") == false) {
                 standardHeaders.add("Content-length");
             }
-
-            final int numHeaders = randomIntBetween(1, 5);
-            final Header[] headers = generateHeaders("Header", "Header-array", numHeaders);
-            final Map<String, List<String>> expectedHeaders = new HashMap<>();
-
-            addHeaders(expectedHeaders, defaultHeaders, headers);
-
+            final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
             Response esResponse;
             try {
-                esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), headers);
+                esResponse = restClient.performRequest(method, "/" + statusCode, Collections.<String, String>emptyMap(), requestHeaders);
             } catch(ResponseException e) {
                 esResponse = e.getResponse();
             }
@@ -168,24 +160,13 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
             assertEquals(method, esResponse.getRequestLine().getMethod());
             assertEquals(statusCode, esResponse.getStatusLine().getStatusCode());
             assertEquals((pathPrefix.length() > 0 ? pathPrefix : "") + "/" + statusCode, esResponse.getRequestLine().getUri());
-
+            assertHeaders(defaultHeaders, requestHeaders, esResponse.getHeaders(), standardHeaders);
             for (final Header responseHeader : esResponse.getHeaders()) {
-                final String name = responseHeader.getName();
-                final String value = responseHeader.getValue();
-                if (name.startsWith("Header")) {
-                    final List<String> values = expectedHeaders.get(name);
-                    assertNotNull("found response header [" + name + "] that wasn't originally sent: " + value, values);
-                    assertTrue("found incorrect response header [" + name + "]: " + value, values.remove(value));
-
-                    // we've collected them all
-                    if (values.isEmpty()) {
-                        expectedHeaders.remove(name);
-                    }
-                } else {
+                String name = responseHeader.getName();
+                if (name.startsWith("Header") == false) {
                     assertTrue("unknown header was returned " + name, standardHeaders.remove(name));
                 }
             }
-            assertTrue("some headers that were sent weren't returned: " + expectedHeaders, expectedHeaders.isEmpty());
             assertTrue("some expected standard headers weren't returned: " + standardHeaders, standardHeaders.isEmpty());
         }
     }

@@ -141,8 +141,7 @@ public class TransportWriteActionTests extends ESTestCase {
         TransportWriteAction.WriteReplicaResult<TestRequest> result = testAction.shardOperationOnReplica(request, indexShard);
         CapturingActionListener<TransportResponse.Empty> listener = new CapturingActionListener<>();
         result.respond(listener);
-        assertNull(listener.response); // Haven't reallresponded yet
-
+        assertNull(listener.response); // Haven't responded yet
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
         verify(indexShard, never()).refresh(any());

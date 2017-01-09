@@ -208,7 +208,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             public void onCache(ShardId shardId, Accountable accountable) {
             }
         });
-        long nowInMillis = randomPositiveLong();
+        long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(0, idxSettings, bitsetFilterCache, ifds, null, null, scriptService,
                 xContentRegistry(), null, null, () -> nowInMillis) {
             @Override

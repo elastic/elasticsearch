@@ -120,7 +120,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals(testAgg.type(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        PipelineAggregationBuilder newAgg = aggParsers.pipelineParser(testAgg.getWriteableName(), ParseFieldMatcher.STRICT)
+        PipelineAggregationBuilder newAgg = aggParsers.pipelineParser(testAgg.getWriteableName())
                 .parse(testAgg.getName(), parseContext);
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());

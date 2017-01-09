@@ -94,4 +94,27 @@ public final class CustomAnalyzer extends Analyzer {
         }
         return reader;
     }
+
+    @Override
+    protected Reader initReaderForNormalization(String fieldName, Reader reader) {
+      for (CharFilterFactory charFilter : charFilters) {
+        if (charFilter instanceof MultiTermAwareComponent) {
+          charFilter = (CharFilterFactory) ((MultiTermAwareComponent) charFilter).getMultiTermComponent();
+          reader = charFilter.create(reader);
+        }
+      }
+      return reader;
+    }
+
+    @Override
+    protected TokenStream normalize(String fieldName, TokenStream in) {
+      TokenStream result = in;
+      for (TokenFilterFactory filter : tokenFilters) {
+        if (filter instanceof MultiTermAwareComponent) {
+          filter = (TokenFilterFactory) ((MultiTermAwareComponent) filter).getMultiTermComponent();
+          result = filter.create(result);
+        }
+      }
+      return result;
+    }
 }

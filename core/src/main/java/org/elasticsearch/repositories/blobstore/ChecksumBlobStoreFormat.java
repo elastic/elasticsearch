@@ -23,7 +23,6 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.OutputStreamIndexOutput;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,7 +32,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
-import org.elasticsearch.common.xcontent.FromXContentBuilder;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry.FromXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -73,8 +73,9 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      * @param compress       true if the content should be compressed
      * @param xContentType   content type that should be used for write operations
      */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, FromXContentBuilder<T> reader, ParseFieldMatcher parseFieldMatcher, boolean compress, XContentType xContentType) {
-        super(blobNameFormat, reader, parseFieldMatcher);
+    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, FromXContent<T> reader,
+                                   NamedXContentRegistry namedXContentRegistry, boolean compress, XContentType xContentType) {
+        super(blobNameFormat, reader, namedXContentRegistry);
         this.xContentType = xContentType;
         this.compress = compress;
         this.codec = codec;
@@ -86,8 +87,9 @@ public class ChecksumBlobStoreFormat<T extends ToXContent> extends BlobStoreForm
      * @param reader         prototype object that can deserialize T from XContent
      * @param compress       true if the content should be compressed
      */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, FromXContentBuilder<T> reader, ParseFieldMatcher parseFieldMatcher, boolean compress) {
-        this(codec, blobNameFormat, reader, parseFieldMatcher, compress, DEFAULT_X_CONTENT_TYPE);
+    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, FromXContent<T> reader,
+                                   NamedXContentRegistry namedXContentRegistry, boolean compress) {
+        this(codec, blobNameFormat, reader, namedXContentRegistry, compress, DEFAULT_X_CONTENT_TYPE);
     }
 
     /**

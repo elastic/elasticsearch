@@ -21,7 +21,6 @@ package org.elasticsearch.index.search;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -120,9 +119,9 @@ public class MatchQueryIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("field", "say what the fudge")
             .operator(Operator.AND).analyzer("lower_syns")).get();
 
-        // 0 = say, 1 = OR(wtf, what), 2 = the, 3 = fudge
-        // "the" and "fudge" are required here, even though they were part of the synonym which is also expanded
-        assertNoSearchHits(searchResponse);
+        // Old synonyms work fine in that case, but it is coincidental
+        assertHitCount(searchResponse, 1L);
+        assertSearchHits(searchResponse, "1");
 
         // same query using graph should find correct result
         searchResponse = client().prepareSearch(INDEX).setQuery(QueryBuilders.matchQuery("field", "say what the fudge")

@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -32,8 +31,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
@@ -168,7 +167,6 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
-        ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
         String fromAsStr = null;
         String toAsStr = null;
         double from = 0.0;
@@ -180,17 +178,17 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             if (token == XContentParser.Token.FIELD_NAME) {
                 toOrFromOrKey = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (parseFieldMatcher.match(toOrFromOrKey, Range.FROM_FIELD)) {
+                if (Range.FROM_FIELD.match(toOrFromOrKey)) {
                     from = parser.doubleValue();
-                } else if (parseFieldMatcher.match(toOrFromOrKey, Range.TO_FIELD)) {
+                } else if (Range.TO_FIELD.match(toOrFromOrKey)) {
                     to = parser.doubleValue();
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (parseFieldMatcher.match(toOrFromOrKey, Range.KEY_FIELD)) {
+                if (Range.KEY_FIELD.match(toOrFromOrKey)) {
                     key = parser.text();
-                } else if (parseFieldMatcher.match(toOrFromOrKey, Range.FROM_FIELD)) {
+                } else if (Range.FROM_FIELD.match(toOrFromOrKey)) {
                     fromAsStr = parser.text();
-                } else if (parseFieldMatcher.match(toOrFromOrKey, Range.TO_FIELD)) {
+                } else if (Range.TO_FIELD.match(toOrFromOrKey)) {
                     toAsStr = parser.text();
                 }
             }

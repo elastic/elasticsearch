@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.prelert.job.persistence;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.get.GetResponse;
@@ -73,21 +74,17 @@ public class JobProviderTests extends ESTestCase {
     private static final String JOB_ID = "foo";
     private static final String STATE_INDEX_NAME = ".ml-state";
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
     public void testGetQuantiles_GivenNoQuantilesForJob() throws Exception {
         GetResponse getResponse = createGetResponse(false, null);
 
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareGet(STATE_INDEX_NAME, Quantiles.TYPE.getPreferredName(), Quantiles.quantilesId(JOB_ID), getResponse);
-
-        JobProvider provider = createProvider(clientBuilder.build());
+        Client client = getMockedClient(getResponse);
+        JobProvider provider = createProvider(client);
 
         Optional<Quantiles> quantiles = provider.getQuantiles(JOB_ID);
 
         assertFalse(quantiles.isPresent());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
     public void testGetQuantiles_GivenQuantilesHaveNonEmptyState() throws Exception {
         Map<String, Object> source = new HashMap<>();
         source.put(Job.ID.getPreferredName(), "foo");
@@ -95,10 +92,8 @@ public class JobProviderTests extends ESTestCase {
         source.put(Quantiles.QUANTILE_STATE.getPreferredName(), "state");
         GetResponse getResponse = createGetResponse(true, source);
 
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareGet(STATE_INDEX_NAME, Quantiles.TYPE.getPreferredName(), Quantiles.quantilesId(JOB_ID), getResponse);
-
-        JobProvider provider = createProvider(clientBuilder.build());
+        Client client = getMockedClient(getResponse);
+        JobProvider provider = createProvider(client);
 
         Optional<Quantiles> quantiles = provider.getQuantiles(JOB_ID);
 
@@ -106,7 +101,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals("state", quantiles.get().getQuantileState());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
     public void testGetQuantiles_GivenQuantilesHaveEmptyState() throws Exception {
         Map<String, Object> source = new HashMap<>();
         source.put(Job.ID.getPreferredName(), "foo");
@@ -114,10 +108,8 @@ public class JobProviderTests extends ESTestCase {
         source.put(Quantiles.QUANTILE_STATE.getPreferredName(), "");
         GetResponse getResponse = createGetResponse(true, source);
 
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareGet(STATE_INDEX_NAME, Quantiles.TYPE.getPreferredName(), Quantiles.quantilesId("foo"), getResponse);
-
-        JobProvider provider = createProvider(clientBuilder.build());
+        Client client = getMockedClient(getResponse);
+        JobProvider provider = createProvider(client);
 
         Optional<Quantiles> quantiles = provider.getQuantiles(JOB_ID);
 
@@ -784,9 +776,7 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(terms, categoryDefinitions.results().get(0).getTerms());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
-    public void testInfluencers_NoInterim()
-            throws InterruptedException, ExecutionException, IOException {
+    public void testInfluencers_NoInterim() throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentificationForInfluencers";
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
@@ -816,20 +806,19 @@ public class JobProviderTests extends ESTestCase {
 
         int from = 4;
         int size = 3;
-        ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
+        QueryBuilder[] qbHolder = new QueryBuilder[1];
         SearchResponse response = createSearchResponse(true, source);
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareSearch(AnomalyDetectorsIndex.jobResultsIndexName(jobId), Result.TYPE.getPreferredName(),
-                        from, size, response, queryBuilder);
-
-        Client client = clientBuilder.build();
+        Client client = getMockedClient(q -> qbHolder[0] = q, response);
         JobProvider provider = createProvider(client);
 
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        QueryPage<Influencer>[] holder = new QueryPage[1];
         InfluencersQuery query = new InfluencersQueryBuilder().from(from).size(size).includeInterim(false).build();
-        QueryPage<Influencer> page = provider.influencers(jobId, query);
+        provider.influencers(jobId, query, page -> holder[0] = page, RuntimeException::new);
+        QueryPage<Influencer> page = holder[0];
         assertEquals(2L, page.count());
 
-        String queryString = queryBuilder.getValue().toString();
+        String queryString = qbHolder[0].toString();
         assertTrue(queryString.matches("(?s).*must_not[^}]*term[^}]*is_interim.*value. : .true.*"));
 
         List<Influencer> records = page.results();
@@ -849,9 +838,7 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(5.0, records.get(1).getInitialAnomalyScore(), 0.00001);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
-    public void testInfluencers_WithInterim()
-            throws InterruptedException, ExecutionException, IOException {
+    public void testInfluencers_WithInterim() throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentificationForInfluencers";
         Date now = new Date();
         List<Map<String, Object>> source = new ArrayList<>();
@@ -881,21 +868,20 @@ public class JobProviderTests extends ESTestCase {
 
         int from = 4;
         int size = 3;
-        ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
+        QueryBuilder[] qbHolder = new QueryBuilder[1];
         SearchResponse response = createSearchResponse(true, source);
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareSearch(AnomalyDetectorsIndex.jobResultsIndexName(jobId), Result.TYPE.getPreferredName(), from, size, response,
-                        queryBuilder);
-
-        Client client = clientBuilder.build();
+        Client client = getMockedClient(q -> qbHolder[0] = q, response);
         JobProvider provider = createProvider(client);
 
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        QueryPage<Influencer>[] holder = new QueryPage[1];
         InfluencersQuery query = new InfluencersQueryBuilder().from(from).size(size).start("0").end("0").sortField("sort")
                 .sortDescending(true).anomalyScoreThreshold(0.0).includeInterim(true).build();
-        QueryPage<Influencer> page = provider.influencers(jobId, query);
+        provider.influencers(jobId, query, page -> holder[0] = page, RuntimeException::new);
+        QueryPage<Influencer> page = holder[0];
         assertEquals(2L, page.count());
 
-        String queryString = queryBuilder.getValue().toString();
+        String queryString = qbHolder[0].toString();
         assertFalse(queryString.matches("(?s).*isInterim.*"));
 
         List<Influencer> records = page.results();
@@ -912,23 +898,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(0.99, records.get(1).getProbability(), 0.00001);
         assertEquals(5.0, records.get(1).getAnomalyScore(), 0.00001);
         assertEquals(5.0, records.get(1).getInitialAnomalyScore(), 0.00001);
-    }
-
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
-    public void testInfluencer() throws InterruptedException, ExecutionException, IOException {
-        String jobId = "TestJobIdentificationForInfluencers";
-        String influencerId = "ThisIsAnInfluencerId";
-
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse();
-
-        Client client = clientBuilder.build();
-        JobProvider provider = createProvider(client);
-
-        try {
-            provider.influencer(jobId, influencerId);
-            assertTrue(false);
-        } catch (IllegalStateException e) {
-        }
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
@@ -1223,6 +1192,15 @@ public class JobProviderTests extends ESTestCase {
             actionListener.onResponse(response);
             return null;
         }).when(client).search(any(), any());
+        return client;
+    }
+
+    private Client getMockedClient(GetResponse response) {
+        Client client = mock(Client.class);
+        @SuppressWarnings("unchecked")
+        ActionFuture<GetResponse> actionFuture = mock(ActionFuture.class);
+        when(client.get(any())).thenReturn(actionFuture);
+        when(actionFuture.actionGet()).thenReturn(response);
         return client;
     }
 }

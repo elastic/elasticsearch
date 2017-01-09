@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -40,19 +39,18 @@ import java.util.Map;
 public class MatrixStatsAggregationBuilder
     extends MultiValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MatrixStatsAggregationBuilder> {
     public static final String NAME = "matrix_stats";
-    public static final Type TYPE = new Type(NAME);
 
     private MultiValueMode multiValueMode = MultiValueMode.AVG;
 
     public MatrixStatsAggregationBuilder(String name) {
-        super(name, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     /**
      * Read from a stream.
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     @Override
@@ -72,7 +70,7 @@ public class MatrixStatsAggregationBuilder
     @Override
     protected MatrixStatsAggregatorFactory innerBuild(SearchContext context, Map<String, ValuesSourceConfig<Numeric>> configs,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new MatrixStatsAggregatorFactory(name, type, configs, multiValueMode, context, parent, subFactoriesBuilder, metaData);
+        return new MatrixStatsAggregatorFactory(name, configs, multiValueMode, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
@@ -92,7 +90,7 @@ public class MatrixStatsAggregationBuilder
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

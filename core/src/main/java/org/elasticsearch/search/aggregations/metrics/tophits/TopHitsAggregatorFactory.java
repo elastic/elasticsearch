@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.metrics.tophits;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.DocValueFieldsContext;
@@ -52,12 +51,12 @@ public class TopHitsAggregatorFactory extends AggregatorFactory<TopHitsAggregato
     private final List<ScriptFieldsContext.ScriptField> scriptFields;
     private final FetchSourceContext fetchSourceContext;
 
-    public TopHitsAggregatorFactory(String name, Type type, int from, int size, boolean explain, boolean version, boolean trackScores,
+    public TopHitsAggregatorFactory(String name, int from, int size, boolean explain, boolean version, boolean trackScores,
             Optional<SortAndFormats> sort, HighlightBuilder highlightBuilder, StoredFieldsContext storedFieldsContext,
             List<String> docValueFields, List<ScriptFieldsContext.ScriptField> scriptFields, FetchSourceContext fetchSourceContext,
             SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories, Map<String, Object> metaData)
             throws IOException {
-        super(name, type, context, parent, subFactories, metaData);
+        super(name, context, parent, subFactories, metaData);
         this.from = from;
         this.size = size;
         this.explain = explain;

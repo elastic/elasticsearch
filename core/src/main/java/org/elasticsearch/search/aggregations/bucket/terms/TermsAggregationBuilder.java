@@ -26,12 +26,10 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
@@ -50,7 +48,6 @@ import java.util.Objects;
 
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<ValuesSource, TermsAggregationBuilder> {
     public static final String NAME = "terms";
-    private static final InternalAggregation.Type TYPE = new Type("terms");
 
     public static final ParseField EXECUTION_HINT_FIELD_NAME = new ParseField("execution_hint");
     public static final ParseField SHARD_SIZE_FIELD_NAME = new ParseField("shard_size");
@@ -108,14 +105,14 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     private boolean showTermDocCountError = false;
 
     public TermsAggregationBuilder(String name, ValueType valueType) {
-        super(name, TYPE, ValuesSourceType.ANY, valueType);
+        super(name, ValuesSourceType.ANY, valueType);
     }
 
     /**
      * Read from a stream.
      */
     public TermsAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE, ValuesSourceType.ANY);
+        super(in, ValuesSourceType.ANY);
         bucketCountThresholds = new BucketCountThresholds(in);
         collectMode = in.readOptionalWriteable(SubAggCollectionMode::readFromStream);
         executionHint = in.readOptionalString();
@@ -287,7 +284,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     @Override
     protected ValuesSourceAggregatorFactory<ValuesSource, ?> innerBuild(SearchContext context, ValuesSourceConfig<ValuesSource> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        return new TermsAggregatorFactory(name, type, config, order, includeExclude, executionHint, collectMode,
+        return new TermsAggregatorFactory(name, config, order, includeExclude, executionHint, collectMode,
                 bucketCountThresholds, showTermDocCountError, context, parent, subFactoriesBuilder, metaData);
     }
 
@@ -326,7 +323,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Valu
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 

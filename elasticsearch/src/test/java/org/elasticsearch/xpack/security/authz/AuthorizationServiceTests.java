@@ -38,6 +38,7 @@ import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusAction;
 import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -620,9 +621,11 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         for (User user : Arrays.asList(XPackUser.INSTANCE, superuser)) {
             List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
+            requests.add(new Tuple<>(DeleteAction.NAME, new DeleteRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
             requests.add(new Tuple<>(BulkAction.NAME + "[s]",
                     new DeleteRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
             requests.add(new Tuple<>(UpdateAction.NAME, new UpdateRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
+            requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
             requests.add(new Tuple<>(BulkAction.NAME + "[s]", new IndexRequest(SecurityTemplateService.SECURITY_INDEX_NAME, "type", "id")));
             requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(SecurityTemplateService.SECURITY_INDEX_NAME)));
             requests.add(new Tuple<>(TermVectorsAction.NAME,

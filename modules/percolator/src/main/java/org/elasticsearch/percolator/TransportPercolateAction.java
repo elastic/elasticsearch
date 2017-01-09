@@ -226,7 +226,7 @@ public class TransportPercolateAction extends HandledTransportAction<PercolateRe
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(xContentRegistry, source)) {
             QueryParseContext context = new QueryParseContext(parser, parseFieldMatcher);
-            searchSourceBuilder.parseXContent(context, null);
+            searchSourceBuilder.parseXContent(context);
             searchRequest.source(searchSourceBuilder);
             return searchRequest;
         }

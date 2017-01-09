@@ -43,6 +43,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -405,6 +406,7 @@ public class LuceneTests extends ESTestCase {
      */
     public void testMMapHackSupported() throws Exception {
         // add assume's here if needed for certain platforms, but we should know if it does not work.
+        assumeTrue("Lucene 6.3.0 doesn't support unmap with Java 9", Constants.JRE_IS_MINIMUM_JAVA9 == false);
         assertTrue("MMapDirectory does not support unmapping: " + MMapDirectory.UNMAP_NOT_SUPPORTED_REASON, MMapDirectory.UNMAP_SUPPORTED);
     }
 }

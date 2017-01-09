@@ -77,6 +77,10 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         assertSearchReturns(searchById("multi"), "multi");
         assertSearchReturns(searchById("multibulk1"), "multibulk1");
         assertSearchReturns(searchById("multibulk2"), "multibulk2");
+        assertSearchReturns(searchById("numbers1"), "numbers1");
+        assertSearchReturns(searchById("numbers2"), "numbers2");
+        assertSearchReturns(searchById("nan1"), "nan1");
+        assertSearchReturns(searchById("multinumbers1"), "multinumbers1");
     }
 
     /**
@@ -88,10 +92,27 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         assertSearchReturns(searchByNumericRange(4, 4).get(), "single");
         assertSearchReturns(searchByNumericRange(10, 10).get(), "multibulk2");
         assertSearchReturns(searchByNumericRange(7, 10).get(), "multi", "multibulk1", "multibulk2");
-        assertSearchReturns(searchByNumericRange(1, 10).get(), "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
+        assertSearchReturns(searchByNumericRange(1, 10).get(), "single", "bulk1", "bulk2", "multi", "multibulk1",
+            "multibulk2", "numbers1", "numbers2", "nan1", "multinumbers1");
         assertSearchReturns(searchByNumericRange(12, 12).get());
     }
 
+    /**
+     * It is possible to search by sum of token.
+     */
+    public void testSearchByTokenSum() throws IOException {
+        init();
+
+        assertSearchReturns(searchByNumericRangeWithTokenSum(100, 100).get(), "numbers1");
+        assertSearchReturns(searchByNumericRangeWithTokenSum(600, 600).get(), "numbers2");
+        assertSearchReturns(searchByNumericRangeWithTokenSum(100, 600).get(), "numbers1", "numbers2");
+        assertSearchReturns(searchByNumericRangeWithTokenSum(700, 700).get(), "multinumbers1");
+        assertSearchReturns(searchByNumericRangeWithTokenSum(1100, 1100).get(), "multinumbers1");
+        assertSearchReturns(searchByNumericRangeWithTokenSum(500, 800).get(), "numbers2", "multinumbers1");
+        assertSearchReturns(searchByNumericRangeWithTokenSum(100, 1100).get(), "numbers1", "numbers2", "multinumbers1");
+        assertSearchReturns(searchByNumericRangeWithTokenSum(-1, -1).get(), "single", "bulk1", "bulk2", "multi",
+                                    "multibulk1", "multibulk2", "nan1");
+    }
     /**
      * It is possible to search by token count.
      */
@@ -102,10 +123,26 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
             "foo.token_count", "foo.token_count_unstored", "foo.token_count_with_doc_values"));
         SearchResponse result = searchByNumericRange(1, 10)
                 .addAggregation(AggregationBuilders.terms("facet").field(facetField)).get();
-        assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2");
+        assertSearchReturns(result, "single", "bulk1", "bulk2", "multi", "multibulk1", "multibulk2", "numbers1",
+                "numbers2", "nan1", "multinumbers1");
         assertThat(result.getAggregations().asList().size(), equalTo(1));
         Terms terms = (Terms) result.getAggregations().asList().get(0);
         assertThat(terms.getBuckets().size(), equalTo(9));
+    }
+
+    /**
+     * It is possible to search by token sum.
+     */
+    public void testFacetByTokenSum() throws IOException {
+        init();
+
+        String facetField = "foo.token_count_is_number";
+        SearchResponse result = searchByNumericRangeWithTokenSum(100, 800)
+            .addAggregation(AggregationBuilders.terms("facet").field(facetField)).get();
+        assertSearchReturns(result, "numbers1", "numbers2", "multinumbers1");
+        assertThat(result.getAggregations().asList().size(), equalTo(1));
+        Terms terms = (Terms) result.getAggregations().asList().get(0);
+        assertThat(terms.getBuckets().size(), equalTo(4));
     }
 
     private void init() throws IOException {
@@ -131,6 +168,12 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
                                     .field("analyzer", "standard")
                                     .field("doc_values", true)
                                 .endObject()
+                                .startObject("token_count_is_number")
+                                    .field("type", "token_count")
+                                    .field("analyzer", "standard")
+                                    .field("store", true)
+                                    .field("is_number", true)
+                                .endObject()
                             .endObject()
                         .endObject()
                     .endObject()
@@ -140,13 +183,18 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         assertEquals(DocWriteResponse.Result.CREATED, prepareIndex("single", "I have four terms").get().getResult());
         BulkResponse bulk = client().prepareBulk()
                 .add(prepareIndex("bulk1", "bulk three terms"))
-                .add(prepareIndex("bulk2", "this has five bulk terms")).get();
+                .add(prepareIndex("bulk2", "this has five bulk terms"))
+                .add(prepareIndex("numbers1", "100"))
+                .add(prepareIndex("numbers2", "100 200 300"))
+                .add(prepareIndex("nan1", "100 bingo")).get();
         assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
         assertEquals(DocWriteResponse.Result.CREATED,
                      prepareIndex("multi", "two terms", "wow now I have seven lucky terms").get().getResult());
         bulk = client().prepareBulk()
                 .add(prepareIndex("multibulk1", "one", "oh wow now I have eight unlucky terms"))
-                .add(prepareIndex("multibulk2", "six is a bunch of terms", "ten!  ten terms is just crazy!  too many too count!")).get();
+            .add(prepareIndex("multibulk2", "six is a bunch of terms", "ten!  ten terms is just crazy!  too many too count!"))
+            .add(prepareIndex("multinumbers1", "300 400", "500 600"))
+            .get();
         assertFalse(bulk.buildFailureMessage(), bulk.hasFailures());
 
         assertThat(refresh().getFailedShards(), equalTo(0));
@@ -166,9 +214,14 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         )).gte(low).lte(high));
     }
 
+    private SearchRequestBuilder searchByNumericRangeWithTokenSum(int low, int high) {
+        return prepareSearch().setQuery(QueryBuilders.rangeQuery("foo.token_count_is_number").gte(low).lte(high));
+    }
+
     private SearchRequestBuilder prepareSearch() {
         SearchRequestBuilder request = client().prepareSearch("test").setTypes("test");
         request.addStoredField("foo.token_count");
+        request.addStoredField("foo.token_count_is_number");
         if (loadCountedFields) {
             request.addStoredField("foo");
         }
@@ -187,16 +240,34 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
             String id = hit.id();
             if (id.equals("single")) {
                 assertSearchHit(hit, 4);
+                assertSearchHitWithTokenSum(hit, -1);
             } else if (id.equals("bulk1")) {
                 assertSearchHit(hit, 3);
+                assertSearchHitWithTokenSum(hit, -1);
             } else if (id.equals("bulk2")) {
                 assertSearchHit(hit, 5);
+                assertSearchHitWithTokenSum(hit, -1);
             } else if (id.equals("multi")) {
                 assertSearchHit(hit, 2, 7);
+                assertSearchHitWithTokenSum(hit, -1, -1);
             } else if (id.equals("multibulk1")) {
                 assertSearchHit(hit, 1, 8);
+                assertSearchHitWithTokenSum(hit, -1, -1);
             } else if (id.equals("multibulk2")) {
                 assertSearchHit(hit, 6, 10);
+                assertSearchHitWithTokenSum(hit, -1, -1);
+            } else if (id.equals("numbers1")) {
+                assertSearchHit(hit, 1);
+                assertSearchHitWithTokenSum(hit, 100);
+            } else if (id.equals("numbers2")) {
+                assertSearchHit(hit, 3);
+                assertSearchHitWithTokenSum(hit, 600);
+            } else if (id.equals("nan1")) {
+                assertSearchHit(hit, 2);
+                assertSearchHitWithTokenSum(hit, -1);
+            } else if (id.equals("multinumbers1")) {
+                assertSearchHit(hit, 2, 2);
+                assertSearchHitWithTokenSum(hit, 700, 1100);
             } else {
                 throw new ElasticsearchException("Unexpected response!");
             }
@@ -208,6 +279,18 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
         assertThat(hit.field("foo.token_count").values().size(), equalTo(termCounts.length));
         for (int i = 0; i < termCounts.length; i++) {
             assertThat((Integer) hit.field("foo.token_count").values().get(i), equalTo(termCounts[i]));
+        }
+
+        if (loadCountedFields && storeCountedFields) {
+            assertThat(hit.field("foo").values().size(), equalTo(termCounts.length));
+        }
+    }
+
+    private void assertSearchHitWithTokenSum(SearchHit hit, int... termCounts) {
+        assertThat(hit.field("foo.token_count_is_number"), not(nullValue()));
+        assertThat(hit.field("foo.token_count_is_number").values().size(), equalTo(termCounts.length));
+        for (int i = 0; i < termCounts.length; i++) {
+            assertThat((Integer) hit.field("foo.token_count_is_number").values().get(i), equalTo(termCounts[i]));
         }
 
         if (loadCountedFields && storeCountedFields) {

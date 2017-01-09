@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.Constants;
@@ -32,7 +31,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -42,9 +40,10 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -58,8 +57,10 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -836,7 +837,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertTrue(inFlight.tryAcquire(Integer.MAX_VALUE, 10, TimeUnit.SECONDS));
     }
 
-    @TestLogging("org.elasticsearch.transport:DEBUG")
     public void testTracerLog() throws InterruptedException {
         TransportRequestHandler handler = (request, channel) -> channel.sendResponse(new StringMessageResponse(""));
         TransportRequestHandler handlerWithError = new TransportRequestHandler<StringMessageRequest>() {
@@ -879,7 +879,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.registerRequestHandler("test", StringMessageRequest::new, ThreadPool.Names.SAME, handler);
         serviceB.registerRequestHandler("testError", StringMessageRequest::new, ThreadPool.Names.SAME, handlerWithError);
 
-        final Tracer tracer = new Tracer();
+        final Tracer tracer = new Tracer(new HashSet<>(Arrays.asList("test", "testError")));
+        // the tracer is invoked concurrently after the actual action is executed. that means a Tracer#requestSent can still be in-flight
+        // from a handshake executed on connect in the setup method. this might confuse this test since it expects exact number of
+        // invocations. To prevent any unrelated events messing with this test we filter on the actions we execute in this test.
         serviceA.addTracer(tracer);
         serviceB.addTracer(tracer);
 
@@ -943,6 +946,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     private static class Tracer extends MockTransportService.Tracer {
+        private final Set<String> actions;
         public volatile boolean sawRequestSent;
         public volatile boolean sawRequestReceived;
         public volatile boolean sawResponseSent;
@@ -950,42 +954,52 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         public volatile boolean sawResponseReceived;
 
         public AtomicReference<CountDownLatch> expectedEvents = new AtomicReference<>();
-        private final Logger logger = Loggers.getLogger(getClass());
-
+        public Tracer(Set<String> actions) {
+            this.actions = actions;
+        }
         @Override
         public void receivedRequest(long requestId, String action) {
             super.receivedRequest(requestId, action);
-            sawRequestReceived = true;
-            expectedEvents.get().countDown();
+            if (actions.contains(action)) {
+                sawRequestReceived = true;
+                expectedEvents.get().countDown();
+            }
         }
 
         @Override
         public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
             super.requestSent(node, requestId, action, options);
-            sawRequestSent = true;
-            expectedEvents.get().countDown();
+            if (actions.contains(action)) {
+                sawRequestSent = true;
+                expectedEvents.get().countDown();
+            }
         }
 
         @Override
         public void responseSent(long requestId, String action) {
             super.responseSent(requestId, action);
-            logger.debug("#### responseSent for action: {}", action);
-            sawResponseSent = true;
-            expectedEvents.get().countDown();
+            if (actions.contains(action)) {
+                sawResponseSent = true;
+                expectedEvents.get().countDown();
+            }
         }
 
         @Override
         public void responseSent(long requestId, String action, Throwable t) {
             super.responseSent(requestId, action, t);
-            sawErrorSent = true;
-            expectedEvents.get().countDown();
+            if (actions.contains(action)) {
+                sawErrorSent = true;
+                expectedEvents.get().countDown();
+            }
         }
 
         @Override
         public void receivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
             super.receivedResponse(requestId, sourceNode, action);
-            sawResponseReceived = true;
-            expectedEvents.get().countDown();
+            if (actions.contains(action)) {
+                sawResponseReceived = true;
+                expectedEvents.get().countDown();
+            }
         }
 
         public void reset(int expectedCount) {
@@ -1354,7 +1368,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        try (Transport.Connection connection = serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE)){
+        try (Transport.Connection connection = serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE)) {
             serviceB.handshake(connection, 100);
             fail("exception should be thrown");
         } catch (IllegalStateException e) {
@@ -1412,7 +1426,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // all is well
         }
 
-        try (Transport.Connection connection = serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE)){
+        try (Transport.Connection connection = serviceB.openConnection(nodeA, MockTcpTransport.LIGHT_PROFILE)) {
             serviceB.handshake(connection, 100);
             fail("exception should be thrown");
         } catch (IllegalStateException e) {
@@ -1766,7 +1780,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testTimeoutPerConnection() throws IOException {
         assumeTrue("Works only on BSD network stacks and apparently windows",
             Constants.MAC_OS_X || Constants.FREE_BSD || Constants.WINDOWS);
-        try (ServerSocket socket = new ServerSocket()) {
+        try (ServerSocket socket = new MockServerSocket()) {
             // note - this test uses backlog=1 which is implementation specific ie. it might not work on some TCP/IP stacks
             // on linux (at least newer ones) the listen(addr, backlog=1) should just ignore new connections if the queue is full which
             // means that once we received an ACK from the client we just drop the packet on the floor (which is what we want) and we run
@@ -1805,19 +1819,65 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
+    public void testHandshakeWithIncompatVersion() {
+        assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        try (MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Settings.EMPTY, Collections.emptyList()),
+            Version.fromString("2.0.0"))) {
+            transport.transportServiceAdapter(serviceA.new Adapter());
+            transport.start();
+            DiscoveryNode node =
+                new DiscoveryNode("TS_TPC", "TS_TPC", transport.boundAddress().publishAddress(), emptyMap(), emptySet(), version0);
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(1,
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE);
+            expectThrows(ConnectTransportException.class, () -> serviceA.openConnection(node, builder.build()));
+        }
+    }
+
+    public void testHandshakeUpdatesVersion() throws IOException {
+        assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
+        Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+        try (MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Settings.EMPTY, Collections.emptyList()),version)) {
+            transport.transportServiceAdapter(serviceA.new Adapter());
+            transport.start();
+            DiscoveryNode node =
+                new DiscoveryNode("TS_TPC", "TS_TPC", transport.boundAddress().publishAddress(), emptyMap(), emptySet(),
+                    Version.fromString("2.0.0"));
+            ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+            builder.addConnections(1,
+                TransportRequestOptions.Type.BULK,
+                TransportRequestOptions.Type.PING,
+                TransportRequestOptions.Type.RECOVERY,
+                TransportRequestOptions.Type.REG,
+                TransportRequestOptions.Type.STATE);
+            try (Transport.Connection connection = serviceA.openConnection(node, builder.build())) {
+                assertEquals(connection.getVersion(), version);
+            }
+        }
+    }
+
+
     public void testTcpHandshake() throws IOException, InterruptedException {
         assumeTrue("only tcp transport has a handshake method", serviceA.getOriginalTransport() instanceof TcpTransport);
         TcpTransport originalTransport = (TcpTransport) serviceA.getOriginalTransport();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
 
         try (MockTcpTransport transport = new MockTcpTransport(Settings.EMPTY, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            new NoneCircuitBreakerService(), namedWriteableRegistry,  new NetworkService(Settings.EMPTY, Collections.emptyList())){
+            new NoneCircuitBreakerService(), namedWriteableRegistry, new NetworkService(Settings.EMPTY, Collections.emptyList())) {
             @Override
             protected String handleRequest(MockChannel mockChannel, String profileName, StreamInput stream, long requestId,
                                            int messageLengthBytes, Version version, InetSocketAddress remoteAddress, byte status)
                 throws IOException {
                 return super.handleRequest(mockChannel, profileName, stream, requestId, messageLengthBytes, version, remoteAddress,
-                    (byte)(status & ~(1<<3))); // we flip the isHanshake bit back and ackt like the handler is not found
+                    (byte)(status & ~(1<<3))); // we flip the isHandshake bit back and act like the handler is not found
             }
         }) {
             transport.transportServiceAdapter(serviceA.new Adapter());
@@ -1842,7 +1902,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testTcpHandshakeTimeout() throws IOException {
-        try (ServerSocket socket = new ServerSocket()) {
+        try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
             socket.setReuseAddress(true);
             DiscoveryNode dummy = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),
@@ -1858,12 +1918,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             builder.setHandshakeTimeout(TimeValue.timeValueMillis(1));
             ConnectTransportException ex = expectThrows(ConnectTransportException.class,
                 () -> serviceA.connectToNode(dummy, builder.build()));
-            assertEquals("[][" + dummy.getAddress() +"] handshake_timeout[1ms]", ex.getMessage());
+            assertEquals("[][" + dummy.getAddress() + "] handshake_timeout[1ms]", ex.getMessage());
         }
     }
 
     public void testTcpHandshakeConnectionReset() throws IOException, InterruptedException {
-        try (ServerSocket socket = new ServerSocket()) {
+        try (ServerSocket socket = new MockServerSocket()) {
             socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
             socket.setReuseAddress(true);
             DiscoveryNode dummy = new DiscoveryNode("TEST", new TransportAddress(socket.getInetAddress(),
@@ -1892,7 +1952,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
             ConnectTransportException ex = expectThrows(ConnectTransportException.class,
                 () -> serviceA.connectToNode(dummy, builder.build()));
-            assertEquals(ex.getMessage(), "[][" + dummy.getAddress() +"] general node connection failure");
+            assertEquals(ex.getMessage(), "[][" + dummy.getAddress() + "] general node connection failure");
             assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
             t.join();
         }

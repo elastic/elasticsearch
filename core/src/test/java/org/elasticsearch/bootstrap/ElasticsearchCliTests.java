@@ -152,8 +152,8 @@ public class ElasticsearchCliTests extends ESElasticsearchCliTestCase {
                 ExitCodes.OK,
                 true,
                 output -> {},
-                (foreground, pidFile, quiet, esSettings) -> {
-                    Map<String, String> settings = esSettings.getAsMap();
+                (foreground, pidFile, quiet, env) -> {
+                    Map<String, String> settings = env.settings().getAsMap();
                     assertThat(settings, hasEntry("foo", "bar"));
                     assertThat(settings, hasEntry("baz", "qux"));
                 },

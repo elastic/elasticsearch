@@ -26,7 +26,6 @@ import org.apache.lucene.search.spell.LuceneLevenshteinDistance;
 import org.apache.lucene.search.spell.NGramDistance;
 import org.apache.lucene.search.spell.StringDistance;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -391,7 +390,6 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     static TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         TermSuggestionBuilder tmpSuggestion = new TermSuggestionBuilder("_na_");
-        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String currentFieldName = null;
         String fieldname = null;

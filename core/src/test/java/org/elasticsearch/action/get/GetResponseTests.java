@@ -46,7 +46,7 @@ public class GetResponseTests extends ESTestCase {
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
         GetResponse getResponse = new GetResponse(tuple.v1());
         GetResponse expectedGetResponse = new GetResponse(tuple.v2());
-        BytesReference originalBytes = toXContent(getResponse, xContentType, false);
+        BytesReference originalBytes = toXContent(getResponse, xContentType);
         //test that we can parse what we print out
         GetResponse parsedGetResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -55,11 +55,10 @@ public class GetResponseTests extends ESTestCase {
         }
         assertEquals(expectedGetResponse, parsedGetResponse);
         //print the parsed object out and test that the output is the same as the original output
-        BytesReference finalBytes = toXContent(parsedGetResponse, xContentType, false);
+        BytesReference finalBytes = toXContent(parsedGetResponse, xContentType);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
         //check that the source stays unchanged, no shuffling of keys nor anything like that
         assertEquals(expectedGetResponse.getSourceAsString(), parsedGetResponse.getSourceAsString());
-
     }
 
     public void testToXContent() throws IOException {
@@ -67,13 +66,13 @@ public class GetResponseTests extends ESTestCase {
             GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " +
                     "\"value1\", \"field2\":\"value2\"}"), Collections.singletonMap("field1", new GetField("field1",
                     Collections.singletonList("value1")))));
-            String output = Strings.toString(getResponse, false);
+            String output = Strings.toString(getResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"found\":true,\"_source\":{ \"field1\" " +
                     ": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", output);
         }
         {
             GetResponse getResponse = new GetResponse(new GetResult("index", "type", "id", 1, false, null, null));
-            String output = Strings.toString(getResponse, false);
+            String output = Strings.toString(getResponse);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -67,7 +66,6 @@ public abstract class SmoothingModel implements NamedWriteable, ToXContent {
 
     public static SmoothingModel fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String fieldName = null;
         SmoothingModel model = null;

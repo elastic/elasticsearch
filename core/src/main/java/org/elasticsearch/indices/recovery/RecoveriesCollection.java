@@ -107,25 +107,17 @@ public class RecoveriesCollection {
             }
 
             // Closes the current recovery target
-            final AtomicBoolean successfulReset = new AtomicBoolean();
-            try {
-                final RecoveryTarget finalOldRecoveryTarget = oldRecoveryTarget;
-                newRecoveryTarget.CancellableThreads().executeIO(() -> successfulReset.set(finalOldRecoveryTarget.resetRecovery()));
-            } catch (CancellableThreads.ExecutionCancelledException e) {
-                // new recovery target is already cancelled (probably due to shard closing or recovery source changing)
-                assert onGoingRecoveries.containsKey(newRecoveryTarget.recoveryId()) == false;
-                logger.trace("{} recovery reset cancelled, recovery from {}, id [{}], previous id [{}]", newRecoveryTarget.shardId(),
-                    newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(), oldRecoveryTarget.recoveryId());
-                oldRecoveryTarget.cancel("recovery reset cancelled"); // if finalOldRecoveryTarget.resetRecovery did not even get to execute
-                return null;
-            }
-            if (successfulReset.get() == false) {
-                cancelRecovery(newRecoveryTarget.recoveryId(), "failed to reset recovery");
-                return null;
-            } else {
+            boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.CancellableThreads());
+            if (successfulReset) {
                 logger.trace("{} restarted recovery from {}, id [{}], previous id [{}]", newRecoveryTarget.shardId(),
                     newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(), oldRecoveryTarget.recoveryId());
                 return newRecoveryTarget;
+            } else {
+                logger.trace("{} recovery could not be reset as it is already cancelled, recovery from {}, id [{}], previous id [{}]",
+                    newRecoveryTarget.shardId(), newRecoveryTarget.sourceNode(), newRecoveryTarget.recoveryId(),
+                    oldRecoveryTarget.recoveryId());
+                cancelRecovery(newRecoveryTarget.recoveryId(), "recovery cancelled during reset");
+                return null;
             }
         } catch (Exception e) {
             // fail shard to be safe

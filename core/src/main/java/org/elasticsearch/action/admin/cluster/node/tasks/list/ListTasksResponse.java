@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 /**
  * Returns the list of tasks currently running on the nodes
  */
-public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
+public class ListTasksResponse extends BaseTasksResponse implements ToXContentObject {
 
     private List<TaskInfo> tasks;
 
@@ -187,7 +187,10 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return toXContentGroupedByParents(builder, params);
+        builder.startObject();
+        toXContentGroupedByParents(builder, params);
+        builder.endObject();
+        return builder;
     }
 
     private void toXContentCommon(XContentBuilder builder, Params params) throws IOException {
@@ -214,6 +217,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContent {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true);
+        return Strings.toString(this);
     }
 }

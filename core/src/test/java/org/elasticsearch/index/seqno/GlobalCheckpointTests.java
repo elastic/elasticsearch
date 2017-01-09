@@ -116,7 +116,7 @@ public class GlobalCheckpointTests extends ESTestCase {
 
         // first check that adding it without the master blessing doesn't change anything.
         checkpointService.updateLocalCheckpoint(extraId, maxLocalCheckpoint + 1 + randomInt(4));
-        assertThat(checkpointService.getLocalCheckpointForAllocation(extraId), equalTo(UNASSIGNED_SEQ_NO));
+        assertThat(checkpointService.getLocalCheckpointForAllocationId(extraId), equalTo(UNASSIGNED_SEQ_NO));
 
         Set<String> newActive = new HashSet<>(active);
         newActive.add(extraId);

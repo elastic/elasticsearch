@@ -122,21 +122,24 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         assertNull(allocateDecision.getTargetNode());
         assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());
         assertEquals(0L, allocateDecision.getRemainingDelayInMillis());
-        assertEquals(0, allocateDecision.getNodeDecisions().size());
 
-        // verify JSON output
-        try (XContentParser parser = getParser(explanation)) {
-            verifyShardInfo(parser, true, includeDiskInfo, ShardRoutingState.UNASSIGNED);
-            parser.nextToken();
-            assertEquals("can_allocate", parser.currentName());
-            parser.nextToken();
-            assertEquals(AllocationDecision.NO_VALID_SHARD_COPY.toString(), parser.text());
-            parser.nextToken();
-            assertEquals("allocate_explanation", parser.currentName());
-            parser.nextToken();
-            assertEquals("cannot allocate because a previous copy of the primary shard existed but can no longer be found " +
-                             "on the nodes in the cluster", parser.text());
-            assertEquals(Token.END_OBJECT, parser.nextToken());
+        if (allocateDecision.getAllocationDecision() == AllocationDecision.NO_VALID_SHARD_COPY) {
+            assertEquals(0, allocateDecision.getNodeDecisions().size());
+
+            // verify JSON output
+            try (XContentParser parser = getParser(explanation)) {
+                verifyShardInfo(parser, true, includeDiskInfo, ShardRoutingState.UNASSIGNED);
+                parser.nextToken();
+                assertEquals("can_allocate", parser.currentName());
+                parser.nextToken();
+                assertEquals(AllocationDecision.NO_VALID_SHARD_COPY.toString(), parser.text());
+                parser.nextToken();
+                assertEquals("allocate_explanation", parser.currentName());
+                parser.nextToken();
+                assertEquals("cannot allocate because a previous copy of the primary shard existed but can no longer be found " +
+                                 "on the nodes in the cluster", parser.text());
+                assertEquals(Token.END_OBJECT, parser.nextToken());
+            }
         }
     }
 

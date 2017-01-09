@@ -39,7 +39,11 @@ public enum SnapshotState {
     /**
      * Snapshot was partial successful
      */
-    PARTIAL((byte) 3, true, true);
+    PARTIAL((byte) 3, true, true),
+    /**
+     * Snapshot is incompatible with the current version of the cluster
+     */
+    INCOMPATIBLE((byte) 4, true, false);
 
     private byte value;
 
@@ -47,7 +51,7 @@ public enum SnapshotState {
 
     private boolean restorable;
 
-    private SnapshotState(byte value, boolean completed, boolean restorable) {
+    SnapshotState(byte value, boolean completed, boolean restorable) {
         this.value = value;
         this.completed = completed;
         this.restorable = restorable;
@@ -97,6 +101,8 @@ public enum SnapshotState {
                 return FAILED;
             case 3:
                 return PARTIAL;
+            case 4:
+                return INCOMPATIBLE;
             default:
                 throw new IllegalArgumentException("No snapshot state for value [" + value + "]");
         }

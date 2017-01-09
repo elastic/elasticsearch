@@ -134,16 +134,16 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                     remoteClusters.put(entry.getKey(), remote);
                 }
                 remote.updateSeedNodes(entry.getValue(), ActionListener.wrap(
-                    x -> {
+                    response -> {
                         if (countDown.countDown()) {
-                            connectionListener.onResponse(x);
+                            connectionListener.onResponse(response);
                         }
                     },
-                    e -> {
+                    exception -> {
                         if (countDown.fastForward()) {
-                            connectionListener.onFailure(e);
+                            connectionListener.onFailure(exception);
                         }
-                        logger.error("failed to update seed list for cluster: " + entry.getKey(), e);
+                        logger.error("failed to update seed list for cluster: " + entry.getKey(), exception);
                     }));
             }
         }
@@ -314,7 +314,6 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                 DiscoveryNode node = new DiscoveryNode(clusterName + "#" + remoteHost,
                     new TransportAddress(new InetSocketAddress(hostAddress, port)),
                     Version.CURRENT.minimumCompatibilityVersion());
-                //don't connect yet as that would require the remote node to be up and would fail the local node startup otherwise
                 List<DiscoveryNode> nodes = remoteClustersNodes.get(clusterName);
                 if (nodes == null) {
                     nodes = new ArrayList<>();

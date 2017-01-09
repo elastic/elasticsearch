@@ -204,7 +204,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 connection = remoteConnections.apply(nodeId);
             }
             if (connection == null) {
-                throw new IllegalArgumentException("no node found for id: " + nodeId);
+                throw new IllegalStateException("no node found for id: " + nodeId);
             }
             return connection;
         };

@@ -25,6 +25,7 @@ import java.net.URISyntaxException;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
 import java.security.PrivilegedAction;
+import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.function.Function;
 
@@ -75,29 +76,22 @@ public class GceMetadataService extends AbstractLifecycleComponent {
             if (sm != null) {
                 sm.checkPermission(new SpecialPermission());
             }
-            headers = AccessController.doPrivileged(new PrivilegedExceptionAction<HttpHeaders>() {
-                @Override
-                public HttpHeaders run() throws IOException {
-                    return new HttpHeaders();
-                }
-            });
-            GenericUrl genericUrl = AccessController.doPrivileged(new PrivilegedAction<GenericUrl>() {
-                @Override
-                public GenericUrl run() {
-                    return new GenericUrl(urlMetadataNetwork);
-                }
-            });
+            headers = AccessController.doPrivileged((PrivilegedExceptionAction<HttpHeaders>) HttpHeaders::new);
+            GenericUrl genericUrl = AccessController.doPrivileged((PrivilegedAction<GenericUrl>)
+                () -> new GenericUrl(urlMetadataNetwork));
 
             // This is needed to query meta data: https://cloud.google.com/compute/docs/metadata
             headers.put("Metadata-Flavor", "Google");
-            HttpResponse response;
-            response = getGceHttpTransport().createRequestFactory()
-                .buildGetRequest(genericUrl)
-                .setHeaders(headers)
-                .execute();
+            HttpResponse response = AccessController.doPrivileged((PrivilegedExceptionAction<HttpResponse>)
+                () -> getGceHttpTransport().createRequestFactory()
+                    .buildGetRequest(genericUrl)
+                    .setHeaders(headers)
+                    .execute());
             String metadata = response.parseAsString();
             logger.debug("metadata found [{}]", metadata);
             return metadata;
+        } catch (PrivilegedActionException e) {
+            throw new IOException("failed to fetch metadata from [" + urlMetadataNetwork + "]", e.getCause());
         } catch (Exception e) {
             throw new IOException("failed to fetch metadata from [" + urlMetadataNetwork + "]", e);
         }

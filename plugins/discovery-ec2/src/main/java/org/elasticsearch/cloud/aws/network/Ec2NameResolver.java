@@ -21,6 +21,7 @@ package org.elasticsearch.cloud.aws.network;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
+import org.elasticsearch.cloud.aws.util.SocketAccess;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.network.NetworkService.CustomNameResolver;
 import org.elasticsearch.common.settings.Settings;
@@ -97,9 +98,9 @@ public class Ec2NameResolver extends AbstractComponent implements CustomNameReso
         try {
             URL url = new URL(metadataUrl);
             logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
-            URLConnection urlConnection = url.openConnection();
+            URLConnection urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
             urlConnection.setConnectTimeout(2000);
-            in = urlConnection.getInputStream();
+            in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
             BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
             String metadataResult = urlReader.readLine();

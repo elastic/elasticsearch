@@ -84,12 +84,9 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                ClassInfo.of(HttpHeaders.class, true);
-                return null;
-            }
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            ClassInfo.of(HttpHeaders.class, true);
+            return null;
         });
     }
 

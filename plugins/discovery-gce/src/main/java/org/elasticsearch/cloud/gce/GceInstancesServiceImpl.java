@@ -72,15 +72,12 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
                 if (sm != null) {
                     sm.checkPermission(new SpecialPermission());
                 }
-                InstanceList instanceList = AccessController.doPrivileged(new PrivilegedExceptionAction<InstanceList>() {
-                    @Override
-                    public InstanceList run() throws Exception {
-                        Compute.Instances.List list = client().instances().list(project, zoneId);
-                        return list.execute();
-                    }
+                InstanceList instanceList = AccessController.doPrivileged((PrivilegedExceptionAction<InstanceList>) () -> {
+                    Compute.Instances.List list = client().instances().list(project, zoneId);
+                    return list.execute();
                 });
                 // assist type inference
-                return instanceList.isEmpty()  || instanceList.getItems() == null ?
+                return instanceList.isEmpty() || instanceList.getItems() == null ?
                     Collections.<Instance>emptyList() : instanceList.getItems();
             } catch (PrivilegedActionException e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
@@ -134,7 +131,7 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
     public synchronized Compute client() {
         if (refreshInterval != null && refreshInterval.millis() != 0) {
             if (client != null &&
-                    (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
+                (refreshInterval.millis() < 0 || (System.currentTimeMillis() - lastRefresh) < refreshInterval.millis())) {
                 if (logger.isTraceEnabled()) logger.trace("using cache to retrieve client");
                 return client;
             }
@@ -151,8 +148,8 @@ public class GceInstancesServiceImpl extends AbstractComponent implements GceIns
             String tokenServerEncodedUrl = GceMetadataService.GCE_HOST.get(settings) +
                 "/computeMetadata/v1/instance/service-accounts/default/token";
             ComputeCredential credential = new ComputeCredential.Builder(getGceHttpTransport(), gceJsonFactory)
-                    .setTokenServerEncodedUrl(tokenServerEncodedUrl)
-                    .build();
+                .setTokenServerEncodedUrl(tokenServerEncodedUrl)
+                .build();
 
             // hack around code messiness in GCE code
             // TODO: get this fixed

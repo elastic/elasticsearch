@@ -7,12 +7,17 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestHandler;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -28,16 +33,20 @@ public class Licensing implements ActionPlugin {
     protected final boolean isTransportClient;
     private final boolean isTribeNode;
 
-    static {
-        // we have to make sure we don't override the prototype, if we already
-        // registered. This causes class cast exceptions while casting license
-        // meta data on tribe node, as the registration happens for every tribe
-        // client nodes and the tribe node itself
-        if (MetaData.lookupPrototype(LicensesMetaData.TYPE) == null) {
-            MetaData.registerPrototype(LicensesMetaData.TYPE, LicensesMetaData.PROTO);
-        }
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        entries.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, LicensesMetaData.TYPE, LicensesMetaData::new));
+        entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetaData.TYPE, LicensesMetaData::readDiffFrom));
+        return entries;
     }
 
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
+        // Metadata
+        entries.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(LicensesMetaData.TYPE),
+                LicensesMetaData::fromXContent));
+        return entries;
+    }
     public Licensing(Settings settings) {
         this.settings = settings;
         isTransportClient = transportClientMode(settings);

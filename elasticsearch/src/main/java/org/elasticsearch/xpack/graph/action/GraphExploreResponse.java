@@ -6,14 +6,13 @@
 package org.elasticsearch.xpack.graph.action;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.graph.action.Connection.ConnectionId;
 import org.elasticsearch.xpack.graph.action.Vertex.VertexId;
@@ -31,7 +30,7 @@ import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearch
  * 
  * @see GraphExploreRequest
  */
-public class GraphExploreResponse extends ActionResponse implements ToXContent {
+public class GraphExploreResponse extends ActionResponse implements ToXContentObject {
 
     private long tookInMillis;
     private boolean timedOut = false;
@@ -159,6 +158,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.field(Fields.TOOK, tookInMillis);
         builder.field(Fields.TIMED_OUT, timedOut);
 
@@ -194,7 +194,7 @@ public class GraphExploreResponse extends ActionResponse implements ToXContent {
             builder.endObject();
         }
         builder.endArray();
-
+        builder.endObject();
         return builder;
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.support.clock.ClockMock;
@@ -796,6 +797,45 @@ public class ExecutionServiceTests extends ESTestCase {
         executionService.execute(ctx);
 
         verify(ctx).abortBeforeExecution(eq(ExecutionState.NOT_EXECUTED_ALREADY_QUEUED), eq("Watch is already queued in thread pool"));
+    }
+
+    public void testExecuteWatchNotFound() throws Exception {
+        Watch watch = mock(Watch.class);
+        when(watch.id()).thenReturn("_id");
+        WatchExecutionContext ctx = mock(WatchExecutionContext.class);
+        when(ctx.knownWatch()).thenReturn(true);
+        when(ctx.watch()).thenReturn(watch);
+
+        GetResponse getResponse = mock(GetResponse.class);
+        when(getResponse.isExists()).thenReturn(false);
+        boolean exceptionThrown = false;
+        if (randomBoolean()) {
+            when(client.getWatch("_id")).thenReturn(getResponse);
+        } else {
+            // this emulates any failure while getting the watch, while index not found is an accepted issue
+            if (randomBoolean()) {
+                exceptionThrown = true;
+                ElasticsearchException e = new ElasticsearchException("something went wrong, i.e. index not found");
+                when(client.getWatch("_id")).thenThrow(e);
+                WatchExecutionResult result = new WatchExecutionResult(ctx, randomInt(10));
+                WatchRecord wr = new WatchRecord.ExceptionWatchRecord(ctx, result, e);
+                when(ctx.abortFailedExecution(eq(e))).thenReturn(wr);
+            } else {
+                when(client.getWatch("_id")).thenThrow(new IndexNotFoundException(".watch"));
+            }
+        }
+
+        WatchRecord.MessageWatchRecord record = mock(WatchRecord.MessageWatchRecord.class);
+        when(record.state()).thenReturn(ExecutionState.NOT_EXECUTED_WATCH_MISSING);
+        when(ctx.abortBeforeExecution(eq(ExecutionState.NOT_EXECUTED_WATCH_MISSING), any())).thenReturn(record);
+        when(ctx.executionPhase()).thenReturn(ExecutionPhase.AWAITS_EXECUTION);
+
+        WatchRecord watchRecord = executionService.execute(ctx);
+        if (exceptionThrown) {
+            assertThat(watchRecord.state(), is(ExecutionState.FAILED));
+        } else {
+            assertThat(watchRecord.state(), is(ExecutionState.NOT_EXECUTED_WATCH_MISSING));
+        }
     }
 
     private Tuple<Condition, Condition.Result> whenCondition(final WatchExecutionContext context) {

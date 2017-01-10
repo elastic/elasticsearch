@@ -10,7 +10,8 @@ import java.util.Locale;
 public enum MonitoredSystem {
 
     ES("es"),
-    KIBANA("kibana");
+    KIBANA("kibana"),
+    LOGSTASH("logstash");
 
     private final String system;
 
@@ -28,6 +29,8 @@ public enum MonitoredSystem {
                 return ES;
             case "kibana":
                 return KIBANA;
+            case "logstash":
+                return LOGSTASH;
             default:
                 throw new IllegalArgumentException("Unknown monitoring system [" + system + "]");
         }

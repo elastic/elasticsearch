@@ -52,7 +52,7 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
 
     @After
     public void cleanup() throws Exception {
-        updateMonitoringInterval(-1, TimeUnit.SECONDS);
+        disableMonitoringInterval();
         wipeMonitoringIndices();
     }
 
@@ -148,7 +148,7 @@ public class ClusterInfoTests extends MonitoringIntegTestCase {
                         .should(QueryBuilders.matchQuery(License.Fields.STATUS, License.Status.INVALID.label()))
                         .should(QueryBuilders.matchQuery(License.Fields.STATUS, License.Status.EXPIRED.label()))
                         .should(QueryBuilders.matchQuery("cluster_name", cluster().getClusterName()))
-                        .minimumNumberShouldMatch(1)
+                        .minimumShouldMatch(1)
                 ).get(), 0L);
     }
 }

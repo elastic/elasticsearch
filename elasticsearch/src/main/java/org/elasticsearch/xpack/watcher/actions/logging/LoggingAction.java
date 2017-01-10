@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.actions.logging;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.actions.Action;
@@ -77,7 +76,7 @@ public class LoggingAction implements Action {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TEXT)) {
+            } else if (Field.TEXT.match(currentFieldName)) {
                 try {
                     text = TextTemplate.parse(parser);
                 } catch (ElasticsearchParseException pe) {
@@ -85,9 +84,9 @@ public class LoggingAction implements Action {
                             watchId, actionId, Field.TEXT.getPreferredName());
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.CATEGORY)) {
+                if (Field.CATEGORY.match(currentFieldName)) {
                     category = parser.text();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.LEVEL)) {
+                } else if (Field.LEVEL.match(currentFieldName)) {
                     try {
                         level = LoggingLevel.valueOf(parser.text().toUpperCase(Locale.ROOT));
                     } catch (IllegalArgumentException iae) {

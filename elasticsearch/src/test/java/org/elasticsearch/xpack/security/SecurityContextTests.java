@@ -10,7 +10,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
@@ -21,9 +20,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class SecurityContextTests extends ESTestCase {
 
@@ -42,9 +38,7 @@ public class SecurityContextTests extends ESTestCase {
                 .build();
         threadContext = new ThreadContext(settings);
         cryptoService = new CryptoService(settings, new Environment(settings));
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        securityContext = new SecurityContext(settings, threadPool, cryptoService);
+        securityContext = new SecurityContext(settings, threadContext, cryptoService);
     }
 
     public void testGetAuthenticationAndUserInEmptyContext() throws IOException {

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.notification.slack.message;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -118,21 +117,21 @@ class Field implements MessageElement {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.TITLE)) {
+                } else if (XField.TITLE.match(currentFieldName)) {
                     try {
                         title = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment field. failed to parse [{}] field", pe,
                                 XField.TITLE);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.VALUE)) {
+                } else if (XField.VALUE.match(currentFieldName)) {
                     try {
                         value = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment field. failed to parse [{}] field", pe,
                                 XField.VALUE);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.SHORT)) {
+                } else if (XField.SHORT.match(currentFieldName)) {
                     if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         isShort = parser.booleanValue();
                     } else {

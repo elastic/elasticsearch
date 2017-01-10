@@ -6,7 +6,7 @@
 package org.elasticsearch.xpack.watcher.trigger;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
 import org.joda.time.DateTime;
@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-public abstract class TriggerEvent implements ToXContent {
+public abstract class TriggerEvent implements ToXContentObject {
 
     private final String jobName;
     protected final DateTime triggeredTime;

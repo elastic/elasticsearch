@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.transport;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.MockIndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
@@ -17,27 +18,33 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
 import org.junit.Before;
 
-import java.util.Collection;
+import java.io.IOException;
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.mock.orig.Mockito.times;
 import static org.elasticsearch.xpack.security.support.Exceptions.authenticationError;
 import static org.elasticsearch.xpack.security.support.Exceptions.authorizationError;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -51,6 +58,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class ServerTransportFilterTests extends ESTestCase {
+
     private AuthenticationService authcService;
     private AuthorizationService authzService;
     private TransportChannel channel;
@@ -73,6 +81,7 @@ public class ServerTransportFilterTests extends ESTestCase {
     public void testInbound() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = mock(Authentication.class);
+        when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
         when(authentication.getRunAsUser()).thenReturn(SystemUser.INSTANCE);
         doAnswer((i) -> {
@@ -85,7 +94,7 @@ public class ServerTransportFilterTests extends ESTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         filter.inbound("_action", request, channel, future);
         //future.get(); // don't block it's not called really just mocked
-        verify(authzService).authorize(authentication, "_action", request, Collections.emptyList(), Collections.emptyList());
+        verify(authzService).authorize(authentication, "_action", request, null, null);
     }
 
     public void testInboundDestructiveOperations() throws Exception {
@@ -94,6 +103,7 @@ public class ServerTransportFilterTests extends ESTestCase {
                 IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
                 randomFrom("*", "_all", "test*"));
         Authentication authentication = mock(Authentication.class);
+        when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(SystemUser.INSTANCE);
         doAnswer((i) -> {
             ActionListener callback =
@@ -108,7 +118,7 @@ public class ServerTransportFilterTests extends ESTestCase {
             verify(listener).onFailure(isA(IllegalArgumentException.class));
             verifyNoMoreInteractions(authzService);
         } else {
-            verify(authzService).authorize(authentication, action, request, Collections.emptyList(), Collections.emptyList());
+            verify(authzService).authorize(authentication, action, request, null, null);
         }
     }
 
@@ -143,29 +153,29 @@ public class ServerTransportFilterTests extends ESTestCase {
             callback.onResponse(authentication);
             return Void.TYPE;
         }).when(authcService).authenticate(eq("_action"), eq(request), eq(null), any(ActionListener.class));
+        final Role empty = Role.EMPTY;
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            callback.onResponse(Collections.emptyList());
+            callback.onResponse(empty);
             return Void.TYPE;
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
+        when(authentication.getVersion()).thenReturn(Version.CURRENT);
         when(authentication.getUser()).thenReturn(XPackUser.INSTANCE);
         when(authentication.getRunAsUser()).thenReturn(XPackUser.INSTANCE);
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         doThrow(authorizationError("authz failed")).when(authzService).authorize(authentication, "_action", request,
-                Collections.emptyList(), Collections.emptyList());
-        try {
+                empty, null);
+        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () -> {
             filter.inbound("_action", request, channel, future);
             future.actionGet();
-            fail("expected filter inbound to throw an authorization exception on authorization error");
-        } catch (ElasticsearchSecurityException e) {
-            assertThat(e.getMessage(), equalTo("authz failed"));
-        }
+        });
+        assertThat(e.getMessage(), equalTo("authz failed"));
     }
 
     public void testClientProfileRejectsNodeActions() throws Exception {
         TransportRequest request = mock(TransportRequest.class);
-        ServerTransportFilter filter = getClientFilter();
+        ServerTransportFilter filter = getClientFilter(true);
         ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
                 () -> filter.inbound("internal:foo/bar", request, channel, new PlainActionFuture<>()));
         assertEquals("executing internal/shard actions is considered malicious and forbidden", e.getMessage());
@@ -179,14 +189,13 @@ public class ServerTransportFilterTests extends ESTestCase {
     public void testNodeProfileAllowsNodeActions() throws Exception {
         final String internalAction = "internal:foo/bar";
         final String nodeOrShardAction = "indices:action" + randomFrom("[s]", "[p]", "[r]", "[n]", "[s][p]", "[s][r]", "[f]");
-        ServerTransportFilter filter = getNodeFilter();
+        ServerTransportFilter filter = getNodeFilter(true);
         TransportRequest request = mock(TransportRequest.class);
         Authentication authentication = new Authentication(new User("test", "superuser"), new RealmRef("test", "test", "node1"), null);
-        final Collection<Role> userRoles = Collections.singletonList(SuperuserRole.INSTANCE);
         doAnswer((i) -> {
             ActionListener callback =
                     (ActionListener) i.getArguments()[1];
-            callback.onResponse(authentication.getUser().equals(i.getArguments()[0]) ? userRoles : Collections.emptyList());
+            callback.onResponse(authentication.getUser().equals(i.getArguments()[0]) ? ReservedRolesStore.SUPERUSER_ROLE : null);
             return Void.TYPE;
         }).when(authzService).roles(any(User.class), any(ActionListener.class));
         doAnswer((i) -> {
@@ -205,26 +214,74 @@ public class ServerTransportFilterTests extends ESTestCase {
         filter.inbound(internalAction, request, channel, new PlainActionFuture<>());
         verify(authcService).authenticate(eq(internalAction), eq(request), eq(null), any(ActionListener.class));
         verify(authzService).roles(eq(authentication.getUser()), any(ActionListener.class));
-        verify(authzService).authorize(authentication, internalAction, request, userRoles, Collections.emptyList());
+        verify(authzService).authorize(authentication, internalAction, request, ReservedRolesStore.SUPERUSER_ROLE, null);
 
         filter.inbound(nodeOrShardAction, request, channel, new PlainActionFuture<>());
         verify(authcService).authenticate(eq(nodeOrShardAction), eq(request), eq(null), any(ActionListener.class));
         verify(authzService, times(2)).roles(eq(authentication.getUser()), any(ActionListener.class));
-        verify(authzService).authorize(authentication, nodeOrShardAction, request, userRoles, Collections.emptyList());
+        verify(authzService).authorize(authentication, nodeOrShardAction, request, ReservedRolesStore.SUPERUSER_ROLE, null);
         verifyNoMoreInteractions(authcService, authzService);
     }
 
-    private ServerTransportFilter getClientOrNodeFilter() {
-        return randomBoolean() ? getNodeFilter() : getClientFilter();
+    public void testHandlesKibanaUserCompatibility() throws Exception {
+        TransportRequest request = mock(TransportRequest.class);
+        User user = new User("kibana", "kibana");
+        Authentication authentication = mock(Authentication.class);
+        when(authentication.getVersion())
+                .thenReturn(Version.fromId(randomIntBetween(Version.V_5_0_0_ID, Version.V_5_2_0_ID_UNRELEASED - 100)));
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getRunAsUser()).thenReturn(user);
+        doAnswer((i) -> {
+            ActionListener callback =
+                    (ActionListener) i.getArguments()[3];
+            callback.onResponse(authentication);
+            return Void.TYPE;
+        }).when(authcService).authenticate(eq("_action"), eq(request), eq(null), any(ActionListener.class));
+        AtomicReference<String[]> rolesRef = new AtomicReference<>();
+        final Role empty = Role.EMPTY;
+        doAnswer((i) -> {
+            ActionListener callback =
+                    (ActionListener) i.getArguments()[1];
+            rolesRef.set(((User) i.getArguments()[0]).roles());
+            callback.onResponse(empty);
+            return Void.TYPE;
+        }).when(authzService).roles(any(User.class), any(ActionListener.class));
+        ServerTransportFilter filter = getClientOrNodeFilter();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        filter.inbound("_action", request, channel, future);
+        assertNotNull(rolesRef.get());
+        assertThat(rolesRef.get(), arrayContaining("kibana_system"));
+
+        // test with a version that doesn't need changing
+        filter = getClientOrNodeFilter();
+        rolesRef.set(null);
+        user = new KibanaUser(true);
+        when(authentication.getUser()).thenReturn(user);
+        when(authentication.getRunAsUser()).thenReturn(user);
+        when(authentication.getVersion()).thenReturn(Version.V_5_2_0_UNRELEASED);
+        future = new PlainActionFuture<>();
+        filter.inbound("_action", request, channel, future);
+        assertNotNull(rolesRef.get());
+        assertThat(rolesRef.get(), arrayContaining("kibana_system"));
     }
 
-    private ServerTransportFilter.ClientProfile getClientFilter() {
-        return new ServerTransportFilter.ClientProfile(authcService, authzService, new ThreadContext(Settings.EMPTY), false,
-                destructiveOperations);
+    private ServerTransportFilter getClientOrNodeFilter() throws IOException {
+        return randomBoolean() ? getNodeFilter(true) : getClientFilter(true);
     }
 
-    private ServerTransportFilter.NodeProfile getNodeFilter() {
-        return new ServerTransportFilter.NodeProfile(authcService, authzService, new ThreadContext(Settings.EMPTY), false,
-                destructiveOperations);
+    private ServerTransportFilter.ClientProfile getClientFilter(boolean reservedRealmEnabled) throws IOException {
+        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        ThreadContext threadContext = new ThreadContext(settings);
+        return new ServerTransportFilter.ClientProfile(authcService, authzService, threadContext, false, destructiveOperations,
+                reservedRealmEnabled,
+                new SecurityContext(settings, threadContext, new CryptoService(Settings.EMPTY, new Environment(settings))));
+    }
+
+    private ServerTransportFilter.NodeProfile getNodeFilter(boolean reservedRealmEnabled) throws IOException {
+        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
+        ThreadContext threadContext = new ThreadContext(settings);
+        return new ServerTransportFilter.NodeProfile(authcService, authzService, threadContext, false, destructiveOperations,
+                reservedRealmEnabled,
+                new SecurityContext(settings, threadContext, new CryptoService(Settings.EMPTY, new Environment(settings))));
     }
 }

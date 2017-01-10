@@ -128,7 +128,7 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
         indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY);
         NamedAnalyzer namedAnalyzer = new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer());
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(indexSettings, namedAnalyzer, namedAnalyzer, namedAnalyzer,
-                Collections.emptyMap());
+                Collections.emptyMap(), Collections.emptyMap());
         SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
         mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry(), similarityService,
                 new IndicesModule(emptyList()).getMapperRegistry(), () -> null);
@@ -814,8 +814,8 @@ public class SecurityIndexSearcherWrapperUnitTests extends ESTestCase {
     public void testFailIfQueryUsesClient() throws Exception {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        final long nowInMillis = randomPositiveLong();
-        QueryRewriteContext context = new QueryRewriteContext(null, mapperService, scriptService, xContentRegistry(), null, client, null,
+        final long nowInMillis = randomNonNegativeLong();
+        QueryRewriteContext context = new QueryRewriteContext(null, mapperService, scriptService, xContentRegistry(), client, null,
                 () -> nowInMillis);
         QueryBuilder queryBuilder1 = new TermsQueryBuilder("field", "val1", "val2");
         SecurityIndexSearcherWrapper.failIfQueryUsesClient(scriptService, queryBuilder1, context);

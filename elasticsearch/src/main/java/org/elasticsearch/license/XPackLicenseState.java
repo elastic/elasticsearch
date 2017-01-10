@@ -7,7 +7,10 @@ package org.elasticsearch.license;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 
 import org.elasticsearch.common.Strings;
@@ -176,10 +179,17 @@ public class XPackLicenseState {
         }
     }
     private volatile Status status = new Status(OperationMode.TRIAL, true);
+    private final List<Runnable> listeners = new CopyOnWriteArrayList<>();
 
     /** Updates the current state of the license, which will change what features are available. */
     void update(OperationMode mode, boolean active) {
         status = new Status(mode, active);
+        listeners.forEach(Runnable::run);
+    }
+
+    /** Add a listener to be notified on license change */
+    public void addListener(Runnable runnable) {
+        listeners.add(Objects.requireNonNull(runnable));
     }
 
     /** Return the current license type. */

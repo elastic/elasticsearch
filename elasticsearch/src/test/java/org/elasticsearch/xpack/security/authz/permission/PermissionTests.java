@@ -6,20 +6,14 @@
 package org.elasticsearch.xpack.security.authz.permission;
 
 import org.elasticsearch.action.get.GetAction;
-import org.elasticsearch.xpack.security.authz.privilege.ClusterPrivilege;
-import org.elasticsearch.xpack.security.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.authz.privilege.Privilege;
 import org.junit.Before;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege.MONITOR;
 import static org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege.READ;
-import static org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege.union;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -29,9 +23,9 @@ public class PermissionTests extends ESTestCase {
     @Before
     public void init() {
         Role.Builder builder = Role.builder("test");
-        builder.add(union(MONITOR), "test_*", "/foo.*/");
-        builder.add(union(READ), "baz_*foo", "/fool.*bar/");
-        builder.add(union(MONITOR), "/bar.*/");
+        builder.add(MONITOR, "test_*", "/foo.*/");
+        builder.add(READ, "baz_*foo", "/fool.*bar/");
+        builder.add(MONITOR, "/bar.*/");
         permission = builder.build();
     }
 
@@ -45,23 +39,6 @@ public class PermissionTests extends ESTestCase {
         assertThat(matcher1, is(matcher2));
     }
 
-    public void testIndicesGlobalsIterator() {
-        Role.Builder builder = Role.builder("tc_role");
-        builder.cluster(ClusterPrivilege.action("cluster:monitor/nodes/info"));
-        Role noIndicesPermission = builder.build();
-
-        IndicesPermission.Globals indicesGlobals = new IndicesPermission.Globals(
-                Collections.<GlobalPermission>unmodifiableList(Arrays.asList(noIndicesPermission, permission)));
-        Iterator<IndicesPermission.Group> iterator = indicesGlobals.iterator();
-        assertThat(iterator.hasNext(), is(equalTo(true)));
-        int count = 0;
-        while (iterator.hasNext()) {
-            iterator.next();
-            count++;
-        }
-        assertThat(count, is(equalTo(permission.indices().groups().length)));
-    }
-
     public void testBuildEmptyRole() {
         Role.Builder permission = Role.builder("some_role");
         Role role = permission.build();
@@ -73,7 +50,7 @@ public class PermissionTests extends ESTestCase {
 
     public void testRunAs() {
         Role permission = Role.builder("some_role")
-                .runAs(new GeneralPrivilege("name", "user1", "run*"))
+                .runAs(new Privilege("name", "user1", "run*"))
                 .build();
         assertThat(permission.runAs().check("user1"), is(true));
         assertThat(permission.runAs().check("user"), is(false));

@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.monitoring.resolver.MonitoringIndexNameResolver;
 import org.elasticsearch.xpack.monitoring.resolver.ResolversRegistry;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -519,6 +520,13 @@ public class HttpExporter extends Exporter {
                                                    final List<HttpResource> resources) {
         final TimeValue templateTimeout = config.settings().getAsTime(TEMPLATE_CHECK_TIMEOUT_SETTING, null);
         final Set<String> templateNames = new HashSet<>();
+
+        // add a resource to check the index mappings of the .monitoring-data-# index
+        //  We ensure (and add if it's not) that the kibana type is there for the index for those few customers that upgraded from alphas;
+        //  this step makes it very easy to add logstash in 5.2+ (and eventually beats)
+        for (final String type : MonitoringTemplateUtils.NEW_DATA_TYPES) {
+            resources.add(new DataTypeMappingHttpResource(resourceOwnerName, templateTimeout, type));
+        }
 
         for (final MonitoringIndexNameResolver resolver : resolvers) {
             final String templateName = resolver.templateName();

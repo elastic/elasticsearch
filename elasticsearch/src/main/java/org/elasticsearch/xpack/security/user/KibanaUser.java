@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.security.user;
 
-import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
 
 /**
@@ -14,7 +13,7 @@ import org.elasticsearch.xpack.security.support.MetadataUtils;
 public class KibanaUser extends User {
 
     public static final String NAME = "kibana";
-    public static final String ROLE_NAME = KibanaRole.NAME;
+    public static final String ROLE_NAME = "kibana_system";
 
     public KibanaUser(boolean enabled) {
         super(NAME, new String[]{ ROLE_NAME }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA, enabled);

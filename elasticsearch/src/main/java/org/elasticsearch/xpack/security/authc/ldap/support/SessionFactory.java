@@ -13,13 +13,16 @@ import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.xpack.security.authc.RealmConfig;
+import org.elasticsearch.xpack.security.authc.RealmSettings;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.ssl.SSLService;
+import org.elasticsearch.xpack.ssl.VerificationMode;
 
 import javax.net.SocketFactory;
 import java.util.Arrays;
@@ -73,7 +76,7 @@ public abstract class SessionFactory {
         this.timeout = searchTimeout;
         this.sslService = sslService;
         LDAPServers ldapServers = ldapServers(config.settings());
-        this.serverSet = serverSet(config.settings(), sslService, ldapServers);
+        this.serverSet = serverSet(config, sslService, ldapServers);
         this.sslUsed = ldapServers.ssl;
     }
 
@@ -107,13 +110,33 @@ public abstract class SessionFactory {
         throw new UnsupportedOperationException("unauthenticated sessions are not supported");
     }
 
-    protected static LDAPConnectionOptions connectionOptions(Settings settings) {
+    protected static LDAPConnectionOptions connectionOptions(RealmConfig config, SSLService sslService, Logger logger) {
+        Settings realmSettings = config.settings();
         LDAPConnectionOptions options = new LDAPConnectionOptions();
-        options.setConnectTimeoutMillis(Math.toIntExact(settings.getAsTime(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()));
-        options.setFollowReferrals(settings.getAsBoolean(FOLLOW_REFERRALS_SETTING, true));
-        options.setResponseTimeoutMillis(settings.getAsTime(TIMEOUT_TCP_READ_SETTING, TIMEOUT_DEFAULT).millis());
+        options.setConnectTimeoutMillis(Math.toIntExact(realmSettings.getAsTime(TIMEOUT_TCP_CONNECTION_SETTING, TIMEOUT_DEFAULT).millis()));
+        options.setFollowReferrals(realmSettings.getAsBoolean(FOLLOW_REFERRALS_SETTING, true));
+        options.setResponseTimeoutMillis(realmSettings.getAsTime(TIMEOUT_TCP_READ_SETTING, TIMEOUT_DEFAULT).millis());
         options.setAllowConcurrentSocketFactoryUse(true);
-        if (settings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
+        SSLConfigurationSettings sslConfigurationSettings = SSLConfigurationSettings.withoutPrefix();
+        final Settings realmSSLSettings = realmSettings.getByPrefix("ssl.");
+        final boolean verificationModeExists = sslConfigurationSettings.verificationMode.exists(realmSSLSettings);
+        final boolean hostnameVerficationExists = realmSettings.get(HOSTNAME_VERIFICATION_SETTING, null) != null;
+        if (verificationModeExists && hostnameVerficationExists) {
+            throw new IllegalArgumentException("[" + HOSTNAME_VERIFICATION_SETTING + "] and [" +
+                    sslConfigurationSettings.verificationMode.getKey() + "] may not be used at the same time");
+        } else if (verificationModeExists) {
+            VerificationMode verificationMode = sslService.getVerificationMode(realmSSLSettings, Settings.EMPTY);
+            if (verificationMode == VerificationMode.FULL) {
+                options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
+            }
+        } else if (hostnameVerficationExists) {
+            new DeprecationLogger(logger).deprecated("the setting [{}] has been deprecated and will be removed in a future version. use " +
+                            "[{}] instead", RealmSettings.getFullSettingKey(config, HOSTNAME_VERIFICATION_SETTING),
+                    RealmSettings.getFullSettingKey(config, "ssl." + sslConfigurationSettings.verificationMode.getKey()));
+            if (realmSettings.getAsBoolean(HOSTNAME_VERIFICATION_SETTING, true)) {
+                options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
+            }
+        } else {
             options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
         }
         return options;
@@ -132,7 +155,8 @@ public abstract class SessionFactory {
         return null;
     }
 
-    private ServerSet serverSet(Settings settings, SSLService clientSSLService, LDAPServers ldapServers) {
+    private ServerSet serverSet(RealmConfig realmConfig, SSLService clientSSLService, LDAPServers ldapServers) {
+        Settings settings = realmConfig.settings();
         SocketFactory socketFactory = null;
         if (ldapServers.ssl()) {
             socketFactory = clientSSLService.sslSocketFactory(settings.getByPrefix("ssl."));
@@ -143,7 +167,7 @@ public abstract class SessionFactory {
             }
         }
         return LdapLoadBalancing.serverSet(ldapServers.addresses(), ldapServers.ports(), settings, socketFactory,
-                connectionOptions(settings));
+                connectionOptions(realmConfig, sslService, logger));
     }
 
     // package private to use for testing

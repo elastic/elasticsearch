@@ -9,11 +9,10 @@ import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -29,7 +28,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
-public class HttpResponse implements ToXContent {
+public class HttpResponse implements ToXContentObject {
 
     private final int status;
     private final Map<String, String[]> headers;
@@ -189,13 +188,13 @@ public class HttpResponse implements ToXContent {
             } else if (currentFieldName == null) {
                 throw new ElasticsearchParseException("could not parse http response. expected a field name but found [{}] instead", token);
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.STATUS)) {
+                if (Field.STATUS.match(currentFieldName)) {
                     status = parser.intValue();
                 } else {
                     throw new ElasticsearchParseException("could not parse http response. unknown numeric field [{}]", currentFieldName);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.BODY)) {
+                if (Field.BODY.match(currentFieldName)) {
                     body = parser.text();
                 } else {
                     throw new ElasticsearchParseException("could not parse http response. unknown string field [{}]", currentFieldName);

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.support.WatcherDateTimeUtils;
@@ -65,7 +64,7 @@ public class ScheduleTriggerEvent extends TriggerEvent {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.TRIGGERED_TIME)) {
+            } else if (Field.TRIGGERED_TIME.match(currentFieldName)) {
                 try {
                     triggeredTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, DateTimeZone.UTC, clock);
                 } catch (ElasticsearchParseException pe) {
@@ -73,7 +72,7 @@ public class ScheduleTriggerEvent extends TriggerEvent {
                     throw new ElasticsearchParseException("could not parse [{}] trigger event for [{}] for watch [{}]. failed to parse " +
                             "date field [{}]", pe, ScheduleTriggerEngine.TYPE, context, watchId, currentFieldName);
                 }
-            }  else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.SCHEDULED_TIME)) {
+            }  else if (Field.SCHEDULED_TIME.match(currentFieldName)) {
                 try {
                     scheduledTime = WatcherDateTimeUtils.parseDateMath(currentFieldName, parser, DateTimeZone.UTC, clock);
                 } catch (ElasticsearchParseException pe) {

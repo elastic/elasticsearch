@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,7 +30,7 @@ import java.util.Locale;
  * Data structure for license. Use {@link Builder} to build a license.
  * Provides serialization/deserialization &amp; validation methods for license object
  */
-public class License implements ToXContent {
+public class License implements ToXContentObject {
     public static final int VERSION_START = 1;
     public static final int VERSION_NO_FEATURE_TYPE = 2;
     public static final int VERSION_START_DATE = 3;

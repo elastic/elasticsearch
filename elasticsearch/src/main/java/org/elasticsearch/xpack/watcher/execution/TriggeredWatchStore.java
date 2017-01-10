@@ -92,47 +92,9 @@ public class TriggeredWatchStore extends AbstractComponent {
         }
     }
 
-    public void put(TriggeredWatch triggeredWatch) throws Exception {
-        ensureStarted();
-        accessLock.lock();
-        try {
-            IndexRequest request = new IndexRequest(INDEX_NAME, DOC_TYPE, triggeredWatch.id().value())
-                    .source(XContentFactory.jsonBuilder().value(triggeredWatch))
-                    .opType(IndexRequest.OpType.CREATE);
-            client.index(request, (TimeValue) null);
-        } catch (IOException e) {
-            throw ioException("failed to persist triggered watch [{}]", e, triggeredWatch);
-        } finally {
-            accessLock.unlock();
-        }
-    }
-
-    public void put(final TriggeredWatch triggeredWatch, final ActionListener<Boolean> listener) {
-        ensureStarted();
-        try {
-            IndexRequest request = new IndexRequest(INDEX_NAME, DOC_TYPE, triggeredWatch.id().value())
-                    .source(XContentFactory.jsonBuilder().value(triggeredWatch))
-                    .opType(IndexRequest.OpType.CREATE);
-            client.index(request, ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
-        } catch (IOException e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("could not index triggered watch [{}], ignoring it...",
-                    triggeredWatch.id()), e);
-        }
-    }
-
     public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<BitSet> listener) {
-
         if (triggeredWatches.isEmpty()) {
             listener.onResponse(new BitSet(0));
-            return;
-        }
-
-        if (triggeredWatches.size() == 1) {
-            put(triggeredWatches.get(0), ActionListener.wrap(success -> {
-                BitSet bitSet = new BitSet(1);
-                bitSet.set(0);
-                listener.onResponse(bitSet);
-            }, listener::onFailure));
             return;
         }
 
@@ -161,6 +123,10 @@ public class TriggeredWatchStore extends AbstractComponent {
             }
             listener.onResponse(successFullSlots);
         }, listener::onFailure));
+    }
+
+    public void put(TriggeredWatch triggeredWatch) throws Exception {
+        putAll(Collections.singletonList(triggeredWatch));
     }
 
     public BitSet putAll(final List<TriggeredWatch> triggeredWatches) throws Exception {
@@ -268,5 +234,4 @@ public class TriggeredWatchStore extends AbstractComponent {
             throw illegalState("unable to persist triggered watches, the store is not ready");
         }
     }
-
 }

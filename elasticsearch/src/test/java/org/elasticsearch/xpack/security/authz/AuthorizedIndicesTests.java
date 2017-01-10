@@ -11,14 +11,15 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.security.authz.permission.Role;
 import org.elasticsearch.xpack.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.user.User;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -27,15 +28,18 @@ public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testAuthorizedIndicesUserWithoutRoles() {
         User user = new User("test user");
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, Collections.emptyList(), "", MetaData.EMPTY_META_DATA);
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, Role.EMPTY, "",
+                MetaData.EMPTY_META_DATA);
         List<String> list = authorizedIndices.get();
         assertTrue(list.isEmpty());
     }
 
     public void testAuthorizedIndicesUserWithSomeRoles() {
         User user = new User("test user", "a_star", "b");
-        Role aStarRole = Role.builder("a_star").add(IndexPrivilege.ALL, "a*").build();
-        Role bRole = Role.builder("b").add(IndexPrivilege.READ, "b").build();
+        RoleDescriptor aStarRole = new RoleDescriptor("a_star", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a*").privileges("all").build() }, null);
+        RoleDescriptor bRole = new RoleDescriptor("b", null,
+                new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() }, null);
         Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
         MetaData metaData = MetaData.builder()
                 .put(new IndexMetaData.Builder("a1").settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
@@ -50,7 +54,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
                         .putAlias(new AliasMetaData.Builder("ba").build())
                         .build(), true)
                 .build();
-        Collection<Role> roles = Arrays.asList(aStarRole, bRole);
+        Role roles = CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(aStarRole, bRole),
+                new FieldPermissionsCache(Settings.EMPTY));
         AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, roles, SearchAction.NAME, metaData);
         List<String> list = authorizedIndices.get();
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
@@ -61,8 +66,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
     public void testAuthorizedIndicesUserWithSomeRolesEmptyMetaData() {
         User user = new User("test user", "role");
         Role role = Role.builder("role").add(IndexPrivilege.ALL, "*").build();
-        Collection<Role> roles = Collections.singletonList(role);
-        AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, roles, SearchAction.NAME, MetaData.EMPTY_META_DATA);
+        AuthorizedIndices authorizedIndices = new AuthorizedIndices(user, role, SearchAction.NAME, MetaData.EMPTY_META_DATA);
         List<String> list = authorizedIndices.get();
         assertTrue(list.isEmpty());
     }

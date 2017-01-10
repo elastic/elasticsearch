@@ -10,6 +10,7 @@ import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
@@ -22,11 +23,16 @@ import org.elasticsearch.transport.DelegatingTransportChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
+import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
+import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor.ContextRestoreResponseHandler;
+import org.elasticsearch.xpack.security.user.KibanaUser;
+import org.elasticsearch.xpack.security.user.User;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLPeerUnverifiedException;
@@ -65,14 +71,19 @@ public interface ServerTransportFilter {
         private final ThreadContext threadContext;
         private final boolean extractClientCert;
         private final DestructiveOperations destructiveOperations;
+        private final boolean reservedRealmEnabled;
+        private final SecurityContext securityContext;
 
-        public NodeProfile(AuthenticationService authcService, AuthorizationService authzService,
-                           ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations) {
+        NodeProfile(AuthenticationService authcService, AuthorizationService authzService,
+                    ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
+                    boolean reservedRealmEnabled, SecurityContext securityContext) {
             this.authcService = authcService;
             this.authzService = authzService;
             this.threadContext = threadContext;
             this.extractClientCert = extractClientCert;
             this.destructiveOperations = destructiveOperations;
+            this.reservedRealmEnabled = reservedRealmEnabled;
+            this.securityContext = securityContext;
         }
 
         @Override
@@ -112,12 +123,31 @@ public interface ServerTransportFilter {
             }
 
             authcService.authenticate(securityAction, request, null, ActionListener.wrap((authentication) -> {
-                    final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
-                            new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
-                                authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
-                                listener.onResponse(null);
+                    if (reservedRealmEnabled && authentication.getVersion().before(Version.V_5_2_0_UNRELEASED)
+                            && KibanaUser.NAME.equals(authentication.getUser().principal())) {
+                        // the authentication came from an older node - so let's replace the user with our version
+                        final User kibanaUser = new KibanaUser(authentication.getUser().enabled());
+                        if (kibanaUser.enabled()) {
+                            securityContext.executeAsUser(kibanaUser, (original) -> {
+                                final Authentication replacedUserAuth = Authentication.getAuthentication(threadContext);
+                                final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
+                                        new AuthorizationUtils.AsyncAuthorizer(replacedUserAuth, listener, (userRoles, runAsRoles) -> {
+                                            authzService.authorize(replacedUserAuth, securityAction, request, userRoles, runAsRoles);
+                                            listener.onResponse(null);
+                                        });
+                                asyncAuthorizer.authorize(authzService);
                             });
-                    asyncAuthorizer.authorize(authzService);
+                        } else {
+                            throw new IllegalStateException("a disabled user should never be sent. " + kibanaUser);
+                        }
+                    } else {
+                        final AuthorizationUtils.AsyncAuthorizer asyncAuthorizer =
+                                new AuthorizationUtils.AsyncAuthorizer(authentication, listener, (userRoles, runAsRoles) -> {
+                                    authzService.authorize(authentication, securityAction, request, userRoles, runAsRoles);
+                                    listener.onResponse(null);
+                                });
+                        asyncAuthorizer.authorize(authzService);
+                    }
                 }, listener::onFailure));
         }
     }
@@ -151,9 +181,11 @@ public interface ServerTransportFilter {
      */
     class ClientProfile extends NodeProfile {
 
-        public ClientProfile(AuthenticationService authcService, AuthorizationService authzService,
-                             ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations) {
-            super(authcService, authzService, threadContext, extractClientCert, destructiveOperations);
+        ClientProfile(AuthenticationService authcService, AuthorizationService authzService,
+                             ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
+                             boolean reservedRealmEnabled, SecurityContext securityContext) {
+            super(authcService, authzService, threadContext, extractClientCert, destructiveOperations, reservedRealmEnabled,
+                    securityContext);
         }
 
         @Override

@@ -5,25 +5,18 @@
  */
 package org.elasticsearch.xpack.watcher.support.search;
 
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchRequestParsers;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.common.text.TextTemplate;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +30,7 @@ import java.util.Objects;
  * A {@link WatcherSearchTemplateRequest} contains the search request and the eventual template that will
  * be rendered as a script by {@link WatcherSearchTemplateService} before being executed.
  */
-public class WatcherSearchTemplateRequest implements ToXContent {
+public class WatcherSearchTemplateRequest implements ToXContentObject {
 
     private final String[] indices;
     private final String[] types;
@@ -165,10 +158,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
     /**
      * Reads a new watcher search request instance for the specified parser.
      */
-    public static WatcherSearchTemplateRequest fromXContent(Logger logger, XContentParser parser,
-                                                            SearchType searchType,
-                                                            ParseFieldMatcher parseFieldMatcher,
-                                                            SearchRequestParsers searchRequestParsers) throws IOException {
+    public static WatcherSearchTemplateRequest fromXContent(XContentParser parser, SearchType searchType) throws IOException {
         List<String> indices = new ArrayList<>();
         List<String> types = new ArrayList<>();
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
@@ -181,7 +171,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_FIELD)) {
+                if (INDICES_FIELD.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             indices.add(parser.textOrNull());
@@ -190,7 +180,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                                     currentFieldName + "] field, but instead found [" + token + "]");
                         }
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TYPES_FIELD)) {
+                } else if (TYPES_FIELD.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             types.add(parser.textOrNull());
@@ -204,12 +194,12 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                             currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, BODY_FIELD)) {
+                if (BODY_FIELD.match(currentFieldName)) {
                     try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
                         builder.copyCurrentStructure(parser);
                         searchSource = builder.bytes();
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_OPTIONS_FIELD)) {
+                } else if (INDICES_OPTIONS_FIELD.match(currentFieldName)) {
                     boolean expandOpen = DEFAULT_INDICES_OPTIONS.expandWildcardsOpen();
                     boolean expandClosed = DEFAULT_INDICES_OPTIONS.expandWildcardsClosed();
                     boolean allowNoIndices = DEFAULT_INDICES_OPTIONS.allowNoIndices();
@@ -218,7 +208,7 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (ParseFieldMatcher.STRICT.match(currentFieldName, EXPAND_WILDCARDS_FIELD)) {
+                            if (EXPAND_WILDCARDS_FIELD.match(currentFieldName)) {
                                 switch (parser.text()) {
                                     case "all":
                                         expandOpen = true;
@@ -240,9 +230,9 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                                         throw new ElasticsearchParseException("could not read search request. unknown value [" +
                                                 parser.text() + "] for [" + currentFieldName + "] field ");
                                 }
-                            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, IGNORE_UNAVAILABLE_FIELD)) {
+                            } else if (IGNORE_UNAVAILABLE_FIELD.match(currentFieldName)) {
                                 ignoreUnavailable = parser.booleanValue();
-                            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, ALLOW_NO_INDICES_FIELD)) {
+                            } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName)) {
                                 allowNoIndices = parser.booleanValue();
                             } else {
                                 throw new ElasticsearchParseException("could not read search request. unexpected index option [" +
@@ -255,21 +245,21 @@ public class WatcherSearchTemplateRequest implements ToXContent {
                     }
                     indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed,
                             DEFAULT_INDICES_OPTIONS);
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TEMPLATE_FIELD)) {
-                    template = Script.parse(parser, ParseFieldMatcher.STRICT, Script.DEFAULT_TEMPLATE_LANG);
+                } else if (TEMPLATE_FIELD.match(currentFieldName)) {
+                    template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected object field [" +
                             currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if (ParseFieldMatcher.STRICT.match(currentFieldName, INDICES_FIELD)) {
+                if (INDICES_FIELD.match(currentFieldName)) {
                     String indicesStr = parser.text();
                     indices.addAll(Arrays.asList(Strings.delimitedListToStringArray(indicesStr, ",", " \t")));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, TYPES_FIELD)) {
+                } else if (TYPES_FIELD.match(currentFieldName)) {
                     String typesStr = parser.text();
                     types.addAll(Arrays.asList(Strings.delimitedListToStringArray(typesStr, ",", " \t")));
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, SEARCH_TYPE_FIELD)) {
-                    searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT), ParseFieldMatcher.EMPTY);
+                } else if (SEARCH_TYPE_FIELD.match(currentFieldName)) {
+                    searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT));
                 } else {
                     throw new ElasticsearchParseException("could not read search request. unexpected string field [" +
                             currentFieldName + "]");

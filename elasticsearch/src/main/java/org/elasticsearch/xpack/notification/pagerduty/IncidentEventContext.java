@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.notification.pagerduty;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -195,7 +194,7 @@ public class IncidentEventContext implements ToXContent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (Strings.hasLength(currentFieldName)) {
-                    if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.TYPE)) {
+                    if (XField.TYPE.match(currentFieldName)) {
                         try {
                             type = Type.valueOf(parser.text().toUpperCase(Locale.ROOT));
                         } catch (IllegalArgumentException e) {
@@ -211,13 +210,13 @@ public class IncidentEventContext implements ToXContent {
                             throw new ElasticsearchParseException(msg, e, currentFieldName);
                         }
 
-                        if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.HREF)) {
+                        if (XField.HREF.match(currentFieldName)) {
                             href = parsedTemplate;
-                        } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.TEXT)) {
+                        } else if (XField.TEXT.match(currentFieldName)) {
                             text = parsedTemplate;
-                        } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.SRC)) {
+                        } else if (XField.SRC.match(currentFieldName)) {
                             src = parsedTemplate;
-                        } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.ALT)) {
+                        } else if (XField.ALT.match(currentFieldName)) {
                             alt = parsedTemplate;
                         } else {
                             String msg = "could not parse trigger incident event context. unknown field [{}]";

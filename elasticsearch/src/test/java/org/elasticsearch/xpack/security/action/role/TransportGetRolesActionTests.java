@@ -11,65 +11,45 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.SecurityContext;
 import org.elasticsearch.xpack.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.security.authz.permission.KibanaRole;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.security.user.ElasticUser;
-import org.elasticsearch.xpack.security.user.KibanaUser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.AdditionalMatchers.aryEq;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.when;
 
 public class TransportGetRolesActionTests extends ESTestCase {
 
     public void testReservedRoles() {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        SecurityContext context = mock(SecurityContext.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore(context));
+                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 
-        final boolean isKibanaUser = randomBoolean();
-        if (isKibanaUser) {
-            when(context.getUser()).thenReturn(new KibanaUser(true));
-        } else {
-            when(context.getUser()).thenReturn(new ElasticUser(true));
-        }
         final int size = randomIntBetween(1, ReservedRolesStore.names().size());
         final List<String> names = randomSubsetOf(size, ReservedRolesStore.names());
 
         final List<String> expectedNames = new ArrayList<>(names);
-        if (isKibanaUser == false) {
-            expectedNames.remove(KibanaRole.NAME);
-        }
 
         doAnswer(invocation -> {
             Object[] args = invocation.getArguments();
@@ -98,32 +78,19 @@ public class TransportGetRolesActionTests extends ESTestCase {
 
         assertThat(throwableRef.get(), is(nullValue()));
         assertThat(responseRef.get(), is(notNullValue()));
-        if (isKibanaUser && expectedNames.isEmpty()) {
-                assertThat(responseRef.get().roles(), is(emptyArray()));
-                verify(rolesStore, times(1)).getRoleDescriptors(eq(Strings.EMPTY_ARRAY), any(ActionListener.class));
-        } else {
-            List<String> retrievedRoleNames =
-                    Arrays.asList(responseRef.get().roles()).stream().map(RoleDescriptor::getName).collect(Collectors.toList());
-            assertThat(retrievedRoleNames, containsInAnyOrder(expectedNames.toArray(Strings.EMPTY_ARRAY)));
-            verifyZeroInteractions(rolesStore);
-        }
+        List<String> retrievedRoleNames =
+                Arrays.asList(responseRef.get().roles()).stream().map(RoleDescriptor::getName).collect(Collectors.toList());
+        assertThat(retrievedRoleNames, containsInAnyOrder(expectedNames.toArray(Strings.EMPTY_ARRAY)));
+        verifyZeroInteractions(rolesStore);
     }
 
     public void testStoreRoles() {
         final List<RoleDescriptor> storeRoleDescriptors = randomRoleDescriptors();
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        SecurityContext context = mock(SecurityContext.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore(context));
-
-        final boolean isKibanaUser = randomBoolean();
-        if (isKibanaUser) {
-            when(context.getUser()).thenReturn(new KibanaUser(true));
-        } else {
-            when(context.getUser()).thenReturn(new ElasticUser(true));
-        }
+                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 
         GetRolesRequest request = new GetRolesRequest();
         request.names(storeRoleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY));
@@ -172,26 +139,17 @@ public class TransportGetRolesActionTests extends ESTestCase {
         }
 
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        SecurityContext context = mock(SecurityContext.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore(context));
+                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 
-        final boolean isKibanaUser = randomBoolean();
         final List<String> expectedNames = new ArrayList<>();
         if (all) {
             expectedNames.addAll(reservedRoleNames);
             expectedNames.addAll(storeNames);
         } else {
             expectedNames.addAll(requestedNames);
-        }
-
-        if (isKibanaUser) {
-            when(context.getUser()).thenReturn(new KibanaUser(true));
-        } else {
-            expectedNames.remove(KibanaRole.NAME);
-            when(context.getUser()).thenReturn(new ElasticUser(true));
         }
 
         GetRolesRequest request = new GetRolesRequest();
@@ -245,11 +203,10 @@ public class TransportGetRolesActionTests extends ESTestCase {
         final Exception e = randomFrom(new ElasticsearchSecurityException(""), new IllegalStateException());
         final List<RoleDescriptor> storeRoleDescriptors = randomRoleDescriptors();
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
-        SecurityContext context = mock(SecurityContext.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
                 null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
-                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore(context));
+                mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 
         GetRolesRequest request = new GetRolesRequest();
         request.names(storeRoleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY));

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.notification.slack.message;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.text.TextTemplateEngine;
@@ -63,14 +62,14 @@ public class DynamicAttachments implements MessageElement {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.LIST_PATH)) {
+            } else if (XField.LIST_PATH.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     listPath = parser.text();
                 } else {
                     throw new ElasticsearchParseException("could not parse dynamic attachments. expected a string value for [{}] field, " +
                             "but found [{}]", XField.LIST_PATH.getPreferredName(), token);
                 }
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.TEMPLATE)) {
+            } else if (XField.TEMPLATE.match(currentFieldName)) {
                 try {
                     template = Attachment.Template.parse(parser);
                 } catch (ElasticsearchParseException pe) {

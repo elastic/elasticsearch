@@ -57,7 +57,7 @@ public abstract class Attachment extends BodyPartSource {
      * intentionally not emitting path as it may come as an information leak
      */
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
                 .field("type", type())
                 .field("id", id)

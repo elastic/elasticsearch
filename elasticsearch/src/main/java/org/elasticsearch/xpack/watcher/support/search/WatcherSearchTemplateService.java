@@ -74,8 +74,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         BytesReference source = request.getSearchSource();
         if (source != null && source.length() > 0) {
             try (XContentParser parser = XContentFactory.xContent(source).createParser(xContentRegistry, source)) {
-                sourceBuilder.parseXContent(new QueryParseContext(searchRequestParsers.queryParsers, parser, parseFieldMatcher),
-                        searchRequestParsers.aggParsers, searchRequestParsers.suggesters, searchRequestParsers.searchExtParsers);
+                sourceBuilder.parseXContent(new QueryParseContext(parser, parseFieldMatcher));
                 searchRequest.source(sourceBuilder);
             }
         }

@@ -9,13 +9,12 @@ import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.xpack.security.SecurityTemplateService;
 import org.elasticsearch.xpack.security.authz.permission.Role;
-import org.elasticsearch.xpack.security.authz.permission.SuperuserRole;
+import org.elasticsearch.xpack.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.xpack.security.user.XPackUser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -29,10 +28,10 @@ class AuthorizedIndices {
     private final User user;
     private final String action;
     private final MetaData metaData;
-    private final Collection<Role> userRoles;
+    private final Role userRoles;
     private List<String> authorizedIndices;
 
-    AuthorizedIndices(User user, Collection<Role> userRoles, String action, MetaData metaData) {
+    AuthorizedIndices(User user, Role userRoles, String action, MetaData metaData) {
         this.user = user;
         this.userRoles = userRoles;
         this.action = action;
@@ -47,16 +46,7 @@ class AuthorizedIndices {
     }
 
     private List<String> load() {
-        if (userRoles.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        List<Predicate<String>> predicates = new ArrayList<>();
-        for (Role userRole : userRoles) {
-            predicates.add(userRole.indices().allowedIndicesMatcher(action));
-        }
-
-        Predicate<String> predicate = predicates.stream().reduce(s -> false, Predicate::or);
+        Predicate<String> predicate = userRoles.indices().allowedIndicesMatcher(action);
 
         List<String> indicesAndAliases = new ArrayList<>();
         // TODO: can this be done smarter? I think there are usually more indices/aliases in the cluster then indices defined a roles?
@@ -67,7 +57,7 @@ class AuthorizedIndices {
             }
         }
 
-        if (XPackUser.is(user) == false && Arrays.binarySearch(user.roles(), SuperuserRole.NAME) < 0) {
+        if (XPackUser.is(user) == false && Arrays.binarySearch(user.roles(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()) < 0) {
             // we should filter out the .security index from wildcards
             indicesAndAliases.remove(SecurityTemplateService.SECURITY_INDEX_NAME);
         }

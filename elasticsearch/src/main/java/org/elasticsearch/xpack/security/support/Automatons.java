@@ -7,17 +7,18 @@ package org.elasticsearch.xpack.security.support;
 
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.apache.lucene.util.automaton.MinimizationOperations.minimize;
 import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
 import static org.apache.lucene.util.automaton.Operations.concatenate;
-import static org.apache.lucene.util.automaton.Operations.determinize;
 import static org.apache.lucene.util.automaton.Operations.minus;
 import static org.apache.lucene.util.automaton.Operations.union;
 
@@ -106,13 +107,26 @@ public final class Automatons {
         return concatenate(automata);
     }
 
-    public static Automaton unionAndDeterminize(Automaton a1, Automaton a2) {
-        Automaton res = union(a1, a2);
-        return determinize(res, DEFAULT_MAX_DETERMINIZED_STATES);
+    public static Automaton unionAndMinimize(Collection<Automaton> automata) {
+        Automaton res = union(automata);
+        return minimize(res, DEFAULT_MAX_DETERMINIZED_STATES);
     }
 
-    public static Automaton minusAndDeterminize(Automaton a1, Automaton a2) {
+    public static Automaton minusAndMinimize(Automaton a1, Automaton a2) {
         Automaton res = minus(a1, a2, DEFAULT_MAX_DETERMINIZED_STATES);
-        return determinize(res, DEFAULT_MAX_DETERMINIZED_STATES);
+        return minimize(res, DEFAULT_MAX_DETERMINIZED_STATES);
+    }
+
+    public static Predicate<String> predicate(String... patterns) {
+        return predicate(Arrays.asList(patterns));
+    }
+
+    public static Predicate<String> predicate(Collection<String> patterns) {
+        return predicate(patterns(patterns));
+    }
+
+    public static Predicate<String> predicate(Automaton automaton) {
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, DEFAULT_MAX_DETERMINIZED_STATES);
+        return runAutomaton::run;
     }
 }

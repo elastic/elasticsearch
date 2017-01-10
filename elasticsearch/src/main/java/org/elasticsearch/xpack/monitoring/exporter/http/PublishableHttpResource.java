@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 
@@ -144,7 +145,8 @@ public abstract class PublishableHttpResource extends HttpResource {
     /**
      * Determine if the current {@code resourceName} exists at the {@code resourceBasePath} endpoint.
      * <p>
-     * This provides the base-level check for any resource that does not need to inspect its actual contents.
+     * This provides the base-level check for any resource that does not need to care about its response beyond existence (and likely does
+     * not need to inspect its contents).
      *
      * @param client The REST client to make the request(s).
      * @param logger The logger to use for status messages.
@@ -155,10 +157,33 @@ public abstract class PublishableHttpResource extends HttpResource {
      * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
      * @return Never {@code null}.
      */
-    protected CheckResponse checkForResource(final RestClient client, final Logger logger,
-                                             final String resourceBasePath,
-                                             final String resourceName, final String resourceType,
-                                             final String resourceOwnerName, final String resourceOwnerType) {
+    protected CheckResponse simpleCheckForResource(final RestClient client, final Logger logger,
+                                                   final String resourceBasePath,
+                                                   final String resourceName, final String resourceType,
+                                                   final String resourceOwnerName, final String resourceOwnerType) {
+        return checkForResource(client, logger, resourceBasePath, resourceName, resourceType, resourceOwnerName, resourceOwnerType).v1();
+    }
+
+    /**
+     * Determine if the current {@code resourceName} exists at the {@code resourceBasePath} endpoint.
+     * <p>
+     * This provides the base-level check for any resource that cares about existence and also its contents.
+     *
+     * @param client The REST client to make the request(s).
+     * @param logger The logger to use for status messages.
+     * @param resourceBasePath The base path/endpoint to check for the resource (e.g., "/_template").
+     * @param resourceName The name of the resource (e.g., "template123").
+     * @param resourceType The type of resource (e.g., "monitoring template").
+     * @param resourceOwnerName The user-recognizeable resource owner.
+     * @param resourceOwnerType The type of resource owner being dealt with (e.g., "monitoring cluster").
+     * @return Never {@code null} pair containing the checked response and the returned response.
+     *         The response will only ever be {@code null} if none was returned.
+     * @see #simpleCheckForResource(RestClient, Logger, String, String, String, String, String)
+     */
+    protected Tuple<CheckResponse, Response> checkForResource(final RestClient client, final Logger logger,
+                                                              final String resourceBasePath,
+                                                              final String resourceName, final String resourceType,
+                                                              final String resourceOwnerName, final String resourceOwnerType) {
         logger.trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
         try {
@@ -169,18 +194,19 @@ public abstract class PublishableHttpResource extends HttpResource {
             if (response.getStatusLine().getStatusCode() == RestStatus.OK.getStatus()) {
                 logger.debug("{} [{}] found on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
-                return CheckResponse.EXISTS;
+                return new Tuple<>(CheckResponse.EXISTS, response);
             } else {
                 throw new ResponseException(response);
             }
         } catch (final ResponseException e) {
-            final int statusCode = e.getResponse().getStatusLine().getStatusCode();
+            final Response response = e.getResponse();
+            final int statusCode = response.getStatusLine().getStatusCode();
 
             // 404
             if (statusCode == RestStatus.NOT_FOUND.getStatus()) {
                 logger.debug("{} [{}] does not exist on the [{}] {}", resourceType, resourceName, resourceOwnerName, resourceOwnerType);
 
-                return CheckResponse.DOES_NOT_EXIST;
+                return new Tuple<>(CheckResponse.DOES_NOT_EXIST, response);
             } else {
                 logger.error((Supplier<?>) () ->
                         new ParameterizedMessage("failed to verify {} [{}] on the [{}] {} with status code [{}]",
@@ -188,7 +214,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                         e);
 
                 // weirder failure than below; block responses just like other unexpected failures
-                return CheckResponse.ERROR;
+                return new Tuple<>(CheckResponse.ERROR, response);
             }
         } catch (IOException | RuntimeException e) {
             logger.error((Supplier<?>) () ->
@@ -197,7 +223,7 @@ public abstract class PublishableHttpResource extends HttpResource {
                     e);
 
             // do not attempt to publish the resource because we're in a broken state
-            return CheckResponse.ERROR;
+            return new Tuple<>(CheckResponse.ERROR, null);
         }
     }
 

@@ -29,9 +29,8 @@ public class FieldPermissionTests extends ESTestCase {
                 "\"except\": [\"f3\",\"f4\"]" +
                 "}}]}";
         RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(q), false);
-        assertArrayEquals(rd.getIndicesPrivileges()[0].getFieldPermissions().getGrantedFieldsArray(),
-                new String[]{"f1", "f2", "f3", "f4"});
-        assertArrayEquals(rd.getIndicesPrivileges()[0].getFieldPermissions().getDeniedFieldsArray(), new String[]{"f3", "f4"});
+        assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] { "f1", "f2", "f3", "f4" });
+        assertArrayEquals(rd.getIndicesPrivileges()[0].getDeniedFields(), new String[] { "f3", "f4" });
 
         q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " +
                 "\"field_security\": {" +
@@ -39,25 +38,24 @@ public class FieldPermissionTests extends ESTestCase {
                 "\"grant\": [\"f1\", \"f2\", \"f3\", \"f4\"]" +
                 "}}]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false);
-        assertArrayEquals(rd.getIndicesPrivileges()[0].getFieldPermissions().getGrantedFieldsArray(),
-                new String[]{"f1", "f2", "f3", "f4"});
-        assertArrayEquals(rd.getIndicesPrivileges()[0].getFieldPermissions().getDeniedFieldsArray(), new String[]{"f3", "f4"});
+        assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] { "f1", "f2", "f3", "f4" });
+        assertArrayEquals(rd.getIndicesPrivileges()[0].getDeniedFields(), new String[] { "f3", "f4" });
 
         q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " +
                 "\"field_security\": {" +
                 "\"grant\": [\"f1\", \"f2\"]" +
                 "}}]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false);
-        assertArrayEquals(rd.getIndicesPrivileges()[0].getFieldPermissions().getGrantedFieldsArray(), new String[]{"f1", "f2"});
-        assertNull(rd.getIndicesPrivileges()[0].getFieldPermissions().getDeniedFieldsArray());
+        assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] { "f1", "f2" });
+        assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
 
         q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " +
                 "\"field_security\": {" +
                 "\"grant\": []" +
                 "}}]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false);
-        assertArrayEquals(rd.getIndicesPrivileges()[0].getFieldPermissions().getGrantedFieldsArray(), new String[]{});
-        assertNull(rd.getIndicesPrivileges()[0].getFieldPermissions().getDeniedFieldsArray());
+        assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] {});
+        assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
 
         q = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " +
                 "\"field_security\": {" +
@@ -65,8 +63,8 @@ public class FieldPermissionTests extends ESTestCase {
                 "\"grant\": []" +
                 "}}]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false);
-        assertArrayEquals(rd.getIndicesPrivileges()[0].getFieldPermissions().getGrantedFieldsArray(), new String[]{});
-        assertArrayEquals(rd.getIndicesPrivileges()[0].getFieldPermissions().getDeniedFieldsArray(), new String[]{});
+        assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] {});
+        assertArrayEquals(rd.getIndicesPrivileges()[0].getDeniedFields(), new String[] {});
 
         final String exceptWithoutGrant = "{\"indices\": [ {\"names\": \"idx2\", \"privileges\": [\"p3\"], " +
                 "\"field_security\": {" +
@@ -122,10 +120,10 @@ public class FieldPermissionTests extends ESTestCase {
                 " \"except\": [\"f2\"]}," +
                 "\"privileges\": [\"p3\"]}]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), false);
-        assertArrayEquals(rd.getIndicesPrivileges()[0].getFieldPermissions().getGrantedFieldsArray(), new String[]{});
-        assertNull(rd.getIndicesPrivileges()[0].getFieldPermissions().getDeniedFieldsArray());
-        assertArrayEquals(rd.getIndicesPrivileges()[1].getFieldPermissions().getGrantedFieldsArray(), new String[]{"*"});
-        assertArrayEquals(rd.getIndicesPrivileges()[1].getFieldPermissions().getDeniedFieldsArray(), new String[]{"f2"});
+        assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[] {});
+        assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
+        assertArrayEquals(rd.getIndicesPrivileges()[1].getGrantedFields(), new String[] {"*"});
+        assertArrayEquals(rd.getIndicesPrivileges()[1].getDeniedFields(), new String[] {"f2"});
     }
 
     // test old syntax for field permissions
@@ -134,8 +132,8 @@ public class FieldPermissionTests extends ESTestCase {
                 "\"fields\": [\"f1\", \"f2\"]" +
                 "}]}";
         RoleDescriptor rd = RoleDescriptor.parse("test", new BytesArray(q), true);
-        assertArrayEquals(rd.getIndicesPrivileges()[0].getFieldPermissions().getGrantedFieldsArray(), new String[]{"f1", "f2"});
-        assertNull(rd.getIndicesPrivileges()[0].getFieldPermissions().getDeniedFieldsArray());
+        assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[]{"f1", "f2"});
+        assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
 
         final String failingQuery = q;
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> RoleDescriptor.parse("test", new BytesArray
@@ -147,8 +145,8 @@ public class FieldPermissionTests extends ESTestCase {
                 "\"fields\": []" +
                 "}]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), true);
-        assertArrayEquals(rd.getIndicesPrivileges()[0].getFieldPermissions().getGrantedFieldsArray(), new String[]{});
-        assertNull(rd.getIndicesPrivileges()[0].getFieldPermissions().getDeniedFieldsArray());
+        assertArrayEquals(rd.getIndicesPrivileges()[0].getGrantedFields(), new String[]{});
+        assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
         final String failingQuery2 = q;
         e = expectThrows(ElasticsearchParseException.class, () -> RoleDescriptor.parse("test", new BytesArray
                 (failingQuery2), false));
@@ -159,74 +157,12 @@ public class FieldPermissionTests extends ESTestCase {
                 "\"fields\": null" +
                 "}]}";
         rd = RoleDescriptor.parse("test", new BytesArray(q), true);
-        assertNull(rd.getIndicesPrivileges()[0].getFieldPermissions().getGrantedFieldsArray());
-        assertNull(rd.getIndicesPrivileges()[0].getFieldPermissions().getDeniedFieldsArray());
+        assertNull(rd.getIndicesPrivileges()[0].getGrantedFields());
+        assertNull(rd.getIndicesPrivileges()[0].getDeniedFields());
         final String failingQuery3 = q;
         e = expectThrows(ElasticsearchParseException.class, () -> RoleDescriptor.parse("test", new BytesArray(failingQuery3), false));
         assertThat(e.getDetailedMessage(), containsString("[\"fields\": [...]] format has changed for field permissions in role [test]" +
                 ", use [\"field_security\": {\"grant\":[...],\"except\":[...]}] instead"));
-    }
-
-    public void testMergeFieldPermissions() {
-        String allowedPrefix1 = randomAsciiOfLength(5);
-        String allowedPrefix2 = randomAsciiOfLength(5);
-        String[] allowed1 = new String[]{allowedPrefix1 + "*"};
-        String[] allowed2 = new String[]{allowedPrefix2 + "*"};
-        String[] denied1 = new String[]{allowedPrefix1 + "a"};
-        String[] denied2 = new String[]{allowedPrefix2 + "a"};
-        FieldPermissions fieldPermissions1 = new FieldPermissions(allowed1, denied1);
-        FieldPermissions fieldPermissions2 = new FieldPermissions(allowed2, denied2);
-        FieldPermissions mergedFieldPermissions = FieldPermissions.merge(fieldPermissions1, fieldPermissions2);
-        assertTrue(mergedFieldPermissions.grantsAccessTo(allowedPrefix1 + "b"));
-        assertTrue(mergedFieldPermissions.grantsAccessTo(allowedPrefix2 + "b"));
-        assertFalse(mergedFieldPermissions.grantsAccessTo(denied1[0]));
-        assertFalse(mergedFieldPermissions.grantsAccessTo(denied2[0]));
-
-        allowed1 = new String[]{randomAsciiOfLength(5) + "*", randomAsciiOfLength(5) + "*"};
-        allowed2 = null;
-        denied1 = new String[]{allowed1[0] + "a", allowed1[1] + "a"};
-        denied2 = null;
-        fieldPermissions1 = new FieldPermissions(allowed1, denied1);
-        fieldPermissions2 = new FieldPermissions(allowed2, denied2);
-        mergedFieldPermissions = FieldPermissions.merge(fieldPermissions1, fieldPermissions2);
-        assertFalse(mergedFieldPermissions.hasFieldLevelSecurity());
-
-        allowed1 = new String[]{};
-        allowed2 = new String[]{randomAsciiOfLength(5) + "*", randomAsciiOfLength(5) + "*"};
-        denied1 = new String[]{};
-        denied2 = new String[]{allowed2[0] + "a", allowed2[1] + "a"};
-        fieldPermissions1 = new FieldPermissions(allowed1, denied1);
-        fieldPermissions2 = new FieldPermissions(allowed2, denied2);
-        mergedFieldPermissions = FieldPermissions.merge(fieldPermissions1, fieldPermissions2);
-        for (String field : allowed2) {
-            assertTrue(mergedFieldPermissions.grantsAccessTo(field));
-        }
-        for (String field : denied2) {
-            assertFalse(mergedFieldPermissions.grantsAccessTo(field));
-        }
-
-        allowed1 = randomBoolean() ? null : new String[]{"*"};
-        allowed2 = randomBoolean() ? null : new String[]{"*"};
-        denied1 = new String[]{"a"};
-        denied2 = new String[]{"b"};
-        fieldPermissions1 = new FieldPermissions(allowed1, denied1);
-        fieldPermissions2 = new FieldPermissions(allowed2, denied2);
-        mergedFieldPermissions = FieldPermissions.merge(fieldPermissions1, fieldPermissions2);
-        assertTrue(mergedFieldPermissions.grantsAccessTo("a"));
-        assertTrue(mergedFieldPermissions.grantsAccessTo("b"));
-
-        // test merge does not remove _all
-        allowed1 = new String[]{"_all"};
-        allowed2 = new String[]{};
-        denied1 = null;
-        denied2 = null;
-        fieldPermissions1 = new FieldPermissions(allowed1, denied1);
-        assertTrue(fieldPermissions1.allFieldIsAllowed);
-        fieldPermissions2 = new FieldPermissions(allowed2, denied2);
-        assertFalse(fieldPermissions2.allFieldIsAllowed);
-        mergedFieldPermissions = FieldPermissions.merge(fieldPermissions1, fieldPermissions2);
-        assertTrue(mergedFieldPermissions.grantsAccessTo("_all"));
-        assertTrue(mergedFieldPermissions.allFieldIsAllowed);
     }
 
     public void testFieldPermissionsStreaming() throws IOException {
@@ -245,10 +181,7 @@ public class FieldPermissionTests extends ESTestCase {
 
     public void testFieldPermissionsHashCodeThreadSafe() throws Exception {
         final int numThreads = scaledRandomIntBetween(4, 16);
-        final FieldPermissions fieldPermissions = randomBoolean() ?
-                new FieldPermissions(new String[] { "*" }, new String[] { "foo" }) :
-                FieldPermissions.merge(new FieldPermissions(new String[] { "f*" }, new String[] { "foo" }),
-                        new FieldPermissions(new String[] { "b*" }, new String[] { "bar" }));
+        final FieldPermissions fieldPermissions = new FieldPermissions(new String[] { "*" }, new String[] { "foo" });
         final CountDownLatch latch = new CountDownLatch(numThreads + 1);
         final AtomicReferenceArray<Integer> hashCodes = new AtomicReferenceArray<>(numThreads);
         List<Thread> threads = new ArrayList<>(numThreads);

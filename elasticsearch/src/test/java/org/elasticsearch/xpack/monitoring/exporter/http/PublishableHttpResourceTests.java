@@ -9,7 +9,9 @@ import org.apache.http.HttpEntity;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.SuppressLoggerChecks;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.monitoring.exporter.http.PublishableHttpResource.CheckResponse;
 
@@ -58,8 +60,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         when(client.performRequest("GET", endpoint, resource.getParameters())).thenReturn(response);
 
-        assertThat(resource.checkForResource(client, logger, resourceBasePath, resourceName, resourceType, owner, ownerType),
-                   is(CheckResponse.ERROR));
+        sometimesAssertSimpleCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, CheckResponse.ERROR, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequest("GET", endpoint, resource.getParameters());
@@ -73,11 +74,11 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         final RestStatus failedStatus = failedCheckStatus();
         final ResponseException responseException = responseException("GET", endpoint, failedStatus);
         final Exception e = randomFrom(new IOException("expected"), new RuntimeException("expected"), responseException);
+        final Response response = e == responseException ? responseException.getResponse() : null;
 
         when(client.performRequest("GET", endpoint, resource.getParameters())).thenThrow(e);
 
-        assertThat(resource.checkForResource(client, logger, resourceBasePath, resourceName, resourceType, owner, ownerType),
-                   is(CheckResponse.ERROR));
+        sometimesAssertSimpleCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, CheckResponse.ERROR, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequest("GET", endpoint, resource.getParameters());
@@ -139,8 +140,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
 
         when(client.performRequest("GET", endpoint, resource.getParameters())).thenReturn(response);
 
-        assertThat(resource.checkForResource(client, logger, resourceBasePath, resourceName, resourceType, owner, ownerType),
-                   is(expected));
+        sometimesAssertSimpleCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, expected, response);
 
         verify(logger).trace("checking if {} [{}] exists on the [{}] {}", resourceType, resourceName, owner, ownerType);
         verify(client).performRequest("GET", endpoint, resource.getParameters());
@@ -186,6 +186,23 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         }
 
         verifyNoMoreInteractions(client, response, logger, entity);
+    }
+
+    private void sometimesAssertSimpleCheckForResource(final RestClient client, final Logger logger,
+                                                       final String resourceBasePath,
+                                                       final String resourceName, final String resourceType,
+                                                       final CheckResponse expected, final Response response) {
+        // sometimes use the simple check
+        if (randomBoolean()) {
+            assertThat(resource.simpleCheckForResource(client, logger, resourceBasePath, resourceName, resourceType, owner, ownerType),
+                    is(expected));
+        } else {
+            final Tuple<CheckResponse, Response> responseTuple =
+                    resource.checkForResource(client, logger, resourceBasePath, resourceName, resourceType, owner, ownerType);
+
+            assertThat(responseTuple.v1(), is(expected));
+            assertThat(responseTuple.v2(), is(response));
+        }
     }
 
 }

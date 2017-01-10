@@ -36,7 +36,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -70,12 +69,11 @@ public class SecurityIndexSearcherWrapperIntegrationTests extends ESTestCase {
                 FieldPermissions(),
                 singleton(new BytesArray("{\"match_all\" : {}}")));
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY);
-        IndicesQueriesRegistry indicesQueriesRegistry = mock(IndicesQueriesRegistry.class);
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
-        final long nowInMillis = randomPositiveLong();
+        final long nowInMillis = randomNonNegativeLong();
         QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, null, null, mapperService, null,
-                null, xContentRegistry(), indicesQueriesRegistry, client, null, () -> nowInMillis);
+                null, xContentRegistry(), client, null, () -> nowInMillis);
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         QueryParseContext queryParseContext = mock(QueryParseContext.class);
         IndexSettings settings = IndexSettingsModule.newIndexSettings("_index", Settings.EMPTY);

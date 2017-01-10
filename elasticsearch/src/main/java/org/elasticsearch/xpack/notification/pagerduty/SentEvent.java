@@ -8,22 +8,21 @@ package org.elasticsearch.xpack.notification.pagerduty;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
+import org.elasticsearch.xpack.watcher.actions.pagerduty.PagerDutyAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class SentEvent implements ToXContent {
+public class SentEvent implements ToXContentObject {
 
     final IncidentEvent event;
     @Nullable final HttpRequest request;
@@ -115,11 +114,11 @@ public class SentEvent implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.MESSAGE)) {
+                } else if (XField.MESSAGE.match(currentFieldName)) {
                     message = parser.text();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.CODE)) {
+                } else if (XField.CODE.match(currentFieldName)) {
                     // we don't use this code.. so just consume the token
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.ERRORS)) {
+                } else if (XField.ERRORS.match(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         errors.add(parser.text());
                     }

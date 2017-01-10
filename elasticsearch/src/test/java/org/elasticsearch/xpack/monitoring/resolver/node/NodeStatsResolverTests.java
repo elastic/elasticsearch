@@ -78,11 +78,13 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
     @Override
     protected void assertSourceField(String field, Map<String, Object> sourceFields) {
         // Assertions on node stats fields that are not reported on Windows platforms
-        if (Constants.WINDOWS && field.startsWith("node_stats.os.cpu.load_average")) {
-            return;
+        if (Constants.WINDOWS) {
+            if (field.startsWith("node_stats.os.cpu.load_average")) {
+                return;
+            }
         }
 
-        // we only report IoStats and spins on Linux
+        // we only report IoStats on Linux
         if (Constants.LINUX == false) {
             if (field.startsWith("node_stats.fs.io_stats")) {
                 return;
@@ -91,6 +93,16 @@ public class NodeStatsResolverTests extends MonitoringIndexNameResolverTestCase<
 
         // node_stats.fs.data.spins can be null and it's only reported on Linux
         if (field.startsWith("node_stats.fs.data.spins")) {
+            return;
+        }
+
+        // cgroups can be null, and it's only reported on Linux
+        if (field.startsWith("node_stats.os.cgroup")) {
+            return;
+        }
+
+        // load average is unavailable on macOS for 5m and 15m (but we get 1m), but it's also possible on Linux too
+        if ("node_stats.os.cpu.load_average.5m".equals(field) || "node_stats.os.cpu.load_average.15m".equals(field)) {
             return;
         }
 

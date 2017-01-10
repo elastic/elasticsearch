@@ -7,8 +7,7 @@ package org.elasticsearch.xpack.notification.slack.message;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -143,7 +142,7 @@ public class Attachment implements MessageElement {
         return builder.endObject();
     }
 
-    static class Template implements ToXContent {
+    static class Template implements ToXContentObject {
 
         final TextTemplate fallback;
         final TextTemplate color;
@@ -307,70 +306,70 @@ public class Attachment implements MessageElement {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.FALLBACK)) {
+                } else if (XField.FALLBACK.match(currentFieldName)) {
                     try {
                         fallback = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                 XField.FALLBACK);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.COLOR)) {
+                } else if (XField.COLOR.match(currentFieldName)) {
                     try {
                         color = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                 XField.COLOR);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.PRETEXT)) {
+                } else if (XField.PRETEXT.match(currentFieldName)) {
                     try {
                         pretext = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                 XField.PRETEXT);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.AUTHOR_NAME)) {
+                } else if (XField.AUTHOR_NAME.match(currentFieldName)) {
                     try {
                         authorName = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                 XField.AUTHOR_NAME);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.AUTHOR_LINK)) {
+                } else if (XField.AUTHOR_LINK.match(currentFieldName)) {
                     try {
                         authorLink = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                 XField.AUTHOR_LINK);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.AUTHOR_ICON)) {
+                } else if (XField.AUTHOR_ICON.match(currentFieldName)) {
                     try {
                         authorIcon = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                 XField.AUTHOR_ICON);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.TITLE)) {
+                } else if (XField.TITLE.match(currentFieldName)) {
                     try {
                         title = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                 XField.TITLE);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.TITLE_LINK)) {
+                } else if (XField.TITLE_LINK.match(currentFieldName)) {
                     try {
                         titleLink = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                 XField.TITLE_LINK);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.TEXT)) {
+                } else if (XField.TEXT.match(currentFieldName)) {
                     try {
                         text = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                 XField.TEXT);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.FIELDS)) {
+                } else if (XField.FIELDS.match(currentFieldName)) {
                     if (token == XContentParser.Token.START_ARRAY) {
                         List<Field.Template> list = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -390,14 +389,14 @@ public class Attachment implements MessageElement {
                                     XField.FIELDS);
                         }
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.IMAGE_URL)) {
+                } else if (XField.IMAGE_URL.match(currentFieldName)) {
                     try {
                         imageUrl = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {
                         throw new ElasticsearchParseException("could not parse message attachment. failed to parse [{}] field", pe,
                                 XField.IMAGE_URL);
                     }
-                } else if (ParseFieldMatcher.STRICT.match(currentFieldName, XField.THUMB_URL)) {
+                } else if (XField.THUMB_URL.match(currentFieldName)) {
                     try {
                         thumbUrl = TextTemplate.parse(parser);
                     } catch (ElasticsearchParseException pe) {

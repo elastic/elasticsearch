@@ -23,7 +23,7 @@ superuser:
   run_as:
     - '*'
 
-kibana:
+kibana_system:
   cluster:
     - all
 

@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.xpack.watcher;
 
+import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.RepositoriesMetaData;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -16,6 +18,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -43,11 +47,11 @@ public class WatcherMetaDataSerializationTests extends ESTestCase {
         RepositoriesMetaData repositoriesMetaData = new RepositoriesMetaData(repositoryMetaData);
         final MetaData.Builder metaDataBuilder = MetaData.builder();
         if (randomBoolean()) { // random order of insertion
-            metaDataBuilder.putCustom(watcherMetaData.type(), watcherMetaData);
-            metaDataBuilder.putCustom(repositoriesMetaData.type(), repositoriesMetaData);
+            metaDataBuilder.putCustom(watcherMetaData.getWriteableName(), watcherMetaData);
+            metaDataBuilder.putCustom(repositoriesMetaData.getWriteableName(), repositoriesMetaData);
         } else {
-            metaDataBuilder.putCustom(repositoriesMetaData.type(), repositoriesMetaData);
-            metaDataBuilder.putCustom(watcherMetaData.type(), watcherMetaData);
+            metaDataBuilder.putCustom(repositoriesMetaData.getWriteableName(), repositoriesMetaData);
+            metaDataBuilder.putCustom(watcherMetaData.getWriteableName(), watcherMetaData);
         }
         // serialize metadata
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -59,17 +63,25 @@ public class WatcherMetaDataSerializationTests extends ESTestCase {
         // deserialize metadata again
         MetaData metaData = MetaData.Builder.fromXContent(createParser(builder));
         // check that custom metadata still present
-        assertThat(metaData.custom(watcherMetaData.type()), notNullValue());
-        assertThat(metaData.custom(repositoriesMetaData.type()), notNullValue());
+        assertThat(metaData.custom(watcherMetaData.getWriteableName()), notNullValue());
+        assertThat(metaData.custom(repositoriesMetaData.getWriteableName()), notNullValue());
     }
 
     private static WatcherMetaData getWatcherMetaDataFromXContent(XContentParser parser) throws Exception {
         parser.nextToken(); // consume null
         parser.nextToken(); // consume "watcher"
-        WatcherMetaData watcherMetaDataFromXContent = (WatcherMetaData)WatcherMetaData.PROTO.fromXContent(parser);
+        WatcherMetaData watcherMetaDataFromXContent = (WatcherMetaData)WatcherMetaData.fromXContent(parser);
         parser.nextToken(); // consume endObject
         assertThat(parser.nextToken(), nullValue());
         return watcherMetaDataFromXContent;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(Stream.concat(
+                new Watcher(Settings.EMPTY).getNamedXContent().stream(),
+                ClusterModule.getNamedXWriteables().stream()
+        ).collect(Collectors.toList()));
     }
 
 }

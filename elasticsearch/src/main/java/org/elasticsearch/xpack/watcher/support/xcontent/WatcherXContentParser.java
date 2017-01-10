@@ -273,11 +273,6 @@ public class WatcherXContentParser implements XContentParser {
     }
 
     @Override
-    public boolean isClosed() {
-        return parser.isClosed();
-    }
-
-    @Override
     public <T> T namedObject(Class<T> categoryClass, String name, Object context) throws IOException {
         return parser.namedObject(categoryClass, name, context);
     }
@@ -285,6 +280,11 @@ public class WatcherXContentParser implements XContentParser {
     @Override
     public NamedXContentRegistry getXContentRegistry() {
         return parser.getXContentRegistry();
+    }
+
+    @Override
+    public boolean isClosed() {
+        return parser.isClosed();
     }
 
     @Override

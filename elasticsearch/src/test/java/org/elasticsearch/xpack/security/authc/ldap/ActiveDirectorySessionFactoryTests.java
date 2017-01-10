@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.security.authc.ldap.support.SessionFactory;
 import org.elasticsearch.xpack.security.authc.support.SecuredString;
 import org.elasticsearch.xpack.security.authc.support.SecuredStringTests;
 import org.elasticsearch.test.junit.annotations.Network;
+import org.elasticsearch.xpack.ssl.VerificationMode;
 
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -30,6 +31,11 @@ import static org.hamcrest.Matchers.is;
 
 @Network
 public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryIntegTests {
+
+    @Override
+    public boolean enableWarningsCheck() {
+        return false;
+    }
 
     @SuppressWarnings("unchecked")
     public void testAdAuth() throws Exception {
@@ -78,7 +84,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         Settings settings = Settings.builder()
                 .put(buildAdSettings(AD_LDAP_URL, AD_DOMAIN, false))
                 .put("group_search.filter", "(objectClass=*)")
-                .put(SessionFactory.HOSTNAME_VERIFICATION_SETTING, false)
+                .put("ssl.verification_mode", VerificationMode.CERTIFICATE)
                 .put(SessionFactory.TIMEOUT_TCP_READ_SETTING, "1ms")
                 .build();
         RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
@@ -296,7 +302,7 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
         String userTemplate = "CN={0},CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         Settings settings = Settings.builder()
                 .put(LdapTestCase.buildLdapSettings(AD_LDAP_URL, userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(LdapSessionFactory.HOSTNAME_VERIFICATION_SETTING, true)
+                .put("ssl.verification_mode", VerificationMode.FULL)
                 .build();
         RealmConfig config = new RealmConfig("ad-test", settings, globalSettings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, sslService);
@@ -313,8 +319,12 @@ public class ActiveDirectorySessionFactoryTests extends AbstractActiveDirectoryI
     Settings buildAdSettings(String ldapUrl, String adDomainName, boolean hostnameVerification) {
         Settings.Builder builder = Settings.builder()
                 .put(ActiveDirectorySessionFactory.URLS_SETTING, ldapUrl)
-                .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, adDomainName)
-                .put(ActiveDirectorySessionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
+                .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, adDomainName);
+        if (randomBoolean()) {
+            builder.put("ssl.verification_mode", hostnameVerification ? VerificationMode.FULL : VerificationMode.CERTIFICATE);
+        } else {
+            builder.put(ActiveDirectorySessionFactory.HOSTNAME_VERIFICATION_SETTING, hostnameVerification);
+        }
         if (useGlobalSSL == false) {
             builder.put("ssl.truststore.path", getDataPath("../ldap/support/ldaptrust.jks"))
                     .put("ssl.truststore.password", "changeit");

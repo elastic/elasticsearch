@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.test.http;
 
-import com.google.common.base.Charsets;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.mocksocket.MockHttpServer;
 
 import javax.net.ssl.SSLContext;
 import java.io.Closeable;
@@ -28,6 +28,7 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
@@ -83,11 +84,11 @@ public class MockWebServer implements Closeable {
     public void start() throws IOException {
         InetSocketAddress address = new InetSocketAddress(InetAddress.getLoopbackAddress().getHostAddress(), 0);
         if (sslContext != null) {
-            HttpsServer httpsServer = HttpsServer.create(address, 0);
+            HttpsServer httpsServer = MockHttpServer.createHttps(address, 0);
             httpsServer.setHttpsConfigurator(new CustomHttpsConfigurator(sslContext, needClientAuth));
             server = httpsServer;
         } else {
-            server = HttpServer.create(address, 0);
+            server = MockHttpServer.createHttp(address, 0);
         }
 
         server.start();
@@ -109,7 +110,7 @@ public class MockWebServer implements Closeable {
                 if (Strings.isEmpty(response.getBody())) {
                     s.sendResponseHeaders(response.getStatusCode(), 0);
                 } else {
-                    byte[] responseAsBytes = response.getBody().getBytes(Charsets.UTF_8);
+                    byte[] responseAsBytes = response.getBody().getBytes(StandardCharsets.UTF_8);
                     s.sendResponseHeaders(response.getStatusCode(), responseAsBytes.length);
                     sleepIfNeeded(response.getBodyDelay());
                     try (OutputStream responseBody = s.getResponseBody()) {

@@ -7,14 +7,14 @@ package org.elasticsearch.xpack.watcher.input;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.watcher.watch.Payload;
 
 import java.io.IOException;
 
-public abstract class ExecutableInput<I extends Input, R extends Input.Result> implements ToXContent {
+public abstract class ExecutableInput<I extends Input, R extends Input.Result> implements ToXContentObject {
 
     protected final I input;
     protected final Logger logger;

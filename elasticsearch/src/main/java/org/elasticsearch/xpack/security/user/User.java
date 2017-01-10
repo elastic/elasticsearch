@@ -11,10 +11,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.security.support.MetadataUtils;
-
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -24,7 +23,7 @@ import java.util.Map;
 /**
  * An authenticated user
  */
-public class User implements ToXContent {
+public class User implements ToXContentObject {
 
     private final String username;
     private final String[] roles;
@@ -170,7 +169,7 @@ public class User implements ToXContent {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Fields.USERNAME.getPreferredName(), principal());
         builder.array(Fields.ROLES.getPreferredName(), roles());

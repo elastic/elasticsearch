@@ -50,7 +50,7 @@ public class ESNativeRealmMigrateToolTests extends CommandTestCase {
         RoleDescriptor.IndicesPrivileges ip = RoleDescriptor.IndicesPrivileges.builder()
                 .indices(new String[]{"i1", "i2", "i3"})
                 .privileges(new String[]{"all"})
-                .fieldPermissions(new FieldPermissions(new String[]{"body"}, null))
+                .grantedFields("body")
                 .build();
         RoleDescriptor.IndicesPrivileges[] ips = new RoleDescriptor.IndicesPrivileges[1];
         ips[0] = ip;

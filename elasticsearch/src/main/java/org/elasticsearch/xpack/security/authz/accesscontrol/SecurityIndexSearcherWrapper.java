@@ -32,7 +32,6 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.logging.Loggers;
@@ -303,7 +302,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new ElasticsearchParseException("Unexpected token [" + token + "]");
                 }
-                Script script = Script.parse(parser, ParseFieldMatcher.EMPTY);
+                Script script = Script.parse(parser);
                 // Add the user details to the params
                 Map<String, Object> params = new HashMap<>();
                 if (script.getParams() != null) {
@@ -403,7 +402,7 @@ public class SecurityIndexSearcherWrapper extends IndexSearcherWrapper {
             }
         };
         QueryRewriteContext copy = new QueryRewriteContext(original.getIndexSettings(), original.getMapperService(), scriptService,
-                original.getXContentRegistry(), null, client, original.getIndexReader(), original::nowInMillis);
+                original.getXContentRegistry(), client, original.getIndexReader(), original::nowInMillis);
         queryBuilder.rewrite(copy);
     }
 }

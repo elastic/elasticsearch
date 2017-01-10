@@ -7,8 +7,8 @@ package org.elasticsearch.xpack.notification.email;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -20,7 +20,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.support.Exceptions.illegalArgument;
 
-public enum DataAttachment implements ToXContent {
+public enum DataAttachment implements ToXContentObject {
 
     YAML() {
         @Override
@@ -93,7 +93,7 @@ public enum DataAttachment implements ToXContent {
             } else if (currentFieldName == null) {
                 throw new ElasticsearchParseException("could not parse data attachment. expected [{}] field but found [{}] instead",
                         Field.FORMAT.getPreferredName(), token);
-            } else if (ParseFieldMatcher.STRICT.match(currentFieldName, Field.FORMAT)) {
+            } else if (Field.FORMAT.match(currentFieldName)) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {

@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.common.http.HttpClient;
+import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpProxy;
 import org.elasticsearch.xpack.common.http.HttpRequest;
 import org.elasticsearch.xpack.common.http.HttpResponse;
@@ -68,6 +69,7 @@ public class SlackAccount {
     public SentMessages.SentMessage send(final String to, final SlackMessage message, final HttpProxy proxy) {
         HttpRequest request = HttpRequest.builder(url.getHost(), url.getPort())
                 .path(url.getPath())
+                .method(HttpMethod.POST)
                 .proxy(proxy)
                 .scheme(Scheme.parse(url.getScheme()))
                 .jsonBody(new ToXContent() {

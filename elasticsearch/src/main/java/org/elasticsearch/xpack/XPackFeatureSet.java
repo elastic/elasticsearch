@@ -8,7 +8,7 @@ package org.elasticsearch.xpack;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ public interface XPackFeatureSet {
 
     Usage usage();
 
-    abstract class Usage implements ToXContent, NamedWriteable {
+    abstract class Usage implements ToXContentObject, NamedWriteable {
 
         private static final String AVAILABLE_XFIELD = "available";
         private static final String ENABLED_XFIELD = "enabled";

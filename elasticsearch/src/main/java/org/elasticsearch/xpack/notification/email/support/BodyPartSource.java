@@ -6,16 +6,15 @@
 package org.elasticsearch.xpack.notification.email.support;
 
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 
-import javax.activation.CommandMap;
 import javax.activation.FileTypeMap;
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeBodyPart;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-public abstract class BodyPartSource implements ToXContent {
+public abstract class BodyPartSource implements ToXContentObject {
 
     protected static FileTypeMap fileTypeMap;
     static {

@@ -35,8 +35,9 @@ public class LicenseTribeTests extends TribeTransportTestCase {
     }
 
     @Override
-    protected void verifyActionOnTribeNode(Client tribeClient) {
-        failAction(tribeClient, GetLicenseAction.INSTANCE);
+    protected void verifyActionOnTribeNode(Client tribeClient) throws Exception {
+        // The get licence action should work, but everything else should fail
+        tribeClient.execute(GetLicenseAction.INSTANCE, new GetLicenseRequest()).get();
         failAction(tribeClient, PutLicenseAction.INSTANCE);
         failAction(tribeClient, DeleteLicenseAction.INSTANCE);
     }

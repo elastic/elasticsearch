@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
@@ -18,19 +19,24 @@ import org.elasticsearch.xpack.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.user.ElasticUser;
 import org.elasticsearch.xpack.security.user.KibanaUser;
+import org.elasticsearch.xpack.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.security.user.User;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
@@ -55,6 +61,7 @@ public class ReservedRealmTests extends ESTestCase {
     public void setupMocks() {
         usersStore = mock(NativeUsersStore.class);
         when(usersStore.started()).thenReturn(true);
+        when(usersStore.checkMappingVersion(any())).thenReturn(true);
         mockGetAllReservedUserInfo(usersStore, Collections.emptyMap());
     }
 
@@ -62,7 +69,7 @@ public class ReservedRealmTests extends ESTestCase {
         when(usersStore.started()).thenReturn(false);
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
-        final String principal = randomFrom(ElasticUser.NAME, KibanaUser.NAME);
+        final String principal = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME);
 
         PlainActionFuture<User> listener = new PlainActionFuture<>();
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD), listener);
@@ -72,8 +79,19 @@ public class ReservedRealmTests extends ESTestCase {
         verifyNoMoreInteractions(usersStore);
     }
 
+    public void testMappingVersionFromBeforeUserExisted() throws ExecutionException, InterruptedException {
+        when(usersStore.checkMappingVersion(any())).thenReturn(false);
+        final ReservedRealm reservedRealm =
+                new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
+        final String principal = randomFrom(ElasticUser.NAME, KibanaUser.NAME, LogstashSystemUser.NAME);
+
+        PlainActionFuture<User> future = new PlainActionFuture<>();
+        reservedRealm.authenticate(new UsernamePasswordToken(principal, DEFAULT_PASSWORD), future);
+        assertThat(future.get().enabled(), equalTo(false));
+    }
+
     public void testDefaultPasswordAuthentication() throws Throwable {
-        final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expected.principal();
         final boolean securityIndexExists = randomBoolean();
         if (securityIndexExists) {
@@ -97,6 +115,9 @@ public class ReservedRealmTests extends ESTestCase {
         if (securityIndexExists) {
             verify(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
         }
+        final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
+        verify(usersStore).checkMappingVersion(predicateCaptor.capture());
+        verifyVersionPredicate(principal, predicateCaptor.getValue());
         verifyNoMoreInteractions(usersStore);
     }
 
@@ -107,7 +128,7 @@ public class ReservedRealmTests extends ESTestCase {
             when(usersStore.securityIndexExists()).thenReturn(true);
         }
         final ReservedRealm reservedRealm = new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings));
-        final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final User expected = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expected.principal();
 
         PlainActionFuture<User> listener = new PlainActionFuture<>();
@@ -117,16 +138,24 @@ public class ReservedRealmTests extends ESTestCase {
         verifyZeroInteractions(usersStore);
     }
 
-    public void testAuthenticationWithStoredPassword() throws Throwable {
+    public void testAuthenticationEnabledUserWithStoredPassword() throws Throwable {
+        verifySuccessfulAuthentication(true);
+    }
+
+    public void testAuthenticationDisabledUserWithStoredPassword() throws Throwable {
+        verifySuccessfulAuthentication(false);
+    }
+
+    private void verifySuccessfulAuthentication(boolean enabled) {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
-        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final User expectedUser = randomFrom(new ElasticUser(enabled), new KibanaUser(enabled), new LogstashSystemUser(enabled));
         final String principal = expectedUser.principal();
         final SecuredString newPassword = new SecuredString("foobar".toCharArray());
         when(usersStore.securityIndexExists()).thenReturn(true);
         doAnswer((i) -> {
             ActionListener callback = (ActionListener) i.getArguments()[1];
-            callback.onResponse(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), true));
+            callback.onResponse(new ReservedUserInfo(Hasher.BCRYPT.hash(newPassword), enabled));
             return null;
         }).when(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
 
@@ -148,16 +177,21 @@ public class ReservedRealmTests extends ESTestCase {
         reservedRealm.doAuthenticate(new UsernamePasswordToken(principal, newPassword), authListener);
         final User authenticated = authListener.actionGet();
         assertEquals(expectedUser, authenticated);
+        assertThat(expectedUser.enabled(), is(enabled));
+
         verify(usersStore, times(2)).started();
         verify(usersStore, times(2)).securityIndexExists();
         verify(usersStore, times(2)).getReservedUserInfo(eq(principal), any(ActionListener.class));
+        final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
+        verify(usersStore, times(2)).checkMappingVersion(predicateCaptor.capture());
+        verifyVersionPredicate(principal, predicateCaptor.getValue());
         verifyNoMoreInteractions(usersStore);
     }
 
     public void testLookup() throws Exception {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
-        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expectedUser.principal();
 
         PlainActionFuture<User> listener = new PlainActionFuture<>();
@@ -166,6 +200,10 @@ public class ReservedRealmTests extends ESTestCase {
         assertEquals(expectedUser, user);
         verify(usersStore).started();
         verify(usersStore).securityIndexExists();
+
+        final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
+        verify(usersStore).checkMappingVersion(predicateCaptor.capture());
+        verifyVersionPredicate(principal, predicateCaptor.getValue());
 
         PlainActionFuture<User> future = new PlainActionFuture<>();
         reservedRealm.doLookupUser("foobar", future);
@@ -178,7 +216,7 @@ public class ReservedRealmTests extends ESTestCase {
         Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), settings, usersStore, new AnonymousUser(settings));
-        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expectedUser.principal();
 
         PlainActionFuture<User> listener = new PlainActionFuture<>();
@@ -191,7 +229,7 @@ public class ReservedRealmTests extends ESTestCase {
     public void testLookupThrows() throws Exception {
         final ReservedRealm reservedRealm =
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
-        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expectedUser.principal();
         when(usersStore.securityIndexExists()).thenReturn(true);
         final RuntimeException e = new RuntimeException("store threw");
@@ -209,11 +247,16 @@ public class ReservedRealmTests extends ESTestCase {
         verify(usersStore).started();
         verify(usersStore).securityIndexExists();
         verify(usersStore).getReservedUserInfo(eq(principal), any(ActionListener.class));
+
+        final ArgumentCaptor<Predicate> predicateCaptor = ArgumentCaptor.forClass(Predicate.class);
+        verify(usersStore).checkMappingVersion(predicateCaptor.capture());
+        verifyVersionPredicate(principal, predicateCaptor.getValue());
+
         verifyNoMoreInteractions(usersStore);
     }
 
     public void testIsReserved() {
-        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expectedUser.principal();
         assertThat(ReservedRealm.isReserved(principal, Settings.EMPTY), is(true));
 
@@ -223,7 +266,7 @@ public class ReservedRealmTests extends ESTestCase {
 
     public void testIsReservedDisabled() {
         Settings settings = Settings.builder().put(XPackSettings.RESERVED_REALM_ENABLED_SETTING.getKey(), false).build();
-        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true));
+        final User expectedUser = randomFrom(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true));
         final String principal = expectedUser.principal();
         assertThat(ReservedRealm.isReserved(principal, settings), is(false));
 
@@ -236,7 +279,7 @@ public class ReservedRealmTests extends ESTestCase {
                 new ReservedRealm(mock(Environment.class), Settings.EMPTY, usersStore, new AnonymousUser(Settings.EMPTY));
         PlainActionFuture<Collection<User>> userFuture = new PlainActionFuture<>();
         reservedRealm.users(userFuture);
-        assertThat(userFuture.actionGet(), containsInAnyOrder(new ElasticUser(true), new KibanaUser(true)));
+        assertThat(userFuture.actionGet(), containsInAnyOrder(new ElasticUser(true), new KibanaUser(true), new LogstashSystemUser(true)));
     }
 
     public void testGetUsersDisabled() {
@@ -288,5 +331,23 @@ public class ReservedRealmTests extends ESTestCase {
                 return null;
             }).when(usersStore).getReservedUserInfo(eq(entry.getKey()), any(ActionListener.class));
         }
+    }
+
+    private void verifyVersionPredicate(String principal, Predicate<Version> versionPredicate) {
+        assertThat(versionPredicate.test(Version.V_2_4_3), is(false));
+        assertThat(versionPredicate.test(Version.V_5_0_0_rc1), is(false));
+        switch (principal) {
+            case LogstashSystemUser.NAME:
+                assertThat(versionPredicate.test(Version.V_5_0_0), is(false));
+                assertThat(versionPredicate.test(Version.V_5_1_1_UNRELEASED), is(false));
+                assertThat(versionPredicate.test(Version.V_5_2_0_UNRELEASED), is(true));
+                break;
+            default:
+                assertThat(versionPredicate.test(Version.V_5_0_0), is(true));
+                assertThat(versionPredicate.test(Version.V_5_1_1_UNRELEASED), is(true));
+                assertThat(versionPredicate.test(Version.V_5_2_0_UNRELEASED), is(true));
+                break;
+        }
+        assertThat(versionPredicate.test(Version.V_6_0_0_alpha1_UNRELEASED), is(true));
     }
 }

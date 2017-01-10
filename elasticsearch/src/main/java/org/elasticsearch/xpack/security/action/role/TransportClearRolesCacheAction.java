@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -21,12 +21,12 @@ import java.util.List;
 public class TransportClearRolesCacheAction extends TransportNodesAction<ClearRolesCacheRequest, ClearRolesCacheResponse,
         ClearRolesCacheRequest.Node, ClearRolesCacheResponse.Node> {
 
-    private final NativeRolesStore rolesStore;
+    private final CompositeRolesStore rolesStore;
 
     @Inject
     public TransportClearRolesCacheAction(Settings settings, ThreadPool threadPool,
                                           ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                          NativeRolesStore rolesStore, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                          CompositeRolesStore rolesStore, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ClearRolesCacheAction.NAME, threadPool, clusterService, transportService,
               actionFilters, indexNameExpressionResolver, ClearRolesCacheRequest::new, ClearRolesCacheRequest.Node::new,
               ThreadPool.Names.MANAGEMENT, ClearRolesCacheResponse.Node.class);

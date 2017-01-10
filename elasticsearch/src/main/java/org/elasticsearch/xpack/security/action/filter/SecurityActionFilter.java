@@ -37,9 +37,9 @@ import org.elasticsearch.xpack.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationUtils;
-import org.elasticsearch.xpack.security.authz.privilege.GeneralPrivilege;
 import org.elasticsearch.xpack.security.authz.privilege.HealthAndStatsPrivilege;
 import org.elasticsearch.xpack.security.crypto.CryptoService;
+import org.elasticsearch.xpack.security.support.Automatons;
 import org.elasticsearch.xpack.security.user.SystemUser;
 import org.elasticsearch.xpack.security.user.User;
 
@@ -55,8 +55,7 @@ import static org.elasticsearch.xpack.security.support.Exceptions.authorizationE
 public class SecurityActionFilter extends AbstractComponent implements ActionFilter {
 
     private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = HealthAndStatsPrivilege.INSTANCE.predicate();
-    private static final Predicate<String> SECURITY_ACTION_MATCHER =
-            new GeneralPrivilege("_security_matcher", "cluster:admin/xpack/security*").predicate();
+    private static final Predicate<String> SECURITY_ACTION_MATCHER = Automatons.predicate("cluster:admin/xpack/security*");
 
     private final AuthenticationService authcService;
     private final AuthorizationService authzService;

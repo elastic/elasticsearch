@@ -143,10 +143,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
             @Override
             public boolean exists(Settings settings) {
                 // handle legacy, which is internal to this setting
-                if (super.exists(settings)) {
-                    return true;
-                }
-                return legacy != null && legacy.exists(settings);
+                return super.exists(settings) || legacy != null && legacy.exists(settings);
             }
         };
     }

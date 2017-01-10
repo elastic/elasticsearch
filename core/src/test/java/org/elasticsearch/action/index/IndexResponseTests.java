@@ -160,8 +160,7 @@ public class IndexResponseTests extends ESTestCase {
         boolean created = randomBoolean();
 
         IndexResponse indexResponse = new IndexResponse(shardId, type, id, seqNo, version, created);
-        //indexResponse.setForcedRefresh(randomBoolean());
-        indexResponse.setForcedRefresh(true);
+        indexResponse.setForcedRefresh(randomBoolean());
         indexResponse.setShardInfo(RandomObjects.randomShardInfo(random(), randomBoolean()));
         return indexResponse;
     }

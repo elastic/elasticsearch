@@ -20,7 +20,6 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -214,34 +213,6 @@ public class InternalSearchHitTests extends ESTestCase {
         assertFalse(searchHit.hasSource());
         searchHit.sourceRef(new BytesArray("{}"));
         assertTrue(searchHit.hasSource());
-    }
-
-    public void testParseShardId() {
-        String indexName = randomAsciiOfLengthBetween(3,50);
-        int shardId = randomInt();
-        ShardId id = ShardId.fromString("["+indexName+"]["+shardId+"]");
-        assertEquals(indexName, id.getIndexName());
-        assertEquals(shardId, id.getId());
-        assertEquals(indexName, id.getIndex().getName());
-        assertEquals(IndexMetaData.INDEX_UUID_NA_VALUE, id.getIndex().getUUID());
-
-        id = ShardId.fromString("[some]weird[0]Name][-125]");
-        assertEquals("some]weird[0]Name", id.getIndexName());
-        assertEquals(-125, id.getId());
-        assertEquals("some]weird[0]Name", id.getIndex().getName());
-        assertEquals(IndexMetaData.INDEX_UUID_NA_VALUE, id.getIndex().getUUID());
-
-        String badId = indexName + "," + shardId; // missing separator
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> ShardId.fromString(badId));
-        assertEquals("Unexpected shardId string format, expected [indexName][shardId] but got " + badId, ex.getMessage());
-
-        String badId2 = indexName + "][" + shardId + "]"; // missing opening bracket
-        ex = expectThrows(IllegalArgumentException.class,
-                () -> ShardId.fromString(badId2));
-
-        String badId3 = "[" + indexName + "][" + shardId; // missing closing bracket
-        ex = expectThrows(IllegalArgumentException.class,
-                () -> ShardId.fromString(badId3));
     }
 
     private static Explanation createExplanation(int depth) {

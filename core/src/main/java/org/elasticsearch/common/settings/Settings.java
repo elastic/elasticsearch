@@ -98,11 +98,6 @@ public final class Settings implements ToXContent {
         return secureSettings;
     }
 
-    /** Returns true if the setting exists, false otherwise. */
-    public boolean contains(String key) {
-        return settings.containsKey(key) || secureSettings != null && secureSettings.hasSetting(key);
-    }
-
     /**
      * The settings as a flat {@link java.util.Map}.
      * @return an unmodifiable map of settings
@@ -639,7 +634,7 @@ public final class Settings implements ToXContent {
         }
 
         public Builder setSecureSettings(SecureSettings secureSettings) {
-            if (secureSettings.isLoaded()) {
+            if (secureSettings.isLoaded() == false) {
                 throw new IllegalStateException("Secure settings must already be loaded");
             }
             this.secureSettings.set(secureSettings);

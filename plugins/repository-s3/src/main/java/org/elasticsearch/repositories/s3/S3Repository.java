@@ -69,13 +69,13 @@ public class S3Repository extends BlobStoreRepository {
          * repositories.s3.access_key: AWS Access key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.access_key.
          * @see CLOUD_S3#KEY_SETTING
          */
-        SecureSetting<SecureString> KEY_SETTING = SecureSetting.secureString("repositories.s3.access_key", null, true);
+        SecureSetting<SecureString> KEY_SETTING = SecureSetting.secureString("repositories.s3.access_key", CLOUD_S3.KEY_SETTING, true);
 
         /**
          * repositories.s3.secret_key: AWS Secret key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.secret_key.
          * @see CLOUD_S3#SECRET_SETTING
          */
-        SecureSetting<SecureString> SECRET_SETTING = SecureSetting.secureString("repositories.s3.secret_key", null, true);
+        SecureSetting<SecureString> SECRET_SETTING = SecureSetting.secureString("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, true);
 
         /**
          * repositories.s3.region: Region specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.region.

@@ -25,6 +25,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.ArrayUtils;
 
 
@@ -76,10 +77,16 @@ public abstract class SecureSetting<T> extends Setting<T> {
     }
 
     @Override
+    public boolean exists(Settings settings) {
+        final SecureSettings secureSettings = settings.getSecureSettings();
+        return secureSettings != null && secureSettings.hasSetting(getKey());
+    }
+
+    @Override
     public T get(Settings settings) {
         checkDeprecation(settings);
-        final SecureSettings secureSettings = Objects.requireNonNull(settings.getSecureSettings());
-        if (secureSettings.hasSetting(getKey()) == false) {
+        final SecureSettings secureSettings = settings.getSecureSettings();
+        if (secureSettings == null || secureSettings.hasSetting(getKey()) == false) {
             return getFallback(settings);
         }
         try {
@@ -118,13 +125,13 @@ public abstract class SecureSetting<T> extends Setting<T> {
             }
             @Override
             SecureString getFallback(Settings settings) {
+                if (legacy != null && legacy.exists(settings)) {
+                    return new SecureString(legacy.get(settings).toCharArray());
+                }
                 if (fallback != null) {
                     return fallback.get(settings);
                 }
-                if (legacy != null) {
-                    return new SecureString(legacy.get(settings).toCharArray());
-                }
-                return null;
+                return new SecureString(new char[0]); // this means "setting does not exist"
             }
             @Override
             protected void checkDeprecation(Settings settings) {
@@ -132,6 +139,14 @@ public abstract class SecureSetting<T> extends Setting<T> {
                 if (legacy != null) {
                     legacy.checkDeprecation(settings);
                 }
+            }
+            @Override
+            public boolean exists(Settings settings) {
+                // handle legacy, which is internal to this setting
+                if (super.exists(settings)) {
+                    return true;
+                }
+                return legacy != null && legacy.exists(settings);
             }
         };
     }

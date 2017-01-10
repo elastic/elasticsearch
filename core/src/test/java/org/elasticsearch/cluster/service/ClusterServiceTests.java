@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster.service;
 
-import com.google.common.collect.Iterables;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -1068,7 +1067,9 @@ public class ClusterServiceTests extends ESTestCase {
 
             @Override
             public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
-                currentNodes.removeIf(node -> Iterables.contains(nodesToKeep, node) == false);
+                Set<DiscoveryNode> nodeSet = new HashSet<>();
+                nodesToKeep.iterator().forEachRemaining(nodeSet::add);
+                currentNodes.removeIf(node -> nodeSet.contains(node) == false);
             }
         });
         AtomicBoolean failToCommit = new AtomicBoolean();

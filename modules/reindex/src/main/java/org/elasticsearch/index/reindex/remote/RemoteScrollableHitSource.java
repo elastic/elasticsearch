@@ -101,7 +101,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         lookupRemoteVersion(version -> {
             remoteVersion = version;
             execute("POST", initialSearchPath(searchRequest), initialSearchParams(searchRequest, version),
-                    initialSearchEntity(query), RESPONSE_PARSER, r -> onStartResponse(onResponse, r));
+                    initialSearchEntity(searchRequest, query), RESPONSE_PARSER, r -> onStartResponse(onResponse, r));
         });
     }
 

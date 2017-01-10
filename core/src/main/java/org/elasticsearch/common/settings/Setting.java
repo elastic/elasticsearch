@@ -1031,6 +1031,7 @@ public class Setting<T> extends ToXContentToBytes {
             if (suffix == null) {
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "((?:[-\\w]+[.])*[-\\w]+$))");
             } else {
+                // the last part of this regexp is for lists since they are represented as x.${namespace}.y.1, x.${namespace}.y.2
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "\\w+\\." + Pattern.quote(suffix) + ")(?:\\.\\d+)?");
             }
         }
@@ -1040,7 +1041,10 @@ public class Setting<T> extends ToXContentToBytes {
             return pattern.matcher(key).matches();
         }
 
-        public String getConcreteString(String key) {
+        /**
+         * Returns a string representation of the concrete setting key
+         */
+        String getConcreteString(String key) {
             Matcher matcher = pattern.matcher(key);
             if (matcher.matches() == false) {
                 throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");

@@ -324,9 +324,7 @@ extends Action<GetInfluencersAction.Request, GetInfluencersAction.Response, GetI
             InfluencersQueryBuilder.InfluencersQuery query = new InfluencersQueryBuilder().includeInterim(request.includeInterim)
                     .start(request.start).end(request.end).from(request.pageParams.getFrom()).size(request.pageParams.getSize())
                     .anomalyScoreThreshold(request.anomalyScoreFilter).sortField(request.sort).sortDescending(request.decending).build();
-
-            QueryPage<Influencer> page = jobProvider.influencers(request.jobId, query);
-            listener.onResponse(new Response(page));
+            jobProvider.influencers(request.jobId, query, page -> listener.onResponse(new Response(page)), listener::onFailure);
         }
     }
 

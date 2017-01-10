@@ -705,67 +705,45 @@ public class JobProvider {
      *
      * @param jobId The job ID for which influencers are requested
      * @param query the query
-     * @return QueryPage of Influencer
      */
-    public QueryPage<Influencer> influencers(String jobId, InfluencersQuery query) throws ResourceNotFoundException {
+    public void influencers(String jobId, InfluencersQuery query, Consumer<QueryPage<Influencer>> handler,
+                            Consumer<Exception> errorHandler) {
         QueryBuilder fb = new ResultsFilterBuilder()
                 .timeRange(Bucket.TIMESTAMP.getPreferredName(), query.getStart(), query.getEnd())
                 .score(Bucket.ANOMALY_SCORE.getPreferredName(), query.getAnomalyScoreFilter())
                 .interim(Bucket.IS_INTERIM.getPreferredName(), query.isIncludeInterim())
                 .build();
 
-        return influencers(jobId, query.getFrom(), query.getSize(), fb, query.getSortField(),
-                query.isSortDescending());
-    }
-
-    private QueryPage<Influencer> influencers(String jobId, int from, int size, QueryBuilder queryBuilder, String sortField,
-                                              boolean sortDescending) throws ResourceNotFoundException {
         String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
         LOGGER.trace("ES API CALL: search all of result type {} from index {}{}  with filter from {} size {}",
                 () -> Influencer.RESULT_TYPE_VALUE, () -> indexName,
-                () -> (sortField != null) ?
-                        " with sort " + (sortDescending ? "descending" : "ascending") + " on field " + sortField : "",
-                () -> from, () -> size);
+                () -> (query.getSortField() != null) ?
+                        " with sort " + (query.isSortDescending() ? "descending" : "ascending") + " on field " + query.getSortField() : "",
+                query::getFrom, query::getSize);
 
-        queryBuilder = new BoolQueryBuilder()
-                .filter(queryBuilder)
+        QueryBuilder qb = new BoolQueryBuilder()
+                .filter(fb)
                 .filter(new TermsQueryBuilder(Result.RESULT_TYPE.getPreferredName(), Influencer.RESULT_TYPE_VALUE));
 
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.types(Result.TYPE.getPreferredName());
-        FieldSortBuilder sb = sortField == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)
-                : new FieldSortBuilder(sortField).order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
-        searchRequest.source(new SearchSourceBuilder().query(queryBuilder).from(from).size(size).sort(sb));
+        FieldSortBuilder sb = query.getSortField() == null ? SortBuilders.fieldSort(ElasticsearchMappings.ES_DOC)
+                : new FieldSortBuilder(query.getSortField()).order(query.isSortDescending() ? SortOrder.DESC : SortOrder.ASC);
+        searchRequest.source(new SearchSourceBuilder().query(qb).from(query.getFrom()).size(query.getSize()).sort(sb));
 
-        SearchResponse response;
-        try {
-            response = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
-        } catch (IndexNotFoundException e) {
-            throw ExceptionsHelper.missingJobException(jobId);
-        }
-
-        List<Influencer> influencers = new ArrayList<>();
-        for (SearchHit hit : response.getHits().getHits()) {
-            BytesReference source = hit.getSourceRef();
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
-                influencers.add(Influencer.PARSER.apply(parser, () -> parseFieldMatcher));
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse influencer", e);
+        client.search(searchRequest, ActionListener.wrap(response -> {
+            List<Influencer> influencers = new ArrayList<>();
+            for (SearchHit hit : response.getHits().getHits()) {
+                BytesReference source = hit.getSourceRef();
+                try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                    influencers.add(Influencer.PARSER.apply(parser, () -> parseFieldMatcher));
+                } catch (IOException e) {
+                    throw new ElasticsearchParseException("failed to parse influencer", e);
+                }
             }
-        }
-
-        return new QueryPage<>(influencers, response.getHits().getTotalHits(), Influencer.RESULTS_FIELD);
-    }
-
-    /**
-     * Get the influencer for the given job for id
-     *
-     * @param jobId        the job id
-     * @param influencerId The unique influencer Id
-     * @return Optional Influencer
-     */
-    public Optional<Influencer> influencer(String jobId, String influencerId) {
-        throw new IllegalStateException();
+            QueryPage<Influencer> result = new QueryPage<>(influencers, response.getHits().getTotalHits(), Influencer.RESULTS_FIELD);
+            handler.accept(result);
+        }, errorHandler));
     }
 
     /**

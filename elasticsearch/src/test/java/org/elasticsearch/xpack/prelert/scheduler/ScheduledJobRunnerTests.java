@@ -30,10 +30,10 @@ import org.elasticsearch.xpack.prelert.job.Detector;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
-import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
-import org.elasticsearch.xpack.prelert.job.extraction.DataExtractorFactory;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
+import org.elasticsearch.xpack.prelert.scheduler.extractor.DataExtractor;
+import org.elasticsearch.xpack.prelert.scheduler.extractor.DataExtractorFactory;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -104,8 +104,12 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         when(client.execute(same(PostDataAction.INSTANCE), any())).thenReturn(jobDataFuture);
         when(client.execute(same(FlushJobAction.INSTANCE), any())).thenReturn(flushJobFuture);
 
-        scheduledJobRunner = new ScheduledJobRunner(threadPool, client, clusterService, jobProvider, dataExtractorFactory,
-                () -> currentTime);
+        scheduledJobRunner = new ScheduledJobRunner(threadPool, client, clusterService, jobProvider, () -> currentTime) {
+            @Override
+            DataExtractorFactory createDataExtractorFactory(SchedulerConfig schedulerConfig, Job job) {
+                return dataExtractorFactory;
+            }
+        };
 
         when(jobProvider.audit(anyString())).thenReturn(auditor);
         doAnswer(invocationOnMock -> {
@@ -131,7 +135,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
                 .build());
 
         DataExtractor dataExtractor = mock(DataExtractor.class);
-        when(dataExtractorFactory.newExtractor(schedulerConfig, job)).thenReturn(dataExtractor);
+        when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         InputStream in = new ByteArrayInputStream("".getBytes(Charset.forName("utf-8")));
         when(dataExtractor.next()).thenReturn(Optional.of(in));
@@ -140,7 +144,6 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         StartSchedulerAction.SchedulerTask task = mock(StartSchedulerAction.SchedulerTask.class);
         scheduledJobRunner.run("scheduler1", 0L, 60000L, task, handler);
 
-        verify(dataExtractor).newSearch(eq(0L), eq(60000L), any());
         verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client).execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("foo")));
@@ -164,7 +167,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
                 .build());
 
         DataExtractor dataExtractor = mock(DataExtractor.class);
-        when(dataExtractorFactory.newExtractor(schedulerConfig, job)).thenReturn(dataExtractor);
+        when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         when(dataExtractor.next()).thenThrow(new RuntimeException("dummy"));
         when(jobDataFuture.get()).thenReturn(new PostDataAction.Response(dataCounts));
@@ -172,7 +175,6 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         StartSchedulerAction.SchedulerTask task = mock(StartSchedulerAction.SchedulerTask.class);
         scheduledJobRunner.run("scheduler1", 0L, 60000L, task, handler);
 
-        verify(dataExtractor).newSearch(eq(0L), eq(60000L), any());
         verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME);
         verify(threadPool, never()).schedule(any(), any(), any());
         verify(client, never()).execute(same(PostDataAction.INSTANCE), eq(new PostDataAction.Request("foo")));
@@ -196,7 +198,7 @@ public class ScheduledJobRunnerTests extends ESTestCase {
                 .build());
 
         DataExtractor dataExtractor = mock(DataExtractor.class);
-        when(dataExtractorFactory.newExtractor(schedulerConfig, job)).thenReturn(dataExtractor);
+        when(dataExtractorFactory.newExtractor(0L, 60000L)).thenReturn(dataExtractor);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         InputStream in = new ByteArrayInputStream("".getBytes(Charset.forName("utf-8")));
         when(dataExtractor.next()).thenReturn(Optional.of(in));
@@ -206,7 +208,6 @@ public class ScheduledJobRunnerTests extends ESTestCase {
         StartSchedulerAction.SchedulerTask task = new StartSchedulerAction.SchedulerTask(1, "type", "action", null, "scheduler1");
         scheduledJobRunner.run("scheduler1", 0L, null, task, handler);
 
-        verify(dataExtractor).newSearch(eq(0L), eq(60000L), any());
         verify(threadPool, times(1)).executor(PrelertPlugin.SCHEDULED_RUNNER_THREAD_POOL_NAME);
         if (cancelled) {
             task.stop();

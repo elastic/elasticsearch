@@ -15,8 +15,9 @@ import org.elasticsearch.xpack.prelert.action.FlushJobAction;
 import org.elasticsearch.xpack.prelert.action.PostDataAction;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
-import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
+import org.elasticsearch.xpack.prelert.scheduler.extractor.DataExtractor;
+import org.elasticsearch.xpack.prelert.scheduler.extractor.DataExtractorFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -26,29 +27,29 @@ import java.util.function.Supplier;
 
 class ScheduledJob {
 
+    private static final Logger LOGGER = Loggers.getLogger(ScheduledJob.class);
     private static final int NEXT_TASK_DELAY_MS = 100;
 
-    private final Logger logger;
     private final Auditor auditor;
     private final String jobId;
     private final long frequencyMs;
     private final long queryDelayMs;
     private final Client client;
-    private final DataExtractor dataExtractor;
+    private final DataExtractorFactory dataExtractorFactory;
     private final Supplier<Long> currentTimeSupplier;
 
+    private volatile DataExtractor dataExtractor;
     private volatile long lookbackStartTimeMs;
     private volatile Long lastEndTimeMs;
     private volatile boolean running = true;
 
-    ScheduledJob(String jobId, long frequencyMs, long queryDelayMs, DataExtractor dataExtractor,
+    ScheduledJob(String jobId, long frequencyMs, long queryDelayMs, DataExtractorFactory dataExtractorFactory,
                  Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
                  long latestFinalBucketEndTimeMs, long latestRecordTimeMs) {
-        this.logger = Loggers.getLogger(jobId);
         this.jobId = jobId;
         this.frequencyMs = frequencyMs;
         this.queryDelayMs = queryDelayMs;
-        this.dataExtractor = dataExtractor;
+        this.dataExtractorFactory = dataExtractorFactory;
         this.client = client;
         this.auditor = auditor;
         this.currentTimeSupplier = currentTimeSupplier;
@@ -82,7 +83,7 @@ class ScheduledJob {
         request.setCalcInterim(true);
         run(lookbackStartTimeMs, lookbackEnd, request);
         auditor.info(Messages.getMessage(Messages.JOB_AUDIT_SCHEDULER_LOOKBACK_COMPLETED));
-        logger.info("Lookback has finished");
+        LOGGER.info("[{}] Lookback has finished", jobId);
         if (isLookbackOnly) {
             return null;
         } else {
@@ -103,8 +104,10 @@ class ScheduledJob {
     }
 
     public void stop() {
+        if (dataExtractor != null) {
+            dataExtractor.cancel();
+        }
         running = false;
-        dataExtractor.cancel();
         auditor.info(Messages.getMessage(Messages.JOB_AUDIT_SCHEDULER_STOPPED));
     }
 
@@ -117,12 +120,12 @@ class ScheduledJob {
             return;
         }
 
-        logger.trace("Searching data in: [" + start + ", " + end + ")");
+        LOGGER.trace("[{}] Searching data in: [{}, {})", jobId, start, end);
 
         RuntimeException error = null;
         long recordCount = 0;
-        dataExtractor.newSearch(start, end, logger);
-        while (running && dataExtractor.hasNext()) {
+        dataExtractor = dataExtractorFactory.newExtractor(start, end);
+        while (dataExtractor.hasNext()) {
             Optional<InputStream> extractedData;
             try {
                 extractedData = dataExtractor.next();
@@ -152,6 +155,7 @@ class ScheduledJob {
                 }
             }
         }
+        dataExtractor = null;
 
         lastEndTimeMs = Math.max(lastEndTimeMs == null ? 0 : lastEndTimeMs, end - 1);
 

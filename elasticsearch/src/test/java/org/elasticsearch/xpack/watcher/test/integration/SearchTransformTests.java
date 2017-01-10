@@ -21,7 +21,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -212,9 +211,8 @@ public class SearchTransformTests extends ESIntegTestCase {
         XContentParser parser = createParser(builder);
         parser.nextToken();
 
-        SearchRequestParsers searchRequestParsers = internalCluster().getInstance(SearchRequestParsers.class);
         SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, WatcherClientProxy.of(client()),
-                                                                             searchRequestParsers, xContentRegistry(), scriptService());
+                                                                             xContentRegistry(), scriptService());
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());
@@ -284,7 +282,6 @@ public class SearchTransformTests extends ESIntegTestCase {
         String master = internalCluster().getMasterName();
         return new WatcherSearchTemplateService(internalCluster().clusterService(master).getSettings(),
                 internalCluster().getInstance(ScriptService.class, master),
-                internalCluster().getInstance(SearchRequestParsers.class, master),
                 xContentRegistry()
         );
     }

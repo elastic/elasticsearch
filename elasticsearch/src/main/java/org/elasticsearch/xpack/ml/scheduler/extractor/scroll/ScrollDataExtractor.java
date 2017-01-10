@@ -37,6 +37,12 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * An implementation that extracts data from elasticsearch using search and scroll on a client.
+ * It supports safe and responsive cancellation by continuing the scroll until a new timestamp
+ * is seen.
+ * Note that this class is NOT thread-safe.
+ */
 class ScrollDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = Loggers.getLogger(ScrollDataExtractor.class);
@@ -44,10 +50,10 @@ class ScrollDataExtractor implements DataExtractor {
 
     private final Client client;
     private final ScrollDataExtractorContext context;
-    private volatile String scrollId;
-    private volatile boolean isCancelled;
-    private volatile boolean hasNext;
-    private volatile Long timestampOnCancel;
+    private String scrollId;
+    private boolean isCancelled;
+    private boolean hasNext;
+    private Long timestampOnCancel;
 
     public ScrollDataExtractor(Client client, ScrollDataExtractorContext dataExtractorContext) {
         this.client = Objects.requireNonNull(client);
@@ -58,6 +64,11 @@ class ScrollDataExtractor implements DataExtractor {
     @Override
     public boolean hasNext() {
         return hasNext;
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return isCancelled;
     }
 
     @Override

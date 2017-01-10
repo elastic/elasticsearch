@@ -213,6 +213,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
         );
         extractor.setNextResponse(response2);
 
+        assertThat(extractor.isCancelled(), is(true));
         assertThat(extractor.hasNext(), is(true));
         stream = extractor.next();
         assertThat(stream.isPresent(), is(true));

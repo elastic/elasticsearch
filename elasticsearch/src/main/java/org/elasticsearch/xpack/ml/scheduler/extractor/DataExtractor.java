@@ -25,6 +25,11 @@ public interface DataExtractor {
     Optional<InputStream> next() throws IOException;
 
     /**
+     * @return {@code true} if the extractor has been cancelled, or {@code false} otherwise
+     */
+    boolean isCancelled();
+
+    /**
      * Cancel the current search.
      */
     void cancel();

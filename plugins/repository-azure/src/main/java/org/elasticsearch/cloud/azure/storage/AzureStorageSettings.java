@@ -25,6 +25,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.node.Node;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -34,19 +35,14 @@ import java.util.Map;
 import java.util.function.Function;
 
 public final class AzureStorageSettings {
-    private static final Setting.AffixKey TIMEOUT_KEY = Setting.AffixKey.withAffix(Storage.PREFIX, "timeout");
-
-    private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(
-        TIMEOUT_KEY,
-        (s) -> Storage.TIMEOUT_SETTING.get(s).toString(),
-        (s) -> Setting.parseTimeValue(s, TimeValue.timeValueSeconds(-1), TIMEOUT_KEY.toString()),
-        Setting.Property.NodeScope);
+    private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "timeout",
+        (key) -> Setting.timeSetting(key, Storage.TIMEOUT_SETTING, Setting.Property.NodeScope));
     private static final Setting<String> ACCOUNT_SETTING =
-        Setting.affixKeySetting(Storage.PREFIX, "account", "", Function.identity(), Setting.Property.NodeScope);
+        Setting.affixKeySetting(Storage.PREFIX, "account", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     private static final Setting<String> KEY_SETTING =
-        Setting.affixKeySetting(Storage.PREFIX, "key", "", Function.identity(), Setting.Property.NodeScope);
+        Setting.affixKeySetting(Storage.PREFIX, "key", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     private static final Setting<Boolean> DEFAULT_SETTING =
-        Setting.affixKeySetting(Storage.PREFIX, "default", "false", Boolean::valueOf, Setting.Property.NodeScope);
+        Setting.affixKeySetting(Storage.PREFIX, "default", (key) -> Setting.boolSetting(key, false, Setting.Property.NodeScope));
 
 
     private final String name;

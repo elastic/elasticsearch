@@ -426,7 +426,7 @@ public class SettingTests extends ESTestCase {
     }
 
     public void testDynamicKeySetting() {
-        Setting<Boolean> setting = Setting.prefixKeySetting("foo.", "false", Boolean::parseBoolean, Property.NodeScope);
+        Setting<Boolean> setting = Setting.prefixKeySetting("foo.", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar"));
         assertFalse(setting.match("foo"));
@@ -444,11 +444,11 @@ public class SettingTests extends ESTestCase {
 
     public void testAffixKeySetting() {
         Setting<Boolean> setting =
-            Setting.affixKeySetting("foo.", "enable", "false", Boolean::parseBoolean, Property.NodeScope);
+            Setting.affixKeySetting("foo.", "enable", (key) -> Setting.boolSetting(key, false, Property.NodeScope));
         assertTrue(setting.hasComplexMatcher());
         assertTrue(setting.match("foo.bar.enable"));
         assertTrue(setting.match("foo.baz.enable"));
-        assertTrue(setting.match("foo.bar.baz.enable"));
+        assertFalse(setting.match("foo.bar.baz.enable"));
         assertFalse(setting.match("foo.bar"));
         assertFalse(setting.match("foo.bar.baz.enabled"));
         assertFalse(setting.match("foo"));
@@ -459,10 +459,22 @@ public class SettingTests extends ESTestCase {
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> setting.getConcreteSetting("foo"));
         assertEquals("key [foo] must match [foo.*.enable] but didn't.", exc.getMessage());
 
-        exc = expectThrows(IllegalArgumentException.class, () -> Setting.affixKeySetting("foo", "enable", "false",
-            Boolean::parseBoolean, Property.NodeScope));
+        exc = expectThrows(IllegalArgumentException.class, () -> Setting.affixKeySetting("foo", "enable",
+            (key) -> Setting.boolSetting(key, false, Property.NodeScope)));
         assertEquals("prefix must end with a '.'", exc.getMessage());
+
+        Setting<List<String>> listAffixSetting = Setting.affixKeySetting("foo.", "bar",
+            (key) -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Property.NodeScope));
+
+        assertTrue(listAffixSetting.hasComplexMatcher());
+        assertTrue(listAffixSetting.match("foo.test.bar"));
+        assertTrue(listAffixSetting.match("foo.test_1.bar"));
+        assertFalse(listAffixSetting.match("foo.buzz.baz.bar"));
+        assertFalse(listAffixSetting.match("foo.bar"));
+        assertFalse(listAffixSetting.match("foo.baz"));
+        assertFalse(listAffixSetting.match("foo"));
     }
+
 
     public void testMinMaxInt() {
         Setting<Integer> integerSetting = Setting.intSetting("foo.bar", 1, 0, 10, Property.NodeScope);
@@ -530,4 +542,5 @@ public class SettingTests extends ESTestCase {
         assertThat(setting.get(Settings.builder().put("foo", "12h").build()), equalTo(TimeValue.timeValueHours(12)));
         assertThat(setting.get(Settings.EMPTY).getMillis(), equalTo(random.getMillis() * factor));
     }
+
 }

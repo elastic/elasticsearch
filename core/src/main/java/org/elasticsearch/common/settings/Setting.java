@@ -42,12 +42,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -894,31 +897,22 @@ public class Setting<T> extends ToXContentToBytes {
      * can easily be added with this setting. Yet, prefix key settings don't support updaters out of the box unless
      * {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> Setting<T> prefixKeySetting(String prefix, String defaultValue, Function<String, T> parser,
-                                                  Property... properties) {
-        return affixKeySetting(AffixKey.withPrefix(prefix), (s) -> defaultValue, parser, properties);
+    public static <T> Setting<T> prefixKeySetting(String prefix, Function<String, Setting<T>> delegateFactory) {
+        return affixKeySetting(new AffixKey(prefix), delegateFactory);
     }
 
     /**
      * This setting type allows to validate settings that have the same type and a common prefix and suffix. For instance
-     * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, adfix key settings don't support updaters
+     * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, affix key settings don't support updaters
      * out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> Setting<T> affixKeySetting(String prefix, String suffix, Function<Settings, String> defaultValue,
-                                                 Function<String, T> parser, Property... properties) {
-        return affixKeySetting(AffixKey.withAffix(prefix, suffix), defaultValue, parser, properties);
+    public static <T> Setting<T> affixKeySetting(String prefix, String suffix, Function<String, Setting<T>> delegateFactory) {
+        return affixKeySetting(new AffixKey(prefix, suffix), delegateFactory);
     }
 
-    public static <T> Setting<T> affixKeySetting(String prefix, String suffix, String defaultValue, Function<String, T> parser,
-                                                 Property... properties) {
-        return affixKeySetting(prefix, suffix, (s) -> defaultValue, parser, properties);
-    }
-
-    public static <T> Setting<T> affixKeySetting(AffixKey key, Function<Settings, String> defaultValue, Function<String, T> parser,
-                                                 Property... properties) {
-        return new Setting<T>(key, defaultValue, parser, properties) {
-
-            @Override
+    private static <T> Setting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory) {
+        Setting<T> delegate = delegateFactory.apply("_na_");
+        return new Setting<T>(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0])) {
             boolean isGroupSetting() {
                 return true;
             }
@@ -931,7 +925,7 @@ public class Setting<T> extends ToXContentToBytes {
             @Override
             public Setting<T> getConcreteSetting(String key) {
                 if (match(key)) {
-                    return new Setting<>(key, defaultValue, parser, properties);
+                    return delegateFactory.apply(key);
                 } else {
                     throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
                 }
@@ -939,14 +933,19 @@ public class Setting<T> extends ToXContentToBytes {
 
             @Override
             public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-                for (Map.Entry<String, String> entry : defaultSettings.getAsMap().entrySet()) {
-                    if (match(entry.getKey())) {
-                        getConcreteSetting(entry.getKey()).diff(builder, source, defaultSettings);
+                final Set<String> concreteSettings = new HashSet<>();
+                for (String settingKey : defaultSettings.getAsMap().keySet()) {
+                    if (match(settingKey)) {
+                        concreteSettings.add(key.getConcreteString(settingKey));
                     }
+                }
+                for (String key : concreteSettings) {
+                    getConcreteSetting(key).diff(builder, source, defaultSettings);
                 }
             }
         };
-    }
+    };
+
 
 
     public interface Key {
@@ -1013,36 +1012,44 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     public static final class AffixKey implements Key {
-        public static AffixKey withPrefix(String prefix) {
-            return new AffixKey(prefix, null);
-        }
-
-        public static AffixKey withAffix(String prefix, String suffix) {
-            return new AffixKey(prefix, suffix);
-        }
-
+        private final Pattern pattern;
         private final String prefix;
         private final String suffix;
 
-        public AffixKey(String prefix, String suffix) {
+        AffixKey(String prefix) {
+            this(prefix, null);
+        }
+
+        AffixKey(String prefix, String suffix) {
             assert prefix != null || suffix != null: "Either prefix or suffix must be non-null";
+
             this.prefix = prefix;
             if (prefix.endsWith(".") == false) {
                 throw new IllegalArgumentException("prefix must end with a '.'");
             }
             this.suffix = suffix;
+            if (suffix == null) {
+                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "((?:[-\\w]+[.])*[-\\w]+$))");
+            } else {
+                // the last part of this regexp is for lists since they are represented as x.${namespace}.y.1, x.${namespace}.y.2
+                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "\\w+\\." + Pattern.quote(suffix) + ")(?:\\.\\d+)?");
+            }
         }
 
         @Override
         public boolean match(String key) {
-            boolean match = true;
-            if (prefix != null) {
-                match = key.startsWith(prefix);
+            return pattern.matcher(key).matches();
+        }
+
+        /**
+         * Returns a string representation of the concrete setting key
+         */
+        String getConcreteString(String key) {
+            Matcher matcher = pattern.matcher(key);
+            if (matcher.matches() == false) {
+                throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
             }
-            if (suffix != null) {
-                match = match && key.endsWith(suffix);
-            }
-            return match;
+            return matcher.group(1);
         }
 
         public SimpleKey toConcreteKey(String missingPart) {

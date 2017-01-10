@@ -31,7 +31,6 @@ import org.elasticsearch.index.mapper.ParentFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.ParentChild;
@@ -46,7 +45,6 @@ import java.util.Objects;
 
 public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<ParentChild, ChildrenAggregationBuilder> {
     public static final String NAME = "children";
-    private static final Type TYPE = new Type(NAME);
 
     private String parentType;
     private final String childType;
@@ -60,7 +58,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<P
      *            the type of children documents
      */
     public ChildrenAggregationBuilder(String name, String childType) {
-        super(name, TYPE, ValuesSourceType.BYTES, ValueType.STRING);
+        super(name, ValuesSourceType.BYTES, ValueType.STRING);
         if (childType == null) {
             throw new IllegalArgumentException("[childType] must not be null: [" + name + "]");
         }
@@ -71,7 +69,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<P
      * Read from a stream.
      */
     public ChildrenAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE, ValuesSourceType.BYTES, ValueType.STRING);
+        super(in, ValuesSourceType.BYTES, ValueType.STRING);
         childType = in.readString();
     }
 
@@ -83,7 +81,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<P
     @Override
     protected ValuesSourceAggregatorFactory<ParentChild, ?> innerBuild(SearchContext context,
             ValuesSourceConfig<ParentChild> config, AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        return new ChildrenAggregatorFactory(name, type, config, parentType, childFilter, parentFilter, context, parent,
+        return new ChildrenAggregatorFactory(name, config, parentType, childFilter, parentFilter, context, parent,
                 subFactoriesBuilder, metaData);
     }
 
@@ -163,7 +161,7 @@ public class ChildrenAggregationBuilder extends ValuesSourceAggregationBuilder<P
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

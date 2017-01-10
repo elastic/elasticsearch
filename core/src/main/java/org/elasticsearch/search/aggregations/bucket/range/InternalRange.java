@@ -175,10 +175,6 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     }
 
     public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
-        public Type type() {
-            return RangeAggregationBuilder.TYPE;
-        }
-
         public ValuesSourceType getValueSourceType() {
             return ValuesSourceType.NUMERIC;
         }

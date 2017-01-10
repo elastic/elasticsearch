@@ -27,6 +27,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -48,6 +49,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
+import java.util.List;
 
 public class MatchQuery {
 
@@ -316,6 +318,21 @@ public class MatchQuery {
 
         public Query createPhrasePrefixQuery(String field, String queryText, int phraseSlop, int maxExpansions) {
             final Query query = createFieldQuery(getAnalyzer(), Occur.MUST, field, queryText, true, phraseSlop);
+            if (query instanceof GraphQuery) {
+                // we have a graph query, convert inner queries to multi phrase prefix queries
+                List<Query> oldQueries = ((GraphQuery) query).getQueries();
+                Query[] queries = new Query[oldQueries.size()];
+                for (int i = 0; i < queries.length; i++) {
+                    queries[i] = toMultiPhrasePrefix(oldQueries.get(i), phraseSlop, maxExpansions);
+                }
+
+                return new GraphQuery(queries);
+            }
+
+            return toMultiPhrasePrefix(query, phraseSlop, maxExpansions);
+        }
+
+        private Query toMultiPhrasePrefix(final Query query, int phraseSlop, int maxExpansions) {
             float boost = 1;
             Query innerQuery = query;
             while (innerQuery instanceof BoostQuery) {
@@ -357,18 +374,38 @@ public class MatchQuery {
             Query booleanQuery = createBooleanQuery(field, queryText, lowFreqOccur);
             if (booleanQuery != null && booleanQuery instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) booleanQuery;
-                ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency, (
-                    (BooleanQuery) booleanQuery).isCoordDisabled(), fieldType);
-                for (BooleanClause clause : bq.clauses()) {
-                    if (!(clause.getQuery() instanceof TermQuery)) {
-                        return booleanQuery;
+                return boolToExtendedCommonTermsQuery(bq, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
+            } else if (booleanQuery != null && booleanQuery instanceof GraphQuery && ((GraphQuery) booleanQuery).hasBoolean()) {
+                // we have a graph query that has at least one boolean sub-query
+                // re-build and use extended common terms
+                List<Query> oldQueries = ((GraphQuery) booleanQuery).getQueries();
+                Query[] queries = new Query[oldQueries.size()];
+                for (int i = 0; i < queries.length; i++) {
+                    Query oldQuery = oldQueries.get(i);
+                    if (oldQuery instanceof BooleanQuery) {
+                        queries[i] = boolToExtendedCommonTermsQuery((BooleanQuery) oldQuery, highFreqOccur, lowFreqOccur, maxTermFrequency, fieldType);
+                    } else {
+                        queries[i] = oldQuery;
                     }
-                    query.add(((TermQuery) clause.getQuery()).getTerm());
                 }
-                return query;
-            }
-            return booleanQuery;
 
+                return new GraphQuery(queries);
+            }
+
+            return booleanQuery;
+        }
+
+        private Query boolToExtendedCommonTermsQuery(BooleanQuery bq, Occur highFreqOccur, Occur lowFreqOccur, float
+            maxTermFrequency, MappedFieldType fieldType) {
+            ExtendedCommonTermsQuery query = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, maxTermFrequency,
+                bq.isCoordDisabled(), fieldType);
+            for (BooleanClause clause : bq.clauses()) {
+                if (!(clause.getQuery() instanceof TermQuery)) {
+                    return bq;
+                }
+                query.add(((TermQuery) clause.getQuery()).getTerm());
+            }
+            return query;
         }
     }
 

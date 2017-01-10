@@ -21,6 +21,7 @@ package org.elasticsearch.discovery;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Nullable;
@@ -36,10 +37,6 @@ import java.io.IOException;
  */
 public interface Discovery extends LifecycleComponent {
 
-    DiscoveryNode localNode();
-
-    String nodeDescription();
-
     /**
      * Another hack to solve dep injection problem..., note, this will be called before
      * any start is called.
@@ -48,7 +45,7 @@ public interface Discovery extends LifecycleComponent {
 
     /**
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish
-     * process should not publish this state to the master as well! (the master is sending it...).
+     * process should apply this state to the master as well!
      *
      * The {@link AckListener} allows to keep track of the ack received from nodes, and verify whether
      * they updated their own cluster state or not.
@@ -57,6 +54,18 @@ public interface Discovery extends LifecycleComponent {
      * Any other exception signals the something wrong happened but the change is committed.
      */
     void publish(ClusterChangedEvent clusterChangedEvent, AckListener ackListener);
+
+    /**
+     * Returns the initial cluster state provided by the discovery module. Used by
+     * {@link org.elasticsearch.cluster.service.ClusterApplierService} as initial applied state.
+     */
+    ClusterState getInitialClusterState();
+
+    /**
+     * Returns latest cluster state used by the discovery module. Used by {@link org.elasticsearch.cluster.service.MasterService} to
+     * calculate the next prospective state to publish.
+     */
+    ClusterState clusterState();
 
     interface AckListener {
         void onNodeAck(DiscoveryNode node, @Nullable Exception e);
@@ -82,8 +91,6 @@ public interface Discovery extends LifecycleComponent {
      * @return stats about the discovery
      */
     DiscoveryStats stats();
-
-    DiscoverySettings getDiscoverySettings();
 
     /**
      * Triggers the first join cycle

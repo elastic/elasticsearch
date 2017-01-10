@@ -16,21 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.cluster;
 
-import java.util.List;
+package org.elasticsearch.cluster.service;
 
-public interface ClusterStateTaskListener {
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 
+import java.util.function.Supplier;
+
+@FunctionalInterface
+public interface ClusterApplier {
     /**
-     * A callback called when execute fails.
+     * Method to invoke when a new cluster state is available to be applied
+     *
+     * @param source information where the cluster state came from
+     * @param clusterStateSupplier the cluster state supplier which provides the latest cluster state to apply
+     * @param listener callback that is invoked after cluster state is applied
      */
-    void onFailure(String source, Exception e);
-
-    /**
-     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
-     * properly by all listeners.
-     */
-    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-    }
+    void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterStateTaskListener listener);
 }

@@ -28,7 +28,7 @@ import java.util.List;
 /**
  * A task that can update the cluster state.
  */
-public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
+public abstract class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, PublishedClusterStateTaskListener {
 
     private final Priority priority;
 

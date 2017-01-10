@@ -18,19 +18,17 @@
  */
 package org.elasticsearch.cluster;
 
-import java.util.List;
+import org.elasticsearch.cluster.service.MasterService;
 
-public interface ClusterStateTaskListener {
-
-    /**
-     * A callback called when execute fails.
-     */
-    void onFailure(String source, Exception e);
+/**
+ * Cluster state task listener for state updates that are published. Used by {@link MasterService}
+ */
+public interface PublishedClusterStateTaskListener extends ClusterStateTaskListener {
 
     /**
-     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
-     * properly by all listeners.
+     * called when the task was rejected because the local node is no longer master
      */
-    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    default void onNoLongerMaster(String source) {
+        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
     }
 }

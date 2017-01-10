@@ -38,7 +38,7 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 public class HighlightFieldTests extends ESTestCase {
 
     public static HighlightField createTestItem() {
-        String name = frequently() ? randomAsciiOfLengthBetween(1, 20) : randomRealisticUnicodeOfCodepointLengthBetween(1, 20);
+        String name = frequently() ? randomAsciiOfLengthBetween(5, 20) : randomRealisticUnicodeOfCodepointLengthBetween(5, 20);
         Text[] fragments = null;
         if (frequently()) {
             int size = randomIntBetween(0, 5);

@@ -39,7 +39,7 @@ public class RestTestPlugin implements Plugin<Project> {
         if (false == REQUIRED_PLUGINS.any {project.pluginManager.hasPlugin(it)}) {
             throw new InvalidUserDataException('elasticsearch.rest-test '
                 + 'requires either elasticsearch.build or '
-                + 'elasticsearch.standalone-test')
+                + 'elasticsearch.standalone-rest-test')
         }
 
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)

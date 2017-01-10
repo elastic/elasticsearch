@@ -138,6 +138,7 @@ public class ElasticsearchMappings {
                             .endObject()
                             .startObject(Job.ID.getPreferredName())
                                 .field(TYPE, KEYWORD)
+                                .field(COPY_TO, ALL_FIELD_VALUES)
                             .endObject()
                             .startObject(Bucket.TIMESTAMP.getPreferredName())
                                 .field(TYPE, DATE)

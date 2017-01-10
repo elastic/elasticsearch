@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,7 +42,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class GetFieldTests extends ESTestCase {
 
-    public void testToXContent() throws IOException {
+    public void testToXContent() {
         GetField getField = new GetField("field", Arrays.asList("value1", "value2"));
         String output = Strings.toString(getField);
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", output);

@@ -4,7 +4,8 @@
 [partintro]
 --
 
-This section describes the following CRUD APIs:
+This section starts with a short introduction to Elasticsearch's <<docs-replication,data replication model>>, followed by a
+detailed description of the following CRUD APIs:
 
 .Single document APIs
 * <<docs-index_>>
@@ -22,6 +23,8 @@ NOTE: All CRUD APIs are single-index APIs. The `index` parameter accepts a singl
 index name, or an `alias` which points to a single index.
 
 --
+
+include::docs/data-replication.asciidoc[]
 
 include::docs/index_.asciidoc[]
 

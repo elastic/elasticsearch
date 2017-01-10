@@ -83,7 +83,7 @@ public class GetResultTests extends ESTestCase {
         XContentType xContentType = randomFrom(XContentType.values());
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
         GetResult getResult = tuple.v1();
-        if (getResult.isExists()) {
+        if (getResult.isExists() && getResult.isSourceEmpty() == false) {
             assertNotNull(getResult.sourceRef());
         } else {
             assertNull(getResult.sourceRef());

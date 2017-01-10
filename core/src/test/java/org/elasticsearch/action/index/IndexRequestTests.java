@@ -95,7 +95,7 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(),
                 containsString("id is too long, must be no longer than 512 bytes but was: 513"));
-}
+    }
 
     public void testSetTTLAsTimeValue() {
         IndexRequest indexRequest = new IndexRequest();
@@ -180,7 +180,7 @@ public class IndexRequestTests extends ESTestCase {
         assertEquals(forcedRefresh, indexResponse.forcedRefresh());
         assertEquals("IndexResponse[index=" + shardId.getIndexName() + ",type=" + type + ",id="+ id +
                 ",version=" + version + ",result=" + (created ? "created" : "updated") +
-                ",shards={\"_shards\":{\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}}]",
+                ",shards={\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}]",
                 indexResponse.toString());
     }
 }

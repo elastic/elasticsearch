@@ -326,7 +326,7 @@ public class SearchModuleTests extends ModuleTestCase {
         }
 
         @Override
-        public String getWriteableName() {
+        public String getType() {
             return "test";
         }
 

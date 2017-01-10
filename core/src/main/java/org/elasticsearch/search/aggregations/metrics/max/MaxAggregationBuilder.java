@@ -24,10 +24,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -41,7 +40,6 @@ import java.io.IOException;
 
 public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MaxAggregationBuilder> {
     public static final String NAME = "max";
-    public static final Type TYPE = new Type(NAME);
 
     private static final ObjectParser<MaxAggregationBuilder, QueryParseContext> PARSER;
     static {
@@ -54,14 +52,14 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     public MaxAggregationBuilder(String name) {
-        super(name, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(name, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     /**
      * Read from a stream.
      */
     public MaxAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        super(in, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
     }
 
     @Override
@@ -72,7 +70,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     @Override
     protected MaxAggregatorFactory innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        return new MaxAggregatorFactory(name, type, config, context, parent, subFactoriesBuilder, metaData);
+        return new MaxAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
@@ -91,7 +89,7 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

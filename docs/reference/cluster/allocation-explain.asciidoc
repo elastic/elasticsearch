@@ -19,16 +19,29 @@ To explain the allocation of a shard, issue a request:
 $ curl -XGET 'http://localhost:9200/_cluster/allocation/explain' -d '{
   "index": "myindex",
   "shard": 0,
-  "primary": false
+  "primary": true
 }'
 --------------------------------------------------
 
 Specify the `index` and `shard` id of the shard you would like an explanation
 for, as well as the `primary` flag to indicate whether to explain the primary
 shard for the given shard id or one of its replica shards.  These three request
-parameters are required.  You may also specify an optional `current_node` request
-parameter to only explain a shard that is currently located on `current_node`.
-The `current_node` can be specified as either a node id or node name.
+parameters are required.
+
+You may also specify an optional `current_node` request parameter to only explain
+a shard that is currently located on `current_node`.  The `current_node` can be
+specified as either the node id or node name.
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/_cluster/allocation/explain' -d '{
+  "index": "myindex",
+  "shard": 0,
+  "primary": false,
+  "current_node": "nodeA"                         <1>
+}'
+--------------------------------------------------
+<1> The node where shard 0 currently has a replica on
 
 You can also have Elasticsearch explain the allocation of the first unassigned
 shard that it finds by sending an empty body for the request:
@@ -36,30 +49,6 @@ shard that it finds by sending an empty body for the request:
 [source,js]
 --------------------------------------------------
 $ curl -XGET 'http://localhost:9200/_cluster/allocation/explain'
---------------------------------------------------
-
-If you would like to include all decisions that were factored into the final
-decision, the `include_yes_decisions` parameter will return all decisions for
-each node:
-
-[source,js]
---------------------------------------------------
-$ curl -XGET 'http://localhost:9200/_cluster/allocation/explain?include_yes_decisions=true'
---------------------------------------------------
-
-The default value for `include_yes_decisions` is `false`, which will only
-include the `no` decisions in the response.  This is generally what you would
-want, as the `no` decisions indicate why a shard is unassigned or cannot be moved,
-and including all decisions include the `yes` ones adds a lot of verbosity to the
-API's response output.
-
-Additionally, you can return information gathered by the cluster info service
-about disk usage and shard sizes by setting the `include_disk_info` parameter to
-`true`:
-
-[source,js]
---------------------------------------------------
-$ curl -XGET 'http://localhost:9200/_cluster/allocation/explain?include_disk_info=true'
 --------------------------------------------------
 
 === Explain API Response
@@ -117,13 +106,35 @@ The API response for an unassigned shard:
 --------------------------------------------------
 <1> The current state of the shard
 <2> The reason for the shard originally becoming unassigned
-<3> The decision to allocate the shard
-<4> The decision to allocate the shard to the particular node
+<3> Whether to allocate the shard
+<4> Whether to allocate the shard to the particular node
 <5> The decider which led to the `no` decision for the node
 <6> An explanation as to why the decider returned a `no` decision, with a helpful hint pointing to the setting that led to the decision
 
-The API response output for an unassigned primary shard that had a
-previous copy:
+You can return information gathered by the cluster info service about disk usage
+and shard sizes by setting the `include_disk_info` parameter to `true`:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/_cluster/allocation/explain?include_disk_info=true'
+--------------------------------------------------
+
+Additionally, if you would like to include all decisions that were factored into the final
+decision, the `include_yes_decisions` parameter will return all decisions for each node:
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/_cluster/allocation/explain?include_yes_decisions=true'
+--------------------------------------------------
+
+The default value for `include_yes_decisions` is `false`, which will only
+include the `no` decisions in the response.  This is generally what you would
+want, as the `no` decisions indicate why a shard is unassigned or cannot be moved,
+and including all decisions include the `yes` ones adds a lot of verbosity to the
+API's response output.
+
+The API response output for an unassigned primary shard that had previously been
+allocated to a node in the cluster:
 
 [source,js]
 --------------------------------------------------
@@ -143,7 +154,7 @@ previous copy:
 }
 --------------------------------------------------
 
-The API response output for an unassigned replica due to delayed allocation:
+The API response output for a replica that is unassigned due to delayed allocation:
 
 [source,js]
 --------------------------------------------------
@@ -238,9 +249,9 @@ remain on its current node and is required to move:
   ]
 }
 --------------------------------------------------
-<1> The decision of whether the shard is allowed to remain on its current node
+<1> Whether the shard is allowed to remain on its current node
 <2> The deciders that factored into the decision of why the shard is not allowed to remain on its current node
-<3> The decision of whether the shard is allowed to be allocated to another node
+<3> Whether the shard is allowed to be allocated to another node
 
 The API response output for an assigned shard that remains on its current node
 because moving the shard to another node does not form a better cluster balance:
@@ -273,6 +284,6 @@ because moving the shard to another node does not form a better cluster balance:
   ]
 }
 --------------------------------------------------
-<1> The decision indicating whether rebalancing is allowed on the cluster
-<2> The decision whether the shard can be rebalanced to another node
+<1> Whether rebalancing is allowed on the cluster
+<2> Whether the shard can be rebalanced to another node
 <3> The reason the shard cannot be rebalanced to the node, in this case indicating that it offers no better balance than the current node

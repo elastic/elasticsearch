@@ -59,7 +59,7 @@ public class ClusterServiceUtils {
             }
 
             @Override
-            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> discoveryNodes) {
+            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
                 // skip
             }
         });

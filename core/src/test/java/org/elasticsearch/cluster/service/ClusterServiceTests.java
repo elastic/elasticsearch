@@ -133,7 +133,7 @@ public class ClusterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> discoveryNodes) {
+            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
                 // skip
             }
         });
@@ -1067,8 +1067,8 @@ public class ClusterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> discoveryNodes) {
-                currentNodes.removeIf(node -> Iterables.contains(discoveryNodes, node) == false);
+            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+                currentNodes.removeIf(node -> Iterables.contains(nodesToKeep, node) == false);
             }
         });
         AtomicBoolean failToCommit = new AtomicBoolean();

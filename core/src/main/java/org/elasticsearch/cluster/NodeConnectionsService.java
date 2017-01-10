@@ -89,9 +89,12 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         }
     }
 
-    public void disconnectFromNodesExcept(Iterable<DiscoveryNode> discoveryNodes) {
+    /**
+     * Disconnects from all nodes except the ones provided as parameter
+     */
+    public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
         Set<DiscoveryNode> currentNodes = new HashSet<>(nodes.keySet());
-        for (DiscoveryNode node : discoveryNodes) {
+        for (DiscoveryNode node : nodesToKeep) {
             currentNodes.remove(node);
         }
         for (final DiscoveryNode node : currentNodes) {

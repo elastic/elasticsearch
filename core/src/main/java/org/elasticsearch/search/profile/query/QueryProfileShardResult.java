@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.profile.ProfileResult;
 
 import java.io.IOException;
@@ -31,11 +32,18 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+
 /**
  * A container class to hold the profile results for a single shard in the request.
  * Contains a list of query profiles, a collector tree and a total rewrite tree.
  */
 public final class QueryProfileShardResult implements Writeable, ToXContent {
+
+    public static final String COLLECTOR = "collector";
+    public static final String REWRITE_TIME = "rewrite_time";
+    public static final String QUERY_ARRAY = "query";
 
     private final List<ProfileResult> queryProfileResults;
 
@@ -90,15 +98,48 @@ public final class QueryProfileShardResult implements Writeable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("query");
+        builder.startArray(QUERY_ARRAY);
         for (ProfileResult p : queryProfileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();
-        builder.field("rewrite_time", rewriteTime);
-        builder.startArray("collector");
+        builder.field(REWRITE_TIME, rewriteTime);
+        builder.startArray(COLLECTOR);
         profileCollector.toXContent(builder, params);
         builder.endArray();
         return builder;
+    }
+
+    public static QueryProfileShardResult fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        String currentFieldName = null;
+        List<ProfileResult> queryProfileResults = new ArrayList<>();
+        long rewriteTime = 0;
+        CollectorResult profileCollector = null;
+        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (REWRITE_TIME.equals(currentFieldName)) {
+                    rewriteTime = parser.longValue();
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (QUERY_ARRAY.equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        queryProfileResults.add(ProfileResult.fromXContent(parser));
+                    }
+                } else if (COLLECTOR.equals(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        profileCollector = CollectorResult.fromXContent(parser);
+                    }
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            }
+        }
+        return new QueryProfileShardResult(queryProfileResults, rewriteTime, profileCollector);
     }
 }

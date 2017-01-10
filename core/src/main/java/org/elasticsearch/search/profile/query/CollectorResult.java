@@ -24,19 +24,24 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+
 /**
  * Public interface and serialization container for profiled timings of the
  * Collectors used in the search.  Children CollectorResult's may be
  * embedded inside of a parent CollectorResult
  */
-public class CollectorResult implements ToXContent, Writeable {
+public class CollectorResult implements ToXContentObject, Writeable {
 
     public static final String REASON_SEARCH_COUNT = "search_count";
     public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
@@ -152,5 +157,38 @@ public class CollectorResult implements ToXContent, Writeable {
         }
         builder = builder.endObject();
         return builder;
+    }
+
+    public static CollectorResult fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        String currentFieldName = null;
+        String name = null, reason = null, timeString = null;
+        List<CollectorResult> children = new ArrayList<>();
+        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (NAME.match(currentFieldName)) {
+                    name = parser.text();
+                } else if (REASON.match(currentFieldName)) {
+                    reason = parser.text();
+                } else if (TIME.match(currentFieldName)) {
+                    timeString = parser.text();
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (CHILDREN.match(currentFieldName)) {
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        children.add(CollectorResult.fromXContent(parser));
+                    }
+                } else {
+                    throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            }
+        }
+        long time = (long) (Double.parseDouble(timeString.substring(0, timeString.length() - 2)) * 1000000.0);
+        return new CollectorResult(name, reason, time, children);
     }
 }

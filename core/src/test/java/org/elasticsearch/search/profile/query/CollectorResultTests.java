@@ -22,6 +22,8 @@ package org.elasticsearch.search.profile.query;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -29,7 +31,38 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+
 public class CollectorResultTests extends ESTestCase {
+
+    public static CollectorResult createTestItem(int depth) {
+        String name = randomAsciiOfLengthBetween(5, 10);
+        String reason = randomAsciiOfLengthBetween(5, 10);
+        long time = randomNonNegativeLong();
+        int size = randomIntBetween(0, 5);
+        List<CollectorResult> children = new ArrayList<>(size);
+        if (depth > 0) {
+            for (int i = 0; i < size; i++) {
+                children.add(createTestItem(depth - 1));
+            }
+        }
+        return new CollectorResult(name, reason, time, children);
+    }
+
+    public void testFromXContent() throws IOException {
+        CollectorResult collectorResult = createTestItem(1);
+        XContentType xcontentType = randomFrom(XContentType.values());
+        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
+        builder = collectorResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        XContentParser parser = createParser(builder);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        CollectorResult parsed = CollectorResult.fromXContent(parser);
+        assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
+        assertNull(parser.nextToken());
+    }
 
     public void testToXContent() throws IOException {
         List<CollectorResult> children = new ArrayList<>();

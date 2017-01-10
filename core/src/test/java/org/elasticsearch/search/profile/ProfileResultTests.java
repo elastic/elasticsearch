@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class ProfileResultTests extends ESTestCase {
@@ -60,12 +61,12 @@ public class ProfileResultTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         ProfileResult profileResult = createTestItem(2);
-        XContentType xcontentType = XContentType.JSON; // randomFrom(XContentType.values());
+        XContentType xcontentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
         builder = profileResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         XContentParser parser = createParser(builder);
-        parser.nextToken(); // move to START_OBJECT
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
         ProfileResult parsed = ProfileResult.fromXContent(parser);
         assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());

@@ -5,17 +5,16 @@
  */
 package org.elasticsearch.xpack.prelert.modelsnapshots;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
-import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
+import org.elasticsearch.xpack.prelert.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.prelert.job.results.PageParams;
 
-import java.util.Collections;
-
-import static org.elasticsearch.mock.orig.Mockito.when;
-import static org.mockito.Mockito.mock;
+import java.util.Arrays;
+import java.util.Date;
 
 public class GetModelSnapshotsTests extends ESTestCase {
 
@@ -31,71 +30,16 @@ public class GetModelSnapshotsTests extends ESTestCase {
         assertEquals("Parameter [size] cannot be < 0", e.getMessage());
     }
 
-    public void testModelSnapshots_GivenNoStartOrEndParams() {
-        ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300, ModelSnapshot.RESULTS_FIELD);
+    public void testModelSnapshots_clearQuantiles() {
+        ModelSnapshot m1 = new ModelSnapshot("jobId");
+        m1.setQuantiles(new Quantiles("jobId", new Date(), "quantileState"));
+        ModelSnapshot m2 = new ModelSnapshot("jobId");
 
-        JobProvider jobProvider = mock(JobProvider.class);
-        when(jobProvider.modelSnapshots("foo", 0, 100, null, null, null, true, null, null)).thenReturn(queryResult);
-
-        GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request("foo");
-        request.setPageParams(new PageParams(0, 100));
-        request.setDescOrder(true);
-
-        QueryPage<ModelSnapshot> page = GetModelSnapshotsAction.TransportAction.doGetPage(jobProvider, request);
-        assertEquals(300, page.count());
-    }
-
-    public void testModelSnapshots_GivenEpochStartAndEpochEndParams() {
-        ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300, ModelSnapshot.RESULTS_FIELD);
-
-        JobProvider jobProvider = mock(JobProvider.class);
-        when(jobProvider.modelSnapshots("foo", 0, 100, "1", "2", null, true, null, null)).thenReturn(queryResult);
-
-        GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request("foo");
-        request.setPageParams(new PageParams(0, 100));
-        request.setStart("1");
-        request.setEnd("2");
-        request.setDescOrder(true);
-
-        QueryPage<ModelSnapshot> page = GetModelSnapshotsAction.TransportAction.doGetPage(jobProvider, request);
-        assertEquals(300, page.count());
-    }
-
-    public void testModelSnapshots_GivenIsoWithMillisStartAndEpochEndParams() {
-        ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300, ModelSnapshot.RESULTS_FIELD);
-
-        JobProvider jobProvider = mock(JobProvider.class);
-        when(jobProvider.modelSnapshots("foo", 0, 100, "2015-01-01T12:00:00.042Z", "2015-01-01T13:00:00.142+00:00", null, true, null, null))
-        .thenReturn(queryResult);
-
-        GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request("foo");
-        request.setPageParams(new PageParams(0, 100));
-        request.setStart("2015-01-01T12:00:00.042Z");
-        request.setEnd("2015-01-01T13:00:00.142+00:00");
-        request.setDescOrder(true);
-
-        QueryPage<ModelSnapshot> page = GetModelSnapshotsAction.TransportAction.doGetPage(jobProvider, request);
-        assertEquals(300, page.count());
-    }
-
-    public void testModelSnapshots_GivenIsoWithoutMillisStartAndEpochEndParams() {
-        ModelSnapshot modelSnapshot = new ModelSnapshot(randomAsciiOfLengthBetween(1, 20));
-        QueryPage<ModelSnapshot> queryResult = new QueryPage<>(Collections.singletonList(modelSnapshot), 300, ModelSnapshot.RESULTS_FIELD);
-
-        JobProvider jobProvider = mock(JobProvider.class);
-        when(jobProvider.modelSnapshots("foo", 0, 100, "2015-01-01T12:00:00Z", "2015-01-01T13:00:00Z", null, true, null, null))
-        .thenReturn(queryResult);
-
-        GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request("foo");
-        request.setPageParams(new PageParams(0, 100));
-        request.setStart("2015-01-01T12:00:00Z");
-        request.setEnd("2015-01-01T13:00:00Z");
-        request.setDescOrder(true);
-
-        QueryPage<ModelSnapshot> page = GetModelSnapshotsAction.TransportAction.doGetPage(jobProvider, request);
-        assertEquals(300, page.count());
+        QueryPage<ModelSnapshot> page = new QueryPage<>(Arrays.asList(m1, m2), 2, new ParseField("field"));
+        GetModelSnapshotsAction.TransportAction.clearQuantiles(page);
+        assertEquals(2, page.results().size());
+        for (ModelSnapshot modelSnapshot : page.results()) {
+            assertNull(modelSnapshot.getQuantiles());
+        }
     }
 }

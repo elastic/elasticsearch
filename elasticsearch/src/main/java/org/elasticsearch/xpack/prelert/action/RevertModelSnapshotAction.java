@@ -53,6 +53,7 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -353,30 +354,35 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
                 throw ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT));
             }
 
-            ModelSnapshot modelSnapshot = getModelSnapshot(request, jobProvider);
-            if (request.getDeleteInterveningResults()) {
-                listener = wrapDeleteOldDataListener(listener, modelSnapshot, request.getJobId());
-                listener = wrapRevertDataCountsListener(listener, modelSnapshot, request.getJobId());
-            }
-            jobManager.revertSnapshot(request, listener, modelSnapshot);
+            getModelSnapshot(request, jobProvider, modelSnapshot -> {
+                ActionListener<Response> wrappedListener = listener;
+                if (request.getDeleteInterveningResults()) {
+                    wrappedListener = wrapDeleteOldDataListener(wrappedListener, modelSnapshot, request.getJobId());
+                    wrappedListener = wrapRevertDataCountsListener(wrappedListener, modelSnapshot, request.getJobId());
+                }
+                jobManager.revertSnapshot(request, wrappedListener, modelSnapshot);
+            }, listener::onFailure);
         }
 
-        private ModelSnapshot getModelSnapshot(Request request, JobProvider provider) {
+        private void getModelSnapshot(Request request, JobProvider provider, Consumer<ModelSnapshot> handler,
+                                      Consumer<Exception> errorHandler) {
             logger.info("Reverting to snapshot '" + request.getSnapshotId() + "' for time '" + request.getTime() + "'");
 
-            List<ModelSnapshot> revertCandidates;
-            revertCandidates = provider.modelSnapshots(request.getJobId(), 0, 1, null, request.getTime(),
-                    ModelSnapshot.TIMESTAMP.getPreferredName(), true, request.getSnapshotId(), request.getDescription()).results();
+            provider.modelSnapshots(request.getJobId(), 0, 1, null, request.getTime(),
+                    ModelSnapshot.TIMESTAMP.getPreferredName(), true, request.getSnapshotId(), request.getDescription(),
+                    page -> {
+                        List<ModelSnapshot> revertCandidates = page.results();
+                        if (revertCandidates == null || revertCandidates.isEmpty()) {
+                            throw new ResourceNotFoundException(
+                                    Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getJobId()));
+                        }
+                        ModelSnapshot modelSnapshot = revertCandidates.get(0);
 
-            if (revertCandidates == null || revertCandidates.isEmpty()) {
-                throw new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getJobId()));
-            }
-            ModelSnapshot modelSnapshot = revertCandidates.get(0);
-
-            // The quantiles can be large, and totally dominate the output -
-            // it's clearer to remove them
-            modelSnapshot.setQuantiles(null);
-            return modelSnapshot;
+                        // The quantiles can be large, and totally dominate the output -
+                        // it's clearer to remove them
+                        modelSnapshot.setQuantiles(null);
+                        handler.accept(modelSnapshot);
+                    }, errorHandler);
         }
 
         private ActionListener<RevertModelSnapshotAction.Response> wrapDeleteOldDataListener(

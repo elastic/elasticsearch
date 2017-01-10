@@ -20,8 +20,10 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,7 +39,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
@@ -788,7 +789,9 @@ public class JobProvider {
      * @return page of model snapshots
      */
     public QueryPage<ModelSnapshot> modelSnapshots(String jobId, int from, int size) {
-        return modelSnapshots(jobId, from, size, null, null, null, true, null, null);
+        PlainActionFuture<QueryPage<ModelSnapshot>> future = PlainActionFuture.newFuture();
+        modelSnapshots(jobId, from, size, null, false, QueryBuilders.matchAllQuery(), future);
+        return future.actionGet();
     }
 
     /**
@@ -803,21 +806,28 @@ public class JobProvider {
      * @param sortDescending Sort in descending order
      * @param snapshotId     optional snapshot ID to match (null for all)
      * @param description    optional description to match (null for all)
-     * @return page of model snapshots
      */
-    public QueryPage<ModelSnapshot> modelSnapshots(String jobId, int from, int size,
-                                                   String startEpochMs, String endEpochMs, String sortField, boolean sortDescending,
-                                                   String snapshotId, String description) {
+    public void modelSnapshots(String jobId,
+                               int from,
+                               int size,
+                               String startEpochMs,
+                               String endEpochMs,
+                               String sortField,
+                               boolean sortDescending,
+                               String snapshotId,
+                               String description,
+                               CheckedConsumer<QueryPage<ModelSnapshot>, Exception> handler,
+                               Consumer<Exception> errorHandler) {
         boolean haveId = snapshotId != null && !snapshotId.isEmpty();
         boolean haveDescription = description != null && !description.isEmpty();
         ResultsFilterBuilder fb;
         if (haveId || haveDescription) {
             BoolQueryBuilder query = QueryBuilders.boolQuery();
             if (haveId) {
-                query.must(QueryBuilders.termQuery(ModelSnapshot.SNAPSHOT_ID.getPreferredName(), snapshotId));
+                query.filter(QueryBuilders.termQuery(ModelSnapshot.SNAPSHOT_ID.getPreferredName(), snapshotId));
             }
             if (haveDescription) {
-                query.must(QueryBuilders.termQuery(ModelSnapshot.DESCRIPTION.getPreferredName(), description));
+                query.filter(QueryBuilders.termQuery(ModelSnapshot.DESCRIPTION.getPreferredName(), description));
             }
 
             fb = new ResultsFilterBuilder(query);
@@ -825,54 +835,52 @@ public class JobProvider {
             fb = new ResultsFilterBuilder();
         }
 
-        return modelSnapshots(jobId, from, size,
-                (sortField == null || sortField.isEmpty()) ? ModelSnapshot.RESTORE_PRIORITY.getPreferredName() : sortField,
-                sortDescending, fb.timeRange(
-                        Bucket.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs).build());
+        QueryBuilder qb = fb.timeRange(Bucket.TIMESTAMP.getPreferredName(), startEpochMs, endEpochMs).build();
+        modelSnapshots(jobId, from, size, sortField, sortDescending, qb, ActionListener.wrap(handler, errorHandler));
     }
 
-    private QueryPage<ModelSnapshot> modelSnapshots(String jobId, int from, int size,
-                                                    String sortField, boolean sortDescending, QueryBuilder qb) {
+    private void modelSnapshots(String jobId,
+                                int from,
+                                int size,
+                                String sortField,
+                                boolean sortDescending,
+                                QueryBuilder qb,
+                                ActionListener<QueryPage<ModelSnapshot>> listener) {
+        if (Strings.isEmpty(sortField)) {
+            sortField = ModelSnapshot.RESTORE_PRIORITY.getPreferredName();
+        }
+
         FieldSortBuilder sb = new FieldSortBuilder(sortField)
                 .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
 
-        // Wrap in a constant_score because we always want to
-        // run it as a filter
-        qb = new ConstantScoreQueryBuilder(qb);
+        String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
+        LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} with filter after sort from {} size {}",
+                ModelSnapshot.TYPE, indexName, sortField, from, size);
 
-        SearchResponse searchResponse;
-        try {
-            String indexName = AnomalyDetectorsIndex.jobResultsIndexName(jobId);
-            LOGGER.trace("ES API CALL: search all of type {} from index {} sort ascending {} with filter after sort from {} size {}",
-                    ModelSnapshot.TYPE, indexName, sortField, from, size);
-
-            SearchRequest searchRequest = new SearchRequest(indexName);
-            searchRequest.types(ModelSnapshot.TYPE.getPreferredName());
-            SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
-            sourceBuilder.sort(sb);
-            sourceBuilder.query(qb);
-            sourceBuilder.from(from);
-            sourceBuilder.size(size);
-            searchRequest.source(sourceBuilder);
-            searchResponse = FixBlockingClientOperations.executeBlocking(client, SearchAction.INSTANCE, searchRequest);
-        } catch (IndexNotFoundException e) {
-            LOGGER.error("Failed to read modelSnapshots", e);
-            throw e;
-        }
-
-        List<ModelSnapshot> results = new ArrayList<>();
-
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            BytesReference source = hit.getSourceRef();
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
-                ModelSnapshot modelSnapshot = ModelSnapshot.PARSER.apply(parser, () -> parseFieldMatcher);
-                results.add(modelSnapshot);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to parse modelSnapshot", e);
+        SearchRequest searchRequest = new SearchRequest(indexName);
+        searchRequest.types(ModelSnapshot.TYPE.getPreferredName());
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.sort(sb);
+        sourceBuilder.query(qb);
+        sourceBuilder.from(from);
+        sourceBuilder.size(size);
+        searchRequest.source(sourceBuilder);
+        client.search(searchRequest, ActionListener.wrap(searchResponse -> {
+            List<ModelSnapshot> results = new ArrayList<>();
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                BytesReference source = hit.getSourceRef();
+                try (XContentParser parser = XContentFactory.xContent(source).createParser(NamedXContentRegistry.EMPTY, source)) {
+                    ModelSnapshot modelSnapshot = ModelSnapshot.PARSER.apply(parser, () -> parseFieldMatcher);
+                    results.add(modelSnapshot);
+                } catch (IOException e) {
+                    throw new ElasticsearchParseException("failed to parse modelSnapshot", e);
+                }
             }
-        }
 
-        return new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelSnapshot.RESULTS_FIELD);
+            QueryPage<ModelSnapshot> result =
+                    new QueryPage<>(results, searchResponse.getHits().getTotalHits(), ModelSnapshot.RESULTS_FIELD);
+            listener.onResponse(result);
+        }, listener::onFailure));
     }
 
     /**

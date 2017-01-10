@@ -28,9 +28,9 @@ import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.ModelSnapshot;
 import org.elasticsearch.xpack.prelert.job.manager.JobManager;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
+import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleterFactory;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
-import org.elasticsearch.xpack.prelert.job.persistence.JobDataDeleter;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
@@ -148,54 +148,54 @@ public class DeleteModelSnapshotAction extends Action<DeleteModelSnapshotAction.
 
         @Override
         protected void doExecute(Request request, ActionListener<Response> listener) {
-
             // Verify the snapshot exists
-            List<ModelSnapshot> deleteCandidates;
-            deleteCandidates = jobProvider.modelSnapshots(
-                    request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(), null
-            ).results();
+            jobProvider.modelSnapshots(
+                    request.getJobId(), 0, 1, null, null, null, true, request.getSnapshotId(), null,
+                    page -> {
+                        List<ModelSnapshot> deleteCandidates = page.results();
+                        if (deleteCandidates.size() > 1) {
+                            logger.warn("More than one model found for [job_id: " + request.getJobId()
+                                    + ", snapshot_id: " + request.getSnapshotId() + "] tuple.");
+                        }
 
-            if (deleteCandidates.size() > 1) {
-                logger.warn("More than one model found for [job_id: " + request.getJobId()
-                        + ", snapshot_id: " + request.getSnapshotId() + "] tuple.");
-            }
+                        if (deleteCandidates.isEmpty()) {
+                            listener.onFailure(new ResourceNotFoundException(
+                                    Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getJobId())));
+                        }
+                        ModelSnapshot deleteCandidate = deleteCandidates.get(0);
 
-            if (deleteCandidates.isEmpty()) {
-                throw new ResourceNotFoundException(Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getJobId()));
-            }
-            ModelSnapshot deleteCandidate = deleteCandidates.get(0);
+                        // Verify the snapshot is not being used
+                        //
+                        // NORELEASE: technically, this could be stale and refuse a delete, but I think that's acceptable
+                        // since it is non-destructive
+                        QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
+                        if (job.count() > 0) {
+                            String currentModelInUse = job.results().get(0).getModelSnapshotId();
+                            if (currentModelInUse != null && currentModelInUse.equals(request.getSnapshotId())) {
+                                throw new IllegalArgumentException(Messages.getMessage(Messages.REST_CANNOT_DELETE_HIGHEST_PRIORITY,
+                                        request.getSnapshotId(), request.getJobId()));
+                            }
+                        }
 
-            // Verify the snapshot is not being used
-            //
-            // NORELEASE: technically, this could be stale and refuse a delete, but I think that's acceptable
-            // since it is non-destructive
-            QueryPage<Job> job = jobManager.getJob(request.getJobId(), clusterService.state());
-            if (job.count() > 0) {
-                String currentModelInUse = job.results().get(0).getModelSnapshotId();
-                if (currentModelInUse != null && currentModelInUse.equals(request.getSnapshotId())) {
-                    throw new IllegalArgumentException(Messages.getMessage(Messages.REST_CANNOT_DELETE_HIGHEST_PRIORITY,
-                            request.getSnapshotId(), request.getJobId()));
-                }
-            }
+                        // Delete the snapshot and any associated state files
+                        JobDataDeleter deleter = bulkDeleterFactory.apply(request.getJobId());
+                        deleter.deleteModelSnapshot(deleteCandidate);
+                        deleter.commit(new ActionListener<BulkResponse>() {
+                            @Override
+                            public void onResponse(BulkResponse bulkResponse) {
+                                // We don't care about the bulk response, just that it succeeded
+                                listener.onResponse(new DeleteModelSnapshotAction.Response(true));
+                            }
 
-            // Delete the snapshot and any associated state files
-            JobDataDeleter deleter = bulkDeleterFactory.apply(request.getJobId());
-            deleter.deleteModelSnapshot(deleteCandidate);
-            deleter.commit(new ActionListener<BulkResponse>() {
-                @Override
-                public void onResponse(BulkResponse bulkResponse) {
-                    // We don't care about the bulk response, just that it succeeded
-                    listener.onResponse(new DeleteModelSnapshotAction.Response(true));
-                }
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
+                        });
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
-
-            jobManager.audit(request.getJobId()).info(Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED,
-                    deleteCandidate.getDescription()));
+                        jobManager.audit(request.getJobId()).info(Messages.getMessage(Messages.JOB_AUDIT_SNAPSHOT_DELETED,
+                                deleteCandidate.getDescription()));
+                    }, listener::onFailure);
         }
     }
 }

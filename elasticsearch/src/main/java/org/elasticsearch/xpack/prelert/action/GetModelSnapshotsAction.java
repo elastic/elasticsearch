@@ -326,26 +326,20 @@ extends Action<GetModelSnapshotsAction.Request, GetModelSnapshotsAction.Response
                     request.getJobId(), request.pageParams.getFrom(), request.pageParams.getSize(), request.getStart(), request.getEnd(),
                     request.getSort(), request.getDescOrder(), request.getDescriptionString()));
 
-            QueryPage<ModelSnapshot> page = doGetPage(jobProvider, request);
-
-            logger.debug(String.format(Locale.ROOT, "Return %d model snapshots for job %s", page.count(), request.getJobId()));
-            listener.onResponse(new Response(page));
+            jobProvider.modelSnapshots(request.getJobId(), request.pageParams.getFrom(), request.pageParams.getSize(),
+                    request.getStart(), request.getEnd(), request.getSort(), request.getDescOrder(), null, request.getDescriptionString(),
+                    page -> {
+                        clearQuantiles(page);
+                        listener.onResponse(new Response(page));
+                    }, listener::onFailure);
         }
 
-        public static QueryPage<ModelSnapshot> doGetPage(JobProvider jobProvider, Request request) {
-            QueryPage<ModelSnapshot> page = jobProvider.modelSnapshots(request.getJobId(), request.pageParams.getFrom(),
-                    request.pageParams.getSize(), request.getStart(), request.getEnd(), request.getSort(), request.getDescOrder(), null,
-                    request.getDescriptionString());
-
-            // The quantiles can be large, and totally dominate the output -
-            // it's
-            // clearer to remove them
+        public static void clearQuantiles(QueryPage<ModelSnapshot> page) {
             if (page.results() != null) {
                 for (ModelSnapshot modelSnapshot : page.results()) {
                     modelSnapshot.setQuantiles(null);
                 }
             }
-            return page;
         }
     }
 

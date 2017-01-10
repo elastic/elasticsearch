@@ -1,19 +1,19 @@
 setup:
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
+        job_id: custom-all-test-1
         body:  >
           {
-            "job_id": "custom-all-test-1",
             "description":"Job for testing custom all field",
             "analysis_config" : {
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             }
           }
   - do:
-      xpack.prelert.put_job:
+      xpack.ml.put_job:
+        job_id: custom-all-test-2
         body:  >
           {
-            "job_id": "custom-all-test-2",
             "description":"Job for testing custom all field",
             "analysis_config" : {
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]

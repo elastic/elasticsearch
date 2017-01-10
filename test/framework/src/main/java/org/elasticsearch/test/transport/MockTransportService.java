@@ -64,7 +64,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -743,6 +742,8 @@ public final class MockTransportService extends TransportService {
     @Override
     protected void doClose() {
         super.doClose();
-        assert openConnections.size() == 0 : "still open connections: " + openConnections;
+        synchronized (openConnections) {
+            assert openConnections.size() == 0 : "still open connections: " + openConnections;
+        }
     }
 }

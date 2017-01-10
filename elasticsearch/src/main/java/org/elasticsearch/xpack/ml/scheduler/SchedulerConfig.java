@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.scheduler;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -77,13 +76,13 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         PARSER.declareObject(Builder::setQuery,
                 (p, c) -> new QueryParseContext(p, c.getParseFieldMatcher()).parseInnerQueryBuilder(), QUERY);
         PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(
-                new QueryParseContext(p, ParseFieldMatcher.STRICT)), AGGREGATIONS);
+                new QueryParseContext(p, c.getParseFieldMatcher())), AGGREGATIONS);
         PARSER.declareObject(Builder::setAggregations,(p, c) -> AggregatorFactories.parseAggregators(
-                new QueryParseContext(p, ParseFieldMatcher.STRICT)), AGGS);
+                new QueryParseContext(p, c.getParseFieldMatcher())), AGGS);
         PARSER.declareObject(Builder::setScriptFields, (p, c) -> {
                 List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
                 while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                    parsedScriptFields.add(new SearchSourceBuilder.ScriptField(new QueryParseContext(p, ParseFieldMatcher.STRICT)));
+                    parsedScriptFields.add(new SearchSourceBuilder.ScriptField(new QueryParseContext(p, c.getParseFieldMatcher())));
             }
             parsedScriptFields.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             return parsedScriptFields;

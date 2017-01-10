@@ -10,22 +10,16 @@ import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.messages.Messages;
@@ -37,9 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * Scheduler configuration options. Describes where to proactively pull input
@@ -84,23 +76,16 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         PARSER.declareLong(Builder::setFrequency, FREQUENCY);
         PARSER.declareObject(Builder::setQuery,
                 (p, c) -> new QueryParseContext(p, ParseFieldMatcher.STRICT).parseInnerQueryBuilder().get(), QUERY);
-        PARSER.declareField((parser, builder, aVoid) -> {
-            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
-            XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
-            builder.setAggregations(contentBuilder.bytes());
-        }, AGGREGATIONS, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, builder, aVoid) -> {
-            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
-            XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
-            builder.setAggregations(contentBuilder.bytes());
-        }, AGGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(
+                new QueryParseContext(p, ParseFieldMatcher.STRICT)), AGGREGATIONS);
+        PARSER.declareObject(Builder::setAggregations,(p, c) -> AggregatorFactories.parseAggregators(
+                new QueryParseContext(p, ParseFieldMatcher.STRICT)), AGGS);
         PARSER.declareObject(Builder::setScriptFields, (p, c) -> {
                 List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
                 while (p.nextToken() != XContentParser.Token.END_OBJECT) {
                     parsedScriptFields.add(new SearchSourceBuilder.ScriptField(new QueryParseContext(p, ParseFieldMatcher.STRICT)));
             }
-            Collections.sort(parsedScriptFields,
-                    Comparator.comparing((Function<SearchSourceBuilder.ScriptField, String>) f -> f.fieldName()));
+            parsedScriptFields.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             return parsedScriptFields;
         }, SCRIPT_FIELDS);
         PARSER.declareInt(Builder::setScrollSize, SCROLL_SIZE);
@@ -122,13 +107,13 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
     private final List<String> indexes;
     private final List<String> types;
     private final QueryBuilder query;
-    private final BytesReference aggregations;
+    private final AggregatorFactories.Builder aggregations;
     private final List<SearchSourceBuilder.ScriptField> scriptFields;
     private final Integer scrollSize;
 
     private SchedulerConfig(String id, String jobId, Long queryDelay, Long frequency, List<String> indexes, List<String> types,
-                            QueryBuilder query, BytesReference aggregations, List<SearchSourceBuilder.ScriptField> scriptFields,
-                            Integer scrollSize) {
+                            QueryBuilder query, AggregatorFactories.Builder aggregations,
+                            List<SearchSourceBuilder.ScriptField> scriptFields, Integer scrollSize) {
         this.id = id;
         this.jobId = jobId;
         this.queryDelay = queryDelay;
@@ -157,7 +142,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             this.types = null;
         }
         this.query = in.readNamedWriteable(QueryBuilder.class);
-        this.aggregations = in.readOptionalBytesReference();
+        this.aggregations = in.readOptionalWriteable(AggregatorFactories.Builder::new);
         if (in.readBoolean()) {
             this.scriptFields = in.readList(SearchSourceBuilder.ScriptField::new);
         } else {
@@ -206,41 +191,16 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         return this.scrollSize;
     }
 
-    Map<String, Object> getAggregationsAsMap() {
-        return XContentHelper.convertToMap(aggregations, true).v2();
-    }
-
     public QueryBuilder getQuery() {
         return query;
     }
 
-    public boolean hasAggregations() {
-        return aggregations != null;
-    }
-
-    public AggregatorFactories.Builder buildAggregations(AggregatorParsers aggParsers) {
-        if (!hasAggregations()) {
-            return null;
-        }
-        XContentParser parser = createParser(AGGREGATIONS, aggregations);
-        QueryParseContext queryParseContext = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
-        try {
-            return aggParsers.parseAggregators(queryParseContext);
-        } catch (IOException e) {
-            throw ExceptionsHelper.parseException(AGGREGATIONS, e);
-        }
+    public AggregatorFactories.Builder getAggregations() {
+        return aggregations;
     }
 
     public List<SearchSourceBuilder.ScriptField> getScriptFields() {
         return scriptFields == null ? Collections.emptyList() : scriptFields;
-    }
-
-    private XContentParser createParser(ParseField parseField, BytesReference bytesReference) {
-        try {
-            return XContentFactory.xContent(bytesReference).createParser(NamedXContentRegistry.EMPTY, bytesReference);
-        } catch (IOException e) {
-            throw ExceptionsHelper.parseException(parseField, e);
-        }
     }
 
     @Override
@@ -262,7 +222,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             out.writeBoolean(false);
         }
         out.writeNamedWriteable(query);
-        out.writeOptionalBytesReference(aggregations);
+        out.writeOptionalWriteable(aggregations);
         if (scriptFields != null) {
             out.writeBoolean(true);
             out.writeList(scriptFields);
@@ -291,7 +251,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         builder.field(TYPES.getPreferredName(), types);
         builder.field(QUERY.getPreferredName(), query);
         if (aggregations != null) {
-            builder.field(AGGREGATIONS.getPreferredName(), getAggregationsAsMap());
+            builder.field(AGGREGATIONS.getPreferredName(), aggregations);
         }
         if (scriptFields != null) {
             builder.startObject(SCRIPT_FIELDS.getPreferredName());
@@ -350,7 +310,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         private List<String> indexes = Collections.emptyList();
         private List<String> types = Collections.emptyList();
         private QueryBuilder query = QueryBuilders.matchAllQuery();
-        private BytesReference aggregations;
+        private AggregatorFactories.Builder aggregations;
         private List<SearchSourceBuilder.ScriptField> scriptFields;
         private Integer scrollSize = DEFAULT_SCROLL_SIZE;
 
@@ -414,26 +374,13 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
             this.query = ExceptionsHelper.requireNonNull(query, QUERY.getPreferredName());
         }
 
-        private void setAggregations(BytesReference aggregations) {
-            this.aggregations = Objects.requireNonNull(aggregations);
-        }
-
         public void setAggregations(AggregatorFactories.Builder aggregations) {
-            this.aggregations = xContentToBytes(aggregations);
-        }
-
-        private BytesReference xContentToBytes(ToXContent value) {
-            try {
-                XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-                return value.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS).bytes();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            this.aggregations = aggregations;
         }
 
         public void setScriptFields(List<SearchSourceBuilder.ScriptField> scriptFields) {
             List<SearchSourceBuilder.ScriptField> sorted = new ArrayList<>(scriptFields);
-            Collections.sort(sorted, Comparator.comparing((Function<SearchSourceBuilder.ScriptField, String>) f -> f.fieldName()));
+            sorted.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             this.scriptFields = sorted;
         }
 

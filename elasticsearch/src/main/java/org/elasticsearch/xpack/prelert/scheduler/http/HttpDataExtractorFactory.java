@@ -48,7 +48,7 @@ public class HttpDataExtractorFactory implements DataExtractorFactory {
         String timeField = job.getDataDescription().getTimeField();
         ElasticsearchQueryBuilder queryBuilder = new ElasticsearchQueryBuilder(
                 xContentToJson(schedulerConfig.getQuery()),
-                stringifyAggregations(schedulerConfig.buildAggregations(searchRequestParsers.aggParsers)),
+                stringifyAggregations(schedulerConfig.getAggregations()),
                 stringifyScriptFields(schedulerConfig.getScriptFields()),
                 timeField);
         HttpRequester httpRequester = new HttpRequester();

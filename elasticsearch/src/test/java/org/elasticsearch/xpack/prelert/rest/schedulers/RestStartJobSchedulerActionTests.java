@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -35,19 +34,18 @@ public class RestStartJobSchedulerActionTests extends ESTestCase {
 
     public void testPrepareRequest() throws Exception {
         ClusterService clusterService = mock(ClusterService.class);
-        SearchRequestParsers searchRequestParsers = mock(SearchRequestParsers.class);
         Job.Builder job = ScheduledJobRunnerTests.createScheduledJob();
         SchedulerConfig schedulerConfig = ScheduledJobRunnerTests.createSchedulerConfig("foo-scheduler", "foo").build();
         PrelertMetadata prelertMetadata = new PrelertMetadata.Builder()
                 .putJob(job.build(), false)
-                .putScheduler(schedulerConfig, searchRequestParsers)
+                .putScheduler(schedulerConfig)
                 .updateStatus("foo", JobStatus.OPENED, null)
                 .build();
         when(clusterService.state()).thenReturn(ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, prelertMetadata))
                 .build());
         RestStartSchedulerAction action = new RestStartSchedulerAction(Settings.EMPTY, mock(RestController.class),
-                mock(ThreadPool.class), clusterService, searchRequestParsers);
+                mock(ThreadPool.class), clusterService);
 
         Map<String, String> params = new HashMap<>();
         params.put("start", "not-a-date");

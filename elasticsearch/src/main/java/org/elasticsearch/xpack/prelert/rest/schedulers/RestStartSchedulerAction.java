@@ -19,7 +19,6 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,7 +42,7 @@ public class RestStartSchedulerAction extends BaseRestHandler {
 
     @Inject
     public RestStartSchedulerAction(Settings settings, RestController controller, ThreadPool threadPool,
-                                    ClusterService clusterService, SearchRequestParsers searchRequestParsers) {
+                                    ClusterService clusterService) {
         super(settings);
         this.clusterService = clusterService;
         this.schedulerStatusObserver = new SchedulerStatusObserver(threadPool, clusterService);

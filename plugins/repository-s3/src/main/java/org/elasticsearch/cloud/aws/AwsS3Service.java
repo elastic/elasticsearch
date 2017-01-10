@@ -100,7 +100,8 @@ public interface AwsS3Service extends LifecycleComponent {
          * cloud.aws.s3.secret_key: AWS Secret key specific for S3 API calls. Defaults to cloud.aws.secret_key.
          * @see AwsS3Service#SECRET_SETTING
          */
-        SecureSetting<SecureString> SECRET_SETTING = SecureSetting.secureString("cloud.aws.s3.secret_key", AwsS3Service.SECRET_SETTING, true);
+        SecureSetting<SecureString> SECRET_SETTING = SecureSetting.secureString("cloud.aws.s3.secret_key",
+            AwsS3Service.SECRET_SETTING, true);
         /**
          * cloud.aws.s3.protocol: Protocol for AWS API specific for S3 API calls: http or https. Defaults to cloud.aws.protocol.
          * @see AwsS3Service#PROTOCOL_SETTING

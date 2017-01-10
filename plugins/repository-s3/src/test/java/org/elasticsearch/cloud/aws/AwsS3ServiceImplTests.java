@@ -395,7 +395,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
         return builder.build();
     }
 
-    private static Settings generateSecureRepositorySettings(String key, String secret, String region, String endpoint, Integer maxRetries) {
+    private static Settings generateSecureRepositorySettings(String key, String secret, String region, String endpoint,
+                                                             Integer maxRetries) {
         Settings settings = generateRepositorySettings(null, null, region, endpoint, maxRetries);
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(S3Repository.Repository.KEY_SETTING.getKey(), key);

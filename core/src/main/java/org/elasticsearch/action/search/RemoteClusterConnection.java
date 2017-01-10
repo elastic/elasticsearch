@@ -81,7 +81,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
     private final TransportService transportService;
     private final ConnectionProfile remoteProfile;
-    private final CopyOnWriteArrayList<DiscoveryNode> connectedNodes = new CopyOnWriteArrayList();
+    private final CopyOnWriteArrayList<DiscoveryNode> connectedNodes = new CopyOnWriteArrayList<>();
     private final Supplier<DiscoveryNode> nodeSupplier;
     private final String clusterAlias;
     private final int maxNumRemoteConnections;

@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -38,24 +37,18 @@ public abstract class AggregationBuilder
     implements NamedWriteable, ToXContent, BaseAggregationBuilder {
 
     protected final String name;
-    protected final Type type;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
 
     /**
      * Constructs a new aggregation builder.
      *
      * @param name  The aggregation name
-     * @param type  The aggregation type
      */
-    protected AggregationBuilder(String name, Type type) {
+    protected AggregationBuilder(String name) {
         if (name == null) {
             throw new IllegalArgumentException("[name] must not be null: [" + name + "]");
         }
-        if (type == null) {
-            throw new IllegalArgumentException("[type] must not be null: [" + name + "]");
-        }
         this.name = name;
-        this.type = type;
     }
 
     /** Return this aggregation's name. */

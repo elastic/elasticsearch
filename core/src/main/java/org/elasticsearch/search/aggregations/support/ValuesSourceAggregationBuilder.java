@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
@@ -40,28 +39,29 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<VS, AB>>
             extends ValuesSourceAggregationBuilder<VS, AB> {
 
-        protected LeafOnly(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-            super(name, type, valuesSourceType, targetValueType);
+        protected LeafOnly(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+            super(name, valuesSourceType, targetValueType);
         }
 
         /**
          * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
          */
-        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
-            super(in, type, valuesSourceType, targetValueType);
+        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType) throws IOException {
+            super(in, valuesSourceType, targetValueType);
         }
 
         /**
          * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
          * {@link #serializeTargetValueType()} to return true.
          */
-        protected LeafOnly(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
-            super(in, type, valuesSourceType);
+        protected LeafOnly(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
+            super(in, valuesSourceType);
         }
 
         @Override
         public AB subAggregations(Builder subFactories) {
-            throw new AggregationInitializationException("Aggregator [" + name + "] of type [" + type + "] cannot accept sub-aggregations");
+            throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
+                    + getType() + "] cannot accept sub-aggregations");
         }
     }
 
@@ -75,8 +75,8 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     private DateTimeZone timeZone = null;
     protected ValuesSourceConfig<VS> config;
 
-    protected ValuesSourceAggregationBuilder(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
-        super(name, type);
+    protected ValuesSourceAggregationBuilder(String name, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+        super(name);
         if (valuesSourceType == null) {
             throw new IllegalArgumentException("[valuesSourceType] must not be null: [" + name + "]");
         }
@@ -87,9 +87,9 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
     /**
      * Read an aggregation from a stream that does not serialize its targetValueType. This should be used by most subclasses.
      */
-    protected ValuesSourceAggregationBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType)
+    protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType, ValueType targetValueType)
             throws IOException {
-        super(in, type);
+        super(in);
         assert false == serializeTargetValueType() : "Wrong read constructor called for subclass that provides its targetValueType";
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
@@ -100,8 +100,8 @@ public abstract class ValuesSourceAggregationBuilder<VS extends ValuesSource, AB
      * Read an aggregation from a stream that serializes its targetValueType. This should only be used by subclasses that override
      * {@link #serializeTargetValueType()} to return true.
      */
-    protected ValuesSourceAggregationBuilder(StreamInput in, Type type, ValuesSourceType valuesSourceType) throws IOException {
-        super(in, type);
+    protected ValuesSourceAggregationBuilder(StreamInput in, ValuesSourceType valuesSourceType) throws IOException {
+        super(in);
         assert serializeTargetValueType() : "Wrong read constructor called for subclass that serializes its targetValueType";
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = in.readOptionalWriteable(ValueType::readFromStream);

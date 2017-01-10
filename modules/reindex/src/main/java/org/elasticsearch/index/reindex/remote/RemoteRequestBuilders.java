@@ -102,27 +102,30 @@ final class RemoteRequestBuilders {
             String storedFieldsParamName = remoteVersion.before(Version.V_5_0_0_alpha4) ? "fields" : "stored_fields";
             params.put(storedFieldsParamName, fields.toString());
         }
-        // We always want the _source document and this will force it to be returned.
-        params.put("_source", "true");
         return params;
     }
 
-    static HttpEntity initialSearchEntity(BytesReference query) {
+    static HttpEntity initialSearchEntity(SearchRequest searchRequest, BytesReference query) {
         // EMPTY is safe here because we're not calling namedObject
         try (XContentBuilder entity = JsonXContent.contentBuilder();
                 XContentParser queryParser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, query)) {
             entity.startObject();
-            entity.field("query");
-            /*
-             * We're intentionally a bit paranoid here - copying the query as xcontent rather than writing a raw field. We don't want poorly
-             * written queries to escape. Ever.
-             */
-            entity.copyCurrentStructure(queryParser);
-            XContentParser.Token shouldBeEof = queryParser.nextToken();
-            if (shouldBeEof != null) {
-                throw new ElasticsearchException(
-                        "query was more than a single object. This first token after the object is [" + shouldBeEof + "]");
+
+            entity.field("query"); {
+                /* We're intentionally a bit paranoid here - copying the query as xcontent rather than writing a raw field. We don't want
+                 * poorly written queries to escape. Ever. */
+                entity.copyCurrentStructure(queryParser);
+                XContentParser.Token shouldBeEof = queryParser.nextToken();
+                if (shouldBeEof != null) {
+                    throw new ElasticsearchException(
+                            "query was more than a single object. This first token after the object is [" + shouldBeEof + "]");
+                }
             }
+
+            if (searchRequest.source().fetchSource() != null) {
+                entity.field("_source", searchRequest.source().fetchSource());
+            }
+
             entity.endObject();
             BytesRef bytes = entity.bytes().toBytesRef();
             return new ByteArrayEntity(bytes.bytes, bytes.offset, bytes.length, ContentType.APPLICATION_JSON);

@@ -54,7 +54,7 @@ public class SearchSortValuesTests extends ESTestCase {
         valueSuppliers.add(() -> randomBoolean());
         valueSuppliers.add(() -> frequently() ? randomAsciiOfLengthBetween(1, 30) : randomRealisticUnicodeOfCodepointLength(30));
 
-        int size = randomInt(20);
+        int size = randomIntBetween(1, 20);
         Object[] values = new Object[size];
         for (int i = 0; i < size; i++) {
             Supplier<Object> supplier = randomFrom(valueSuppliers);
@@ -75,7 +75,8 @@ public class SearchSortValuesTests extends ESTestCase {
         builder.endObject();
 
         XContentParser parser = createParser(builder);
-        parser.nextToken(); // skip to the elements field name token, fromXContent advances from there if called from ourside
+        parser.nextToken(); // skip to the elements start array token, fromXContent advances from there if called
+        parser.nextToken();
         parser.nextToken();
         if (sortValues.sortValues().length > 0) {
             SearchSortValues parsed = SearchSortValues.fromXContent(parser);

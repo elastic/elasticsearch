@@ -36,7 +36,7 @@ import java.util.function.Function;
 
 public final class AzureStorageSettings {
     private static final Setting<TimeValue> TIMEOUT_SETTING = Setting.affixKeySetting(Storage.PREFIX, "timeout",
-        (key) -> Setting.timeSetting(key, Storage.TIMEOUT_SETTING.getDefault(Settings.EMPTY), Setting.Property.NodeScope));
+        (key) -> Setting.timeSetting(key, Storage.TIMEOUT_SETTING, Setting.Property.NodeScope));
     private static final Setting<String> ACCOUNT_SETTING =
         Setting.affixKeySetting(Storage.PREFIX, "account", (key) -> Setting.simpleString(key, Setting.Property.NodeScope));
     private static final Setting<String> KEY_SETTING =

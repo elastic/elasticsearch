@@ -157,6 +157,7 @@ setup:
   - do:
       catch: request
       search:
+        index: test_1
         body: { "size" : 0, "aggs" : { "ip_terms" : { "terms" : { "field" : "ip", "exclude" :  "127.*"  } } } }
 
 

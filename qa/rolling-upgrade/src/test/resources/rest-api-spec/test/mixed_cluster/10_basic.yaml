@@ -78,3 +78,7 @@
        index: test_index
        type: test_type
        id: d12
+
+ - do:
+     indices.flush:
+        index: test_index

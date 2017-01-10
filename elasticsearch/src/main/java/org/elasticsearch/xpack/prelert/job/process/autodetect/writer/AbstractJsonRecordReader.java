@@ -22,7 +22,6 @@ abstract class AbstractJsonRecordReader implements JsonRecordReader {
     // NORELEASE - Remove direct dependency on Jackson
     protected final JsonParser parser;
     protected final Map<String, Integer> fieldMap;
-    protected final String recordHoldingField;
     protected final Logger logger;
     protected int nestedLevel;
     protected long fieldCount;
@@ -35,34 +34,13 @@ abstract class AbstractJsonRecordReader implements JsonRecordReader {
      *            The JSON parser
      * @param fieldMap
      *            Map to field name to record array index position
-     * @param recordHoldingField
-     *            record holding field
      * @param logger
      *            the logger
      */
-    AbstractJsonRecordReader(JsonParser parser, Map<String, Integer> fieldMap, String recordHoldingField, Logger logger) {
+    AbstractJsonRecordReader(JsonParser parser, Map<String, Integer> fieldMap, Logger logger) {
         this.parser = Objects.requireNonNull(parser);
         this.fieldMap = Objects.requireNonNull(fieldMap);
-        this.recordHoldingField = Objects.requireNonNull(recordHoldingField);
         this.logger = Objects.requireNonNull(logger);
-    }
-
-    protected void consumeToField(String field) throws IOException {
-        if (field == null || field.isEmpty()) {
-            return;
-        }
-        JsonToken token = null;
-        while ((token = tryNextTokenOrReadToEndOnError()) != null) {
-            if (token == JsonToken.FIELD_NAME
-                    && parser.getCurrentName().equals(field)) {
-                tryNextTokenOrReadToEndOnError();
-                return;
-            }
-        }
-    }
-
-    protected void consumeToRecordHoldingField() throws IOException {
-        consumeToField(recordHoldingField);
     }
 
     protected void initArrays(String[] record, boolean[] gotFields) {

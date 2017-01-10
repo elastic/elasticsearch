@@ -47,16 +47,16 @@ import org.elasticsearch.xpack.prelert.action.GetModelSnapshotsAction;
 import org.elasticsearch.xpack.prelert.action.GetRecordsAction;
 import org.elasticsearch.xpack.prelert.action.GetSchedulersAction;
 import org.elasticsearch.xpack.prelert.action.GetSchedulersStatsAction;
-import org.elasticsearch.xpack.prelert.action.PostDataAction;
 import org.elasticsearch.xpack.prelert.action.OpenJobAction;
+import org.elasticsearch.xpack.prelert.action.PostDataAction;
 import org.elasticsearch.xpack.prelert.action.PutJobAction;
 import org.elasticsearch.xpack.prelert.action.PutListAction;
-import org.elasticsearch.xpack.prelert.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.action.PutSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.action.StartSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.StopSchedulerAction;
 import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
+import org.elasticsearch.xpack.prelert.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.action.UpdateSchedulerStatusAction;
 import org.elasticsearch.xpack.prelert.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.prelert.action.ValidateTransformAction;
@@ -90,16 +90,16 @@ import org.elasticsearch.xpack.prelert.rest.job.RestDeleteJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestFlushJobAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestGetJobsStatsAction;
-import org.elasticsearch.xpack.prelert.rest.job.RestPostDataAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestOpenJobAction;
+import org.elasticsearch.xpack.prelert.rest.job.RestPostDataAction;
 import org.elasticsearch.xpack.prelert.rest.job.RestPutJobAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestDeleteListAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestGetListAction;
 import org.elasticsearch.xpack.prelert.rest.list.RestPutListAction;
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestGetModelSnapshotsAction;
-import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestRevertModelSnapshotAction;
+import org.elasticsearch.xpack.prelert.rest.modelsnapshots.RestUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetBucketsAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetCategoriesAction;
 import org.elasticsearch.xpack.prelert.rest.results.RestGetInfluencersAction;
@@ -114,7 +114,6 @@ import org.elasticsearch.xpack.prelert.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.prelert.rest.validate.RestValidateTransformAction;
 import org.elasticsearch.xpack.prelert.rest.validate.RestValidateTransformsAction;
 import org.elasticsearch.xpack.prelert.scheduler.ScheduledJobRunner;
-import org.elasticsearch.xpack.prelert.scheduler.http.HttpDataExtractorFactory;
 import org.elasticsearch.xpack.prelert.utils.NamedPipeHelper;
 
 import java.io.IOException;
@@ -209,8 +208,6 @@ public class PrelertPlugin extends Plugin implements ActionPlugin {
                 jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, autodetectResultsParser,
                 autodetectProcessFactory, normalizerFactory);
         ScheduledJobRunner scheduledJobRunner = new ScheduledJobRunner(threadPool, client, clusterService, jobProvider,
-                // norelease: we will no longer need to pass the client here after we switch to a client based data extractor
-                new HttpDataExtractorFactory(client, searchRequestParsers),
                 System::currentTimeMillis);
         TaskManager taskManager = new TaskManager(settings);
 

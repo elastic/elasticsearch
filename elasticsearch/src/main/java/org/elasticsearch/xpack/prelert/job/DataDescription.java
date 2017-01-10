@@ -43,6 +43,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
         JSON("json"),
         DELIMITED("delimited"),
         SINGLE_LINE("single_line"),
+        // TODO norelease, this can now be removed
         ELASTICSEARCH("elasticsearch");
 
         /**

@@ -3,28 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.prelert.job.extraction;
-
-import org.apache.logging.log4j.Logger;
+package org.elasticsearch.xpack.prelert.scheduler.extractor;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
 
 public interface DataExtractor {
-    /**
-     * Set-up the extractor for a new search
-     *
-     * @param start start time
-     * @param end end time
-     * @param logger logger
-     */
-    void newSearch(long start, long end, Logger logger) throws IOException;
-
-    /**
-     * Cleans up after a search.
-     */
-    void clear();
 
     /**
      * @return {@code true} if the search has not finished yet, or {@code false} otherwise

@@ -12,7 +12,8 @@ import org.elasticsearch.xpack.prelert.action.FlushJobAction;
 import org.elasticsearch.xpack.prelert.action.PostDataAction;
 import org.elasticsearch.xpack.prelert.job.DataCounts;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
-import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
+import org.elasticsearch.xpack.prelert.scheduler.extractor.DataExtractor;
+import org.elasticsearch.xpack.prelert.scheduler.extractor.DataExtractorFactory;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
 
@@ -25,6 +26,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.mock;
@@ -35,6 +37,7 @@ import static org.mockito.Mockito.when;
 public class ScheduledJobTests extends ESTestCase {
 
     private Auditor auditor;
+    private DataExtractorFactory dataExtractorFactory;
     private DataExtractor dataExtractor;
     private Client client;
     private ActionFuture<FlushJobAction.Response> flushJobFuture;
@@ -45,7 +48,9 @@ public class ScheduledJobTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void setup() throws Exception {
         auditor = mock(Auditor.class);
+        dataExtractorFactory = mock(DataExtractorFactory.class);
         dataExtractor = mock(DataExtractor.class);
+        when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         client = mock(Client.class);
         ActionFuture<PostDataAction.Response> jobDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
@@ -64,7 +69,7 @@ public class ScheduledJobTests extends ESTestCase {
         ScheduledJob scheduledJob = createScheduledJob(1000, 500, -1, -1);
         assertNull(scheduledJob.runLookBack(0L, 1000L));
 
-        verify(dataExtractor).newSearch(eq(0L), eq(1000L), any());
+        verify(dataExtractorFactory).newExtractor(0L, 1000L);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
         flushRequest.setCalcInterim(true);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
@@ -78,7 +83,7 @@ public class ScheduledJobTests extends ESTestCase {
         long next = scheduledJob.runLookBack(0L, null);
         assertEquals(2000 + frequencyMs + 100, next);
 
-        verify(dataExtractor).newSearch(eq(0L), eq(1500L), any());
+        verify(dataExtractorFactory).newExtractor(0L, 1500L);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
         flushRequest.setCalcInterim(true);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
@@ -100,7 +105,7 @@ public class ScheduledJobTests extends ESTestCase {
         long next = scheduledJob.runLookBack(0L, null);
         assertEquals(10000 + frequencyMs + 100, next);
 
-        verify(dataExtractor).newSearch(eq(5000 + 1L), eq(currentTime - queryDelayMs), any());
+        verify(dataExtractorFactory).newExtractor(5000 + 1L, currentTime - queryDelayMs);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
         flushRequest.setCalcInterim(true);
         verify(client).execute(same(FlushJobAction.INSTANCE), eq(flushRequest));
@@ -114,7 +119,7 @@ public class ScheduledJobTests extends ESTestCase {
         long next = scheduledJob.runRealtime();
         assertEquals(currentTime + frequencyMs + 100, next);
 
-        verify(dataExtractor).newSearch(eq(1000L + 1L), eq(currentTime - queryDelayMs), any());
+        verify(dataExtractorFactory).newExtractor(1000L + 1L, currentTime - queryDelayMs);
         FlushJobAction.Request flushRequest = new FlushJobAction.Request("_job_id");
         flushRequest.setCalcInterim(true);
         flushRequest.setAdvanceTime("1000");
@@ -122,7 +127,6 @@ public class ScheduledJobTests extends ESTestCase {
     }
 
     public void testEmptyDataCount() throws Exception {
-        dataExtractor = mock(DataExtractor.class);
         when(dataExtractor.hasNext()).thenReturn(false);
 
         ScheduledJob scheduledJob = createScheduledJob(1000, 500, -1, -1);
@@ -130,7 +134,6 @@ public class ScheduledJobTests extends ESTestCase {
     }
 
     public void testExtractionProblem() throws Exception {
-        dataExtractor = mock(DataExtractor.class);
         when(dataExtractor.hasNext()).thenReturn(true);
         when(dataExtractor.next()).thenThrow(new IOException());
 
@@ -142,7 +145,7 @@ public class ScheduledJobTests extends ESTestCase {
 
         ArgumentCaptor<Long> startTimeCaptor = ArgumentCaptor.forClass(Long.class);
         ArgumentCaptor<Long> endTimeCaptor = ArgumentCaptor.forClass(Long.class);
-        verify(dataExtractor, times(2)).newSearch(startTimeCaptor.capture(), endTimeCaptor.capture(), any());
+        verify(dataExtractorFactory, times(2)).newExtractor(startTimeCaptor.capture(), endTimeCaptor.capture());
         assertEquals(0L, startTimeCaptor.getAllValues().get(0).longValue());
         assertEquals(1000L, startTimeCaptor.getAllValues().get(1).longValue());
         assertEquals(1000L, endTimeCaptor.getAllValues().get(0).longValue());
@@ -162,7 +165,7 @@ public class ScheduledJobTests extends ESTestCase {
 
         ArgumentCaptor<Long> startTimeCaptor = ArgumentCaptor.forClass(Long.class);
         ArgumentCaptor<Long> endTimeCaptor = ArgumentCaptor.forClass(Long.class);
-        verify(dataExtractor, times(2)).newSearch(startTimeCaptor.capture(), endTimeCaptor.capture(), any());
+        verify(dataExtractorFactory, times(2)).newExtractor(startTimeCaptor.capture(), endTimeCaptor.capture());
         assertEquals(0L, startTimeCaptor.getAllValues().get(0).longValue());
         assertEquals(1000L, startTimeCaptor.getAllValues().get(1).longValue());
         assertEquals(1000L, endTimeCaptor.getAllValues().get(0).longValue());
@@ -173,7 +176,7 @@ public class ScheduledJobTests extends ESTestCase {
     private ScheduledJob createScheduledJob(long frequencyMs, long queryDelayMs, long latestFinalBucketEndTimeMs,
                                             long latestRecordTimeMs) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
-        return new ScheduledJob("_job_id", frequencyMs, queryDelayMs, dataExtractor, client, auditor,
+        return new ScheduledJob("_job_id", frequencyMs, queryDelayMs, dataExtractorFactory, client, auditor,
                 currentTimeSupplier, latestFinalBucketEndTimeMs, latestRecordTimeMs);
     }
 

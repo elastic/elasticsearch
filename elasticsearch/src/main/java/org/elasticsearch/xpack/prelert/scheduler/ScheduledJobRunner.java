@@ -24,14 +24,14 @@ import org.elasticsearch.xpack.prelert.job.Job;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.audit.Auditor;
 import org.elasticsearch.xpack.prelert.job.config.DefaultFrequency;
-import org.elasticsearch.xpack.prelert.job.extraction.DataExtractor;
-import org.elasticsearch.xpack.prelert.job.extraction.DataExtractorFactory;
 import org.elasticsearch.xpack.prelert.job.metadata.Allocation;
 import org.elasticsearch.xpack.prelert.job.metadata.PrelertMetadata;
 import org.elasticsearch.xpack.prelert.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 import org.elasticsearch.xpack.prelert.job.persistence.QueryPage;
 import org.elasticsearch.xpack.prelert.job.results.Bucket;
+import org.elasticsearch.xpack.prelert.scheduler.extractor.DataExtractorFactory;
+import org.elasticsearch.xpack.prelert.scheduler.extractor.scroll.ScrollDataExtractorFactory;
 import org.elasticsearch.xpack.prelert.utils.ExceptionsHelper;
 
 import java.time.Duration;
@@ -47,18 +47,16 @@ public class ScheduledJobRunner extends AbstractComponent {
     private final Client client;
     private final ClusterService clusterService;
     private final JobProvider jobProvider;
-    private final DataExtractorFactory dataExtractorFactory;
     private final ThreadPool threadPool;
     private final Supplier<Long> currentTimeSupplier;
 
     public ScheduledJobRunner(ThreadPool threadPool, Client client, ClusterService clusterService, JobProvider jobProvider,
-                              DataExtractorFactory dataExtractorFactory, Supplier<Long> currentTimeSupplier) {
+                              Supplier<Long> currentTimeSupplier) {
         super(Settings.EMPTY);
-        this.threadPool = threadPool;
-        this.clusterService = Objects.requireNonNull(clusterService);
         this.client = Objects.requireNonNull(client);
+        this.clusterService = Objects.requireNonNull(clusterService);
         this.jobProvider = Objects.requireNonNull(jobProvider);
-        this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
+        this.threadPool = threadPool;
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
     }
 
@@ -192,12 +190,16 @@ public class ScheduledJobRunner extends AbstractComponent {
         Auditor auditor = jobProvider.audit(job.getId());
         Duration frequency = getFrequencyOrDefault(scheduler, job);
         Duration queryDelay = Duration.ofSeconds(scheduler.getConfig().getQueryDelay());
-        DataExtractor dataExtractor = dataExtractorFactory.newExtractor(scheduler.getConfig(), job);
+        DataExtractorFactory dataExtractorFactory = createDataExtractorFactory(scheduler.getConfig(), job);
         ScheduledJob scheduledJob =  new ScheduledJob(job.getId(), frequency.toMillis(), queryDelay.toMillis(),
-                dataExtractor, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
+                dataExtractorFactory, client, auditor, currentTimeSupplier, finalBucketEndMs, latestRecordTimeMs);
         Holder holder = new Holder(scheduler, scheduledJob, new ProblemTracker(() -> auditor), handler);
         task.setHolder(holder);
         return holder;
+    }
+
+    DataExtractorFactory createDataExtractorFactory(SchedulerConfig schedulerConfig, Job job) {
+        return new ScrollDataExtractorFactory(client, schedulerConfig, job);
     }
 
     private void gatherInformation(String jobId, BiConsumer<QueryPage<Bucket>, DataCounts> handler, Consumer<Exception> errorHandler) {

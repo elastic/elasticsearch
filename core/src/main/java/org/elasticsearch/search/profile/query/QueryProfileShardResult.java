@@ -22,7 +22,7 @@ package org.elasticsearch.search.profile.query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.profile.ProfileResult;
@@ -39,7 +39,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknown
  * A container class to hold the profile results for a single shard in the request.
  * Contains a list of query profiles, a collector tree and a total rewrite tree.
  */
-public final class QueryProfileShardResult implements Writeable, ToXContent {
+public final class QueryProfileShardResult implements Writeable, ToXContentObject {
 
     public static final String COLLECTOR = "collector";
     public static final String REWRITE_TIME = "rewrite_time";
@@ -98,6 +98,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startArray(QUERY_ARRAY);
         for (ProfileResult p : queryProfileResults) {
             p.toXContent(builder, params);
@@ -107,6 +108,7 @@ public final class QueryProfileShardResult implements Writeable, ToXContent {
         builder.startArray(COLLECTOR);
         profileCollector.toXContent(builder, params);
         builder.endArray();
+        builder.endObject();
         return builder;
     }
 

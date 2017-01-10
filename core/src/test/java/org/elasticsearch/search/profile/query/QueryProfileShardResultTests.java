@@ -53,9 +53,7 @@ public class QueryProfileShardResultTests extends ESTestCase {
         QueryProfileShardResult profileResult = createTestItem();
         XContentType xcontentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
-        builder.startObject();
         builder = profileResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
 
         XContentParser parser = createParser(builder);
         XContentParserUtils.ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);

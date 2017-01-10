@@ -22,7 +22,6 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -254,10 +252,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
 
     protected abstract XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException;
 
-    static SuggestionBuilder<?> fromXContent(QueryParseContext parseContext, Suggesters suggesters)
-            throws IOException {
-        XContentParser parser = parseContext.parser();
-        ParseFieldMatcher parsefieldMatcher = parseContext.getParseFieldMatcher();
+    static SuggestionBuilder<?> fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         String currentFieldName = null;
         String suggestText = null;
@@ -279,7 +274,7 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
                     throw new ParsingException(parser.getTokenLocation(), "suggestion does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                suggestionBuilder = suggesters.getSuggester(currentFieldName).innerFromXContent(parseContext);
+                suggestionBuilder = parser.namedObject(SuggestionBuilder.class, currentFieldName, null);
             }
         }
         if (suggestionBuilder == null) {

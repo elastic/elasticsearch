@@ -22,7 +22,6 @@ package org.elasticsearch.search.suggest.phrase;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,7 +36,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
@@ -126,7 +124,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
     /**
      * Read from a stream.
      */
-    PhraseSuggestionBuilder(StreamInput in) throws IOException {
+    public PhraseSuggestionBuilder(StreamInput in) throws IOException {
         super(in);
         maxErrors = in.readFloat();
         realWordErrorLikelihood = in.readFloat();
@@ -488,10 +486,8 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
         return builder;
     }
 
-    static PhraseSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static PhraseSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
         PhraseSuggestionBuilder tmpSuggestion = new PhraseSuggestionBuilder("_na_");
-        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
         XContentParser.Token token;
         String currentFieldName = null;
         String fieldname = null;
@@ -529,7 +525,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                 if (DirectCandidateGeneratorBuilder.DIRECT_GENERATOR_FIELD.match(currentFieldName)) {
                     // for now we only have a single type of generators
                     while ((token = parser.nextToken()) == Token.START_OBJECT) {
-                        tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.fromXContent(parseContext));
+                        tmpSuggestion.addCandidateGenerator(DirectCandidateGeneratorBuilder.PARSER.apply(parser, null));
                     }
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -538,7 +534,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
             } else if (token == Token.START_OBJECT) {
                 if (PhraseSuggestionBuilder.SMOOTHING_MODEL_FIELD.match(currentFieldName)) {
                     ensureNoSmoothing(tmpSuggestion);
-                    tmpSuggestion.smoothingModel(SmoothingModel.fromXContent(parseContext));
+                    tmpSuggestion.smoothingModel(SmoothingModel.fromXContent(parser));
                 } else if (PhraseSuggestionBuilder.HIGHLIGHT_FIELD.match(currentFieldName)) {
                     String preTag = null;
                     String postTag = null;
@@ -567,7 +563,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
                                         "suggester[phrase][collate] query already set, doesn't support additional ["
                                         + currentFieldName + "]");
                             }
-                            Script template = Script.parse(parser, parseFieldMatcher, "mustache");
+                            Script template = Script.parse(parser, "mustache");
                             tmpSuggestion.collateQuery(template);
                         } else if (PhraseSuggestionBuilder.COLLATE_QUERY_PARAMS.match(currentFieldName)) {
                             tmpSuggestion.collateParams(parser.map());

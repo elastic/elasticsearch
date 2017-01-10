@@ -21,8 +21,6 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -98,7 +96,7 @@ public final class CategoryQueryContext implements ToXContent {
         return result;
     }
 
-    private static ObjectParser<Builder, ParseFieldMatcherSupplier> CATEGORY_PARSER = new ObjectParser<>(NAME, null);
+    private static ObjectParser<Builder, Void> CATEGORY_PARSER = new ObjectParser<>(NAME, null);
     static {
         CATEGORY_PARSER.declareString(Builder::setCategory, new ParseField(CONTEXT_VALUE));
         CATEGORY_PARSER.declareInt(Builder::setBoost, new ParseField(CONTEXT_BOOST));
@@ -110,7 +108,7 @@ public final class CategoryQueryContext implements ToXContent {
         XContentParser.Token token = parser.currentToken();
         Builder builder = builder();
         if (token == XContentParser.Token.START_OBJECT) {
-            CATEGORY_PARSER.parse(parser, builder, () -> ParseFieldMatcher.STRICT);
+            CATEGORY_PARSER.parse(parser, builder, null);
         } else if (token == XContentParser.Token.VALUE_STRING) {
             builder.setCategory(parser.text());
         } else {

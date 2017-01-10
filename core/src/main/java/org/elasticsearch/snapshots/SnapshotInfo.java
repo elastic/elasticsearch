@@ -21,7 +21,7 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -68,6 +68,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String TOTAL_SHARDS = "total_shards";
     private static final String SUCCESSFUL_SHARDS = "successful_shards";
 
+    private static final Version VERSION_INCOMPATIBLE_INTRODUCED = Version.V_5_2_0_UNRELEASED;
+
     private final SnapshotId snapshotId;
 
     private final SnapshotState state;
@@ -84,6 +86,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     private final int successfulShards;
 
+    @Nullable
     private final Version version;
 
     private final List<SnapshotShardFailure> shardFailures;
@@ -139,7 +142,21 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         } else {
             shardFailures = Collections.emptyList();
         }
-        version = Version.readVersion(in);
+        if (in.getVersion().before(VERSION_INCOMPATIBLE_INTRODUCED)) {
+            version = Version.readVersion(in);
+        } else {
+            version = in.readBoolean() ? Version.readVersion(in) : null;
+        }
+    }
+
+    /**
+     * Gets a new {@link SnapshotInfo} instance for a snapshot that is incompatible with the
+     * current version of the cluster.
+     */
+    public static SnapshotInfo incompatible(SnapshotId snapshotId) {
+        return new SnapshotInfo(snapshotId, Collections.emptyList(), SnapshotState.INCOMPATIBLE,
+                                "the snapshot is incompatible with the current version of Elasticsearch and its exact version is unknown",
+                                null, 0L, 0L, 0, 0, Collections.emptyList());
     }
 
     /**
@@ -235,10 +252,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     }
 
     /**
-     * Returns the version of elasticsearch that the snapshot was created with
+     * Returns the version of elasticsearch that the snapshot was created with.  Will only
+     * return {@code null} if {@link #state()} returns {@link SnapshotState#INCOMPATIBLE}.
      *
      * @return version of elasticsearch that the snapshot was created with
      */
+    @Nullable
     public Version version() {
         return version;
     }
@@ -306,8 +325,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.startObject();
         builder.field(SNAPSHOT, snapshotId.getName());
         builder.field(UUID, snapshotId.getUUID());
-        builder.field(VERSION_ID, version.id);
-        builder.field(VERSION, version.toString());
+        if (version != null) {
+            builder.field(VERSION_ID, version.id);
+            builder.field(VERSION, version.toString());
+        } else {
+            builder.field(VERSION, "unknown");
+        }
         builder.startArray(INDICES);
         for (String index : indices) {
             builder.value(index);
@@ -346,6 +369,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.startObject(SNAPSHOT);
         builder.field(NAME, snapshotId.getName());
         builder.field(UUID, snapshotId.getUUID());
+        assert version != null : "version must always be known when writing a snapshot metadata blob";
         builder.field(VERSION_ID, version.id);
         builder.startArray(INDICES);
         for (String index : indices) {
@@ -472,7 +496,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         for (String index : indices) {
             out.writeString(index);
         }
-        out.writeByte(state.value());
+        if (out.getVersion().before(VERSION_INCOMPATIBLE_INTRODUCED) && state == SnapshotState.INCOMPATIBLE) {
+            out.writeByte(SnapshotState.FAILED.value());
+        } else {
+            out.writeByte(state.value());
+        }
         out.writeOptionalString(reason);
         out.writeVLong(startTime);
         out.writeVLong(endTime);
@@ -482,7 +510,20 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         for (SnapshotShardFailure failure : shardFailures) {
             failure.writeTo(out);
         }
-        Version.writeVersion(version, out);
+        if (out.getVersion().before(VERSION_INCOMPATIBLE_INTRODUCED)) {
+            Version versionToWrite = version;
+            if (versionToWrite == null) {
+                versionToWrite = Version.CURRENT;
+            }
+            Version.writeVersion(versionToWrite, out);
+        } else {
+            if (version != null) {
+                out.writeBoolean(true);
+                Version.writeVersion(version, out);
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     private static SnapshotState snapshotState(final String reason, final List<SnapshotShardFailure> shardFailures) {

@@ -112,7 +112,7 @@ public class ScriptScoreFunctionBuilder extends ScoreFunctionBuilder<ScriptScore
                 currentFieldName = parser.currentName();
             } else {
                 if (Script.SCRIPT_PARSE_FIELD.match(currentFieldName)) {
-                    script = Script.parse(parser, parseContext.getParseFieldMatcher(), parseContext.getDefaultScriptLanguage());
+                    script = Script.parse(parser, parseContext.getDefaultScriptLanguage());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), NAME + " query does not support [" + currentFieldName + "]");
                 }

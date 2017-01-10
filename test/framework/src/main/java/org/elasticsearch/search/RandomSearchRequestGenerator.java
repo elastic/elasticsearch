@@ -302,7 +302,7 @@ public class RandomSearchRequestGenerator {
                 parser.nextToken();
                 parser.nextToken();
                 parser.nextToken();
-                builder.searchAfter(SearchAfterBuilder.fromXContent(parser, null).getSortValues());
+                builder.searchAfter(SearchAfterBuilder.fromXContent(parser).getSortValues());
             } catch (IOException e) {
                 throw new RuntimeException("Error building search_from", e);
             }

@@ -79,8 +79,57 @@ GET _tasks?parent_task_id=parentTaskId:1 <1>
 
 <1> This won't return a 404 if the parent isn't found.
 
-The task API can be also used to wait for completion of a particular task. The following call will
-block for 10 seconds or until the task with id `oTUltX4IQMOUUVeiohTt8A:12345` is completed.
+You can also use the `detailed` request parameter to get more information about
+the running tasks. This is useful for telling one task from another but is more
+costly to execute. For example, fetching all searches using the `detailed`
+request parameter:
+
+[source,js]
+--------------------------------------------------
+GET _tasks?actions=*search&detailed
+--------------------------------------------------
+// CONSOLE
+
+might look like:
+
+[source,js]
+--------------------------------------------------
+{
+  "nodes" : {
+    "oTUltX4IQMOUUVeiohTt8A" : {
+      "name" : "H5dfFeA",
+      "transport_address" : "127.0.0.1:9300",
+      "host" : "127.0.0.1",
+      "ip" : "127.0.0.1:9300",
+      "tasks" : {
+        "oTUltX4IQMOUUVeiohTt8A:464" : {
+          "node" : "oTUltX4IQMOUUVeiohTt8A",
+          "id" : 464,
+          "type" : "transport",
+          "action" : "indices:data/read/search",
+          "description" : "indices[test], types[test], search_type[QUERY_THEN_FETCH], source[{\"query\":...}]",
+          "start_time_in_millis" : 1483478610008,
+          "running_time_in_nanos" : 13991383,
+          "cancellable" : true
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+The new `description` field contains human readable text that identifies the
+particular request that the task is performing such as identifying the search
+request being performed by a search task like the example above. Other kinds of
+task have have different descriptions, like <<docs-reindex,`_reindex`>> which
+has the search and the destination, or <<docs-bulk,`_bulk`>> which just has the
+number of requests and the destination indices. Many requests will only have an
+empty description because more detailed information about the request is not
+easily available or particularly helpful in identifying the request.
+
+The task API can also be used to wait for completion of a particular task. The
+following call will block for 10 seconds or until the task with id
+`oTUltX4IQMOUUVeiohTt8A:12345` is completed.
 
 [source,js]
 --------------------------------------------------
@@ -98,12 +147,13 @@ GET _tasks?actions=*reindex&wait_for_completion=true&timeout=10s
 --------------------------------------------------
 // CONSOLE
 
-Tasks can be also listed using _cat version of the list tasks command, which accepts the same arguments
-as the standard list tasks command.
+Tasks can be also listed using _cat version of the list tasks command, which
+accepts the same arguments as the standard list tasks command.
 
 [source,js]
 --------------------------------------------------
 GET _cat/tasks
+GET _cat/tasks?detailed
 --------------------------------------------------
 // CONSOLE
 

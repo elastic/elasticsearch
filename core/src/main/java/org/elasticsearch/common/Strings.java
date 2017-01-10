@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 
@@ -857,26 +858,17 @@ public class Strings {
     }
 
     /**
-     * Return a {@link String} that is the json representation of the provided
-     * {@link ToXContent}.
+     * Return a {@link String} that is the json representation of the provided {@link ToXContent}.
+     * Wraps the output into an anonymous object.
      */
     public static String toString(ToXContent toXContent) {
-        return toString(toXContent, false);
-    }
-
-    /**
-     * Return a {@link String} that is the json representation of the provided
-     * {@link ToXContent}.
-     * @param wrapInObject set this to true if the ToXContent instance expects to be inside an object
-     */
-    public static String toString(ToXContent toXContent, boolean wrapInObject) {
         try {
             XContentBuilder builder = JsonXContent.contentBuilder();
-            if (wrapInObject) {
+            if (toXContent.isFragment()) {
                 builder.startObject();
             }
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            if (wrapInObject) {
+            if (toXContent.isFragment()) {
                 builder.endObject();
             }
             return builder.string();

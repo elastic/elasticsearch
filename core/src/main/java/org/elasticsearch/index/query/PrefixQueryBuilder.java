@@ -173,7 +173,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(context.getParseFieldMatcher(), rewrite, null);
+        MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null);
 
         Query query = null;
         MappedFieldType fieldType = context.fieldMapper(fieldName);

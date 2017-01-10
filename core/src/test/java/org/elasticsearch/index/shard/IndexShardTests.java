@@ -126,6 +126,7 @@ import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
+import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -1493,7 +1494,7 @@ public class IndexShardTests extends IndexShardTestCase {
         public RepositoryData getRepositoryData() {
             Map<IndexId, Set<SnapshotId>> map = new HashMap<>();
             map.put(new IndexId(indexName, "blah"), emptySet());
-            return RepositoryData.initRepositoryData(Collections.emptyList(), map);
+            return new RepositoryData(EMPTY_REPO_GEN, Collections.emptyList(), map, Collections.emptyList());
         }
 
         @Override

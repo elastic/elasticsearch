@@ -35,6 +35,8 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.mocksocket.MockServerSocket;
+import org.elasticsearch.mocksocket.MockSocket;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.BufferedInputStream;
@@ -110,7 +112,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
 
     @Override
     protected MockChannel bind(final String name, InetSocketAddress address) throws IOException {
-        ServerSocket socket = new ServerSocket();
+        MockServerSocket socket = new MockServerSocket();
         socket.bind(address);
         socket.setReuseAddress(TCP_REUSE_ADDRESS.get(settings));
         ByteSizeValue tcpReceiveBufferSize = TCP_RECEIVE_BUFFER_SIZE.get(settings);
@@ -178,7 +180,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         final MockChannel[] mockChannels = new MockChannel[1];
         final NodeChannels nodeChannels = new NodeChannels(node, mockChannels, LIGHT_PROFILE); // we always use light here
         boolean success = false;
-        final Socket socket = new Socket();
+        final MockSocket socket = new MockSocket();
         try {
             Consumer<MockChannel> onClose = (channel) -> {
                 final NodeChannels connected = connectedNodes.get(node);

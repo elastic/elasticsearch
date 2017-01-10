@@ -21,7 +21,6 @@ package org.elasticsearch.search.suggest;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -138,9 +136,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable {
         return builder;
     }
 
-    public static SuggestBuilder fromXContent(QueryParseContext parseContext, Suggesters suggesters) throws IOException {
-        XContentParser parser = parseContext.parser();
-        ParseFieldMatcher parseFieldMatcher = parseContext.getParseFieldMatcher();
+    public static SuggestBuilder fromXContent(XContentParser parser) throws IOException {
         SuggestBuilder suggestBuilder = new SuggestBuilder();
         String fieldName = null;
 
@@ -164,7 +160,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable {
                 if (suggestionName == null) {
                     throw new IllegalArgumentException("suggestion must have name");
                 }
-                suggestBuilder.addSuggestion(suggestionName, SuggestionBuilder.fromXContent(parseContext, suggesters));
+                suggestBuilder.addSuggestion(suggestionName, SuggestionBuilder.fromXContent(parser));
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "unexpected token [" + token + "] after [" + fieldName + "]");
             }
@@ -195,8 +191,7 @@ public class SuggestBuilder extends ToXContentToBytes implements Writeable {
         if (other == null || getClass() != other.getClass()) {
             return false;
         }
-        @SuppressWarnings("unchecked")
-        SuggestBuilder o = (SuggestBuilder)other;
+        SuggestBuilder o = (SuggestBuilder) other;
         return Objects.equals(globalText, o.globalText) &&
                Objects.equals(suggestions, o.suggestions);
     }

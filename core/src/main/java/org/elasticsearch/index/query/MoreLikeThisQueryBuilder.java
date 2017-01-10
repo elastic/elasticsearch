@@ -36,7 +36,6 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -352,7 +351,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         /**
          * Parses and returns the given item.
          */
-        public static Item parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher, Item item) throws IOException {
+        public static Item parse(XContentParser parser, Item item) throws IOException {
             XContentParser.Token token;
             String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -895,7 +894,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                         if (token != XContentParser.Token.START_OBJECT) {
                             throw new IllegalArgumentException("docs array element should include an object");
                         }
-                        likeItems.add(Item.parse(parser, parseContext.getParseFieldMatcher(), new Item()));
+                        likeItems.add(Item.parse(parser, new Item()));
                     }
                 } else if (Field.STOP_WORDS.match(currentFieldName)) {
                     stopWords = new ArrayList<>();
@@ -956,7 +955,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         if (parser.currentToken().isValue()) {
             texts.add(parser.text());
         } else if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            items.add(Item.parse(parser, parseContext.getParseFieldMatcher(), new Item()));
+            items.add(Item.parse(parser, new Item()));
         } else {
             throw new IllegalArgumentException("Content of 'like' parameter should either be a string or an object");
         }

@@ -133,7 +133,7 @@ public class RestReindexActionTests extends ESTestCase {
 
     public void testPipelineQueryParameterIsError() throws IOException {
         SearchRequestParsers parsers = new SearchRequestParsers();
-        RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class), parsers, null);
+        RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class), parsers);
 
         FakeRestRequest.Builder request = new FakeRestRequest.Builder(xContentRegistry());
         try (XContentBuilder body = JsonXContent.contentBuilder().prettyPrint()) {

@@ -90,4 +90,9 @@ public abstract class LocalClusterUpdateTask implements ClusterStateTaskConfig, 
     public final boolean runOnlyOnMaster() {
         return false;
     }
+
+    @Override
+    public final boolean isPublishingTask() {
+        return false;
+    }
 }

@@ -470,7 +470,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         }
 
         @Override
-        protected void assertClusterStateThread() {
+        protected void assertClusterOrMasterStateThread() {
             // do not check this in the unit tests
         }
 

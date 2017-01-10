@@ -18,24 +18,28 @@
  */
 package org.elasticsearch.test;
 
+import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.BiConsumer;
 
 import static junit.framework.TestCase.fail;
 
@@ -63,8 +67,7 @@ public class ClusterServiceUtils {
                 // skip
             }
         });
-        clusterService.setClusterStatePublisher((event, ackListener) -> {
-        });
+        clusterService.setClusterStatePublisher(createClusterStatePublisher(clusterService));
         clusterService.setDiscoverySettings(new DiscoverySettings(Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         clusterService.start();
@@ -72,6 +75,41 @@ public class ClusterServiceUtils {
         nodes.masterNodeId(clusterService.localNode().getId());
         setState(clusterService, ClusterState.builder(clusterService.state()).nodes(nodes));
         return clusterService;
+    }
+
+    public static BiConsumer<ClusterChangedEvent, Discovery.AckListener> createClusterStatePublisher(ClusterService clusterService) {
+        return (event, ackListener) -> {
+            CountDownLatch latch = new CountDownLatch(1);
+            clusterService.submitStateUpdateTask("apply_cluster_state[" + event.source() + "]", new LocalClusterUpdateTask() {
+                @Override
+                public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
+                    if (event.state().version() > currentState.version()) {
+                        return newState(event.state());
+                    } else {
+                        return unchanged();
+                    }
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    latch.countDown();
+                    throw new AssertionError("unexpected exception", e);
+                }
+            });
+            if (clusterService.lifecycleState().equals(Lifecycle.State.STOPPED) == false) {
+                // if cluster service is stopped, there is no point in waiting
+                try {
+                    latch.await();
+                } catch (Exception e) {
+                    Throwables.rethrow(e);
+                }
+            }
+        };
     }
 
     public static ClusterService createClusterService(ClusterState initialState, ThreadPool threadPool) {

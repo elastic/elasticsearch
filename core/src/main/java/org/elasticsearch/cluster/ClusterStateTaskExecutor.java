@@ -38,6 +38,10 @@ public interface ClusterStateTaskExecutor<T> {
         return true;
     }
 
+    default boolean isPublishingTask() {
+        return true;
+    }
+
     /**
      * Callback invoked after new cluster state is published. Note that
      * this method is not invoked if the cluster state was not updated.

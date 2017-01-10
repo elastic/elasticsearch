@@ -312,11 +312,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         // update the set of nodes to ping after the new cluster state has been published
         nodesFD.updateNodesAndPing(clusterChangedEvent.state());
-
-        // clean the pending cluster queue - we are currently master, so any pending cluster state should be failed
-        // note that we also clean the queue on master failure (see handleMasterGone) but a delayed cluster state publish
-        // from a stale master can still make it in the queue during the election (but not be committed)
-        publishClusterState.pendingStatesQueue().failAllStatesAndClear(new ElasticsearchException("elected as master"));
     }
 
     /**
@@ -717,7 +712,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
                 assert newClusterState.nodes().getMasterNode() != null : "received a cluster state without a master";
                 assert !newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 
-                if (currentState.nodes().isLocalNodeElectedMaster()) {
+                if (currentState.nodes().isLocalNodeElectedMaster() && newClusterState.nodes().getMasterNodeId() != null && newClusterState.nodes().isLocalNodeElectedMaster() == false) {
                     return handleAnotherMaster(currentState, newClusterState.nodes().getMasterNode(), newClusterState.version(), "via a new cluster state");
                 }
 
@@ -944,7 +939,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
     protected ClusterStateTaskExecutor.ClusterTasksResult<LocalClusterUpdateTask> rejoin(ClusterState clusterState, String reason) {
 
         // *** called from within an cluster state update task *** //
-        assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME);
+        assert Thread.currentThread().getName().contains(ClusterService.CLUSTER_UPDATE_THREAD_NAME);
 
         logger.warn("{}, current nodes: {}", reason, clusterState.nodes());
         nodesFD.stop();
@@ -962,7 +957,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
     private ClusterStateTaskExecutor.ClusterTasksResult handleAnotherMaster(ClusterState localClusterState, final DiscoveryNode otherMaster, long otherClusterStateVersion, String reason) {
         assert localClusterState.nodes().isLocalNodeElectedMaster() : "handleAnotherMaster called but current node is not a master";
-        assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
+        assert Thread.currentThread().getName().contains(ClusterService.CLUSTER_UPDATE_THREAD_NAME) : "not called from the cluster state update thread";
 
         if (otherClusterStateVersion > localClusterState.version()) {
             return rejoin(localClusterState, "zen-disco-discovered another master with a new cluster_state [" + otherMaster + "][" + reason + "]");
@@ -1160,7 +1155,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         /** starts a new joining thread if there is no currently active one and join thread controlling is started */
         public void startNewThreadIfNotRunning() {
-            ClusterService.assertClusterStateThread();
+            ClusterService.assertClusterOrMasterStateThread();
             if (joinThreadActive()) {
                 return;
             }
@@ -1193,7 +1188,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
          * If the given thread is not the currently running join thread, the command is ignored.
          */
         public void markThreadAsDoneAndStartNew(Thread joinThread) {
-            ClusterService.assertClusterStateThread();
+            ClusterService.assertClusterOrMasterStateThread();
             if (!markThreadAsDone(joinThread)) {
                 return;
             }
@@ -1202,7 +1197,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
 
         /** marks the given joinThread as completed. Returns false if the supplied thread is not the currently active join thread */
         public boolean markThreadAsDone(Thread joinThread) {
-            ClusterService.assertClusterStateThread();
+            ClusterService.assertClusterOrMasterStateThread();
             return currentJoinThread.compareAndSet(joinThread, null);
         }
 

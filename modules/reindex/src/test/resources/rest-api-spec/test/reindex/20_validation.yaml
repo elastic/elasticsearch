@@ -295,3 +295,21 @@
             index: test
           dest:
             index: dest
+
+---
+"_source:false is rejected":
+  - do:
+      index:
+        index:   source
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      catch: /_source:false is not supported in this context/
+      reindex:
+        body:
+          source:
+            index: source
+            _source: false
+          dest:
+            index: dest

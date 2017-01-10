@@ -1,6 +1,6 @@
 ## Vagrant build environment
 
-This provides a vagrant box for building the C++ side of Prelert (and the Java side,
+This provides a vagrant box for building the C++ side of Ml (and the Java side,
 although that is easily accomplished outside vagrant).
 
 Provisioning the box will take a fair amount of time, since it needs to download
@@ -11,11 +11,11 @@ and compile a number of dependencies.
 - Ubuntu Trusty64 (14.04.5 LTS)
 - 25% of host's memory
 - 100% host's cores
-- Maps prelert source repository to `/home/vagrant/prelert/src`
-  - Directory is shared with the host, so you can point your IDE to the prelert repo
+- Maps ml source repository to `/home/vagrant/ml/src`
+  - Directory is shared with the host, so you can point your IDE to the ml repo
     and build inside vagrant
-- Maps prelert build directory to `/home/vagrant/prelert/build`
-- Changes into `/home/vagrant/prelert/src` on login
+- Maps ml build directory to `/home/vagrant/ml/build`
+- Changes into `/home/vagrant/ml/src` on login
 
 ### Pre-baked box
 Don't feel like compiling the entire box?  No fear, there's a pre-baked box available
@@ -28,16 +28,16 @@ $ cd ~/some_directory
 
 # Export the path to your prelert-legacy repo. This is so the box knows where
 # to sync the folders
-$ export PRELERT_SRC_HOME=/path/to/prelert-legacy
+$ export ML_SRC_HOME=/path/to/prelert-legacy
 
 # Download the box from S3
-$ s3cmd get s3://prelert-elastic-dump/prelert_env.box
+$ s3cmd get s3://ml-elastic-dump/ml_env.box
   # ...
   # Downloading...
   # ...
 
-$ vagrant box add prelert prelert_env.box
-$ vagrant init prelert
+$ vagrant box add ml ml_env.box
+$ vagrant init ml
 $ vagrant up
 $ vagrant ssh
 
@@ -46,16 +46,16 @@ $ vagrant ssh
   ...
   Last login: Tue Oct  4 16:06:32 2016 from 10.0.2.2
 
-vagrant@vagrant-ubuntu-trusty-64:~/prelert/src$
+vagrant@vagrant-ubuntu-trusty-64:~/ml/src$
 ```  
 
-Once you've logged into the box, you'll be in the prelert source directory. You
+Once you've logged into the box, you'll be in the ml source directory. You
 can build immediately via:
 
 ```bash
-vagrant@vagrant-ubuntu-trusty-64:~/prelert/src$ gradle cppmake
+vagrant@vagrant-ubuntu-trusty-64:~/ml/src$ gradle cppmake
 ```
-The pre-baked box has already compiled prelert once, so subsequent compilations
+The pre-baked box has already compiled ml once, so subsequent compilations
 should happen considerably faster.
 
 ### Compiling from Scratch
@@ -76,14 +76,14 @@ $ vagrant ssh
   ...
   Last login: Tue Oct  4 16:06:32 2016 from 10.0.2.2
 
-vagrant@vagrant-ubuntu-trusty-64:~/prelert/src$
+vagrant@vagrant-ubuntu-trusty-64:~/ml/src$
 ```
 
-Once you've logged into the box, you'll be in the prelert source directory. You
+Once you've logged into the box, you'll be in the ml source directory. You
 can build immediately via:
 
 ```bash
-vagrant@vagrant-ubuntu-trusty-64:~/prelert/src$ gradle cppmake
+vagrant@vagrant-ubuntu-trusty-64:~/ml/src$ gradle cppmake
   # ...
   # much building
   # ...

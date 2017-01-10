@@ -23,7 +23,7 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-custom-all-test-1
+        index:  mlresults-custom-all-test-1
         type:   result
         id:     custom_all_1464739200000_1_1
         body:
@@ -47,7 +47,7 @@ setup:
 
   - do:
       index:
-        index:  prelertresults-custom-all-test-2
+        index:  mlresults-custom-all-test-2
         type:   result
         id:     custom_all_1464739200000_1_2
         body:
@@ -61,62 +61,62 @@ setup:
 
   - do:
       indices.refresh:
-        index: [prelertresults-custom-all-test-1, prelertresults-custom-all-test-2]
+        index: [mlresults-custom-all-test-1, mlresults-custom-all-test-2]
 
 ---
 "Test querying custom all field":
 
   - do:
       search:
-        index: prelertresults-custom-all-test-1
+        index: mlresults-custom-all-test-1
         body: { query: { query_string: { query: "A by field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: prelertresults-custom-all-test-1
+        index: mlresults-custom-all-test-1
         body: { query: { query_string: { query: "A partition field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: prelertresults-custom-all-test-1
+        index: mlresults-custom-all-test-1
         body: { query: { query_string: { query: "An over field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: prelertresults-custom-all-test-1
+        index: mlresults-custom-all-test-1
         body: { query: { query_string: { query: "An influencer field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: prelertresults-custom-all-test-1
+        index: mlresults-custom-all-test-1
         body: { query: { query_string: { query: "Cause by field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: prelertresults-custom-all-test-1
+        index: mlresults-custom-all-test-1
         body: { query: { query_string: { query: "Cause partition field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: prelertresults-custom-all-test-1
+        index: mlresults-custom-all-test-1
         body: { query: { query_string: { query: "Cause over field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: prelertresults-custom-all-test-1
+        index: mlresults-custom-all-test-1
         body: { query: { query_string: { query: "Cause correlated by field" } } }
   - match: { hits.total: 1 }
 
   - do:
       search:
-        index: prelertresults-custom-all-test-1
+        index: mlresults-custom-all-test-1
         body: { query: { query_string: { query: "custom-all-test-1" } } }
   - match: { hits.total: 1 }
 

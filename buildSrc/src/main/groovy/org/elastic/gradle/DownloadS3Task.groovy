@@ -51,7 +51,7 @@ class DownloadS3Task extends DefaultTask {
 
     @TaskAction
     public void downloadFromS3() {
-        AWSCredentials creds = new BasicAWSCredentials(project.prelertAwsAccessKey, project.prelertAwsSecretKey)
+        AWSCredentials creds = new BasicAWSCredentials(project.mlAwsAccessKey, project.mlAwsSecretKey)
 
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,

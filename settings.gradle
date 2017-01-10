@@ -1,4 +1,4 @@
-rootProject.name = 'prelert'
+rootProject.name = 'ml'
 include ':cpp'
 include ':elasticsearch'
 include ':docs'

@@ -4,9 +4,9 @@ import org.elastic.gradle.DownloadS3Task
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
-    name 'prelert'
-    description 'Prelert Plugin'
-    classname 'org.elasticsearch.xpack.prelert.PrelertPlugin'
+    name 'ml'
+    description 'Ml Plugin'
+    classname 'org.elasticsearch.xpack.ml.MlPlugin'
 }
 
 version = project.version
@@ -46,12 +46,12 @@ task downloadCppDist(type: DownloadS3Task) {
   bucket 'prelert-artifacts'
   destDir file("${buildDir}/cppDist")
   flatten true
-  download "maven/${project.group}/prelert-cpp/${project.version}/prelert-cpp-windows-x86_64-${project.version}.zip"
-  download  "maven/${project.group}/prelert-cpp/${project.version}/prelert-cpp-linux-x86_64-${project.version}.zip"
-  download  "maven/${project.group}/prelert-cpp/${project.version}/prelert-cpp-darwin-x86_64-${project.version}.zip"
-  outputs.file(file("${buildDir}/cppDist/prelert-cpp-windows-x86_64-${project.version}.zip"))
-  outputs.file(file("${buildDir}/cppDist/prelert-cpp-darwin-x86_64-${project.version}.zip"))
-  outputs.file(file("${buildDir}/cppDist/prelert-cpp-linux-x86_64-${project.version}.zip"))
+  download "maven/${project.group}/ml-cpp/${project.version}/ml-cpp-windows-x86_64-${project.version}.zip"
+  download  "maven/${project.group}/ml-cpp/${project.version}/ml-cpp-linux-x86_64-${project.version}.zip"
+  download  "maven/${project.group}/ml-cpp/${project.version}/ml-cpp-darwin-x86_64-${project.version}.zip"
+  outputs.file(file("${buildDir}/cppDist/ml-cpp-windows-x86_64-${project.version}.zip"))
+  outputs.file(file("${buildDir}/cppDist/ml-cpp-darwin-x86_64-${project.version}.zip"))
+  outputs.file(file("${buildDir}/cppDist/ml-cpp-linux-x86_64-${project.version}.zip"))
 }
 
 bundlePlugin {

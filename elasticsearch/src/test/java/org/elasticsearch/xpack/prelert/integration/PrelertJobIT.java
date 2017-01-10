@@ -291,7 +291,7 @@ public class PrelertJobIT extends ESRestTestCase {
                     Collections.emptyMap(), new StringEntity(RESULT_MAPPING));
         } catch (ResponseException e) {
             // it is ok: the index already exists
-            assertThat(e.getMessage(), containsString("index_already_exists_exception"));
+            assertThat(e.getMessage(), containsString("resource_already_exists_exception"));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         }
 
@@ -310,7 +310,7 @@ public class PrelertJobIT extends ESRestTestCase {
                     new StringEntity(RESULT_MAPPING));
         } catch (ResponseException e) {
             // it is ok: the index already exists
-            assertThat(e.getMessage(), containsString("index_already_exists_exception"));
+            assertThat(e.getMessage(), containsString("resource_already_exists_exception"));
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         }
 

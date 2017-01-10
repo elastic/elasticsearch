@@ -26,7 +26,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     }
 
     public Bucket createTestInstance(String jobId) {
-        Bucket bucket = new Bucket(jobId, new Date(randomPositiveLong()), randomPositiveLong());
+        Bucket bucket = new Bucket(jobId, new Date(randomNonNegativeLong()), randomNonNegativeLong());
         if (randomBoolean()) {
             bucket.setAnomalyScore(randomDouble());
         }
@@ -45,7 +45,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
             bucket.setBucketInfluencers(bucketInfluencers);
         }
         if (randomBoolean()) {
-            bucket.setEventCount(randomPositiveLong());
+            bucket.setEventCount(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             bucket.setInitialAnomalyScore(randomDouble());
@@ -103,7 +103,7 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     }
 
     public void testEquals_GivenDifferentClass() {
-        Bucket bucket = new Bucket("foo", new Date(randomLong()), randomPositiveLong());
+        Bucket bucket = new Bucket("foo", new Date(randomLong()), randomNonNegativeLong());
         assertFalse(bucket.equals("a string"));
     }
 

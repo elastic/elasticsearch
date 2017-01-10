@@ -26,7 +26,7 @@ public class PerPartitionMaxProbabilitiesTests extends AbstractSerializingTestCa
         }
 
         return new PerPartitionMaxProbabilities(randomAsciiOfLength(20), new DateTime(randomDateTimeZone()).toDate(),
-                randomPositiveLong(), pps);
+                randomNonNegativeLong(), pps);
     }
 
     @Override

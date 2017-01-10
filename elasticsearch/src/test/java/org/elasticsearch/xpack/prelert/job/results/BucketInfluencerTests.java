@@ -16,8 +16,8 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
 
     @Override
     protected BucketInfluencer createTestInstance() {
-        BucketInfluencer bucketInfluencer = new BucketInfluencer(randomAsciiOfLengthBetween(1, 20), new Date(randomPositiveLong()),
-                randomPositiveLong(), randomIntBetween(1, 1000));
+        BucketInfluencer bucketInfluencer = new BucketInfluencer(randomAsciiOfLengthBetween(1, 20), new Date(randomNonNegativeLong()),
+                randomNonNegativeLong(), randomIntBetween(1, 1000));
         if (randomBoolean()) {
             bucketInfluencer.setAnomalyScore(randomDouble());
         }

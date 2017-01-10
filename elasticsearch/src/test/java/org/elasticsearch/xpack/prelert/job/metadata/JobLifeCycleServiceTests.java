@@ -16,12 +16,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.prelert.action.UpdateJobStatusAction;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.elasticsearch.xpack.prelert.job.data.DataProcessor;
 import org.junit.Before;
+
+import java.net.InetAddress;
 
 import static org.elasticsearch.xpack.prelert.job.JobTests.buildJobBuilder;
 import static org.mockito.Matchers.any;
@@ -58,13 +60,13 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         verify(dataProcessor).closeJob("my_job_id");
     }
 
-    public void testClusterChanged_startJob() {
+    public void testClusterChanged_startJob() throws Exception {
         PrelertMetadata.Builder pmBuilder = new PrelertMetadata.Builder();
         pmBuilder.putJob(buildJobBuilder("my_job_id").build(), false);
         ClusterState cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_node_id"))
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
@@ -76,7 +78,7 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_node_id"))
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
@@ -89,7 +91,7 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_node_id"))
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
@@ -101,7 +103,7 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         verify(dataProcessor, times(1)).openJob("my_job_id", false);
     }
 
-    public void testClusterChanged_stopJob() {
+    public void testClusterChanged_stopJob() throws Exception {
         jobLifeCycleService.localAssignedJobs.add("my_job_id");
 
         PrelertMetadata.Builder pmBuilder = new PrelertMetadata.Builder();
@@ -109,7 +111,7 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         ClusterState cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_node_id"))
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
@@ -124,7 +126,7 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_node_id"))
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
@@ -132,7 +134,7 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         verify(dataProcessor, times(1)).closeJob("my_job_id");
     }
 
-    public void testClusterChanged_allocationDeletingJob() {
+    public void testClusterChanged_allocationDeletingJob() throws Exception {
         jobLifeCycleService.localAssignedJobs.add("my_job_id");
 
         PrelertMetadata.Builder pmBuilder = new PrelertMetadata.Builder();
@@ -141,7 +143,7 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         ClusterState cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_node_id"))
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs1, cs1));
@@ -152,7 +154,7 @@ public class JobLifeCycleServiceTests extends ESTestCase {
         ClusterState cs2 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_node_id"))
                 .build();
         jobLifeCycleService.clusterChanged(new ClusterChangedEvent("_source", cs2, cs1));

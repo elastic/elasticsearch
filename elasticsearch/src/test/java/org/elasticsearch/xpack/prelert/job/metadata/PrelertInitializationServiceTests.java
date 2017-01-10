@@ -15,12 +15,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.prelert.job.persistence.JobProvider;
 
+import java.net.InetAddress;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.mock.orig.Mockito.doAnswer;
@@ -33,7 +34,7 @@ import static org.mockito.Mockito.when;
 
 public class PrelertInitializationServiceTests extends ESTestCase {
 
-    public void testInitialize() {
+    public void testInitialize() throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
@@ -49,7 +50,7 @@ public class PrelertInitializationServiceTests extends ESTestCase {
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder())
@@ -61,7 +62,7 @@ public class PrelertInitializationServiceTests extends ESTestCase {
         verify(jobProvider, times(1)).createJobStateIndex(any());
     }
 
-    public void testInitialize_noMasterNode() {
+    public void testInitialize_noMasterNode() throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
@@ -77,7 +78,7 @@ public class PrelertInitializationServiceTests extends ESTestCase {
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT)))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT)))
                 .metaData(MetaData.builder())
                 .build();
         initializationService.clusterChanged(new ClusterChangedEvent("_source", cs, cs));
@@ -86,7 +87,7 @@ public class PrelertInitializationServiceTests extends ESTestCase {
         verify(jobProvider, times(0)).createUsageMeteringIndex(any());
     }
 
-    public void testInitialize_alreadyInitialized() {
+    public void testInitialize_alreadyInitialized() throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
@@ -102,7 +103,7 @@ public class PrelertInitializationServiceTests extends ESTestCase {
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder()
@@ -125,7 +126,7 @@ public class PrelertInitializationServiceTests extends ESTestCase {
         verify(jobProvider, times(0)).createJobStateIndex(any());
     }
 
-    public void testInitialize_onlyOnce() {
+    public void testInitialize_onlyOnce() throws Exception {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
@@ -141,7 +142,7 @@ public class PrelertInitializationServiceTests extends ESTestCase {
 
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_node_id")
                         .masterNodeId("_node_id"))
                 .metaData(MetaData.builder())

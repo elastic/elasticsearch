@@ -16,7 +16,7 @@ public class InfluencerTests extends AbstractSerializingTestCase<Influencer> {
 
     public  Influencer createTestInstance(String jobId) {
         Influencer influencer = new Influencer(jobId, randomAsciiOfLengthBetween(1, 20), randomAsciiOfLengthBetween(1, 20),
-                new Date(randomPositiveLong()), randomPositiveLong(), randomIntBetween(1, 1000));
+                new Date(randomNonNegativeLong()), randomNonNegativeLong(), randomIntBetween(1, 1000));
         influencer.setInterim(randomBoolean());
         influencer.setAnomalyScore(randomDouble());
         influencer.setInitialAnomalyScore(randomDouble());

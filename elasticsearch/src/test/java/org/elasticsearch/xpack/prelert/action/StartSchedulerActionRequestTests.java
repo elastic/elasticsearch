@@ -14,9 +14,9 @@ public class StartSchedulerActionRequestTests extends AbstractStreamableXContent
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAsciiOfLength(10), randomPositiveLong());
+        Request request = new Request(randomAsciiOfLength(10), randomNonNegativeLong());
         if (randomBoolean()) {
-            request.setEndTime(randomPositiveLong());
+            request.setEndTime(randomNonNegativeLong());
         }
         return request;
     }

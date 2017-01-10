@@ -30,7 +30,7 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
         List<Bucket> hits = new ArrayList<>(listSize);
         for (int j = 0; j < listSize; j++) {
             String jobId = "foo";
-            Bucket bucket = new Bucket(jobId, new Date(randomLong()), randomPositiveLong());
+            Bucket bucket = new Bucket(jobId, new Date(randomLong()), randomNonNegativeLong());
             if (randomBoolean()) {
                 bucket.setAnomalyScore(randomDouble());
             }
@@ -50,7 +50,7 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
                 bucket.setBucketInfluencers(bucketInfluencers);
             }
             if (randomBoolean()) {
-                bucket.setEventCount(randomPositiveLong());
+                bucket.setEventCount(randomNonNegativeLong());
             }
             if (randomBoolean()) {
                 bucket.setInitialAnomalyScore(randomDouble());
@@ -88,7 +88,7 @@ public class GetBucketActionResponseTests extends AbstractStreamableTestCase<Get
                 int size = randomInt(10);
                 List<AnomalyRecord> records = new ArrayList<>(size);
                 for (int i = 0; i < size; i++) {
-                    AnomalyRecord anomalyRecord = new AnomalyRecord(jobId, new Date(randomLong()), randomPositiveLong(), sequenceNum++);
+                    AnomalyRecord anomalyRecord = new AnomalyRecord(jobId, new Date(randomLong()), randomNonNegativeLong(), sequenceNum++);
                     anomalyRecord.setAnomalyScore(randomDouble());
                     anomalyRecord.setActual(Collections.singletonList(randomDouble()));
                     anomalyRecord.setTypical(Collections.singletonList(randomDouble()));

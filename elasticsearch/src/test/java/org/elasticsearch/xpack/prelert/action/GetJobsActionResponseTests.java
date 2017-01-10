@@ -35,13 +35,13 @@ public class GetJobsActionResponseTests extends AbstractStreamableTestCase<GetJo
         for (int j = 0; j < listSize; j++) {
             String jobId = randomAsciiOfLength(10);
             String description = randomBoolean() ? randomAsciiOfLength(10) : null;
-            Date createTime = new Date(randomPositiveLong());
-            Date finishedTime = randomBoolean() ? new Date(randomPositiveLong()) : null;
-            Date lastDataTime = randomBoolean() ? new Date(randomPositiveLong()) : null;
-            long timeout = randomPositiveLong();
+            Date createTime = new Date(randomNonNegativeLong());
+            Date finishedTime = randomBoolean() ? new Date(randomNonNegativeLong()) : null;
+            Date lastDataTime = randomBoolean() ? new Date(randomNonNegativeLong()) : null;
+            long timeout = randomNonNegativeLong();
             AnalysisConfig analysisConfig = new AnalysisConfig.Builder(
                     Collections.singletonList(new Detector.Builder("metric", "some_field").build())).build();
-            AnalysisLimits analysisLimits = new AnalysisLimits(randomPositiveLong(), randomPositiveLong());
+            AnalysisLimits analysisLimits = new AnalysisLimits(randomNonNegativeLong(), randomNonNegativeLong());
             DataDescription dataDescription = randomBoolean() ? new DataDescription.Builder().build() : null;
             int numTransformers = randomIntBetween(0, 32);
             List<TransformConfig> transformConfigList = new ArrayList<>(numTransformers);

@@ -23,7 +23,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
     }
 
     public AnomalyRecord createTestInstance(String jobId, int sequenceNum) {
-        AnomalyRecord anomalyRecord = new AnomalyRecord(jobId, new Date(randomPositiveLong()), randomPositiveLong(), sequenceNum);
+        AnomalyRecord anomalyRecord = new AnomalyRecord(jobId, new Date(randomNonNegativeLong()), randomNonNegativeLong(), sequenceNum);
         anomalyRecord.setActual(Collections.singletonList(randomDouble()));
         anomalyRecord.setTypical(Collections.singletonList(randomDouble()));
         anomalyRecord.setAnomalyScore(randomDouble());

@@ -57,10 +57,10 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
             builder.setScrollSize(randomIntBetween(0, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            builder.setFrequency(randomPositiveLong());
+            builder.setFrequency(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            builder.setQueryDelay(randomPositiveLong());
+            builder.setQueryDelay(randomNonNegativeLong());
         }
         return builder.build();
     }

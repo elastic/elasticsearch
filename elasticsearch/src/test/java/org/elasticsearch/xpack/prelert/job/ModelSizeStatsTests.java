@@ -57,19 +57,19 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
     protected ModelSizeStats createTestInstance() {
         ModelSizeStats.Builder stats = new ModelSizeStats.Builder("foo");
         if (randomBoolean()) {
-            stats.setBucketAllocationFailuresCount(randomPositiveLong());
+            stats.setBucketAllocationFailuresCount(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            stats.setModelBytes(randomPositiveLong());
+            stats.setModelBytes(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            stats.setTotalByFieldCount(randomPositiveLong());
+            stats.setTotalByFieldCount(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            stats.setTotalOverFieldCount(randomPositiveLong());
+            stats.setTotalOverFieldCount(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            stats.setTotalPartitionFieldCount(randomPositiveLong());
+            stats.setTotalPartitionFieldCount(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             stats.setLogTime(new Date(randomLong()));

@@ -37,7 +37,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
 
 
         if (randomBoolean()) {
-            builder.setBatchSpan(randomPositiveLong());
+            builder.setBatchSpan(randomNonNegativeLong());
         }
         long bucketSpan = AnalysisConfig.Builder.DEFAULT_BUCKET_SPAN;
         if (randomBoolean()) {
@@ -52,7 +52,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
         }
         if (randomBoolean()) {
-            builder.setLatency(randomPositiveLong());
+            builder.setLatency(randomNonNegativeLong());
         }
         if (randomBoolean()) {
             int numBucketSpans = randomIntBetween(0, 10);
@@ -69,7 +69,7 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
             builder.setOverlappingBuckets(randomBoolean());
         }
         if (randomBoolean()) {
-            builder.setResultFinalizationWindow(randomPositiveLong());
+            builder.setResultFinalizationWindow(randomNonNegativeLong());
         }
 
         builder.setUsePerPartitionNormalization(false);

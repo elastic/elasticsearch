@@ -35,8 +35,8 @@ public class GetSchedulersActionResponseTests extends AbstractStreamableTestCase
             SchedulerConfig.Builder schedulerConfig = new SchedulerConfig.Builder(schedulerId, jobId);
             schedulerConfig.setIndexes(randomSubsetOf(2, Arrays.asList("index-1", "index-2", "index-3")));
             schedulerConfig.setTypes(randomSubsetOf(2, Arrays.asList("type-1", "type-2", "type-3")));
-            schedulerConfig.setFrequency(randomPositiveLong());
-            schedulerConfig.setQueryDelay(randomPositiveLong());
+            schedulerConfig.setFrequency(randomNonNegativeLong());
+            schedulerConfig.setQueryDelay(randomNonNegativeLong());
             if (randomBoolean()) {
                 schedulerConfig.setQuery(QueryBuilders.termQuery(randomAsciiOfLength(10), randomAsciiOfLength(10)));
             }

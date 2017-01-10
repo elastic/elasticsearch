@@ -38,7 +38,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
         FlushAcknowledgement flushAcknowledgement;
         String jobId = "foo";
         if (randomBoolean()) {
-            bucket = new Bucket(jobId, new Date(randomLong()), randomPositiveLong());
+            bucket = new Bucket(jobId, new Date(randomLong()), randomNonNegativeLong());
         } else {
             bucket = null;
         }
@@ -46,7 +46,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             int size = randomInt(10);
             records = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                AnomalyRecord record = new AnomalyRecord(jobId, new Date(randomLong()), randomPositiveLong(), i + 1);
+                AnomalyRecord record = new AnomalyRecord(jobId, new Date(randomLong()), randomNonNegativeLong(), i + 1);
                 record.setProbability(randomDoubleBetween(0.0, 1.0, true));
                 records.add(record);
             }
@@ -57,7 +57,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             influencers = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
                 Influencer influencer = new Influencer(jobId, randomAsciiOfLength(10), randomAsciiOfLength(10),
-                        new Date(randomLong()), randomPositiveLong(), i + 1);
+                        new Date(randomLong()), randomNonNegativeLong(), i + 1);
                 influencer.setProbability(randomDoubleBetween(0.0, 1.0, true));
                 influencers.add(influencer);
             }

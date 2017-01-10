@@ -14,12 +14,13 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.prelert.job.JobStatus;
 import org.junit.Before;
 
+import java.net.InetAddress;
 import java.util.concurrent.ExecutorService;
 
 import static org.mockito.Mockito.doAnswer;
@@ -65,13 +66,13 @@ public class JobAllocatorTests extends ESTestCase {
         assertFalse("Job is allocate, so nothing to allocate", jobAllocator.shouldAllocate(cs));
     }
 
-    public void testAssignJobsToNodes() {
+    public void testAssignJobsToNodes() throws Exception {
         PrelertMetadata.Builder pmBuilder = new PrelertMetadata.Builder();
         pmBuilder.putJob(buildJobBuilder("my_job_id").build(), false);
         ClusterState cs1 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .masterNodeId("_node_id"))
                 .build();
         ClusterState result1 = jobAllocator.assignJobsToNodes(cs1);
@@ -85,8 +86,8 @@ public class JobAllocatorTests extends ESTestCase {
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(
                         DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id1", new LocalTransportAddress("_id1"), Version.CURRENT))
-                        .add(new DiscoveryNode("_node_id2", new LocalTransportAddress("_id2"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id1", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id2", new TransportAddress(InetAddress.getLoopbackAddress(), 9201), Version.CURRENT))
                         .masterNodeId("_node_id1")
                         )
                 .build();
@@ -105,7 +106,7 @@ public class JobAllocatorTests extends ESTestCase {
         ClusterState cs4 = ClusterState.builder(new ClusterName("_cluster_name")).metaData(MetaData.builder()
                 .putCustom(PrelertMetadata.TYPE, pmBuilder.build()))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_node_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_node_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .masterNodeId("_node_id"))
                 .build();
         ClusterState result3 = jobAllocator.assignJobsToNodes(cs4);
@@ -113,7 +114,7 @@ public class JobAllocatorTests extends ESTestCase {
         assertNull("my_job_id must be unallocated, because job has been removed", pm.getAllocations().get("my_job_id"));
     }
 
-    public void testClusterChanged_onlyAllocateIfMasterAndHaveUnAllocatedJobs() {
+    public void testClusterChanged_onlyAllocateIfMasterAndHaveUnAllocatedJobs() throws Exception {
         ExecutorService executorService = mock(ExecutorService.class);
         doAnswer(invocation -> {
             ((Runnable) invocation.getArguments()[0]).run();
@@ -125,7 +126,7 @@ public class JobAllocatorTests extends ESTestCase {
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, new PrelertMetadata.Builder().build()))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .localNodeId("_id")
                         )
                 .build();
@@ -137,7 +138,7 @@ public class JobAllocatorTests extends ESTestCase {
         cs = ClusterState.builder(new ClusterName("_name"))
                 .metaData(MetaData.builder().putCustom(PrelertMetadata.TYPE, new PrelertMetadata.Builder().build()))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .masterNodeId("_id")
                         .localNodeId("_id")
                         )
@@ -152,7 +153,7 @@ public class JobAllocatorTests extends ESTestCase {
         pmBuilder.assignToNode("my_job_id", "_node_id");
         cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .masterNodeId("_id")
                         .localNodeId("_id")
                         )
@@ -167,7 +168,7 @@ public class JobAllocatorTests extends ESTestCase {
         pmBuilder.putJob(buildJobBuilder("my_job_id").build(), false);
         cs = ClusterState.builder(new ClusterName("_name"))
                 .nodes(DiscoveryNodes.builder()
-                        .add(new DiscoveryNode("_id", new LocalTransportAddress("_id"), Version.CURRENT))
+                        .add(new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9200), Version.CURRENT))
                         .masterNodeId("_id")
                         .localNodeId("_id")
                         )

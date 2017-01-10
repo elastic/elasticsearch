@@ -75,7 +75,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         PARSER.declareLong(Builder::setQueryDelay, QUERY_DELAY);
         PARSER.declareLong(Builder::setFrequency, FREQUENCY);
         PARSER.declareObject(Builder::setQuery,
-                (p, c) -> new QueryParseContext(p, ParseFieldMatcher.STRICT).parseInnerQueryBuilder().get(), QUERY);
+                (p, c) -> new QueryParseContext(p, c.getParseFieldMatcher()).parseInnerQueryBuilder(), QUERY);
         PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(
                 new QueryParseContext(p, ParseFieldMatcher.STRICT)), AGGREGATIONS);
         PARSER.declareObject(Builder::setAggregations,(p, c) -> AggregatorFactories.parseAggregators(

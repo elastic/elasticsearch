@@ -22,11 +22,11 @@ public class GetInfluencersActionRequestTests extends AbstractStreamableXContent
     protected Request createTestInstance() {
         Request request = new Request(randomAsciiOfLengthBetween(1, 20));
         if (randomBoolean()) {
-            String start = randomBoolean() ? randomAsciiOfLengthBetween(1, 20) : String.valueOf(randomPositiveLong());
+            String start = randomBoolean() ? randomAsciiOfLengthBetween(1, 20) : String.valueOf(randomNonNegativeLong());
             request.setStart(start);
         }
         if (randomBoolean()) {
-            String end = randomBoolean() ? randomAsciiOfLengthBetween(1, 20) : String.valueOf(randomPositiveLong());
+            String end = randomBoolean() ? randomAsciiOfLengthBetween(1, 20) : String.valueOf(randomNonNegativeLong());
             request.setEnd(end);
         }
         if (randomBoolean()) {

@@ -15,7 +15,7 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
 
     @Override
     protected AnalysisLimits createTestInstance() {
-        return new AnalysisLimits(randomBoolean() ? randomLong() : null, randomBoolean() ? randomPositiveLong() : null);
+        return new AnalysisLimits(randomBoolean() ? randomLong() : null, randomBoolean() ? randomNonNegativeLong() : null);
     }
 
     @Override

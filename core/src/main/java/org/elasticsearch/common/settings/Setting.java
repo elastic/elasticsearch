@@ -45,6 +45,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -873,6 +874,16 @@ public class Setting<T> extends ToXContentToBytes {
                 throw new IllegalArgumentException("Failed to parse value [" + s + "] for setting [" + key + "] must be >= " + minValue);
             }
             return d;
+        }, properties);
+    }
+
+    public static <T> Setting<Optional<T>> optional(String key, Function<String, T> parserIfNotNull, Property... properties) {
+        return new Setting<>(key, (String) null, s -> {
+            if (s == null) {
+                return Optional.empty();
+            } else {
+                return Optional.of(parserIfNotNull.apply(s));
+            }
         }, properties);
     }
 

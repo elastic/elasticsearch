@@ -25,7 +25,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -65,6 +64,7 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 import static org.elasticsearch.search.fetch.subphase.highlight.HighlightField.readHighlightField;
@@ -568,7 +568,7 @@ public class InternalSearchHit implements SearchHit {
                    nodeId = parser.text();
                 } else if (MapperService.isMetadataField(currentFieldName)) {
                     List<Object> values = new ArrayList<>();
-                    values.add(parseValue(parser));
+                    values.add(parseStoredFieldsValue(parser));
                     fields.put(currentFieldName, new InternalSearchHitField(currentFieldName, values));
                 } else {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
@@ -598,7 +598,7 @@ public class InternalSearchHit implements SearchHit {
                         List<Object> values = new ArrayList<>();
                         ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
                         while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            values.add(parseValue(parser));
+                            values.add(parseStoredFieldsValue(parser));
                         }
                         fields.put(fieldName, new InternalSearchHitField(fieldName, values));
                     }
@@ -682,25 +682,6 @@ public class InternalSearchHit implements SearchHit {
             throw new ParsingException(parser.getTokenLocation(), "missing explanation description");
         }
         return Explanation.match(value, description, details);
-    }
-
-    public static Object parseValue(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        Object value = null;
-        if (token == XContentParser.Token.VALUE_STRING) {
-            //binary values will be parsed back and returned as base64 strings when reading from json and yaml
-            value = parser.text();
-        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-            value = parser.numberValue();
-        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-            value = parser.booleanValue();
-        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-            //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
-            value = new BytesArray(parser.binaryValue());
-        } else {
-            throwUnknownToken(token, parser.getTokenLocation());
-        }
-        return value;
     }
 
     private void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {

@@ -74,8 +74,8 @@ public class ShardId implements Streamable, Comparable<ShardId> {
 
     /**
      * Parse the string representation of this shardId back to an object.
-     * We loose index uuid information here, but since we use toString in
-     * rest responses, this is we best we can do to reconstruct the object
+     * We lose index uuid information here, but since we use toString in
+     * rest responses, this is the best we can do to reconstruct the object
      * on the client side.
      */
     public static ShardId fromString(String shardIdString) {
@@ -83,7 +83,6 @@ public class ShardId implements Streamable, Comparable<ShardId> {
         if (splitPosition <= 0 || shardIdString.charAt(0) != '[' || shardIdString.charAt(shardIdString.length() - 1) != ']') {
             throw new IllegalArgumentException("Unexpected shardId string format, expected [indexName][shardId] but got " + shardIdString);
         }
-        ;
         String indexName = shardIdString.substring(1, splitPosition);
         int shardId = Integer.parseInt(shardIdString.substring(splitPosition + 2, shardIdString.length() - 1));
         return new ShardId(new Index(indexName, IndexMetaData.INDEX_UUID_NA_VALUE), shardId);

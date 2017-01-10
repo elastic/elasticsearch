@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.search.internal.InternalSearchHit;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,6 +34,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.parseStoredFieldsValue;
 
 public class GetField implements Streamable, ToXContent, Iterable<Object> {
 
@@ -118,7 +118,7 @@ public class GetField implements Streamable, ToXContent, Iterable<Object> {
         ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
         List<Object> values = new ArrayList<>();
         while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            values.add(InternalSearchHit.parseValue(parser));
+            values.add(parseStoredFieldsValue(parser));
         }
         return new GetField(fieldName, values);
     }

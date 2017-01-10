@@ -67,6 +67,7 @@ A document is a basic unit of information that can be indexed. For example, you 
 
 Within an index/type, you can store as many documents as you want. Note that although a document physically resides in an index, a document actually must be indexed/assigned to a type inside an index.
 
+[[getting-started-shards-and-replicas]]
 [float]
 === Shards & Replicas
 

@@ -99,6 +99,13 @@ setup:
         timestamp: "2016-06-01T00:00:00Z"
         end: "2016-05-01T00:00:00Z"
 
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        timestamp: "2016-06-01T00:00:00Z"
+        anomaly_score: "80.0"
+
 ---
 "Test mutually-exclusive params (via body)":
   - do:
@@ -132,3 +139,11 @@ setup:
         body:
           timestamp: "2016-06-01T00:00:00Z"
           end: "2016-05-01T00:00:00Z"
+
+  - do:
+      catch: request
+      xpack.ml.get_buckets:
+        job_id: "farequote"
+        body:
+          timestamp: "2016-06-01T00:00:00Z"
+          anomaly_score: "80.0"

@@ -248,7 +248,7 @@ In some environments, it may make more sense to prepare a custom image containin
 FROM docker.elastic.co/elasticsearch/elasticsearch:{version}
 ADD elasticsearch.yml /usr/share/elasticsearch/config/
 USER root
-chown elasticsearch:elasticsearch config/elasticsearch.yml
+RUN chown elasticsearch:elasticsearch config/elasticsearch.yml
 USER elasticsearch
 --------------------------------------------
 

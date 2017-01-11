@@ -17,33 +17,38 @@
  * under the License.
  */
 
-package org.elasticsearch.common.xcontent.yaml;
+package org.elasticsearch.common.settings;
 
-import com.fasterxml.jackson.core.JsonGenerator;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
-import java.io.OutputStream;
-import java.util.Set;
+/**
+ * A mock implementation of secure settings for tests to use.
+ */
+public class MockSecureSettings implements SecureSettings {
 
-public class YamlXContentGenerator extends JsonXContentGenerator {
+    private Map<String, SecureString> secureStrings = new HashMap<>();
 
-    public YamlXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
-        super(jsonGenerator, os, includes, excludes);
+    @Override
+    public boolean isLoaded() {
+        return true;
     }
 
     @Override
-    public XContentType contentType() {
-        return XContentType.YAML;
+    public boolean hasSetting(String setting) {
+        return secureStrings.containsKey(setting);
     }
 
     @Override
-    public void usePrintLineFeedAtEnd() {
-        // nothing here
+    public SecureString getString(String setting) {
+        return secureStrings.get(setting);
+    }
+
+    public void setString(String setting, String value) {
+        secureStrings.put(setting, new SecureString(value.toCharArray()));
     }
 
     @Override
-    protected boolean supportsRawWrites() {
-        return false;
-    }
+    public void close() throws IOException {}
 }

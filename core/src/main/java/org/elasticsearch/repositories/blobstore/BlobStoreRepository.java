@@ -620,6 +620,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
                 try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes())) {
                     repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
+                } catch (NotXContentException e) {
+                    logger.warn("[{}] index blob is not valid x-content [{} bytes]", snapshotsIndexBlobName, out.bytes().length());
+                    throw e;
                 }
             }
 

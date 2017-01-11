@@ -123,7 +123,8 @@ public class Setting<T> extends ToXContentToBytes {
 
     private Setting(Key key, @Nullable Setting<T> fallbackSetting, Function<Settings, String> defaultValue, Function<String, T> parser,
             Property... properties) {
-        assert parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting(): "parser returned null";
+        assert this instanceof SecureSetting || parser.apply(defaultValue.apply(Settings.EMPTY)) != null || this.isGroupSetting()
+               : "parser returned null";
         this.key = key;
         this.fallbackSetting = fallbackSetting;
         this.defaultValue = defaultValue;
@@ -294,7 +295,7 @@ public class Setting<T> extends ToXContentToBytes {
      * Returns <code>true</code> iff this setting is present in the given settings object. Otherwise <code>false</code>
      */
     public boolean exists(Settings settings) {
-        return settings.contains(getKey());
+        return settings.getAsMap().containsKey(getKey());
     }
 
     /**

@@ -36,6 +36,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -176,9 +177,15 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             try (XContentParser xContentParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
                                     content)) {
                                 parsedResponse = parser.apply(xContentParser, () -> ParseFieldMatcher.STRICT);
+                            } catch (ParsingException e) {
+                                /* Because we're streaming the response we can't get a copy of it here. The best we can do is hint that it
+                                 * is totally wrong and we're probably not talking to Elasticsearch. */
+                                throw new ElasticsearchException(
+                                        "Error parsing the response, remote is likely not an Elasticsearch instance", e);
                             }
                         } catch (IOException e) {
-                            throw new ElasticsearchException("Error deserializing response", e);
+                            throw new ElasticsearchException("Error deserializing response, remote is likely not an Elasticsearch instance",
+                                    e);
                         }
                         listener.accept(parsedResponse);
                     }

@@ -39,18 +39,20 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         private int startOffset;
         private int endOffset;
         private int position;
+        private int positionLength;
         private Map<String, Object> attributes;
         private String type;
 
         AnalyzeToken() {
         }
 
-        public AnalyzeToken(String term, int position, int startOffset, int endOffset, String type,
-                            Map<String, Object> attributes) {
+        public AnalyzeToken(String term, int position, int startOffset, int endOffset, int positionLength,
+                            String type, Map<String, Object> attributes) {
             this.term = term;
             this.position = position;
             this.startOffset = startOffset;
             this.endOffset = endOffset;
+            this.positionLength = positionLength;
             this.type = type;
             this.attributes = attributes;
         }
@@ -71,6 +73,10 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             return this.position;
         }
 
+        public int getPositionLength() {
+            return this.positionLength;
+        }
+
         public String getType() {
             return this.type;
         }
@@ -87,6 +93,9 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             builder.field(Fields.END_OFFSET, endOffset);
             builder.field(Fields.TYPE, type);
             builder.field(Fields.POSITION, position);
+            if (positionLength > 1) {
+                builder.field(Fields.POSITION_LENGTH, positionLength);
+            }
             if (attributes != null && !attributes.isEmpty()) {
                 for (Map.Entry<String, Object> entity : attributes.entrySet()) {
                     builder.field(entity.getKey(), entity.getValue());
@@ -108,6 +117,12 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             startOffset = in.readInt();
             endOffset = in.readInt();
             position = in.readVInt();
+            Integer len = in.readOptionalVInt();
+            if (len != null) {
+                positionLength = len;
+            } else {
+                positionLength = 1;
+            }
             type = in.readOptionalString();
             if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
                 attributes = (Map<String, Object>) in.readGenericValue();
@@ -120,6 +135,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             out.writeInt(startOffset);
             out.writeInt(endOffset);
             out.writeVInt(position);
+            out.writeOptionalVInt(positionLength > 1 ? positionLength : null);
             out.writeOptionalString(type);
             if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
                 out.writeGenericValue(attributes);
@@ -208,6 +224,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         static final String END_OFFSET = "end_offset";
         static final String TYPE = "type";
         static final String POSITION = "position";
+        static final String POSITION_LENGTH = "positionLength";
         static final String DETAIL = "detail";
     }
 }

@@ -35,7 +35,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestBuilder;
@@ -47,14 +46,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.RestActions.buildBroadcastShardsHeader;
 
 public class RestSuggestAction extends BaseRestHandler {
-
-    private final SearchRequestParsers searchRequestParsers;
-
     @Inject
-    public RestSuggestAction(Settings settings, RestController controller,
-                             SearchRequestParsers searchRequestParsers) {
+    public RestSuggestAction(Settings settings, RestController controller) {
         super(settings);
-        this.searchRequestParsers = searchRequestParsers;
         controller.registerAsDeprecatedHandler(POST, "/_suggest", this,
                 "[POST /_suggest] is deprecated! Use [POST /_search] instead.", deprecationLogger);
         controller.registerAsDeprecatedHandler(GET, "/_suggest", this,

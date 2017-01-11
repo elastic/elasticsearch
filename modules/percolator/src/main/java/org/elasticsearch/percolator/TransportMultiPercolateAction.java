@@ -37,7 +37,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -52,17 +51,15 @@ import java.util.Map;
 public class TransportMultiPercolateAction extends HandledTransportAction<MultiPercolateRequest, MultiPercolateResponse> {
 
     private final Client client;
-    private final SearchRequestParsers searchRequestParsers;
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportMultiPercolateAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                         Client client, SearchRequestParsers searchRequestParsers, NamedXContentRegistry xContentRegistry) {
+                                         Client client, NamedXContentRegistry xContentRegistry) {
         super(settings, MultiPercolateAction.NAME, threadPool, transportService, actionFilters,
               indexNameExpressionResolver, MultiPercolateRequest::new);
         this.client = client;
-        this.searchRequestParsers = searchRequestParsers;
         this.xContentRegistry = xContentRegistry;
     }
 

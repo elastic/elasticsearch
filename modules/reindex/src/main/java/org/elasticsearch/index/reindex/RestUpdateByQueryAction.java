@@ -29,7 +29,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -44,8 +43,8 @@ import static org.elasticsearch.script.Script.DEFAULT_SCRIPT_LANG;
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
 
     @Inject
-    public RestUpdateByQueryAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
-        super(settings, searchRequestParsers, UpdateByQueryAction.INSTANCE);
+    public RestUpdateByQueryAction(Settings settings, RestController controller) {
+        super(settings, UpdateByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }

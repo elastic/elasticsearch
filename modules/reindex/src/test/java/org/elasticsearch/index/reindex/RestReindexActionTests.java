@@ -21,16 +21,13 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.reindex.RestReindexAction.ReindexParseContext;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
@@ -124,16 +121,14 @@ public class RestReindexActionTests extends ESTestCase {
         }
         try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             ReindexRequest r = new ReindexRequest(new SearchRequest(), new IndexRequest());
-            SearchRequestParsers searchParsers = new SearchRequestParsers();
-            RestReindexAction.PARSER.parse(p, r, new ReindexParseContext(searchParsers, ParseFieldMatcher.STRICT));
+            RestReindexAction.PARSER.parse(p, r, null);
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] {"source"}, r.getSearchRequest().indices());
         }
     }
 
     public void testPipelineQueryParameterIsError() throws IOException {
-        SearchRequestParsers parsers = new SearchRequestParsers();
-        RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class), parsers);
+        RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class));
 
         FakeRestRequest.Builder request = new FakeRestRequest.Builder(xContentRegistry());
         try (XContentBuilder body = JsonXContent.contentBuilder().prettyPrint()) {

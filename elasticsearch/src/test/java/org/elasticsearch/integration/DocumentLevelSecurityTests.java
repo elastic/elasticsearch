@@ -11,6 +11,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
+import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
@@ -26,6 +27,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortMode;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.xpack.XPackSettings;
@@ -281,6 +284,85 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .get();
         assertThat(response.getResponses()[0].isFailed(), is(false));
         assertThat(response.getResponses()[0].getResponse().isExists(), is(false));
+    }
+
+    public void testMSearch() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("test1")
+                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text", "id", "type=integer")
+        );
+        assertAcked(client().admin().indices().prepareCreate("test2")
+                .addMapping("type1", "field1", "type=text", "field2", "type=text", "field3", "type=text", "id", "type=integer")
+        );
+
+        client().prepareIndex("test1", "type1", "1").setSource("field1", "value1", "id", 1).get();
+        client().prepareIndex("test1", "type1", "2").setSource("field2", "value2", "id", 2).get();
+        client().prepareIndex("test1", "type1", "3").setSource("field3", "value3", "id", 3).get();
+        client().prepareIndex("test2", "type1", "1").setSource("field1", "value1", "id", 1).get();
+        client().prepareIndex("test2", "type1", "2").setSource("field2", "value2", "id", 2).get();
+        client().prepareIndex("test2", "type1", "3").setSource("field3", "value3", "id", 3).get();
+        client().admin().indices().prepareRefresh("test1", "test2").get();
+
+        MultiSearchResponse response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD)))
+                .prepareMultiSearch()
+                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .get();
+        assertFalse(response.getResponses()[0].isFailure());
+        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits(), is(1L));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSource().size(), is(2));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSource().get("field1"), is("value1"));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSource().get("id"), is(1));
+
+        assertFalse(response.getResponses()[1].isFailure());
+        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits(), is(1L));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSource().size(), is(2));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSource().get("field1"), is("value1"));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSource().get("id"), is(1));
+
+        response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user2", USERS_PASSWD)))
+                .prepareMultiSearch()
+                .add(client().prepareSearch("test1").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()))
+                .get();
+        assertFalse(response.getResponses()[0].isFailure());
+        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits(), is(1L));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSource().size(), is(2));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSource().get("field2"), is("value2"));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSource().get("id"), is(2));
+
+        assertFalse(response.getResponses()[1].isFailure());
+        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits(), is(1L));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSource().size(), is(2));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSource().get("field2"), is("value2"));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSource().get("id"), is(2));
+
+        response = client()
+                .filterWithHeader(Collections.singletonMap(BASIC_AUTH_HEADER, basicAuthHeaderValue("user3", USERS_PASSWD)))
+                .prepareMultiSearch()
+                .add(client().prepareSearch("test1").setTypes("type1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
+                        .setQuery(QueryBuilders.matchAllQuery()))
+                .add(client().prepareSearch("test2").setTypes("type1").addSort(SortBuilders.fieldSort("id").sortMode(SortMode.MIN))
+                        .setQuery(QueryBuilders.matchAllQuery()))
+                .get();
+        assertFalse(response.getResponses()[0].isFailure());
+        assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits(), is(2L));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSource().size(), is(2));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSource().get("field1"), is("value1"));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSource().get("id"), is(1));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSource().size(), is(2));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSource().get("field2"), is("value2"));
+        assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSource().get("id"), is(2));
+
+        assertFalse(response.getResponses()[1].isFailure());
+        assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits(), is(2L));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSource().size(), is(2));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSource().get("field1"), is("value1"));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSource().get("id"), is(1));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSource().size(), is(2));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSource().get("field2"), is("value2"));
+        assertThat(response.getResponses()[1].getResponse().getHits().getAt(1).getSource().get("id"), is(2));
     }
 
     public void testTVApi() throws Exception {

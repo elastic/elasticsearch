@@ -100,13 +100,8 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
         }
 
         if (licenseState.isAuthAllowed()) {
-            // only restore the context if it is not empty. This is needed because sometimes a response is sent to the user
-            // and then a cleanup action is executed (like for search without a scroll)
-            final boolean restoreOriginalContext = securityContext.getAuthentication() != null;
             final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
-            // we should always restore the original here because we forcefully changed to the system user
-            final ThreadContext.StoredContext toRestore =
-                    restoreOriginalContext || useSystemUser ? threadContext.newStoredContext() : () -> {};
+            final ThreadContext.StoredContext toRestore = threadContext.newStoredContext();
             final ActionListener<ActionResponse> signingListener = new ContextPreservingActionListener<>(threadContext, toRestore,
                     ActionListener.wrap(r -> {
                         try {
@@ -127,7 +122,9 @@ public class SecurityActionFilter extends AbstractComponent implements ActionFil
                         }
                     });
                 } else {
-                    applyInternal(action, request, authenticatedListener);
+                    try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
+                        applyInternal(action, request, authenticatedListener);
+                    }
                 }
             } catch (Exception e) {
                 listener.onFailure(e);

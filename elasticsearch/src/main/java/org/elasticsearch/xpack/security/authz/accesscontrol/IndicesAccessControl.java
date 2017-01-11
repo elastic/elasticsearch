@@ -11,11 +11,8 @@ import org.elasticsearch.xpack.security.authz.IndicesAndAliasesResolver;
 import org.elasticsearch.xpack.security.authz.permission.FieldPermissions;
 
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-
-import static java.util.Collections.unmodifiableSet;
 
 /**
  * Encapsulates the field and document permissions per concrete index based on the current request.

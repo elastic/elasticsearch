@@ -489,8 +489,10 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     @Override
     public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
+        boolean success = false;
+        NodeChannels nodeChannels = null;
         try {
-            NodeChannels nodeChannels = connectToChannels(node, connectionProfile);
+            nodeChannels = connectToChannels(node, connectionProfile);
             final Channel channel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
             final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
                 defaultConnectionProfile.getConnectTimeout() :
@@ -504,13 +506,19 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 // we do since 5.2 - in this case we just go with the version provided by the node.
                 return nodeChannels;
             }
-            return new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
+            nodeChannels = new NodeChannels(nodeChannels, version);// clone the channels - we now have the correct version
+            success = true;
+            return nodeChannels;
         } catch (ConnectTransportException e) {
             throw e;
         } catch (Exception e) {
             // ConnectTransportExceptions are handled specifically on the caller end - we wrap the actual exception to ensure
             // only relevant exceptions are logged on the caller end.. this is the same as in connectToNode
             throw new ConnectTransportException(node, "general node connection failure", e);
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(nodeChannels);
+            }
         }
     }
 
@@ -854,7 +862,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     @Override
-    protected final void doClose() {
+    protected void doClose() {
     }
 
     @Override

@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.repositories.s3.S3Repository.getValue;
 
@@ -142,25 +143,19 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
             if (key.length() == 0 && secret.length() == 0) {
                 // create a "manual" chain of providers here, so we can log deprecation of unsupported methods
-                AWSCredentials envCredentials = new EnvironmentVariableCredentialsProvider().getCredentials();
-                if (envCredentials.getAWSAccessKeyId() != null && envCredentials.getAWSSecretKey() != null) {
-                    logger.debug("Using environment variable credentials");
-                    deprecationLogger.deprecated("Supplying S3 credentials through environment variables is deprecated. " +
-                                                 "See the breaking changes lists in the documentation for details.");
+                AWSCredentials envCredentials = getDeprecatedCredentials(logger, deprecationLogger,
+                    new EnvironmentVariableCredentialsProvider(), "environment variables");
+                if (envCredentials != null) {
                     credentials = new StaticCredentialsProvider(envCredentials);
                 } else {
-                    AWSCredentials syspropCredentials = new SystemPropertiesCredentialsProvider().getCredentials();
-                    if (syspropCredentials.getAWSAccessKeyId() != null && syspropCredentials.getAWSSecretKey() != null) {
-                        logger.debug("Using system properties credentials");
-                        deprecationLogger.deprecated("Supplying S3 credentials through system properties is deprecated. " +
-                                                     "See the breaking changes lists in the documentation for details.");
+                    AWSCredentials syspropCredentials = getDeprecatedCredentials(logger, deprecationLogger,
+                        new SystemPropertiesCredentialsProvider(), "system properties");
+                    if (syspropCredentials != null) {
                         credentials = new StaticCredentialsProvider(syspropCredentials);
                     } else {
-                        AWSCredentials profileCredentials = new ProfileCredentialsProvider().getCredentials();
-                        if (profileCredentials.getAWSAccessKeyId() != null && profileCredentials.getAWSSecretKey() != null) {
-                            logger.debug("Using profile file credentials");
-                            deprecationLogger.deprecated("Supplying S3 credentials through a profile file is deprecated. " +
-                                                         "See the breaking changes lists in the documentation for details.");
+                        AWSCredentials profileCredentials = getDeprecatedCredentials(logger, deprecationLogger,
+                            new ProfileCredentialsProvider(), "profile file");
+                        if (profileCredentials != null) {
                             credentials = new StaticCredentialsProvider(profileCredentials);
                         } else {
                             logger.debug("Using instance profile credentials");
@@ -175,6 +170,23 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         }
 
         return credentials;
+    }
+
+    /** Return credentials from the given provider, or null if full credentials are not available */
+    private static AWSCredentials getDeprecatedCredentials(Logger logger, DeprecationLogger deprecationLogger,
+                                                           AWSCredentialsProvider provider, String description) {
+        try {
+            AWSCredentials credentials = provider.getCredentials();
+            if (credentials.getAWSAccessKeyId() != null && credentials.getAWSSecretKey() != null) {
+                logger.debug("Using " + description + " credentials");
+                deprecationLogger.deprecated("Supplying S3 credentials through " + description + " is deprecated. " +
+                    "See the breaking changes lists in the documentation for details.");
+                return credentials;
+            }
+        } catch (Exception e) {
+            logger.debug("Failed to get aws credentials from " + description, e);
+        }
+        return null;
     }
 
     protected static String findEndpoint(Logger logger, Settings settings, String endpoint, String region) {

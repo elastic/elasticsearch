@@ -54,9 +54,36 @@ bundlePlugin {
   }
 }
 
+additionalTest('testEnvCreds'){
+  include '**/EnvironmentCredentialsTests.class'
+  environment 'AWS_ACCESS_KEY_ID', 'env_access'
+  environment 'AWS_SECRET_ACCESS_KEY', 'env_secret'
+}
+
+additionalTest('testSyspropCreds'){
+  include '**/SyspropCredentialsTests.class'
+  systemProperty 'aws.accessKeyId', 'sysprop_access'
+  systemProperty 'aws.secretKey', 'sysprop_secret'
+}
+
+File fakeHome = new File(buildDir, 'tmp/fake-profile-home')
+additionalTest('testProfileCreds'){
+  doFirst {
+    File awsDir = new File(fakeHome, '.aws')
+    awsDir.mkdirs()
+    new File(awsDir, 'credentials').setText(
+      '[default]\n' +
+      'aws_access_key_id=profile_access\n' +
+      'aws_secret_access_key=profile_secret', 'UTF-8')
+  }
+  include '**/ProfileCredentialsTests.class'
+  systemProperty 'user.home', fakeHome
+  systemProperty 'tests.security.manager', 'false' // don't have permissions to read outside the tests
+}
+
 test {
-  // this is needed for insecure plugins, remove if possible!
-  systemProperty 'tests.artifact', project.name
+  // these are tested explicitly in separate test tasks
+  exclude '**/*CredentialsTests.class'
 }
 
 thirdPartyAudit.excludes = [

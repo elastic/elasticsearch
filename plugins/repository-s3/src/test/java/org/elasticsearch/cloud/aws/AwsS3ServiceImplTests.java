@@ -24,6 +24,7 @@ import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.auth.InstanceProfileCredentialsProvider;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.s3.S3Repository;
@@ -36,8 +37,8 @@ import static org.hamcrest.Matchers.is;
 public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
-        AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, Settings.EMPTY, Settings.EMPTY);
-        assertThat(credentialsProvider, instanceOf(DefaultAWSCredentialsProviderChain.class));
+        AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY);
+        assertThat(credentialsProvider, instanceOf(InstanceProfileCredentialsProvider.class));
     }
 
     public void testAWSCredentialsWithElasticsearchAwsSettings() {
@@ -251,7 +252,8 @@ public class AwsS3ServiceImplTests extends ESTestCase {
 
     protected void launchAWSCredentialsWithElasticsearchSettingsTest(Settings singleRepositorySettings, Settings settings,
                                                                      String expectedKey, String expectedSecret) {
-        AWSCredentials credentials = InternalAwsS3Service.buildCredentials(logger, settings, singleRepositorySettings).getCredentials();
+        AWSCredentials credentials =
+            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, settings, singleRepositorySettings).getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is(expectedKey));
         assertThat(credentials.getAWSSecretKey(), is(expectedSecret));
     }

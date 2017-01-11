@@ -146,7 +146,8 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 });
             } catch (ConnectTransportException | IllegalArgumentException ex) {
                 // we are getting the connection early here so we might run into nodes that are not connected. in that case we move on to
-                // the next shard.
+                // the next shard. previously when using discovery nodes here we had a special case for null when a node was not connected
+                // at all which is not not needed anymore.
                 onFirstPhaseResult(shardIndex, shard, shard.currentNodeId(), shardIt, ex);
             }
         }

@@ -15,7 +15,7 @@ the remote cluster.
 Remote clusters can either be configured as part of the `elasticsearch.yml` file or be dynamically updated via
 the <<cluster settings API, cluster-update-settings>>. If a remote cluster is configured via `elasticsearch.yml` only
 the nodes with the configuration set will be connecting to the remote cluster in which case federated search requests
-will have to be sent specifically to those nodes". Remote clusters set via the
+will have to be sent specifically to those nodes. Remote clusters set via the
 <<cluster settings API, cluster-update-settings>> will be available on every node in the cluster.
 
 The `elasticsearch.yml` config file for a _cross cluster search_ node just needs to list the

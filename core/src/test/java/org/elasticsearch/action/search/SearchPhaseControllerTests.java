@@ -31,7 +31,6 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.suggest.Suggest;
@@ -100,10 +99,11 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
         ScoreDoc[] sortedDocs = mergedScoreDocs.toArray(new ScoreDoc[mergedScoreDocs.size()]);
 
-        InternalSearchResponse mergedResponse = searchPhaseController.merge(true, sortedDocs, queryResults,
-            generateFetchResults(nShards, mergedSearchDocs, mergedSuggest));
-        assertThat(mergedResponse.hits().getHits().length, equalTo(mergedSearchDocs.length));
-        Suggest suggestResult = mergedResponse.suggest();
+        SearchResponse mergedResponse = new SearchResponse(searchPhaseController.merge(true, sortedDocs, queryResults,
+            generateFetchResults(nShards, mergedSearchDocs, mergedSuggest)), null, 0, 0, 0, null);
+
+        assertThat(mergedResponse.getHits().getHits().length, equalTo(mergedSearchDocs.length));
+        Suggest suggestResult = mergedResponse.getSuggest();
         for (Suggest.Suggestion<?> suggestion : mergedSuggest) {
             assertThat(suggestion, instanceOf(CompletionSuggestion.class));
             if (suggestion.getEntries().get(0).getOptions().size() > 0) {

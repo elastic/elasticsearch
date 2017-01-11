@@ -47,7 +47,7 @@ import java.util.stream.Collectors;
  */
 public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? extends Option>>>, Streamable, ToXContent {
 
-    private static final String NAME = "suggest";
+    public static final String NAME = "suggest";
 
     public static final Comparator<Option> COMPARATOR = (first, second) -> {
         int cmp = Float.compare(second.getScore(), first.getScore());

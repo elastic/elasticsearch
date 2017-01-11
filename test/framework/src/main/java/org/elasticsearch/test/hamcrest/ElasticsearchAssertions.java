@@ -790,7 +790,7 @@ public class ElasticsearchAssertions {
             Map<String, Object> actualMap = actualParser.map();
             try (XContentParser expectedParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, expected)) {
                 Map<String, Object> expectedMap = expectedParser.map();
-                assertMapEquals(expectedMap, actualMap);
+                assertMapEquals(expectedMap, actualMap, "");
             }
         }
     }
@@ -799,16 +799,17 @@ public class ElasticsearchAssertions {
      * Compares two maps recursively, using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
     @SuppressWarnings("unchecked")
-    private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual) {
-        assertEquals(expected.size(), actual.size());
+    private static void assertMapEquals(Map<String, Object> expected, Map<String, Object> actual, String path) {
+        assertEquals("Map sizes differ for path [" + path + "]", expected.size(), actual.size());
         for (Map.Entry<String, Object> expectedEntry : expected.entrySet()) {
             String expectedKey = expectedEntry.getKey();
             Object expectedValue = expectedEntry.getValue();
+            path = path + "/" + expectedKey;
             if (expectedValue == null) {
-                assertTrue(actual.get(expectedKey) == null && actual.containsKey(expectedKey));
+                assertTrue("Map value differs for path [" + path + "]", actual.get(expectedKey) == null && actual.containsKey(expectedKey));
             } else {
                 Object actualValue = actual.get(expectedKey);
-                assertObjectEquals(expectedValue, actualValue);
+                assertObjectEquals(expectedValue, actualValue, path);
             }
         }
     }
@@ -817,12 +818,12 @@ public class ElasticsearchAssertions {
      * Compares two lists recursively, but using arrays comparisons for byte[] through Arrays.equals(byte[], byte[])
      */
     @SuppressWarnings("unchecked")
-    private static void assertListEquals(List<Object> expected, List<Object> actual) {
+    private static void assertListEquals(List<Object> expected, List<Object> actual, String path) {
         assertEquals(expected.size(), actual.size());
         Iterator<Object> actualIterator = actual.iterator();
         for (Object expectedValue : expected) {
             Object actualValue = actualIterator.next();
-            assertObjectEquals(expectedValue, actualValue);
+            assertObjectEquals(expectedValue, actualValue, path);
         }
     }
 
@@ -831,12 +832,12 @@ public class ElasticsearchAssertions {
      * for byte[] through Arrays.equals(byte[], byte[])
      */
     @SuppressWarnings("unchecked")
-    private static void assertObjectEquals(Object expected, Object actual) {
+    private static void assertObjectEquals(Object expected, Object actual, String path) {
         if (expected instanceof Map) {
             assertThat(actual, instanceOf(Map.class));
-            assertMapEquals((Map<String, Object>) expected, (Map<String, Object>) actual);
+            assertMapEquals((Map<String, Object>) expected, (Map<String, Object>) actual, path);
         } else if (expected instanceof List) {
-            assertListEquals((List<Object>) expected, (List<Object>) actual);
+            assertListEquals((List<Object>) expected, (List<Object>) actual, path);
         } else if (expected instanceof byte[]) {
             //byte[] is really a special case for binary values when comparing SMILE and CBOR, arrays of other types
             //don't need to be handled. Ordinary arrays get parsed as lists.

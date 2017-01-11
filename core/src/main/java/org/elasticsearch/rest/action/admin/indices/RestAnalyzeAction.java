@@ -21,7 +21,6 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -49,7 +48,6 @@ public class RestAnalyzeAction extends BaseRestHandler {
         public static final ParseField ATTRIBUTES = new ParseField("attributes");
     }
 
-    @Inject
     public RestAnalyzeAction(Settings settings, RestController controller) {
         super(settings);
         controller.registerHandler(GET, "/_analyze", this);

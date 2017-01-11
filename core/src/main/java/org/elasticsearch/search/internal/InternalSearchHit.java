@@ -99,7 +99,7 @@ public class InternalSearchHit implements SearchHit {
     @Nullable
     private SearchShardTarget shard;
 
-    private transient Text index;
+    private transient String index;
 
     private Map<String, Object> sourceAsMap;
     private byte[] sourceAsBytes;
@@ -134,15 +134,6 @@ public class InternalSearchHit implements SearchHit {
         return this.docId;
     }
 
-    public void shardTarget(SearchShardTarget shardTarget) {
-        shard(shardTarget);
-        if (innerHits != null) {
-            for (InternalSearchHits searchHits : innerHits.values()) {
-                searchHits.shardTarget(shardTarget);
-            }
-        }
-    }
-
     public void score(float score) {
         this.score = score;
     }
@@ -173,7 +164,7 @@ public class InternalSearchHit implements SearchHit {
 
     @Override
     public String index() {
-        return this.index == null ? null : this.index.string();
+        return this.index;
     }
 
     @Override
@@ -237,14 +228,6 @@ public class InternalSearchHit implements SearchHit {
     public BytesReference getSourceRef() {
         return sourceRef();
     }
-
-    /**
-     * Internal source representation, might be compressed....
-     */
-    public BytesReference internalSourceRef() {
-        return source;
-    }
-
 
     @Override
     public byte[] source() {
@@ -327,10 +310,6 @@ public class InternalSearchHit implements SearchHit {
         this.fields = fields;
     }
 
-    public Map<String, HighlightField> internalHighlightFields() {
-        return highlightFields;
-    }
-
     @Override
     public Map<String, HighlightField> highlightFields() {
         return highlightFields == null ? emptyMap() : highlightFields;
@@ -390,7 +369,7 @@ public class InternalSearchHit implements SearchHit {
     public void shard(SearchShardTarget target) {
         this.shard = target;
         if (target != null) {
-            this.index = target.indexText();
+            this.index = target.getIndex();
         }
     }
 
@@ -457,8 +436,8 @@ public class InternalSearchHit implements SearchHit {
         // For inner_hit hits shard is null and that is ok, because the parent search hit has all this information.
         // Even if this was included in the inner_hit hits this would be the same, so better leave it out.
         if (explanation() != null && shard != null) {
-            builder.field(Fields._SHARD, shard.shardId());
-            builder.field(Fields._NODE, shard.nodeIdText());
+            builder.field(Fields._SHARD, shard.getShardId());
+            builder.field(Fields._NODE, shard.getNodeIdText());
         }
         if (nestedIdentity != null) {
             nestedIdentity.toXContent(builder, params);
@@ -535,7 +514,7 @@ public class InternalSearchHit implements SearchHit {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
         String currentFieldName = null;
         String type = null, id = null;
-        Text index = null;
+        String index = null;
         float score = DEFAULT_SCORE;
         long version = -1;
         SearchSortValues sortValues = SearchSortValues.EMPTY;
@@ -555,7 +534,7 @@ public class InternalSearchHit implements SearchHit {
                 if (Fields._TYPE.equals(currentFieldName)) {
                     type = parser.text();
                 } else if (Fields._INDEX.equals(currentFieldName)) {
-                    index = new Text(parser.text());
+                    index = parser.text();
                 } else if (Fields._ID.equals(currentFieldName)) {
                     id = parser.text();
                 } else if (Fields._SCORE.equals(currentFieldName)) {

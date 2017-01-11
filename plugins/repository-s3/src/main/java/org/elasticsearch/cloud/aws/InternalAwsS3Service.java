@@ -21,9 +21,14 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
+import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.auth.EnvironmentVariableCredentialsProvider;
+import com.amazonaws.auth.InstanceProfileCredentialsProvider;
+import com.amazonaws.auth.SystemPropertiesCredentialsProvider;
+import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.services.s3.AmazonS3;
@@ -35,6 +40,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.s3.S3Repository;
@@ -62,7 +68,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
                                         boolean useThrottleRetries, Boolean pathStyleAccess) {
         String foundEndpoint = findEndpoint(logger, settings, endpoint, region);
 
-        AWSCredentialsProvider credentials = buildCredentials(logger, settings, repositorySettings);
+        AWSCredentialsProvider credentials = buildCredentials(logger, deprecationLogger, settings, repositorySettings);
 
         Tuple<String, String> clientDescriptor = new Tuple<>(foundEndpoint, credentials.getCredentials().getAWSAccessKeyId());
         AmazonS3Client client = clients.get(clientDescriptor);
@@ -126,7 +132,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         return clientConfiguration;
     }
 
-    public static AWSCredentialsProvider buildCredentials(Logger logger, Settings settings, Settings repositorySettings) {
+    public static AWSCredentialsProvider buildCredentials(Logger logger, DeprecationLogger deprecationLogger,
+                                                          Settings settings, Settings repositorySettings) {
         AWSCredentialsProvider credentials;
         try (SecureString key = getValue(repositorySettings, settings,
                                          S3Repository.Repository.KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
@@ -134,9 +141,33 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
                                             S3Repository.Repository.SECRET_SETTING, S3Repository.Repositories.SECRET_SETTING)) {
 
             if (key.length() == 0 && secret.length() == 0) {
-                // TODO: add deprecation, except for using instance profile
-                logger.debug("Using either environment variables, system properties or instance profile credentials");
-                credentials = new DefaultAWSCredentialsProviderChain();
+                // create a "manual" chain of providers here, so we can log deprecation of unsupported methods
+                AWSCredentials envCredentials = new EnvironmentVariableCredentialsProvider().getCredentials();
+                if (envCredentials.getAWSAccessKeyId() != null && envCredentials.getAWSSecretKey() != null) {
+                    logger.debug("Using environment variable credentials");
+                    deprecationLogger.deprecated("Supplying S3 credentials through environment variables is deprecated. " +
+                                                 "See the breaking changes lists in the documentation for details.");
+                    credentials = new StaticCredentialsProvider(envCredentials);
+                } else {
+                    AWSCredentials syspropCredentials = new SystemPropertiesCredentialsProvider().getCredentials();
+                    if (syspropCredentials.getAWSAccessKeyId() != null && syspropCredentials.getAWSSecretKey() != null) {
+                        logger.debug("Using system properties credentials");
+                        deprecationLogger.deprecated("Supplying S3 credentials through system properties is deprecated. " +
+                                                     "See the breaking changes lists in the documentation for details.");
+                        credentials = new StaticCredentialsProvider(syspropCredentials);
+                    } else {
+                        AWSCredentials profileCredentials = new ProfileCredentialsProvider().getCredentials();
+                        if (profileCredentials.getAWSAccessKeyId() != null && profileCredentials.getAWSSecretKey() != null) {
+                            logger.debug("Using profile file credentials");
+                            deprecationLogger.deprecated("Supplying S3 credentials through a profile file is deprecated. " +
+                                                         "See the breaking changes lists in the documentation for details.");
+                            credentials = new StaticCredentialsProvider(profileCredentials);
+                        } else {
+                            logger.debug("Using instance profile credentials");
+                            credentials = new InstanceProfileCredentialsProvider();
+                        }
+                    }
+                }
             } else {
                 logger.debug("Using basic key/secret credentials");
                 credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key.toString(), secret.toString()));

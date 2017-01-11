@@ -36,7 +36,9 @@ import org.elasticsearch.discovery.zen.NodesFaultDetection;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledFuture;
 
@@ -76,20 +78,26 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
         this.reconnectInterval = NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(settings);
     }
 
-    public void connectToNodes(List<DiscoveryNode> addedNodes) {
+    public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
 
         // TODO: do this in parallel (and wait)
-        for (final DiscoveryNode node : addedNodes) {
+        for (final DiscoveryNode node : discoveryNodes) {
             try (Releasable ignored = nodeLocks.acquire(node)) {
-                Integer current = nodes.put(node, 0);
-                assert current == null : "node " + node + " was added in event but already in internal nodes";
+                nodes.putIfAbsent(node, 0);
                 validateNodeConnected(node);
             }
         }
     }
 
-    public void disconnectFromNodes(List<DiscoveryNode> removedNodes) {
-        for (final DiscoveryNode node : removedNodes) {
+    /**
+     * Disconnects from all nodes except the ones provided as parameter
+     */
+    public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+        Set<DiscoveryNode> currentNodes = new HashSet<>(nodes.keySet());
+        for (DiscoveryNode node : nodesToKeep) {
+            currentNodes.remove(node);
+        }
+        for (final DiscoveryNode node : currentNodes) {
             try (Releasable ignored = nodeLocks.acquire(node)) {
                 Integer current = nodes.remove(node);
                 assert current != null : "node " + node + " was removed in event but not in internal nodes";

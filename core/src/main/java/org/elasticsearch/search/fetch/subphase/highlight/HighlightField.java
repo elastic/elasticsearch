@@ -34,6 +34,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
+
 /**
  * A field highlighted with its highlighted fragments.
  */
@@ -121,13 +123,16 @@ public class HighlightField implements ToXContent, Streamable {
     }
 
     public static HighlightField fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.nextToken();
-        assert token == XContentParser.Token.FIELD_NAME;
+        ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
         String fieldName = parser.currentName();
         Text[] fragments = null;
-        token = parser.nextToken();
+        XContentParser.Token token = parser.nextToken();
         if (token == XContentParser.Token.START_ARRAY) {
-            fragments = parseValues(parser);
+            List<Text> values = new ArrayList<>();
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                values.add(new Text(parser.text()));
+            }
+            fragments = values.toArray(new Text[values.size()]);
         } else if (token == XContentParser.Token.VALUE_NULL) {
             fragments = null;
         } else {
@@ -135,14 +140,6 @@ public class HighlightField implements ToXContent, Streamable {
                     "unexpected token type [" + token + "]");
         }
         return new HighlightField(fieldName, fragments);
-    }
-
-    private static Text[] parseValues(XContentParser parser) throws IOException {
-        List<Text> values = new ArrayList<>();
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            values.add(new Text(parser.text()));
-        }
-        return values.toArray(new Text[values.size()]);
     }
 
     @Override

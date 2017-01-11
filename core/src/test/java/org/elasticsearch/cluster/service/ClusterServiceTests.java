@@ -25,12 +25,12 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -127,12 +127,12 @@ public class ClusterServiceTests extends ESTestCase {
             emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(List<DiscoveryNode> addedNodes) {
+            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
                 // skip
             }
 
             @Override
-            public void disconnectFromNodes(List<DiscoveryNode> removedNodes) {
+            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
                 // skip
             }
         });
@@ -1058,17 +1058,18 @@ public class ClusterServiceTests extends ESTestCase {
             threadPool);
         timedClusterService.setLocalNode(new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
             emptySet(), Version.CURRENT));
-        Set<DiscoveryNode> currentNodes = Collections.synchronizedSet(new HashSet<>());
-        currentNodes.add(timedClusterService.localNode());
+        Set<DiscoveryNode> currentNodes = new HashSet<>();
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(List<DiscoveryNode> addedNodes) {
-                currentNodes.addAll(addedNodes);
+            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
+                discoveryNodes.forEach(currentNodes::add);
             }
 
             @Override
-            public void disconnectFromNodes(List<DiscoveryNode> removedNodes) {
-                currentNodes.removeAll(removedNodes);
+            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+                Set<DiscoveryNode> nodeSet = new HashSet<>();
+                nodesToKeep.iterator().forEachRemaining(nodeSet::add);
+                currentNodes.removeIf(node -> nodeSet.contains(node) == false);
             }
         });
         AtomicBoolean failToCommit = new AtomicBoolean();

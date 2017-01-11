@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 
 import java.util.Map;
@@ -34,7 +34,7 @@ import java.util.Map;
  *
  * @see SearchHits
  */
-public interface SearchHit extends Streamable, ToXContent, Iterable<SearchHitField> {
+public interface SearchHit extends Streamable, ToXContentObject, Iterable<SearchHitField> {
 
     /**
      * The score.

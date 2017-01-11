@@ -772,7 +772,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             taskOutputs.createAckListener(threadPool, newClusterState) :
             null;
 
-        nodeConnectionsService.connectToNodes(clusterChangedEvent.nodesDelta().addedNodes());
+        nodeConnectionsService.connectToNodes(newClusterState.nodes());
 
         // if we are the master, publish the new state to all nodes
         // we publish here before we send a notification to all the listeners, since if it fails
@@ -788,7 +788,8 @@ public class ClusterService extends AbstractLifecycleComponent {
                         "failing [{}]: failed to commit cluster state version [{}]", taskInputs.summary, version),
                     t);
                 // ensure that list of connected nodes in NodeConnectionsService is in-sync with the nodes of the current cluster state
-                nodeConnectionsService.disconnectFromNodes(clusterChangedEvent.nodesDelta().addedNodes());
+                nodeConnectionsService.connectToNodes(previousClusterState.nodes());
+                nodeConnectionsService.disconnectFromNodesExcept(previousClusterState.nodes());
                 taskOutputs.publishingFailed(t);
                 return;
             }
@@ -808,7 +809,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         logger.debug("set local cluster state to version {}", newClusterState.version());
         callClusterStateAppliers(newClusterState, clusterChangedEvent);
 
-        nodeConnectionsService.disconnectFromNodes(clusterChangedEvent.nodesDelta().removedNodes());
+        nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
 
         updateState(css -> newClusterState);
 

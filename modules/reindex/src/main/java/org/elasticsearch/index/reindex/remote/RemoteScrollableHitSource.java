@@ -82,26 +82,11 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    public void close() {
-        super.close();
-        /* This might be called on the RestClient's thread pool and attempting to close the client on its own threadpool causes it to fail
-         * to close. So we always shutdown the RestClient asynchronously on a thread in Elasticsearch's generic thread pool. That way we
-         * never close the client in its own thread pool. */
-        threadPool.generic().submit(() -> {
-            try {
-                client.close();
-            } catch (IOException e) {
-                logger.error("Failed to shutdown the remote connection", e);
-            }
-        });
-    }
-
-    @Override
     protected void doStart(Consumer<? super Response> onResponse) {
         lookupRemoteVersion(version -> {
             remoteVersion = version;
             execute("POST", initialSearchPath(searchRequest), initialSearchParams(searchRequest, version),
-                    initialSearchEntity(query), RESPONSE_PARSER, r -> onStartResponse(onResponse, r));
+                    initialSearchEntity(searchRequest, query), RESPONSE_PARSER, r -> onStartResponse(onResponse, r));
         });
     }
 
@@ -125,17 +110,32 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    protected void clearScroll(String scrollId) {
-        // Need to throw out response....
+    protected void clearScroll(String scrollId, Runnable onCompletion) {
         client.performRequestAsync("DELETE", scrollPath(), emptyMap(), scrollEntity(scrollId), new ResponseListener() {
             @Override
             public void onSuccess(org.elasticsearch.client.Response response) {
                 logger.debug("Successfully cleared [{}]", scrollId);
+                onCompletion.run();
             }
 
             @Override
             public void onFailure(Exception t) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), t);
+                onCompletion.run();
+            }
+        });
+    }
+
+    @Override
+    protected void cleanup() {
+        /* This is called on the RestClient's thread pool and attempting to close the client on its own threadpool causes it to fail to
+         * close. So we always shutdown the RestClient asynchronously on a thread in Elasticsearch's generic thread pool. */
+        threadPool.generic().submit(() -> {
+            try {
+                client.close();
+                logger.info("Shut down remote connection");
+            } catch (IOException e) {
+                logger.error("Failed to shutdown the remote connection", e);
             }
         });
     }

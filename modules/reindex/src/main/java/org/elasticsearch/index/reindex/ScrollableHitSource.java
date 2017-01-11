@@ -83,13 +83,24 @@ public abstract class ScrollableHitSource implements Closeable {
     protected abstract void doStartNextScroll(String scrollId, TimeValue extraKeepAlive, Consumer<? super Response> onResponse);
     
     @Override
-    public void close() {
+    public final void close() {
         String scrollId = this.scrollId.get();
         if (Strings.hasLength(scrollId)) {
-            clearScroll(scrollId);
+            clearScroll(scrollId, this::cleanup);
+        } else {
+            cleanup();
         }
     }
-    protected abstract void clearScroll(String scrollId);
+    /**
+     * Called to clear a scroll id.
+     * @param scrollId the id to clear
+     * @param onCompletion implementers must call this after completing the clear whether they are successful or not
+     */
+    protected abstract void clearScroll(String scrollId, Runnable onCompletion);
+    /**
+     * Called after the process has been totally finished to clean up any resources the process needed like remote connections.
+     */
+    protected abstract void cleanup();
 
     /**
      * Set the id of the last scroll. Used for debugging.

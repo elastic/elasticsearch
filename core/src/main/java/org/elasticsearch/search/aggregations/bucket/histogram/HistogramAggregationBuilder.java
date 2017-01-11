@@ -49,7 +49,7 @@ import java.util.Objects;
  */
 public class HistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, HistogramAggregationBuilder> {
-    public static final String NAME = InternalHistogram.TYPE.name();
+    public static final String NAME = "histogram";
 
     private static final ObjectParser<double[], ParseFieldMatcherSupplier> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
             Histogram.EXTENDED_BOUNDS_FIELD.getPreferredName(),
@@ -94,12 +94,12 @@ public class HistogramAggregationBuilder
 
     /** Create a new builder with the given name. */
     public HistogramAggregationBuilder(String name) {
-        super(name, InternalHistogram.TYPE, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+        super(name, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
     }
 
     /** Read from a stream, for internal use only. */
     public HistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalHistogram.TYPE, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
+        super(in, ValuesSourceType.NUMERIC, ValueType.DOUBLE);
         if (in.readBoolean()) {
             order = InternalOrder.Streams.readOrder(in);
         }
@@ -260,14 +260,14 @@ public class HistogramAggregationBuilder
     }
 
     @Override
-    public String getWriteableName() {
-        return InternalHistogram.TYPE.name();
+    public String getType() {
+        return NAME;
     }
 
     @Override
     protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
-        return new HistogramAggregatorFactory(name, type, config, interval, offset, order, keyed, minDocCount, minBound, maxBound,
+        return new HistogramAggregatorFactory(name, config, interval, offset, order, keyed, minDocCount, minBound, maxBound,
                 context, parent, subFactoriesBuilder, metaData);
     }
 

@@ -30,4 +30,8 @@ public class PreBuiltXPackTransportClientTests extends RandomizedTest {
         }
     }
 
+    // dummy test so that the tests pass on JDK9 as the only test in this module is disabled on JDK9
+    public void testDummy() {
+
+    }
 }

@@ -130,18 +130,19 @@ public class ScopedSettingsTests extends ESTestCase {
     }
 
     public void testAddConsumerAffix() {
-        Setting.AffixSetting<Integer> testSetting = Setting.affixKeySetting("foo.", "bar",
+        Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting("foo.", "bar",
             (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
-        Setting.AffixSetting<List<Integer>> testSetting2 = Setting.affixKeySetting("foo.", "list",
+        Setting.AffixSetting<List<Integer>> listSetting = Setting.affixKeySetting("foo.", "list",
             (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope));
-        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(testSetting, testSetting2)));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(intSetting, listSetting)));
         Map<String, List<Integer>> listResults = new HashMap<>();
         Map<String, Integer> intResults = new HashMap<>();
 
-        BiConsumer<String, List<Integer>> listConsumer = listResults::put;
         BiConsumer<String, Integer> intConsumer = intResults::put;
-        service.addAffixUpdateConsumer(testSetting2, listConsumer, (s, k) -> {});
-        service.addAffixUpdateConsumer(testSetting, intConsumer, (s, k) -> {});
+        BiConsumer<String, List<Integer>> listConsumer = listResults::put;
+
+        service.addAffixUpdateConsumer(listSetting, listConsumer, (s, k) -> {});
+        service.addAffixUpdateConsumer(intSetting, intConsumer, (s, k) -> {});
         assertEquals(0, listResults.size());
         assertEquals(0, intResults.size());
         service.applySettings(Settings.builder()

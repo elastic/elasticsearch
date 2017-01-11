@@ -42,12 +42,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -55,7 +53,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
@@ -484,7 +481,7 @@ public class Setting<T> extends ToXContentToBytes {
                     // we collect all concrete keys and then delegate to the actual setting for validation and settings extraction
                     final Map<AbstractScopedSettings.SettingUpdater<T>, T> result = new IdentityHashMap<>();
                     Stream.concat(matchStream(current), matchStream(previous)).forEach(aKey -> {
-                        String namespace = key.getNamesapce(aKey);
+                        String namespace = key.getNamespace(aKey);
                         AbstractScopedSettings.SettingUpdater<T> updater =
                             getConcreteSetting(aKey).newUpdater((v) -> consumer.accept(namespace, v), logger,
                                 (v) -> validator.accept(namespace, v));
@@ -1054,6 +1051,10 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
+    /**
+     * A key that allows for static pre and suffix. This is used for settings
+     * that have dynamic namespaces like for different accounts etc.
+     */
     public static final class AffixKey implements Key {
         private final Pattern pattern;
         private final String prefix;
@@ -1098,7 +1099,7 @@ public class Setting<T> extends ToXContentToBytes {
         /**
          * Returns a string representation of the concrete setting key
          */
-        String getNamesapce(String key) {
+        String getNamespace(String key) {
             Matcher matcher = pattern.matcher(key);
             if (matcher.matches() == false) {
                 throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");

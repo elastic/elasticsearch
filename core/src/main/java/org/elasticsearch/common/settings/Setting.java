@@ -42,17 +42,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * A setting. Encapsulates typical stuff like default value, parsing, and scope.
@@ -413,8 +413,8 @@ public class Setting<T> extends ToXContentToBytes {
     }
 
     /**
-     * Updates settings that depend on eachother. See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)}
-     * and its usage for details.
+     * Updates settings that depend on each other.
+     * See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, BiConsumer)} and its usage for details.
      */
     static <A, B> AbstractScopedSettings.SettingUpdater<Tuple<A, B>> compoundUpdater(final BiConsumer<A, B> consumer,
             final Setting<A> aSetting, final Setting<B> bSetting, Logger logger) {
@@ -447,6 +447,76 @@ public class Setting<T> extends ToXContentToBytes {
                 return "CompoundUpdater for: " + aSettingUpdater + " and " + bSettingUpdater;
             }
         };
+    }
+
+    public static class AffixSetting<T> extends Setting<T> {
+        private final AffixKey key;
+        private final Function<String, Setting<T>> delegateFactory;
+
+        public AffixSetting(AffixKey key, Setting<T> delegate, Function<String, Setting<T>> delegateFactory) {
+            super(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0]));
+            this.key = key;
+            this.delegateFactory = delegateFactory;
+        }
+
+        boolean isGroupSetting() {
+            return true;
+        }
+
+        private Stream<String> matchStream(Settings settings) {
+            return settings.getAsMap().keySet().stream().filter((key) -> match(key)).map(settingKey -> key.getConcreteString(settingKey));
+        }
+
+        AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>> newAffixUpdater(
+            BiConsumer<String, T> consumer, Logger logger, BiConsumer<String, T> validator) {
+            return new AbstractScopedSettings.SettingUpdater<Map<AbstractScopedSettings.SettingUpdater<T>, T>>() {
+
+                @Override
+                public boolean hasChanged(Settings current, Settings previous) {
+                    return  Stream.concat(matchStream(current), matchStream(previous)).findAny().isPresent();
+                }
+
+                @Override
+                public Map<AbstractScopedSettings.SettingUpdater<T>, T> getValue(Settings current, Settings previous) {
+                    // we collect all concrete keys and then delegate to the actual setting for validation and settings extraction
+                    final Map<AbstractScopedSettings.SettingUpdater<T>, T> result = new IdentityHashMap<>();
+                    Stream.concat(matchStream(current), matchStream(previous)).forEach(aKey -> {
+                        String namespace = key.getNamespace(aKey);
+                        AbstractScopedSettings.SettingUpdater<T> updater =
+                            getConcreteSetting(aKey).newUpdater((v) -> consumer.accept(namespace, v), logger,
+                                (v) -> validator.accept(namespace, v));
+                        if (updater.hasChanged(current, previous)) {
+                            // only the ones that have changed otherwise we might get too many updates
+                            // the hasChanged above checks only if there are any changes
+                            T value = updater.getValue(current, previous);
+                            result.put(updater, value);
+                        }
+                    });
+                    return result;
+                }
+
+                @Override
+                public void apply(Map<AbstractScopedSettings.SettingUpdater<T>, T> value, Settings current, Settings previous) {
+                    for (Map.Entry<AbstractScopedSettings.SettingUpdater<T>, T> entry : value.entrySet()) {
+                        entry.getKey().apply(entry.getValue(), current, previous);
+                    }
+                }
+            };
+        }
+
+        @Override
+        public Setting<T> getConcreteSetting(String key) {
+            if (match(key)) {
+                return delegateFactory.apply(key);
+            } else {
+                throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
+            }
+        }
+
+        @Override
+        public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
+            matchStream(defaultSettings).forEach((key) -> getConcreteSetting(key).diff(builder, source, defaultSettings));
+        }
     }
 
 
@@ -730,7 +800,6 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
-
     private static String arrayToParsableString(String[] array) {
         try {
             XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
@@ -744,9 +813,11 @@ public class Setting<T> extends ToXContentToBytes {
             throw new ElasticsearchException(ex);
         }
     }
+
     public static Setting<Settings> groupSetting(String key, Property... properties) {
         return groupSetting(key, (s) -> {}, properties);
     }
+
     public static Setting<Settings> groupSetting(String key, Consumer<Settings> validator, Property... properties) {
         return new Setting<Settings>(new GroupKey(key), (s) -> "", (s) -> null, properties) {
             @Override
@@ -897,7 +968,7 @@ public class Setting<T> extends ToXContentToBytes {
      * can easily be added with this setting. Yet, prefix key settings don't support updaters out of the box unless
      * {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> Setting<T> prefixKeySetting(String prefix, Function<String, Setting<T>> delegateFactory) {
+    public static <T> AffixSetting<T> prefixKeySetting(String prefix, Function<String, Setting<T>> delegateFactory) {
         return affixKeySetting(new AffixKey(prefix), delegateFactory);
     }
 
@@ -906,44 +977,13 @@ public class Setting<T> extends ToXContentToBytes {
      * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, affix key settings don't support updaters
      * out of the box unless {@link #getConcreteSetting(String)} is used to pull the updater.
      */
-    public static <T> Setting<T> affixKeySetting(String prefix, String suffix, Function<String, Setting<T>> delegateFactory) {
+    public static <T> AffixSetting<T> affixKeySetting(String prefix, String suffix, Function<String, Setting<T>> delegateFactory) {
         return affixKeySetting(new AffixKey(prefix, suffix), delegateFactory);
     }
 
-    private static <T> Setting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory) {
+    private static <T> AffixSetting<T> affixKeySetting(AffixKey key, Function<String, Setting<T>> delegateFactory) {
         Setting<T> delegate = delegateFactory.apply("_na_");
-        return new Setting<T>(key, delegate.defaultValue, delegate.parser, delegate.properties.toArray(new Property[0])) {
-            boolean isGroupSetting() {
-                return true;
-            }
-
-            @Override
-            AbstractScopedSettings.SettingUpdater<T> newUpdater(Consumer<T> consumer, Logger logger, Consumer<T> validator) {
-                throw new UnsupportedOperationException("Affix settings can't be updated. Use #getConcreteSetting for updating.");
-            }
-
-            @Override
-            public Setting<T> getConcreteSetting(String key) {
-                if (match(key)) {
-                    return delegateFactory.apply(key);
-                } else {
-                    throw new IllegalArgumentException("key [" + key + "] must match [" + getKey() + "] but didn't.");
-                }
-            }
-
-            @Override
-            public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
-                final Set<String> concreteSettings = new HashSet<>();
-                for (String settingKey : defaultSettings.getAsMap().keySet()) {
-                    if (match(settingKey)) {
-                        concreteSettings.add(key.getConcreteString(settingKey));
-                    }
-                }
-                for (String key : concreteSettings) {
-                    getConcreteSetting(key).diff(builder, source, defaultSettings);
-                }
-            }
-        };
+        return new AffixSetting<>(key, delegate, delegateFactory);
     };
 
 
@@ -1011,6 +1051,10 @@ public class Setting<T> extends ToXContentToBytes {
         }
     }
 
+    /**
+     * A key that allows for static pre and suffix. This is used for settings
+     * that have dynamic namespaces like for different accounts etc.
+     */
     public static final class AffixKey implements Key {
         private final Pattern pattern;
         private final String prefix;
@@ -1032,7 +1076,7 @@ public class Setting<T> extends ToXContentToBytes {
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "((?:[-\\w]+[.])*[-\\w]+$))");
             } else {
                 // the last part of this regexp is for lists since they are represented as x.${namespace}.y.1, x.${namespace}.y.2
-                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "\\w+\\." + Pattern.quote(suffix) + ")(?:\\.\\d+)?");
+                pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\.\\d+)?");
             }
         }
 
@@ -1050,6 +1094,17 @@ public class Setting<T> extends ToXContentToBytes {
                 throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
             }
             return matcher.group(1);
+        }
+
+        /**
+         * Returns a string representation of the concrete setting key
+         */
+        String getNamespace(String key) {
+            Matcher matcher = pattern.matcher(key);
+            if (matcher.matches() == false) {
+                throw new IllegalStateException("can't get concrete string for key " + key + " key doesn't match");
+            }
+            return matcher.group(2);
         }
 
         public SimpleKey toConcreteKey(String missingPart) {

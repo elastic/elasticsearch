@@ -33,12 +33,15 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -124,6 +127,52 @@ public class ScopedSettingsTests extends ESTestCase {
         service.applySettings(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
         assertEquals(2, consumer.get());
         assertEquals(0, consumer2.get());
+    }
+
+    public void testAddConsumerAffix() {
+        Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting("foo.", "bar",
+            (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<List<Integer>> listSetting = Setting.affixKeySetting("foo.", "list",
+            (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(intSetting, listSetting)));
+        Map<String, List<Integer>> listResults = new HashMap<>();
+        Map<String, Integer> intResults = new HashMap<>();
+
+        BiConsumer<String, Integer> intConsumer = intResults::put;
+        BiConsumer<String, List<Integer>> listConsumer = listResults::put;
+
+        service.addAffixUpdateConsumer(listSetting, listConsumer, (s, k) -> {});
+        service.addAffixUpdateConsumer(intSetting, intConsumer, (s, k) -> {});
+        assertEquals(0, listResults.size());
+        assertEquals(0, intResults.size());
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 7)
+            .putArray("foo.test_list.list", "16", "17")
+            .putArray("foo.test_list_1.list", "18", "19", "20")
+            .build());
+        assertEquals(2, intResults.get("test").intValue());
+        assertEquals(7, intResults.get("test_1").intValue());
+        assertEquals(Arrays.asList(16, 17), listResults.get("test_list"));
+        assertEquals(Arrays.asList(18, 19, 20), listResults.get("test_list_1"));
+        assertEquals(2, listResults.size());
+        assertEquals(2, intResults.size());
+
+        listResults.clear();
+        intResults.clear();
+
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 8)
+            .putArray("foo.test_list.list", "16", "17")
+            .putNull("foo.test_list_1.list")
+            .build());
+        assertNull("test wasn't changed", intResults.get("test"));
+        assertEquals(8, intResults.get("test_1").intValue());
+        assertNull("test_list wasn't changed", listResults.get("test_list"));
+        assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
+        assertEquals(1, listResults.size());
+        assertEquals(1, intResults.size());
     }
 
     public void testApply() {

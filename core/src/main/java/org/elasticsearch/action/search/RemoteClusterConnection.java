@@ -410,6 +410,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                     cancellableThreads.cancel("connect handler is closed");
                     running.acquire(); // acquire the semaphore to ensure all connections are closed and all thread joined
                     running.release();
+                    maybeConnect(); // now go an notify pending listeners
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

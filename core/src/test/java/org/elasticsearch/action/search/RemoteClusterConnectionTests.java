@@ -464,17 +464,27 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                                     barrier.await();
                                     CountDownLatch latch = new CountDownLatch(numConnectionAttempts);
                                     for (int i = 0; i < numConnectionAttempts; i++) {
-                                        AtomicBoolean executed = new AtomicBoolean(false);
-                                        ActionListener<Void> listener = ActionListener.wrap(x -> {
-                                            assertTrue(executed.compareAndSet(false, true));
-                                            latch.countDown();}, x -> {
-                                            assertTrue(executed.compareAndSet(false, true));
-                                            latch.countDown();
-                                            if (x instanceof RejectedExecutionException || x instanceof AlreadyClosedException) {
-                                                // that's fine
-                                            } else {
-                                                throw new AssertionError(x);
-                                            }
+                                        AtomicReference<RuntimeException> executed = new AtomicReference<>();
+                                        ActionListener<Void> listener = ActionListener.wrap(
+                                            x -> {
+                                                if (executed.compareAndSet(null, new RuntimeException())) {
+                                                    latch.countDown();
+                                                } else {
+                                                    throw new AssertionError("shit's been called twice", executed.get());
+                                                }
+                                            },
+                                            x -> {
+                                                if (executed.compareAndSet(null, new RuntimeException())) {
+                                                    latch.countDown();
+                                                } else {
+                                                    throw new AssertionError("shit's been called twice", executed.get());
+                                                }
+                                                if (x instanceof RejectedExecutionException || x instanceof AlreadyClosedException
+                                                    || x instanceof CancellableThreads.ExecutionCancelledException) {
+                                                    // that's fine
+                                                } else {
+                                                    throw new AssertionError(x);
+                                                }
                                         });
                                         connection.updateSeedNodes(seedNodes, listener);
                                     }

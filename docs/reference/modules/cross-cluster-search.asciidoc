@@ -14,7 +14,8 @@ the remote cluster.
 
 Remote clusters can either be configured as part of the `elasticsearch.yml` file or be dynamically updated via
 the <<cluster settings API, cluster-update-settings>>. If a remote cluster is configured via `elasticsearch.yml` only
-the nodes with the configuration set will be connecting to the remote cluster. Remote clusters set via the
+the nodes with the configuration set will be connecting to the remote cluster in which case federated search requests
+will have to be sent specifically to those nodes". Remote clusters set via the
 <<cluster settings API, cluster-update-settings>> will be available on every node in the cluster.
 
 The `elasticsearch.yml` config file for a _cross cluster search_ node just needs to list the
@@ -30,12 +31,13 @@ search:
             seeds: 127.0.0.1:9301
 
 --------------------------------
-<1> `cluster_one` and `cluster_two` are arbitrary names representing the connection to each cluster. These names are subsequently used to distinguish between local and remote indices.
+<1> `cluster_one` and `cluster_two` are arbitrary cluster aliases representing the connection to each cluster.
+These names are subsequently used to distinguish between local and remote indices.
 
 [float]
 === Using cross cluster search
 
-To search the `twitter` index on remote cluster `cluster_1` the index name must be prefixed with the cluster name
+To search the `twitter` index on remote cluster `cluster_1` the index name must be prefixed with the cluster alias
 separated by a `:` character:
 
 [source,js]
@@ -46,8 +48,8 @@ POST /cluster_one:twitter/tweet/_search
 }
 --------------------------------------------------
 
-In contrast to the `tribe` feature cross cluster search can also search indices with the same name on different clusters:
-
+In contrast to the `tribe` feature cross cluster search can also search indices with the same name on different
+clusters:
 
 [source,js]
 --------------------------------------------------
@@ -58,7 +60,8 @@ POST /cluster_one:twitter,twitter/tweet/_search
 --------------------------------------------------
 
 Search results are disambiguated the same way as the indices are disambiguated in the request. Even if index names are
-identical these indices will be treated as different indices when results are merged. All results retrieved from a remote index
+identical these indices will be treated as different indices when results are merged. All results retrieved from a
+remote index
 will be prefixed with their remote cluster name:
 
 [source,js]
@@ -106,8 +109,9 @@ will be prefixed with their remote cluster name:
 === Cross cluster search settings
 
 * `search.remote.connections_per_cluster` - the number of nodes to connect to per remote cluster. The default is `3`
-* `search.remote.initial_connect_timeout` - the time to wait for remote connections to be established when the node starts. The default is `30s`.
-* `search.remote.node_attribute` - a node attribute to filter out nodes that are eligible as a gateway node in the remote cluster.
-For instance a node can have a node attribute `node.attr.gateway: true`  such that only nodes with this attribute
-will be connected to if `search.remote.node_attribute` is set to `gateway`
+* `search.remote.initial_connect_timeout` - the time to wait for remote connections to be established when the node
+starts. The default is `30s`.
+* `search.remote.node_attribute` - a node attribute to filter out nodes that are eligible as a gateway node in the
+remote cluster. For instance a node can have a node attribute `node.attr.gateway: true`  such that only nodes with this
+ attribute will be connected to if `search.remote.node_attribute` is set to `gateway`
 

@@ -814,6 +814,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return routingNumShards == null ? numberOfShards() : routingNumShards;
         }
 
+        /**
+         * Returns the number of shards.
+         *
+         * @return the provided value or -1 if it has not been set.
+         */
         public int numberOfShards() {
             return settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1);
         }
@@ -823,6 +828,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
+        /**
+         * Returns the number of replicas.
+         *
+         * @return the provided value or -1 if it has not been set.
+         */
         public int numberOfReplicas() {
             return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
         }
@@ -832,6 +842,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return this;
         }
 
+        /**
+         * Returns the routing partition size.
+         *
+         * @return the provided value or -1 if it has not been set.
+         */
         public int routingPartitionSize() {
             return settings.getAsInt(SETTING_ROUTING_PARTITION_SIZE, -1);
         }

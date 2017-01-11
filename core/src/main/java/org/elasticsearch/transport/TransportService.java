@@ -298,7 +298,7 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
-        connectToNode(node, null);
+        connectToNode(node, null, false);
     }
 
     /**
@@ -308,7 +308,18 @@ public class TransportService extends AbstractLifecycleComponent {
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
-        if (node.equals(localNode)) {
+        connectToNode(node, connectionProfile, false);
+    }
+
+    /**
+     * Connect to the specified node with the given connection profile
+     *
+     * @param node the node to connect to
+     * @param connectionProfile the connection profile to use when connecting to this node
+     * @param forceRemote true if an attempt to connect to the node should always be performed (even if it's local)
+     */
+    public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile, boolean forceRemote) {
+        if (!forceRemote && node.equals(localNode)) {
             return;
         }
         transport.connectToNode(node, connectionProfile);
@@ -321,7 +332,19 @@ public class TransportService extends AbstractLifecycleComponent {
      * @param profile the connection profile to use
      */
     public Transport.Connection openConnection(final DiscoveryNode node, ConnectionProfile profile) throws IOException {
-        if (node.equals(localNode)) {
+        return openConnection(node, profile, false);
+    }
+
+    /**
+     * Establishes and returns a new connection to the given node. The connection is NOT maintained by this service, it's the callers
+     * responsibility to close the connection once it goes out of scope.
+     * @param node the node to connect to
+     * @param profile the connection profile to use
+     * @param forceRemote true if an attempt to connect to the node should always be performed (even if it's local)
+     */
+    public Transport.Connection openConnection(final DiscoveryNode node, ConnectionProfile profile,
+                                               boolean forceRemote) throws IOException {
+        if (!forceRemote && node.equals(localNode)) {
             return localNodeConnection;
         } else {
             return transport.openConnection(node, profile);
@@ -432,9 +455,16 @@ public class TransportService extends AbstractLifecycleComponent {
     public <T extends TransportResponse> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,
                                                                           TransportRequestOptions options,
                                                                           TransportResponseHandler<T> handler) throws TransportException {
+        return submitRequest(node, action, request, options, handler, false);
+    }
+
+    public <T extends TransportResponse> TransportFuture<T> submitRequest(DiscoveryNode node, String action, TransportRequest request,
+                                                                          TransportRequestOptions options,
+                                                                          TransportResponseHandler<T> handler,
+                                                                          boolean forceRemote) throws TransportException {
         PlainTransportFuture<T> futureHandler = new PlainTransportFuture<>(handler);
         try {
-            Transport.Connection connection = getConnection(node);
+            Transport.Connection connection = getConnection(node, forceRemote);
             sendRequest(connection, action, request, options, futureHandler);
         } catch (NodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
@@ -444,10 +474,17 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
+                                                          final TransportRequest request,
+                                                          final TransportResponseHandler<T> handler) {
+        sendRequest(node, action, request, handler, false);
+    }
+
+    public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
                                                                 final TransportRequest request,
-                                                                final TransportResponseHandler<T> handler) {
+                                                                final TransportResponseHandler<T> handler,
+                                                                boolean forceRemote) {
         try {
-            Transport.Connection connection = getConnection(node);
+            Transport.Connection connection = getConnection(node, forceRemote);
             sendRequest(connection, action, request, TransportRequestOptions.EMPTY, handler);
         } catch (NodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
@@ -459,8 +496,15 @@ public class TransportService extends AbstractLifecycleComponent {
                                                                 final TransportRequest request,
                                                                 final TransportRequestOptions options,
                                                                 TransportResponseHandler<T> handler) {
+        sendRequest(node, action, request, options, handler, false);
+    }
+    public final <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
+                                                                final TransportRequest request,
+                                                                final TransportRequestOptions options,
+                                                                TransportResponseHandler<T> handler,
+                                                                boolean forceRemote) {
         try {
-            Transport.Connection connection = getConnection(node);
+            Transport.Connection connection = getConnection(node, forceRemote);
             sendRequest(connection, action, request, options, handler);
         } catch (NodeNotConnectedException ex) {
             // the caller might not handle this so we invoke the handler
@@ -481,7 +525,16 @@ public class TransportService extends AbstractLifecycleComponent {
      * @throws NodeNotConnectedException if the given node is not connected
      */
     public Transport.Connection getConnection(DiscoveryNode node) {
-        if (Objects.requireNonNull(node, "node must be non-null").equals(localNode)) {
+        return getConnection(node, false);
+    }
+
+    /**
+     * Returns either a real transport connection or a local node connection if we are using the local node optimization.
+     * @param forceRemote true if a remote node connection should always be returned, rather than using local node optimization
+     * @throws NodeNotConnectedException if the given node is not connected
+     */
+    public Transport.Connection getConnection(DiscoveryNode node, boolean forceRemote) {
+        if (!forceRemote && Objects.requireNonNull(node, "node must be non-null").equals(localNode)) {
             return localNodeConnection;
         } else {
             return transport.getConnection(node);
@@ -498,10 +551,18 @@ public class TransportService extends AbstractLifecycleComponent {
                                                                final TransportRequest request, final Task parentTask,
                                                                final TransportRequestOptions options,
                                                                final TransportResponseHandler<T> handler) {
+        sendChildRequest(node, action, request, parentTask, options, handler, false);
+    }
+
+    public <T extends TransportResponse> void sendChildRequest(final DiscoveryNode node, final String action,
+                                                               final TransportRequest request, final Task parentTask,
+                                                               final TransportRequestOptions options,
+                                                               final TransportResponseHandler<T> handler,
+                                                               boolean forceRemote) {
         request.setParentTask(localNode.getId(), parentTask.getId());
         try {
             taskManager.registerChildTask(parentTask, node.getId());
-            final Transport.Connection connection = getConnection(node);
+            final Transport.Connection connection = getConnection(node, forceRemote);
             sendRequest(connection, action, request, options, handler);
         } catch (TaskCancelledException ex) {
             // The parent task is already cancelled - just fail the request

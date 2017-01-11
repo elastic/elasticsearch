@@ -840,7 +840,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     }
 
     @Override
-    protected void doClose() {
+    protected final void doClose() {
     }
 
     @Override

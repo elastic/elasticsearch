@@ -1,7 +1,12 @@
 # Integration tests for Repository S3 component
 #
 "S3 repository can be registered":
+    - skip:
+        features: warnings
     - do:
+        warnings:
+          - "[access_key] setting was deprecated in Elasticsearch and it will be removed in a future release! See the breaking changes lists in the documentation for details"
+          - "[secret_key] setting was deprecated in Elasticsearch and it will be removed in a future release! See the breaking changes lists in the documentation for details"
         snapshot.create_repository:
           repository: test_repo_s3_1
           verify: false

@@ -19,8 +19,11 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedConsumer;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.Consumer;
 
 /**
@@ -72,7 +75,7 @@ public interface ActionListener<Response> {
      * listeners will be processed and the caught exception will be re-thrown.
      */
     static <Response> void onResponse(Iterable<ActionListener<Response>> listeners, Response response) {
-        RuntimeException exception = null;
+        List<Exception> exceptionList = new ArrayList<>();
         for (ActionListener<Response> listener : listeners) {
             try {
                 listener.onResponse(response);
@@ -80,17 +83,11 @@ public interface ActionListener<Response> {
                 try {
                     listener.onFailure(ex);
                 } catch (Exception ex1) {
-                    if (exception != null) {
-                        exception = new RuntimeException(ex1);
-                    } else {
-                        exception.addSuppressed(ex1);
-                    }
+                    exceptionList.add(ex1);
                 }
             }
         }
-        if (exception != null) {
-            throw exception;
-        }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
     }
 
     /**
@@ -98,20 +95,14 @@ public interface ActionListener<Response> {
      * all remaining listeners will be processed and the caught exception will be re-thrown.
      */
     static <Response> void onFailure(Iterable<ActionListener<Response>> listeners, Exception failure) {
-        RuntimeException exception = null;
+        List<Exception> exceptionList = new ArrayList<>();
         for (ActionListener<Response> listener : listeners) {
             try {
                 listener.onFailure(failure);
             } catch (Exception ex) {
-                if (exception != null) {
-                    exception = new RuntimeException(ex);
-                } else {
-                    exception.addSuppressed(ex);
-                }
+                exceptionList.add(ex);
             }
         }
-        if (exception != null) {
-            throw exception;
-        }
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptionList);
     }
 }

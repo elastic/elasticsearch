@@ -185,7 +185,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         } else {
             failures = new ArrayList<>(response.getShardFailures().length);
             for (ShardSearchFailure failure: response.getShardFailures()) {
-                String nodeId = failure.shard() == null ? null : failure.shard().nodeId();
+                String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
                 failures.add(new SearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
             }
         }

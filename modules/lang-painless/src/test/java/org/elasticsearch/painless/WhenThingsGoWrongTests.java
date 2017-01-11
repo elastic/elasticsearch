@@ -148,10 +148,10 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testLoopLimits() {
         // right below limit: ok
-        exec("for (int x = 0; x < 9999; ++x) {}");
+        exec("for (int x = 0; x < 999999; ++x) {}");
 
         PainlessError expected = expectScriptThrows(PainlessError.class, () -> {
-            exec("for (int x = 0; x < 10000; ++x) {}");
+            exec("for (int x = 0; x < 1000000; ++x) {}");
         });
         assertTrue(expected.getMessage().contains(
                    "The maximum number of statements that can be executed in a loop has been reached."));

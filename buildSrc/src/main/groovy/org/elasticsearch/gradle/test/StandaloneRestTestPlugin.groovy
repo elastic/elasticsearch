@@ -40,9 +40,9 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         if (project.pluginManager.hasPlugin('elasticsearch.build')) {
-            throw new InvalidUserDataException('elasticsearch.standalone-test, '
-                + 'elasticsearch.standalone-test, and elasticsearch.build are '
-                + 'mutually exclusive')
+            throw new InvalidUserDataException('elasticsearch.standalone-test '
+                + 'elasticsearch.standalone-rest-test, and elasticsearch.build '
+                + 'are mutually exclusive')
         }
         project.pluginManager.apply(JavaBasePlugin)
         project.pluginManager.apply(RandomizedTestingPlugin)

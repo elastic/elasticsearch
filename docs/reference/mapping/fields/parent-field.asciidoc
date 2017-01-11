@@ -69,7 +69,7 @@ GET my_index/_search
 {
   "query": {
     "parent_id": { <1>
-      "type": "my_parent",
+      "type": "my_child",
       "id": "1"
     }
   },
@@ -84,7 +84,6 @@ GET my_index/_search
   "script_fields": {
     "parent": {
       "script": {
-         "lang": "painless",
          "inline": "doc['_parent']" <3>
       }
     }

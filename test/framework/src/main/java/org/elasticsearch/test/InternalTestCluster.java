@@ -1146,13 +1146,8 @@ public final class InternalTestCluster extends TestCluster {
                                     .map(task -> task.taskInfo(localNode.getId(), true))
                                     .collect(Collectors.toList());
                             ListTasksResponse response = new ListTasksResponse(taskInfos, Collections.emptyList(), Collections.emptyList());
-                            XContentBuilder builder = null;
                             try {
-                                builder = XContentFactory.jsonBuilder()
-                                        .prettyPrint()
-                                        .startObject()
-                                        .value(response)
-                                        .endObject();
+                                XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint().value(response);
                                 throw new AssertionError("expected index shard counter on shard " + indexShard.shardId() + " on node " +
                                         nodeAndClient.name + " to be 0 but was " + activeOperationsCount + ". Current replication tasks on node:\n" +
                                         builder.string());

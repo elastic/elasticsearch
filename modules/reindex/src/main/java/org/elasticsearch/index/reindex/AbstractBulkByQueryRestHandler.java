@@ -22,7 +22,6 @@ package org.elasticsearch.index.reindex;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -44,9 +43,8 @@ public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
         A extends GenericAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers, ClusterService clusterService,
-            A action) {
-        super(settings, searchRequestParsers, clusterService, action);
+    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers, A action) {
+        super(settings, searchRequestParsers, action);
     }
 
     protected void parseInternalRequest(Request internal, RestRequest restRequest,

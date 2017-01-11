@@ -22,7 +22,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParseFieldMatcherSupplier;
@@ -102,9 +101,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Inject
-    public RestReindexAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers,
-            ClusterService clusterService) {
-        super(settings, searchRequestParsers, clusterService, ReindexAction.INSTANCE);
+    public RestReindexAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
+        super(settings, searchRequestParsers, ReindexAction.INSTANCE);
         controller.registerHandler(POST, "/_reindex", this);
     }
 

@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Public interface and serialization container for profiled timings of the
@@ -52,6 +51,7 @@ public class CollectorResult implements ToXContent, Writeable {
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField TIME = new ParseField("time");
+    private static final ParseField TIME_NANOS = new ParseField("time_in_nanos");
     private static final ParseField CHILDREN = new ParseField("children");
 
     /**
@@ -140,7 +140,7 @@ public class CollectorResult implements ToXContent, Writeable {
         builder = builder.startObject()
                 .field(NAME.getPreferredName(), getName())
                 .field(REASON.getPreferredName(), getReason())
-                .field(TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double) (getTime() / 1000000.0)));
+                .nanosAsMillis(TIME_NANOS.getPreferredName(), TIME.getPreferredName(), getTime());
 
         if (!children.isEmpty()) {
             builder = builder.startArray(CHILDREN.getPreferredName());

@@ -20,6 +20,7 @@
 package org.elasticsearch.transport.netty4.channel;
 
 import io.netty.channel.socket.oio.OioServerSocketChannel;
+import org.elasticsearch.SpecialPermission;
 
 import java.net.ServerSocket;
 import java.security.AccessController;
@@ -36,6 +37,10 @@ public class PrivilegedOioServerSocketChannel extends OioServerSocketChannel {
 
     @Override
     protected int doReadMessages(List<Object> buf) throws Exception {
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<Integer>) () -> super.doReadMessages(buf));
         } catch (PrivilegedActionException e) {

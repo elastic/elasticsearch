@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.watcher.actions.throttler;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.xpack.common.http.HttpMethod;
 import org.elasticsearch.xpack.common.http.HttpRequestTemplate;
 import org.elasticsearch.xpack.common.text.TextTemplate;
@@ -40,8 +41,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
-import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.webhookAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
@@ -287,8 +288,21 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
         }, 20, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/x-pack/issues/4561")
     public void testFailingActionDoesGetThrottled() throws Exception {
+        // create a mapping with a wrong @timestamp field, so that the index action of the watch below will fail
+        String mapping = XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("bar")
+                .startObject("properties")
+                .startObject("@timestamp")
+                .field("type", "integer")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().string();
+
+        client().admin().indices().prepareCreate("foo").addMapping("bar", mapping).get();
+
         TimeValue throttlePeriod = new TimeValue(60, TimeUnit.MINUTES);
 
         watcherClient().preparePutWatch("_id").setSource(watchBuilder()
@@ -296,8 +310,7 @@ public class ActionThrottleTests extends AbstractWatcherIntegrationTestCase {
                         new IntervalSchedule.Interval(60, IntervalSchedule.Interval.Unit.MINUTES))))
                 .defaultThrottlePeriod(throttlePeriod)
                 .addAction("logging", loggingAction("test out"))
-                // no DNS resolution here please
-                .addAction("failing_hook", webhookAction(HttpRequestTemplate.builder("http://127.0.0.1/foobar", 80))))
+                .addAction("failing_hook", indexAction("foo", "bar").setExecutionTimeField("@timestamp")))
                 .get();
         refresh(Watch.INDEX);
 

@@ -48,6 +48,7 @@ public final class ProfileResult implements Writeable, ToXContent {
     private static final ParseField TYPE = new ParseField("type");
     private static final ParseField DESCRIPTION = new ParseField("description");
     private static final ParseField NODE_TIME = new ParseField("time");
+    private static final ParseField NODE_TIME_NANOS = new ParseField("time_in_nanos");
     private static final ParseField CHILDREN = new ParseField("children");
     private static final ParseField BREAKDOWN = new ParseField("breakdown");
 
@@ -147,6 +148,7 @@ public final class ProfileResult implements Writeable, ToXContent {
                 .field(TYPE.getPreferredName(), type)
                 .field(DESCRIPTION.getPreferredName(), description)
                 .field(NODE_TIME.getPreferredName(), String.format(Locale.US, "%.10gms", getTime() / 1000000.0))
+                .field(NODE_TIME_NANOS.getPreferredName(), getTime())
                 .field(BREAKDOWN.getPreferredName(), timings);
 
         if (!children.isEmpty()) {

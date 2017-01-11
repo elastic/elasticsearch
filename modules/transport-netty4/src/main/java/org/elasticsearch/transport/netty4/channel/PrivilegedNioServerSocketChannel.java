@@ -22,10 +22,16 @@ package org.elasticsearch.transport.netty4.channel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 
 import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.List;
 
+/**
+ * Wraps netty calls to {@link java.nio.channels.ServerSocketChannel#accept()} in
+ * {@link AccessController#doPrivileged(PrivilegedAction)} blocks. This is necessary to limit
+ * {@link java.net.SocketPermission} to the transport module.
+ */
 public class PrivilegedNioServerSocketChannel extends NioServerSocketChannel {
 
     @Override

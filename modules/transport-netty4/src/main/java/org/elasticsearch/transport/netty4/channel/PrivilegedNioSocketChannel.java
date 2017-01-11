@@ -23,9 +23,15 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 
 import java.net.SocketAddress;
 import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 
+/**
+ * Wraps netty calls to {@link java.nio.channels.SocketChannel#connect(SocketAddress)} in
+ * {@link AccessController#doPrivileged(PrivilegedAction)} blocks. This is necessary to limit
+ * {@link java.net.SocketPermission} to the transport module.
+ */
 public class PrivilegedNioSocketChannel extends NioSocketChannel {
 
     @Override

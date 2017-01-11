@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.notification.email.attachment;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -49,10 +47,9 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     public static final Setting<Integer> RETRIES_SETTING =
             Setting.intSetting("xpack.notification.reporting.retries", 40, 0, Setting.Property.NodeScope);
 
-    private static final ObjectParser<Builder, AuthParseFieldMatcher> PARSER = new ObjectParser<>("reporting_attachment");
-    private static final ObjectParser<KibanaReportingPayload, ParseFieldMatcherSupplier> PAYLOAD_PARSER =
+    private static final ObjectParser<Builder, AuthParseContext> PARSER = new ObjectParser<>("reporting_attachment");
+    private static final ObjectParser<KibanaReportingPayload, Void> PAYLOAD_PARSER =
             new ObjectParser<>("reporting_attachment_kibana_payload", true, null);
-    private static final ParseFieldMatcherSupplier STRICT_PARSING = () -> ParseFieldMatcher.STRICT;
 
     static {
         PARSER.declareInt(Builder::retries, new ParseField("retries"));
@@ -88,7 +85,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
     @Override
     public ReportingAttachment parse(String id, XContentParser parser) throws IOException {
         Builder builder = new Builder(id);
-        PARSER.parse(parser, builder, new AuthParseFieldMatcher(authRegistry));
+        PARSER.parse(parser, builder, new AuthParseContext(authRegistry));
         return builder.build();
     }
 
@@ -199,7 +196,7 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
         // EMPTY is safe here becaus we never call namedObject
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, body)) {
             KibanaReportingPayload payload = new KibanaReportingPayload();
-            PAYLOAD_PARSER.parse(parser, payload, STRICT_PARSING);
+            PAYLOAD_PARSER.parse(parser, payload, null);
             String path = payload.getPath();
             if (Strings.isEmpty(path)) {
                 throw new ElasticsearchException("Watch[{}] reporting[{}] field path found in JSON payload, payload was {}",
@@ -213,20 +210,15 @@ public class ReportingAttachmentParser implements EmailAttachmentParser<Reportin
      * A helper class to parse the HTTPAuth data, which is read by an old school pull parser, that is handed over in the ctor.
      * See the static parser definition at the top
      */
-    private static class AuthParseFieldMatcher implements ParseFieldMatcherSupplier {
+    private static class AuthParseContext {
 
         private final HttpAuthRegistry authRegistry;
 
-        AuthParseFieldMatcher(HttpAuthRegistry authRegistry) {
+        AuthParseContext(HttpAuthRegistry authRegistry) {
             this.authRegistry = authRegistry;
         }
 
-        @Override
-        public ParseFieldMatcher getParseFieldMatcher() {
-            return ParseFieldMatcher.EMPTY;
-        }
-
-        public HttpAuth parseAuth(XContentParser parser) {
+        HttpAuth parseAuth(XContentParser parser) {
             try {
                 return authRegistry.parse(parser);
             } catch (IOException e) {

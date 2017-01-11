@@ -1047,12 +1047,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         }
 
         query = Queries.fixNegativeQueryIfNeeded(query);
-        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
-        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
-        // and multiple variations of the same word in the query (synonyms for instance).
-        if (query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
-            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, this.minimumShouldMatch());
-        }
+        query = Queries.maybeApplyMinimumShouldMatch(query, this.minimumShouldMatch);
 
         //restore the previous BoostQuery wrapping
         for (int i = boosts.size() - 1; i >= 0; i--) {

@@ -19,6 +19,14 @@
 
 package org.elasticsearch.index.query;
 
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
+import static org.hamcrest.CoreMatchers.either;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+
+import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -27,6 +35,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -43,6 +52,7 @@ import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
@@ -52,13 +62,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
-import static org.hamcrest.CoreMatchers.either;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStringQueryBuilder> {
 
@@ -372,6 +375,121 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 .add(new BooleanClause(new SynonymQuery(new Term(STRING_FIELD_NAME, "last"),
                     new Term(STRING_FIELD_NAME, "last")), defaultOp))
                 .build();
+            assertThat(query, Matchers.equalTo(expectedQuery));
+        }
+    }
+
+    public void testToQueryWithGraph() throws Exception {
+        assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
+        for (Operator op : Operator.values()) {
+            BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
+            MapperQueryParser queryParser = new MapperQueryParser(createShardContext());
+            QueryParserSettings settings = new QueryParserSettings("");
+            settings.defaultField(STRING_FIELD_NAME);
+            settings.fieldsAndWeights(Collections.emptyMap());
+            settings.fuzziness(Fuzziness.AUTO);
+            settings.analyzeWildcard(true);
+            settings.rewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            settings.defaultOperator(op.toQueryParserOperator());
+            settings.forceAnalyzer(new MockSynonymAnalyzer());
+            settings.forceQuoteAnalyzer(new MockSynonymAnalyzer());
+            queryParser.reset(settings);
+
+            // simple multi-term
+            Query query = queryParser.parse("guinea pig");
+            Query expectedQuery = new GraphQuery(
+                new BooleanQuery.Builder()
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), defaultOp))
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
+                    .build(),
+                new TermQuery(new Term(STRING_FIELD_NAME, "cavy"))
+            );
+            assertThat(query, Matchers.equalTo(expectedQuery));
+
+            // simple with additional tokens
+            query = queryParser.parse("that guinea pig smells");
+            expectedQuery = new GraphQuery(
+                new BooleanQuery.Builder()
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), defaultOp))
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), defaultOp))
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), defaultOp))
+                    .build(),
+                new BooleanQuery.Builder()
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), defaultOp))
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "cavy")), defaultOp))
+                    .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), defaultOp))
+                    .build()
+            );
+            assertThat(query, Matchers.equalTo(expectedQuery));
+
+            // complex
+            query = queryParser.parse("+that -(guinea pig) +smells");
+            expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), BooleanClause.Occur.MUST))
+                .add(new BooleanClause(new GraphQuery(
+                    new BooleanQuery.Builder()
+                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), defaultOp))
+                        .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
+                        .build(),
+                    new TermQuery(new Term(STRING_FIELD_NAME, "cavy"))
+                ), BooleanClause.Occur.MUST_NOT))
+                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), BooleanClause.Occur.MUST))
+                .build();
+
+            assertThat(query, Matchers.equalTo(expectedQuery));
+
+            // no paren should cause guinea and pig to be treated as separate tokens
+            query = queryParser.parse("+that -guinea pig +smells");
+            expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "that")), BooleanClause.Occur.MUST))
+                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "guinea")), BooleanClause.Occur.MUST_NOT))
+                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "pig")), defaultOp))
+                .add(new BooleanClause(new TermQuery(new Term(STRING_FIELD_NAME, "smells")), BooleanClause.Occur.MUST))
+                .build();
+
+            assertThat(query, Matchers.equalTo(expectedQuery));
+
+            // phrase
+            query = queryParser.parse("\"that guinea pig smells\"");
+            expectedQuery = new BooleanQuery.Builder()
+                .setDisableCoord(true)
+                .add(new BooleanClause(new GraphQuery(
+                    new PhraseQuery.Builder()
+                        .add(new Term(STRING_FIELD_NAME, "that"))
+                        .add(new Term(STRING_FIELD_NAME, "guinea"))
+                        .add(new Term(STRING_FIELD_NAME, "pig"))
+                        .add(new Term(STRING_FIELD_NAME, "smells"))
+                        .build(),
+                    new PhraseQuery.Builder()
+                        .add(new Term(STRING_FIELD_NAME, "that"))
+                        .add(new Term(STRING_FIELD_NAME, "cavy"))
+                        .add(new Term(STRING_FIELD_NAME, "smells"))
+                        .build()
+                ), BooleanClause.Occur.SHOULD)).build();
+
+            assertThat(query, Matchers.equalTo(expectedQuery));
+
+            // phrase with slop
+            query = queryParser.parse("\"that guinea pig smells\"~2");
+            expectedQuery = new BooleanQuery.Builder()
+                .setDisableCoord(true)
+                .add(new BooleanClause(new GraphQuery(
+                    new PhraseQuery.Builder()
+                        .add(new Term(STRING_FIELD_NAME, "that"))
+                        .add(new Term(STRING_FIELD_NAME, "guinea"))
+                        .add(new Term(STRING_FIELD_NAME, "pig"))
+                        .add(new Term(STRING_FIELD_NAME, "smells"))
+                        .setSlop(2)
+                        .build(),
+                    new PhraseQuery.Builder()
+                        .add(new Term(STRING_FIELD_NAME, "that"))
+                        .add(new Term(STRING_FIELD_NAME, "cavy"))
+                        .add(new Term(STRING_FIELD_NAME, "smells"))
+                        .setSlop(2)
+                        .build()
+                ), BooleanClause.Occur.SHOULD)).build();
+
             assertThat(query, Matchers.equalTo(expectedQuery));
         }
     }

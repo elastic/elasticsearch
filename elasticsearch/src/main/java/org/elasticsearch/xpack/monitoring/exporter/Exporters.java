@@ -91,7 +91,7 @@ public class Exporters extends AbstractLifecycleComponent implements Iterable<Ex
             try {
                 ExportBulk bulk = exporter.openBulk();
                 if (bulk == null) {
-                    logger.info("skipping exporter [{}] as it is not ready yet", exporter.name());
+                    logger.debug("skipping exporter [{}] as it is not ready yet", exporter.name());
                 } else {
                     bulks.add(bulk);
                 }

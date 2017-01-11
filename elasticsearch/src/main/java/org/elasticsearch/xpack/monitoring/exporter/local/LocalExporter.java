@@ -79,6 +79,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
 
     private final AtomicReference<State> state = new AtomicReference<>(State.INITIALIZED);
     private final AtomicBoolean installingSomething = new AtomicBoolean(false);
+    private final AtomicBoolean waitedForSetup = new AtomicBoolean(false);
 
     public LocalExporter(Exporter.Config config, InternalClient client,
                          ClusterService clusterService, CleanerService cleanerService) {
@@ -122,6 +123,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     public void doClose() {
         if (state.getAndSet(State.TERMINATED) != State.TERMINATED) {
             logger.trace("stopped");
+            // we also remove the listener in resolveBulk after we get to RUNNING, but it's okay to double-remove
             clusterService.removeListener(this);
             cleanerService.remove(this);
         }
@@ -143,17 +145,31 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         final Map<String, String> templates = StreamSupport.stream(new ResolversRegistry(Settings.EMPTY).spliterator(), false)
                 .collect(Collectors.toMap(MonitoringIndexNameResolver::templateName, MonitoringIndexNameResolver::template, (a, b) -> a));
 
-        // if this is not the master, we just need to make sure the master has set things up
+        boolean setup = true;
+
+        // elected master node needs to setup templates; non-master nodes need to wait for it to be setup
         if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
-            if (setupIfElectedMaster(clusterState, templates) == false) {
-                return null;
-            }
+            setup = setupIfElectedMaster(clusterState, templates);
         } else if (setupIfNotElectedMaster(clusterState, templates.keySet()) == false) {
+            // the first pass will be false so that we don't bother users if the master took one-go to setup
+            if (waitedForSetup.getAndSet(true)) {
+                logger.info("waiting for elected master node [{}] to setup local exporter [{}] (does it have x-pack installed?)",
+                            clusterService.state().nodes().getMasterNode(), config.name());
+            }
+
+            setup = false;
+        }
+
+        // any failure/delay to setup the local exporter stops it until the next pass (10s by default)
+        if (setup == false) {
             return null;
         }
 
         if (state.compareAndSet(State.INITIALIZED, State.RUNNING)) {
             logger.debug("started");
+
+            // we no longer need to receive cluster state updates
+            clusterService.removeListener(this);
         }
 
         return new LocalBulk(name(), logger, client, resolvers, config.settings().getAsBoolean(USE_INGEST_PIPELINE_SETTING, true));

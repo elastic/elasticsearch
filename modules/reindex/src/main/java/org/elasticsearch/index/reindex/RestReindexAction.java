@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -43,7 +42,6 @@ import org.elasticsearch.index.reindex.remote.RemoteInfo;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.List;
@@ -61,11 +59,11 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Expose reindex over rest.
  */
 public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexRequest, ReindexAction> {
-    static final ObjectParser<ReindexRequest, ReindexParseContext> PARSER = new ObjectParser<>("reindex");
+    static final ObjectParser<ReindexRequest, Void> PARSER = new ObjectParser<>("reindex");
     private static final Pattern HOST_PATTERN = Pattern.compile("(?<scheme>[^:]+)://(?<host>[^:]+):(?<port>\\d+)");
 
     static {
-        ObjectParser.Parser<ReindexRequest, ReindexParseContext> sourceParser = (parser, request, context) -> {
+        ObjectParser.Parser<ReindexRequest, Void> sourceParser = (parser, request, context) -> {
             // Funky hack to work around Search not having a proper ObjectParser and us wanting to extract query if using remote.
             Map<String, Object> source = parser.map();
             String[] indices = extractStringArray(source, "index");
@@ -80,11 +78,11 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
             try (XContentParser innerParser = parser.contentType().xContent().createParser(parser.getXContentRegistry(), builder.bytes())) {
-                request.getSearchRequest().source().parseXContent(context.queryParseContext(innerParser));
+                request.getSearchRequest().source().parseXContent(new QueryParseContext(innerParser, ParseFieldMatcher.EMPTY));
             }
         };
 
-        ObjectParser<IndexRequest, ParseFieldMatcherSupplier> destParser = new ObjectParser<>("dest");
+        ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
         destParser.declareString(IndexRequest::type, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));
@@ -101,8 +99,8 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
     }
 
     @Inject
-    public RestReindexAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
-        super(settings, searchRequestParsers, ReindexAction.INSTANCE);
+    public RestReindexAction(Settings settings, RestController controller) {
+        super(settings, ReindexAction.INSTANCE);
         controller.registerHandler(POST, "/_reindex", this);
     }
 
@@ -119,7 +117,7 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         }
         ReindexRequest internal = new ReindexRequest(new SearchRequest(), new IndexRequest());
         try (XContentParser parser = request.contentParser()) {
-            PARSER.parse(parser, internal, new ReindexParseContext(searchRequestParsers, parseFieldMatcher));
+            PARSER.parse(parser, internal, null);
         }
         return internal;
     }
@@ -217,24 +215,5 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         @SuppressWarnings("unchecked")
         Map<String, Object> map = (Map<String, Object>) query;
         return builder.map(map).bytes();
-    }
-
-    static class ReindexParseContext implements ParseFieldMatcherSupplier {
-        private final SearchRequestParsers searchRequestParsers;
-        private final ParseFieldMatcher parseFieldMatcher;
-
-        ReindexParseContext(SearchRequestParsers searchRequestParsers, ParseFieldMatcher parseFieldMatcher) {
-            this.searchRequestParsers = searchRequestParsers;
-            this.parseFieldMatcher = parseFieldMatcher;
-        }
-
-        QueryParseContext queryParseContext(XContentParser parser) {
-            return new QueryParseContext(parser, parseFieldMatcher);
-        }
-
-        @Override
-        public ParseFieldMatcher getParseFieldMatcher() {
-            return this.parseFieldMatcher;
-        }
     }
 }

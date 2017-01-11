@@ -276,7 +276,6 @@ public class SearchModule {
     private final Settings settings;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
-    private final SearchRequestParsers searchRequestParsers;
 
     public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
         this.settings = settings;
@@ -295,7 +294,6 @@ public class SearchModule {
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
         registerShapes();
-        searchRequestParsers = new SearchRequestParsers();
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -304,10 +302,6 @@ public class SearchModule {
 
     public List<NamedXContentRegistry.Entry> getNamedXContents() {
         return namedXContents;
-    }
-
-    public SearchRequestParsers getSearchRequestParsers() {
-        return searchRequestParsers;
     }
 
     /**

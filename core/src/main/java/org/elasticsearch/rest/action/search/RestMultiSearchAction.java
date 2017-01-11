@@ -37,7 +37,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
@@ -53,12 +52,10 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 public class RestMultiSearchAction extends BaseRestHandler {
 
     private final boolean allowExplicitIndex;
-    private final SearchRequestParsers searchRequestParsers;
 
     @Inject
-    public RestMultiSearchAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
+    public RestMultiSearchAction(Settings settings, RestController controller) {
         super(settings);
-        this.searchRequestParsers = searchRequestParsers;
 
         controller.registerHandler(GET, "/_msearch", this);
         controller.registerHandler(POST, "/_msearch", this);
@@ -72,7 +69,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, searchRequestParsers, parseFieldMatcher);
+        MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex, parseFieldMatcher);
         return channel -> client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
     }
 
@@ -80,7 +77,6 @@ public class RestMultiSearchAction extends BaseRestHandler {
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}
      */
     public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex,
-                                                  SearchRequestParsers searchRequestParsers,
                                                   ParseFieldMatcher parseFieldMatcher) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {

@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -163,7 +162,7 @@ public class MultiSearchRequestTests extends ESTestCase {
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data)).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true, new SearchRequestParsers(), ParseFieldMatcher.EMPTY);
+        return RestMultiSearchAction.parseRequest(restRequest, true, ParseFieldMatcher.EMPTY);
     }
 
     @Override

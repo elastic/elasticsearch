@@ -66,21 +66,6 @@ additionalTest('testSyspropCreds'){
   systemProperty 'aws.secretKey', 'sysprop_secret'
 }
 
-File fakeHome = new File(buildDir, 'tmp/fake-profile-home')
-additionalTest('testProfileCreds'){
-  doFirst {
-    File awsDir = new File(fakeHome, '.aws')
-    awsDir.mkdirs()
-    new File(awsDir, 'credentials').setText(
-      '[default]\n' +
-      'aws_access_key_id=profile_access\n' +
-      'aws_secret_access_key=profile_secret', 'UTF-8')
-  }
-  include '**/ProfileCredentialsTests.class'
-  systemProperty 'user.home', fakeHome
-  systemProperty 'tests.security.manager', 'false' // don't have permissions to read outside the tests
-}
-
 test {
   // these are tested explicitly in separate test tasks
   exclude '**/*CredentialsTests.class'

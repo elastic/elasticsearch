@@ -153,14 +153,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
                     if (syspropCredentials != null) {
                         credentials = new StaticCredentialsProvider(syspropCredentials);
                     } else {
-                        AWSCredentials profileCredentials = getDeprecatedCredentials(logger, deprecationLogger,
-                            new ProfileCredentialsProvider(), "profile file");
-                        if (profileCredentials != null) {
-                            credentials = new StaticCredentialsProvider(profileCredentials);
-                        } else {
-                            logger.debug("Using instance profile credentials");
-                            credentials = new InstanceProfileCredentialsProvider();
-                        }
+                        logger.debug("Using instance profile credentials");
+                        credentials = new InstanceProfileCredentialsProvider();
                     }
                 }
             } else {

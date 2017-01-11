@@ -23,7 +23,6 @@ import org.elasticsearch.action.admin.indices.shrink.ShrinkRequest;
 import org.elasticsearch.action.admin.indices.shrink.ShrinkResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -52,7 +51,7 @@ public class RestShrinkIndexAction extends BaseRestHandler {
             throw new IllegalArgumentException("no source index");
         }
         ShrinkRequest shrinkIndexRequest = new ShrinkRequest(request.param("target"), request.param("index"));
-        request.applyContentParser(parser -> ShrinkRequest.PARSER.parse(parser, shrinkIndexRequest, () -> ParseFieldMatcher.EMPTY));
+        request.applyContentParser(parser -> ShrinkRequest.PARSER.parse(parser, shrinkIndexRequest, null));
         shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
         shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));
         shrinkIndexRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));

@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -32,8 +31,7 @@ import java.util.Set;
  */
 public abstract class Condition<T> implements NamedWriteable {
 
-    public static ObjectParser<Set<Condition>, ParseFieldMatcherSupplier> PARSER =
-        new ObjectParser<>("conditions", null);
+    public static ObjectParser<Set<Condition>, Void> PARSER = new ObjectParser<>("conditions", null);
     static {
         PARSER.declareString((conditions, s) ->
             conditions.add(new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),

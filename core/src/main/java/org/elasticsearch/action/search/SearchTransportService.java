@@ -83,10 +83,8 @@ public class SearchTransportService extends AbstractLifecycleComponent {
         super(settings);
         this.transportService = transportService;
         this.remoteClusterService = new RemoteClusterService(settings, transportService);
-        final Consumer<Settings> clusterUpdateConsumer = (s) -> remoteClusterService.updateRemoteClusters(s,
-            ActionListener.wrap((x) -> {}, (x) -> {}));
-        clusterSettings.addSettingsUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS, clusterUpdateConsumer,
-            RemoteClusterService::validateRemoteClustersSeeds);
+        clusterSettings.addAffixUpdateConsumer(RemoteClusterService.REMOTE_CLUSTERS_SEEDS, remoteClusterService::updateRemoteCluster,
+            (namespace, value) -> {});
     }
 
     public void sendFreeContext(Transport.Connection connection, final long contextId, SearchRequest request) {

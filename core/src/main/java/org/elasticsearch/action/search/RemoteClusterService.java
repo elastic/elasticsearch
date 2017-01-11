@@ -59,6 +59,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Basic service for accessing remote clusters via gateway nodes
@@ -68,11 +70,9 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     /**
      * A list of initial seed nodes to discover eligible nodes from the remote cluster
      */
-    //TODO this should be an affix settings?
-    public static final Setting<Settings> REMOTE_CLUSTERS_SEEDS = Setting.groupSetting("search.remote.seeds.",
-            RemoteClusterService::validateRemoteClustersSeeds,
-            Setting.Property.NodeScope,
-            Setting.Property.Dynamic);
+    public static final Setting.AffixSetting<List<InetSocketAddress>> REMOTE_CLUSTERS_SEEDS = Setting.affixKeySetting("search.remote.",
+        "seeds", (key) -> Setting.listSetting(key, Collections.emptyList(), RemoteClusterService::parseSeedAddress,
+            Setting.Property.NodeScope, Setting.Property.Dynamic));
     /**
      * The maximum number of connections that will be established to a remote cluster. For instance if there is only a single
      * seed node, other nodes will be discovered up to the given number of nodes in this setting. The default is 3.
@@ -109,12 +109,11 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
 
     /**
      * This method updates the list of remote clusters. It's intended to be used as an update consumer on the settings infrastructure
-     * @param seedSettings the group settings returned from {@link #REMOTE_CLUSTERS_SEEDS}
+     * @param seeds a cluster alias to discovery node mapping representing the remote clusters seeds nodes
      * @param connectionListener a listener invoked once every configured cluster has been connected to
      */
-    void updateRemoteClusters(Settings seedSettings, ActionListener<Void> connectionListener) {
+    private synchronized void updateRemoteClusters(Map<String, List<DiscoveryNode>> seeds, ActionListener<Void> connectionListener) {
         Map<String, RemoteClusterConnection> remoteClusters = new HashMap<>();
-        Map<String, List<DiscoveryNode>> seeds = buildRemoteClustersSeeds(seedSettings);
         if (seeds.isEmpty()) {
             connectionListener.onResponse(null);
         } else {
@@ -126,13 +125,27 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                 String attribute = REMOTE_NODE_ATTRIBUTE.get(settings);
                 nodePredicate = nodePredicate.and((node) -> Boolean.getBoolean(node.getAttributes().getOrDefault(attribute, "false")));
             }
+            remoteClusters.putAll(this.remoteClusters);
             for (Map.Entry<String, List<DiscoveryNode>> entry : seeds.entrySet()) {
                 RemoteClusterConnection remote = this.remoteClusters.get(entry.getKey());
-                if (remote == null) {
+                if (entry.getValue().isEmpty()) { // with no seed nodes we just remove the connection
+                    try {
+                        IOUtils.close(remote);
+                    } catch (IOException e) {
+                        logger.warn("failed to close remote cluster connections for cluster: " + entry.getKey(), e);
+                    }
+                    remoteClusters.remove(entry.getKey());
+                    continue;
+                }
+
+                if (remote == null) { // this is a new cluster we have to add a new representation
                     remote = new RemoteClusterConnection(settings, entry.getKey(), entry.getValue(), transportService, numRemoteConnections,
                         nodePredicate);
                     remoteClusters.put(entry.getKey(), remote);
                 }
+
+                // now update the seed nodes no matter if it's new or already existing
+                RemoteClusterConnection finalRemote = remote;
                 remote.updateSeedNodes(entry.getValue(), ActionListener.wrap(
                     response -> {
                         if (countDown.countDown()) {
@@ -143,14 +156,13 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
                         if (countDown.fastForward()) {
                             connectionListener.onFailure(exception);
                         }
-                        logger.error("failed to update seed list for cluster: " + entry.getKey(), exception);
+                        if (finalRemote.isClosed() == false) {
+                            logger.warn("failed to update seed list for cluster: " + entry.getKey(), exception);
+                        }
                     }));
             }
         }
-        if (remoteClusters.isEmpty() == false) {
-            remoteClusters.putAll(this.remoteClusters);
-            this.remoteClusters = Collections.unmodifiableMap(remoteClusters);
-        }
+        this.remoteClusters = Collections.unmodifiableMap(remoteClusters);
     }
 
     /**
@@ -296,65 +308,55 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
         return connection.getConnection(node);
     }
 
-
-    static Map<String, List<DiscoveryNode>> buildRemoteClustersSeeds(Settings settings) {
-        Map<String, List<DiscoveryNode>> remoteClustersNodes = new HashMap<>();
-        for (String clusterName : settings.names()) {
-            String[] remoteHosts = settings.getAsArray(clusterName);
-            for (String remoteHost : remoteHosts) {
-                int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
-                String host = remoteHost.substring(0, portSeparator);
-                InetAddress hostAddress;
-                try {
-                    hostAddress = InetAddress.getByName(host);
-                } catch (UnknownHostException e) {
-                    throw new IllegalArgumentException("unknown host [" + host + "]", e);
-                }
-                int port = Integer.valueOf(remoteHost.substring(portSeparator + 1));
-                DiscoveryNode node = new DiscoveryNode(clusterName + "#" + remoteHost,
-                    new TransportAddress(new InetSocketAddress(hostAddress, port)),
+    public void updateRemoteCluster(String clusterAlias, List<InetSocketAddress> addresses) {
+        updateRemoteClusters(Collections.singletonMap(clusterAlias, addresses.stream().map(address -> {
+                TransportAddress transportAddress = new TransportAddress(address);
+                return new DiscoveryNode(clusterAlias + "#" + transportAddress.toString(),
+                    transportAddress,
                     Version.CURRENT.minimumCompatibilityVersion());
-                List<DiscoveryNode> nodes = remoteClustersNodes.get(clusterName);
-                if (nodes == null) {
-                    nodes = new ArrayList<>();
-                    remoteClustersNodes.put(clusterName, nodes);
-                }
-                nodes.add(node);
-            }
-        }
-        return remoteClustersNodes;
+            }).collect(Collectors.toList())),
+            ActionListener.wrap((x) -> {}, (x) -> {}) );
     }
 
-    static void validateRemoteClustersSeeds(Settings settings) {
-        for (String clusterName : settings.names()) {
-            String[] remoteHosts = settings.getAsArray(clusterName);
-            if (remoteHosts.length == 0) {
-                throw new IllegalArgumentException("no hosts set for remote cluster [" + clusterName + "], at least one host is required");
+    static Map<String, List<DiscoveryNode>> buildRemoteClustersSeeds(Settings settings) {
+        Stream<Setting<List<InetSocketAddress>>> allConcreteSettings = REMOTE_CLUSTERS_SEEDS.getAllConcreteSettings(settings);
+        return allConcreteSettings.collect(
+            Collectors.toMap(REMOTE_CLUSTERS_SEEDS::getNamespace,  concreteSetting -> {
+            String clusterName = REMOTE_CLUSTERS_SEEDS.getNamespace(concreteSetting);
+            List<DiscoveryNode> nodes = new ArrayList<>();
+            for (InetSocketAddress address : concreteSetting.get(settings)) {
+                TransportAddress transportAddress = new TransportAddress(address);
+                DiscoveryNode node = new DiscoveryNode(clusterName + "#" + transportAddress.toString(),
+                    transportAddress,
+                    Version.CURRENT.minimumCompatibilityVersion());
+                nodes.add(node);
             }
-            for (String remoteHost : remoteHosts) {
-                int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
-                if (portSeparator == -1 || portSeparator == remoteHost.length()) {
-                    throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] " +
-                        "instead for remote cluster [" + clusterName + "]");
-                }
-                String host = remoteHost.substring(0, portSeparator);
-                try {
-                    InetAddress.getByName(host);
-                } catch (UnknownHostException e) {
-                    throw new IllegalArgumentException("unknown host [" + host + "]", e);
-                }
-                String port = remoteHost.substring(portSeparator + 1);
-                try {
-                    Integer portValue = Integer.valueOf(port);
-                    if (portValue <= 0) {
-                        throw new IllegalArgumentException("port number must be > 0 but was: [" + portValue + "]");
-                    }
-                } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("port must be a number, found [" + port + "] instead for remote cluster [" +
-                        clusterName + "]");
-                }
-            }
+            return nodes;
+        }));
+    }
+
+    static final InetSocketAddress parseSeedAddress(String remoteHost) {
+        int portSeparator = remoteHost.lastIndexOf(':'); // in case we have a IPv6 address ie. [::1]:9300
+        if (portSeparator == -1 || portSeparator == remoteHost.length()) {
+            throw new IllegalArgumentException("remote hosts need to be configured as [host:port], found [" + remoteHost + "] instead");
         }
+        String host = remoteHost.substring(0, portSeparator);
+        InetAddress hostAddress;
+        try {
+            hostAddress = InetAddress.getByName(host);
+        } catch (UnknownHostException e) {
+            throw new IllegalArgumentException("unknown host [" + host + "]", e);
+        }
+        try {
+            int port = Integer.valueOf(remoteHost.substring(portSeparator + 1));
+            if (port <= 0) {
+                throw new IllegalArgumentException("port number must be > 0 but was: [" + port + "]");
+            }
+            return new InetSocketAddress(hostAddress, port);
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("port must be a number");
+        }
+
     }
 
     /**
@@ -364,7 +366,8 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
     void initializeRemoteClusters() {
         final TimeValue timeValue = REMOTE_INITIAL_CONNECTION_TIMEOUT_SETTING.get(settings);
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        updateRemoteClusters(REMOTE_CLUSTERS_SEEDS.get(settings), future);
+        Map<String, List<DiscoveryNode>> seeds = buildRemoteClustersSeeds(settings);
+        updateRemoteClusters(seeds, future);
         try {
             future.get(timeValue.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {

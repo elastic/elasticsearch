@@ -24,9 +24,10 @@ remote clusters that should be connected to, for instance:
 --------------------------------
 search:
     remote:
-        seeds:
-            cluster_one: 127.0.0.1:9300 <1>
-            cluster_two: 127.0.0.1:9301 <1>
+        cluster_one: <1>
+            seeds: 127.0.0.1:9300
+        cluster_two: <1>
+            seeds: 127.0.0.1:9301
 
 --------------------------------
 <1> `cluster_one` and `cluster_two` are arbitrary names representing the connection to each cluster. These names are subsequently used to distinguish between local and remote indices.

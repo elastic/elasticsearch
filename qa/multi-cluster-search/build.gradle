@@ -35,7 +35,7 @@ task mixedClusterTest(type: RestIntegTestTask) {
   dependsOn(remoteClusterTest)
   cluster {
     distribution = 'zip'
-    setting 'search.remote.seeds.my_remote_cluster', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
+    setting 'search.remote.my_remote_cluster.seeds', "\"${-> remoteClusterTest.nodes.get(0).transportUri()}\""
     setting 'search.remote.connections_per_cluster', 1
 
   }

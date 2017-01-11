@@ -236,6 +236,10 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
         connectHandler.close();
     }
 
+    public boolean isClosed() {
+        return connectHandler.isClosed();
+    }
+
     /**
      * The connect handler manages node discovery and the actual connect to the remote cluster.
      * There is at most one connect job running at any time. If such a connect job is triggered
@@ -350,6 +354,9 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
         void collectRemoteNodes(Iterator<DiscoveryNode> seedNodes,
                                 final TransportService transportService, ActionListener<Void> listener) {
+            if (Thread.currentThread().isInterrupted()) {
+                listener.onFailure(new InterruptedException("remote connect thread got interrupted"));
+            }
             try {
                 if (seedNodes.hasNext()) {
                     cancellableThreads.executeIO(() -> {
@@ -407,6 +414,10 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
+        }
+
+        final boolean isClosed() {
+            return closed.get();
         }
 
         /* This class handles the _state response from the remote cluster when sniffing nodes to connect to */

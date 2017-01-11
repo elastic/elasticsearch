@@ -309,10 +309,19 @@ public class AuthorizationService extends AbstractComponent {
         }
     }
 
+    private static String IndexActionSubRequestPrimary = IndexAction.NAME + "[p]";
+    private static String IndexActionSubRequestReplica = IndexAction.NAME + "[r]";
+    private static String DeleteActionSubRequestPrimary = DeleteAction.NAME + "[p]";
+    private static String DeleteActionSubRequestReplica = DeleteAction.NAME + "[r]";
+
     private static boolean isCompositeAction(String action) {
         return action.equals(BulkAction.NAME) ||
                 action.equals(IndexAction.NAME) ||
                 action.equals(DeleteAction.NAME) ||
+                action.equals(IndexActionSubRequestPrimary) ||
+                action.equals(IndexActionSubRequestReplica) ||
+                action.equals(DeleteActionSubRequestPrimary) ||
+                action.equals(DeleteActionSubRequestReplica) ||
                 action.equals(MultiGetAction.NAME) ||
                 action.equals(MultiTermVectorsAction.NAME) ||
                 action.equals(MultiSearchAction.NAME) ||

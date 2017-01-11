@@ -33,8 +33,6 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.oio.OioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
@@ -80,6 +78,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty4.Netty4OpenChannelsHandler;
 import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.transport.netty4.channel.PrivilegedNioServerSocketChannel;
+import org.elasticsearch.transport.netty4.channel.PrivilegedOioServerSocketChannel;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -301,11 +301,11 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             if (blockingServer) {
                 serverBootstrap.group(new OioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                     HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-                serverBootstrap.channel(OioServerSocketChannel.class);
+                serverBootstrap.channel(PrivilegedOioServerSocketChannel.class);
             } else {
                 serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                     HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-                serverBootstrap.channel(NioServerSocketChannel.class);
+                serverBootstrap.channel(PrivilegedNioServerSocketChannel.class);
             }
 
             serverBootstrap.childHandler(configureServerChannelHandler());

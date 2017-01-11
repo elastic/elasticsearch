@@ -29,14 +29,12 @@ as gossip routers. It provides the following settings with the
 [cols="<,<",options="header",]
 |=======================================================================
 |Setting |Description
-|`hosts` |Either an array setting or a comma delimited setting. Each
-value should be in the form of `host:port` or `host` (where `port` defaults to `9300`). Note that IPv6 hosts must be bracketed. Defaults to
-`127.0.0.1, [::1]`
+|`hosts` |Either an array setting or a comma delimited setting. Each value should be in the form of `host:port` or `host` (where `port`
+          defaults to the setting `transport.profiles.default.port` falling back to `transport.tcp.port` if not set). Note that IPv6 hosts
+          must be bracketed. Defaults to `127.0.0.1, [::1]`
 |=======================================================================
 
-The unicast discovery uses the
-<<modules-transport,transport>> module to
-perform the discovery.
+The unicast discovery uses the <<modules-transport,transport>> module to perform the discovery.
 
 [float]
 [[master-election]]

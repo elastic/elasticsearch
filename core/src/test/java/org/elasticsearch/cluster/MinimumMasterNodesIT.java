@@ -375,7 +375,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         otherNodes.remove(master);
         NetworkDisruption partition = new NetworkDisruption(
             new TwoPartitions(Collections.singleton(master), otherNodes),
-            new NetworkDelay(TimeValue.timeValueMinutes(1)));
+            new NetworkDisruption.NetworkDisconnect());
         internalCluster().setDisruptionScheme(partition);
 
         final CountDownLatch latch = new CountDownLatch(1);

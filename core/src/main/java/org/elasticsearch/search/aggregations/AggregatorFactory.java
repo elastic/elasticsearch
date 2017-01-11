@@ -24,7 +24,6 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -163,7 +162,6 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
     }
 
     protected final String name;
-    protected final Type type;
     protected final AggregatorFactory<?> parent;
     protected final AggregatorFactories factories;
     protected final Map<String, Object> metaData;
@@ -174,15 +172,12 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
      *
      * @param name
      *            The aggregation name
-     * @param type
-     *            The aggregation type
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, Type type, SearchContext context, AggregatorFactory<?> parent,
+    public AggregatorFactory(String name, SearchContext context, AggregatorFactory<?> parent,
             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
         this.name = name;
-        this.type = type;
         this.context = context;
         this.parent = parent;
         this.factories = subFactoriesBuilder.build(context, this);
@@ -224,10 +219,6 @@ public abstract class AggregatorFactory<AF extends AggregatorFactory<AF>> {
      */
     public final Aggregator create(Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
         return createInternal(parent, collectsFromSingleBucket, this.factories.createPipelineAggregators(), this.metaData);
-    }
-
-    public String getType() {
-        return type.name();
     }
 
     public AggregatorFactory<?> getParent() {

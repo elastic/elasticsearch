@@ -123,29 +123,21 @@ public class BytesRestResponse extends RestResponse {
         } else if (channel.detailedErrorsEnabled()) {
             final ToXContent.Params params;
             if (channel.request().paramAsBoolean("error_trace", !ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
-                params =  new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"), channel.request());
+                params =  new ToXContent.DelegatingMapParams(
+                        Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"), channel.request());
             } else {
                 if (status.getStatus() < 500) {
-                    SUPPRESSED_ERROR_LOGGER.debug((Supplier<?>) () -> new ParameterizedMessage("path: {}, params: {}", channel.request().rawPath(), channel.request().params()), e);
+                    SUPPRESSED_ERROR_LOGGER.debug(
+                            (Supplier<?>) () -> new ParameterizedMessage("path: {}, params: {}",
+                                    channel.request().rawPath(), channel.request().params()), e);
                 } else {
-                    SUPPRESSED_ERROR_LOGGER.warn((Supplier<?>) () -> new ParameterizedMessage("path: {}, params: {}", channel.request().rawPath(), channel.request().params()), e);
+                    SUPPRESSED_ERROR_LOGGER.warn(
+                            (Supplier<?>) () -> new ParameterizedMessage("path: {}, params: {}",
+                                    channel.request().rawPath(), channel.request().params()), e);
                 }
                 params = channel.request();
             }
-            builder.field("error");
-            builder.startObject();
-            final ElasticsearchException[] rootCauses = ElasticsearchException.guessRootCauses(e);
-            builder.field("root_cause");
-            builder.startArray();
-            for (ElasticsearchException rootCause : rootCauses){
-                builder.startObject();
-                rootCause.toXContent(builder, new ToXContent.DelegatingMapParams(Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_CAUSE, "true"), params));
-                builder.endObject();
-            }
-            builder.endArray();
-
-            ElasticsearchException.toXContent(builder, params, e);
-            builder.endObject();
+            ElasticsearchException.renderException(builder, params, e);
         } else {
             builder.field("error", simpleMessage(e));
         }

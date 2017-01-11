@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -40,17 +39,16 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
      * Constructs a new aggregation builder.
      *
      * @param name  The aggregation name
-     * @param type  The aggregation type
      */
-    public AbstractAggregationBuilder(String name, Type type) {
-        super(name, type);
+    public AbstractAggregationBuilder(String name) {
+        super(name);
     }
 
     /**
      * Read from a stream.
      */
-    protected AbstractAggregationBuilder(StreamInput in, Type type) throws IOException {
-        super(in.readString(), type);
+    protected AbstractAggregationBuilder(StreamInput in) throws IOException {
+        super(in.readString());
         factoriesBuilder = new AggregatorFactories.Builder(in);
         metaData = in.readMap();
     }
@@ -117,8 +115,10 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         return (AB) this;
     }
 
-    public String getType() {
-        return type.name();
+    @Override
+    public final String getWriteableName() {
+        // We always use the type of the aggregation as the writeable name
+        return getType();
     }
 
     @Override
@@ -137,7 +137,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         if (this.metaData != null) {
             builder.field("meta", this.metaData);
         }
-        builder.field(type.name());
+        builder.field(getType());
         internalXContent(builder, params);
 
         if (factoriesBuilder != null && (factoriesBuilder.count()) > 0) {
@@ -153,7 +153,7 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
 
     @Override
     public int hashCode() {
-        return Objects.hash(factoriesBuilder, metaData, name, type, doHashCode());
+        return Objects.hash(factoriesBuilder, metaData, name, doHashCode());
     }
 
     protected abstract int doHashCode();
@@ -167,8 +167,6 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
         @SuppressWarnings("unchecked")
         AbstractAggregationBuilder<AB> other = (AbstractAggregationBuilder<AB>) obj;
         if (!Objects.equals(name, other.name))
-            return false;
-        if (!Objects.equals(type, other.type))
             return false;
         if (!Objects.equals(metaData, other.metaData))
             return false;

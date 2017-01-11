@@ -33,12 +33,15 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -124,6 +127,52 @@ public class ScopedSettingsTests extends ESTestCase {
         service.applySettings(Settings.builder().put("foo.bar", 2).put("foo.bar.baz", 15).build());
         assertEquals(2, consumer.get());
         assertEquals(0, consumer2.get());
+    }
+
+    public void testAddConsumerAffix() {
+        Setting.AffixSetting<Integer> intSetting = Setting.affixKeySetting("foo.", "bar",
+            (k) ->  Setting.intSetting(k, 1, Property.Dynamic, Property.NodeScope));
+        Setting.AffixSetting<List<Integer>> listSetting = Setting.affixKeySetting("foo.", "list",
+            (k) -> Setting.listSetting(k, Arrays.asList("1"), Integer::parseInt, Property.Dynamic, Property.NodeScope));
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY,new HashSet<>(Arrays.asList(intSetting, listSetting)));
+        Map<String, List<Integer>> listResults = new HashMap<>();
+        Map<String, Integer> intResults = new HashMap<>();
+
+        BiConsumer<String, Integer> intConsumer = intResults::put;
+        BiConsumer<String, List<Integer>> listConsumer = listResults::put;
+
+        service.addAffixUpdateConsumer(listSetting, listConsumer, (s, k) -> {});
+        service.addAffixUpdateConsumer(intSetting, intConsumer, (s, k) -> {});
+        assertEquals(0, listResults.size());
+        assertEquals(0, intResults.size());
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 7)
+            .putArray("foo.test_list.list", "16", "17")
+            .putArray("foo.test_list_1.list", "18", "19", "20")
+            .build());
+        assertEquals(2, intResults.get("test").intValue());
+        assertEquals(7, intResults.get("test_1").intValue());
+        assertEquals(Arrays.asList(16, 17), listResults.get("test_list"));
+        assertEquals(Arrays.asList(18, 19, 20), listResults.get("test_list_1"));
+        assertEquals(2, listResults.size());
+        assertEquals(2, intResults.size());
+
+        listResults.clear();
+        intResults.clear();
+
+        service.applySettings(Settings.builder()
+            .put("foo.test.bar", 2)
+            .put("foo.test_1.bar", 8)
+            .putArray("foo.test_list.list", "16", "17")
+            .putNull("foo.test_list_1.list")
+            .build());
+        assertNull("test wasn't changed", intResults.get("test"));
+        assertEquals(8, intResults.get("test_1").intValue());
+        assertNull("test_list wasn't changed", listResults.get("test_list"));
+        assertEquals(Arrays.asList(1), listResults.get("test_list_1")); // reset to default
+        assertEquals(1, listResults.size());
+        assertEquals(1, intResults.size());
     }
 
     public void testApply() {
@@ -214,7 +263,8 @@ public class ScopedSettingsTests extends ESTestCase {
         Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
         Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
         Setting<Settings> someGroup = Setting.groupSetting("some.group.", Property.Dynamic, Property.NodeScope);
-        Setting<Boolean> someAffix = Setting.affixKeySetting("some.prefix.", "somekey", "true", Boolean::parseBoolean, Property.NodeScope);
+        Setting<Boolean> someAffix = Setting.affixKeySetting("some.prefix.", "somekey", (key) -> Setting.boolSetting(key, true,
+            Property.NodeScope));
         Setting<List<String>> foorBarQuux =
                 Setting.listSetting("foo.bar.quux", Arrays.asList("a", "b", "c"), Function.identity(), Property.NodeScope);
         ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux,
@@ -249,6 +299,65 @@ public class ScopedSettingsTests extends ESTestCase {
         assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
         assertNull(diff.get("some.prefix.foo.somekey"));
         assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"a", "b", "c"});
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
+    }
+
+    public void testDiffWithAffixAndComplexMatcher() {
+        Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
+        Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Settings> someGroup = Setting.groupSetting("some.group.", Property.Dynamic, Property.NodeScope);
+        Setting<Boolean> someAffix = Setting.affixKeySetting("some.prefix.", "somekey", (key) -> Setting.boolSetting(key, true,
+            Property.NodeScope));
+        Setting<List<String>> foorBarQuux = Setting.affixKeySetting("foo.", "quux",
+            (key) -> Setting.listSetting(key,  Arrays.asList("a", "b", "c"), Function.identity(), Property.NodeScope));
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(fooBar, fooBarBaz, foorBarQuux,
+            someGroup, someAffix)));
+        Settings diff = settings.diff(Settings.builder().put("foo.bar", 5).build(), Settings.EMPTY);
+        assertEquals(1, diff.getAsMap().size());
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertNull(diff.getAsArray("foo.bar.quux", null)); // affix settings don't know their concrete keys
+
+        diff = settings.diff(
+            Settings.builder().put("foo.bar", 5).build(),
+            Settings.builder().put("foo.bar.baz", 17).putArray("foo.bar.quux", "d", "e", "f").build());
+        assertEquals(4, diff.getAsMap().size());
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(17));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"d", "e", "f"});
+
+        diff = settings.diff(
+            Settings.builder().put("some.group.foo", 5).build(),
+            Settings.builder().put("some.group.foobar", 17, "some.group.foo", 25).build());
+        assertEquals(3, diff.getAsMap().size());
+        assertThat(diff.getAsInt("some.group.foobar", null), equalTo(17));
+        assertNull(diff.get("some.group.foo"));
+        assertNull(diff.getAsArray("foo.bar.quux", null)); // affix settings don't know their concrete keys
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
+
+        diff = settings.diff(
+            Settings.builder().put("some.prefix.foo.somekey", 5).build(),
+            Settings.builder().put("some.prefix.foobar.somekey", 17,
+                "some.prefix.foo.somekey", 18).build());
+        assertEquals(3, diff.getAsMap().size());
+        assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
+        assertNull(diff.get("some.prefix.foo.somekey"));
+        assertNull(diff.getAsArray("foo.bar.quux", null)); // affix settings don't know their concrete keys
+        assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
+        assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
+
+        diff = settings.diff(
+            Settings.builder().put("some.prefix.foo.somekey", 5).build(),
+            Settings.builder().put("some.prefix.foobar.somekey", 17,
+                "some.prefix.foo.somekey", 18)
+            .putArray("foo.bar.quux", "x", "y", "z")
+            .putArray("foo.baz.quux", "d", "e", "f")
+                .build());
+        assertEquals(9, diff.getAsMap().size());
+        assertThat(diff.getAsInt("some.prefix.foobar.somekey", null), equalTo(17));
+        assertNull(diff.get("some.prefix.foo.somekey"));
+        assertArrayEquals(diff.getAsArray("foo.bar.quux", null), new String[] {"x", "y", "z"});
+        assertArrayEquals(diff.getAsArray("foo.baz.quux", null), new String[] {"d", "e", "f"});
         assertThat(diff.getAsInt("foo.bar.baz", null), equalTo(1));
         assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
     }

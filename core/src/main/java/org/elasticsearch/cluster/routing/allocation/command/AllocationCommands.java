@@ -125,11 +125,10 @@ public class AllocationCommands extends ToXContentToBytes {
      *     }
      * </pre>
      * @param parser {@link XContentParser} to read the commands from
-     * @param registry of allocation command parsers
      * @return {@link AllocationCommands} read
      * @throws IOException if something bad happens while reading the stream
      */
-    public static AllocationCommands fromXContent(XContentParser parser, AllocationCommandRegistry registry) throws IOException {
+    public static AllocationCommands fromXContent(XContentParser parser) throws IOException {
         AllocationCommands commands = new AllocationCommands();
 
         XContentParser.Token token = parser.currentToken();
@@ -158,7 +157,7 @@ public class AllocationCommands extends ToXContentToBytes {
                 token = parser.nextToken();
                 String commandName = parser.currentName();
                 token = parser.nextToken();
-                commands.add(registry.lookup(commandName, parser.getTokenLocation()).fromXContent(parser));
+                commands.add(parser.namedObject(AllocationCommand.class, commandName, null));
                 // move to the end object one
                 if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                     throw new ElasticsearchParseException("allocation command is malformed, done parsing a command, but didn't get END_OBJECT, got [{}] instead", token);

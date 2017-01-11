@@ -19,9 +19,11 @@
 
 package org.elasticsearch.test;
 
-import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -29,15 +31,22 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.shard.IndexShardRecoveringException;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Random;
 
+import static com.carrotsearch.randomizedtesting.generators.RandomNumbers.randomIntBetween;
+import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomAsciiOfLength;
 import static com.carrotsearch.randomizedtesting.generators.RandomStrings.randomUnicodeOfLengthBetween;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 public final class RandomObjects {
 
@@ -56,10 +65,10 @@ public final class RandomObjects {
      * @param xContentType the content type, used to determine what the expected values are for float numbers.
      */
     public static Tuple<List<Object>, List<Object>> randomStoredFieldValues(Random random, XContentType xContentType) {
-        int numValues = RandomNumbers.randomIntBetween(random, 1, 5);
+        int numValues = randomIntBetween(random, 1, 5);
         List<Object> originalValues = new ArrayList<>();
         List<Object> expectedParsedValues = new ArrayList<>();
-        int dataType = RandomNumbers.randomIntBetween(random, 0, 8);
+        int dataType = randomIntBetween(random, 0, 8);
         for (int i = 0; i < numValues; i++) {
             switch(dataType) {
                 case 0:
@@ -153,7 +162,7 @@ public final class RandomObjects {
      * Randomly adds fields, objects, or arrays to the provided builder. The maximum depth is 5.
      */
     private static void addFields(Random random, XContentBuilder builder, int currentDepth) throws IOException {
-        int numFields = RandomNumbers.randomIntBetween(random, 1, 5);
+        int numFields = randomIntBetween(random, 1, 5);
         for (int i = 0; i < numFields; i++) {
             if (currentDepth < 5 && random.nextBoolean()) {
                 if (random.nextBoolean()) {
@@ -162,7 +171,7 @@ public final class RandomObjects {
                     builder.endObject();
                 } else {
                     builder.startArray(RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
-                    int numElements = RandomNumbers.randomIntBetween(random, 1, 5);
+                    int numElements = randomIntBetween(random, 1, 5);
                     boolean object = random.nextBoolean();
                     int dataType = -1;
                     if (object == false) {
@@ -187,7 +196,7 @@ public final class RandomObjects {
     }
 
     private static int randomDataType(Random random) {
-        return RandomNumbers.randomIntBetween(random, 0, 3);
+        return randomIntBetween(random, 0, 3);
     }
 
     private static Object randomFieldValue(Random random, int dataType) {
@@ -203,5 +212,42 @@ public final class RandomObjects {
             default:
                 throw new UnsupportedOperationException();
         }
+    }
+
+    /**
+     * Returns a random {@link ShardInfo} object with on or more {@link ShardInfo.Failure} if requested.
+     *
+     * @param random   Random generator
+     * @param failures If true, the {@link ShardInfo} will have random failures
+     * @return a random {@link ShardInfo}
+     */
+    public static ShardInfo randomShardInfo(Random random, boolean failures) {
+        int total = randomIntBetween(random, 1, 10);
+        if (failures == false) {
+            return new ShardInfo(total, total);
+        }
+
+        int successful = randomIntBetween(random, 1, total);
+        return new ShardInfo(total, successful, randomShardInfoFailures(random, Math.max(1, (total - successful))));
+    }
+
+    public static ShardInfo.Failure[] randomShardInfoFailures(Random random, int nbFailures) {
+        List<ShardInfo.Failure> randomFailures = new ArrayList<>(nbFailures);
+        for (int i = 0; i < nbFailures; i++) {
+            randomFailures.add(randomShardInfoFailure(random));
+        }
+        return randomFailures.toArray(new ShardInfo.Failure[nbFailures]);
+    }
+
+    public static ShardInfo.Failure randomShardInfoFailure(Random random) {
+        String index = randomAsciiOfLength(random, 5);
+        String indexUuid = randomAsciiOfLength(random, 5);
+        int shardId = randomIntBetween(random, 1, 10);
+        ShardId shard = new ShardId(index, indexUuid, shardId);
+        RestStatus restStatus = randomFrom(RestStatus.values());
+        Exception exception = RandomPicks.randomFrom(random, Arrays.asList(new IndexShardRecoveringException(shard),
+                new ElasticsearchException(new IllegalArgumentException("Argument is wrong")),
+                new RoutingMissingException(index, randomAsciiOfLength(random, 5), randomAsciiOfLength(random, 5))));
+        return new ShardInfo.Failure(shard, randomAsciiOfLength(random, 3), exception, restStatus, random.nextBoolean());
     }
 }

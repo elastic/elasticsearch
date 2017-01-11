@@ -26,7 +26,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -38,9 +37,9 @@ public class FilterAggregatorFactory extends AggregatorFactory<FilterAggregatorF
 
     private final Weight weight;
 
-    public FilterAggregatorFactory(String name, Type type, QueryBuilder filterBuilder, SearchContext context,
+    public FilterAggregatorFactory(String name, QueryBuilder filterBuilder, SearchContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, type, context, parent, subFactoriesBuilder, metaData);
+        super(name, context, parent, subFactoriesBuilder, metaData);
         IndexSearcher contextSearcher = context.searcher();
         Query filter = filterBuilder.toQuery(context.getQueryShardContext());
         weight = contextSearcher.createNormalizedWeight(filter, false);

@@ -25,7 +25,6 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
@@ -42,10 +41,10 @@ public class FiltersAggregatorFactory extends AggregatorFactory<FiltersAggregato
     private final boolean otherBucket;
     private final String otherBucketKey;
 
-    public FiltersAggregatorFactory(String name, Type type, List<KeyedFilter> filters, boolean keyed, boolean otherBucket,
+    public FiltersAggregatorFactory(String name, List<KeyedFilter> filters, boolean keyed, boolean otherBucket,
             String otherBucketKey, SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories,
             Map<String, Object> metaData) throws IOException {
-        super(name, type, context, parent, subFactories, metaData);
+        super(name, context, parent, subFactories, metaData);
         this.keyed = keyed;
         this.otherBucket = otherBucket;
         this.otherBucketKey = otherBucketKey;

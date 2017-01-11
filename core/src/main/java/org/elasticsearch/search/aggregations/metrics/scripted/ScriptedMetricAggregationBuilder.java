@@ -34,7 +34,6 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -45,9 +44,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder<ScriptedMetricAggregationBuilder> {
-
     public static final String NAME = "scripted_metric";
-    private static final Type TYPE = new Type(NAME);
 
     private static final ParseField INIT_SCRIPT_FIELD = new ParseField("init_script");
     private static final ParseField MAP_SCRIPT_FIELD = new ParseField("map_script");
@@ -62,14 +59,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     private Map<String, Object> params;
 
     public ScriptedMetricAggregationBuilder(String name) {
-        super(name, TYPE);
+        super(name);
     }
 
     /**
      * Read from a stream.
      */
     public ScriptedMetricAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE);
+        super(in);
         initScript = in.readOptionalWriteable(Script::new);
         mapScript = in.readOptionalWriteable(Script::new);
         combineScript = in.readOptionalWriteable(Script::new);
@@ -203,7 +200,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         } else {
             executableCombineScript = (p) -> null;
         }
-        return new ScriptedMetricAggregatorFactory(name, type, searchMapScript, executableInitScript, executableCombineScript, reduceScript,
+        return new ScriptedMetricAggregatorFactory(name, searchMapScript, executableInitScript, executableCombineScript, reduceScript,
                 params, context, parent, subfactoriesBuilder, metaData);
     }
 
@@ -297,7 +294,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 

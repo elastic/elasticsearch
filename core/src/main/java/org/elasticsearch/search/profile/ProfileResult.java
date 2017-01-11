@@ -208,7 +208,12 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         }
         Map<String, Long> timings = new HashMap<>(parsedTimings.size());
         for (Entry<String, Object> entry : parsedTimings.entrySet()) {
-            timings.put(entry.getKey(), (Long) entry.getValue());
+            Object value = entry.getValue();
+            if (value instanceof Integer) {
+                timings.put(entry.getKey(), ((Integer)value).longValue());
+            } else {
+                timings.put(entry.getKey(), (Long) value);
+            }
         }
         return new ProfileResult(type, description, timings, children);
     }

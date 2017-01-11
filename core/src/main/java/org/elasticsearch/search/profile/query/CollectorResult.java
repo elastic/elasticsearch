@@ -163,7 +163,8 @@ public class CollectorResult implements ToXContentObject, Writeable {
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
         String currentFieldName = null;
-        String name = null, reason = null, timeString = null;
+        String name = null, reason = null;
+        long time = -1;
         List<CollectorResult> children = new ArrayList<>();
         while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -174,7 +175,10 @@ public class CollectorResult implements ToXContentObject, Writeable {
                 } else if (REASON.match(currentFieldName)) {
                     reason = parser.text();
                 } else if (TIME.match(currentFieldName)) {
-                    timeString = parser.text();
+                    // we can skip this, it only for human readability
+                    parser.text();
+                } else if (TIME_NANOS.match(currentFieldName)) {
+                    time = parser.longValue();
                 } else {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
@@ -188,7 +192,6 @@ public class CollectorResult implements ToXContentObject, Writeable {
                 }
             }
         }
-        long time = (long) (Double.parseDouble(timeString.substring(0, timeString.length() - 2)) * 1000000.0);
         return new CollectorResult(name, reason, time, children);
     }
 }

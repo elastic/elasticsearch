@@ -49,7 +49,12 @@ public class ProfileResultTests extends ESTestCase {
         int timingsSize = randomIntBetween(0, 5);
         Map<String, Long> timings = new HashMap<>(timingsSize);
         for (int i = 0; i < timingsSize; i++) {
-            timings.put(randomAsciiOfLengthBetween(5, 10), randomNonNegativeLong() / timingsSize); // don't overflow Long.MAX_VALUE;
+            long time = randomNonNegativeLong() / timingsSize;
+            if (randomBoolean()) {
+                // also often use "small" values in tests
+                time = randomNonNegativeLong() % 10000;
+            }
+            timings.put(randomAsciiOfLengthBetween(5, 10), time); // don't overflow Long.MAX_VALUE;
         }
         int childrenSize = depth > 0 ? randomIntBetween(0, 1) : 0;
         List<ProfileResult> children = new ArrayList<>(childrenSize);
@@ -68,6 +73,7 @@ public class ProfileResultTests extends ESTestCase {
         XContentParser parser = createParser(builder);
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
         ProfileResult parsed = ProfileResult.fromXContent(parser);
+        assertEquals(profileResult.getTime(), parsed.getTime());
         assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertNull(parser.nextToken());

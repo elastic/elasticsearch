@@ -41,6 +41,10 @@ public class CollectorResultTests extends ESTestCase {
         String name = randomAsciiOfLengthBetween(5, 10);
         String reason = randomAsciiOfLengthBetween(5, 10);
         long time = randomNonNegativeLong();
+        if (randomBoolean()) {
+            // also often use relatively "small" values, otherwise we will mostly test huge longs
+            time = time % 100000;
+        }
         int size = randomIntBetween(0, 5);
         List<CollectorResult> children = new ArrayList<>(size);
         if (depth > 0) {
@@ -50,6 +54,7 @@ public class CollectorResultTests extends ESTestCase {
         }
         return new CollectorResult(name, reason, time, children);
     }
+
 
     public void testFromXContent() throws IOException {
         CollectorResult collectorResult = createTestItem(1);

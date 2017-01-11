@@ -504,10 +504,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
             if (version == null) {
                 // if we are talking to a pre 5.2 node we won't be able to retrieve the version since it doesn't implement the handshake
                 // we do since 5.2 - in this case we just go with the version provided by the node.
+                success = true;
                 return nodeChannels;
+            } else {
+                nodeChannels = new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
+                success = true;
             }
-            nodeChannels = new NodeChannels(nodeChannels, version);// clone the channels - we now have the correct version
-            success = true;
             return nodeChannels;
         } catch (ConnectTransportException e) {
             throw e;

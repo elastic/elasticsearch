@@ -399,23 +399,14 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     @Override
     protected void stopInternal() {
         ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        synchronized (openChannels) {
+            assert openChannels.isEmpty() : "there are still open channels: " + openChannels;
+        }
     }
 
     @Override
     protected Version getCurrentVersion() {
         return mockVersion;
-    }
-
-    @Override
-    protected void doClose() {
-        if (Thread.currentThread().isInterrupted() == false) {
-            // TCPTransport might be interrupted due to a timeout waiting for connections to be closed.
-            // in this case the thread is interrupted and we can't tell if we really missed something or if we are
-            // still closing connections. in such a case we don't assert the open channels
-            synchronized (openChannels) {
-                assert openChannels.isEmpty() : "there are still open channels: " + openChannels;
-            }
-        }
     }
 }
 

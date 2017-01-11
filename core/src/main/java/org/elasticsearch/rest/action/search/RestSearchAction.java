@@ -36,7 +36,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -54,13 +53,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.search.suggest.SuggestBuilders.termSuggestion;
 
 public class RestSearchAction extends BaseRestHandler {
-
-    private final SearchRequestParsers searchRequestParsers;
-
     @Inject
-    public RestSearchAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
+    public RestSearchAction(Settings settings, RestController controller) {
         super(settings);
-        this.searchRequestParsers = searchRequestParsers;
         controller.registerHandler(GET, "/_search", this);
         controller.registerHandler(POST, "/_search", this);
         controller.registerHandler(GET, "/{index}/_search", this);
@@ -73,7 +68,7 @@ public class RestSearchAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         request.withContentOrSourceParamParserOrNull(parser ->
-            parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, parser));
+            parseSearchRequest(searchRequest, request, parseFieldMatcher, parser));
 
         return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
@@ -84,8 +79,8 @@ public class RestSearchAction extends BaseRestHandler {
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter
      */
-    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request, SearchRequestParsers searchRequestParsers,
-                                          ParseFieldMatcher parseFieldMatcher, XContentParser requestContentParser) throws IOException {
+    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request, ParseFieldMatcher parseFieldMatcher,
+            XContentParser requestContentParser) throws IOException {
 
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());

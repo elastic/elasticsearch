@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.Map;
@@ -43,8 +42,8 @@ public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
         A extends GenericAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers, A action) {
-        super(settings, searchRequestParsers, action);
+    protected AbstractBulkByQueryRestHandler(Settings settings, A action) {
+        super(settings, action);
     }
 
     protected void parseInternalRequest(Request internal, RestRequest restRequest,
@@ -63,8 +62,7 @@ public abstract class AbstractBulkByQueryRestHandler<
              * the generated parser probably is a noop but we should do the accounting just in case. It doesn't hurt to close twice but it
              * really hurts not to close if by some miracle we have to. */
             try {
-                RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher,
-                        searchRequestParser);
+                RestSearchAction.parseSearchRequest(searchRequest, restRequest, parseFieldMatcher, searchRequestParser);
             } finally {
                 IOUtils.close(searchRequestParser);
             }

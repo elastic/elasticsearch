@@ -37,7 +37,6 @@ import java.util.Collection;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepositoryIntegTestCase {
 
@@ -89,7 +88,6 @@ public class GoogleCloudStorageBlobStoreRepositoryTests extends ESBlobStoreRepos
         RepositoryMetaData repositoryMetaData = new RepositoryMetaData("repo", GoogleCloudStorageRepository.TYPE, Settings.EMPTY);
         ByteSizeValue chunkSize = GoogleCloudStorageRepository.getSetting(GoogleCloudStorageRepository.CHUNK_SIZE, repositoryMetaData);
         assertEquals(GoogleCloudStorageRepository.MAX_CHUNK_SIZE, chunkSize);
-        assertThat(chunkSize.getBytes(), greaterThanOrEqualTo(0L));
 
         // chunk size in settings
         int size = randomIntBetween(1, 100);

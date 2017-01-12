@@ -24,7 +24,6 @@ import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -34,7 +33,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.net.URISyntaxException;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 
 public class AzureRepositorySettingsTests extends ESTestCase {
@@ -105,7 +103,6 @@ public class AzureRepositorySettingsTests extends ESTestCase {
         // default chunk size
         AzureRepository azureRepository = azureRepository(Settings.EMPTY);
         assertEquals(AzureStorageService.MAX_CHUNK_SIZE, azureRepository.chunkSize());
-        assertThat(azureRepository.chunkSize().getBytes(), greaterThanOrEqualTo(0L));
 
         // chunk size in settings
         int size = randomIntBetween(1, 64);

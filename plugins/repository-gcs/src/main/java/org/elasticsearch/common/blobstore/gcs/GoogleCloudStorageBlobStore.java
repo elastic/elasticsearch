@@ -257,44 +257,46 @@ public class GoogleCloudStorageBlobStore extends AbstractComponent implements Bl
         final List<Storage.Objects.Delete> deletions = new ArrayList<>();
         final Iterator<String> blobs = blobNames.iterator();
 
-        while (blobs.hasNext()) {
-            // Create a delete request for each blob to delete
-            deletions.add(client.objects().delete(bucket, blobs.next()));
+        SocketAccess.doPrivilegedVoidIOException(() -> {
+            while (blobs.hasNext()) {
+                // Create a delete request for each blob to delete
+                deletions.add(client.objects().delete(bucket, blobs.next()));
 
-            if (blobs.hasNext() == false || deletions.size() == MAX_BATCHING_REQUESTS) {
-                try {
-                    // Deletions are executed using a batch request
-                    BatchRequest batch = client.batch();
+                if (blobs.hasNext() == false || deletions.size() == MAX_BATCHING_REQUESTS) {
+                    try {
+                        // Deletions are executed using a batch request
+                        BatchRequest batch = client.batch();
 
-                    // Used to track successful deletions
-                    CountDown countDown = new CountDown(deletions.size());
+                        // Used to track successful deletions
+                        CountDown countDown = new CountDown(deletions.size());
 
-                    for (Storage.Objects.Delete delete : deletions) {
-                        // Queue the delete request in batch
-                        delete.queue(batch, new JsonBatchCallback<Void>() {
-                            @Override
-                            public void onFailure(GoogleJsonError e, HttpHeaders responseHeaders) throws IOException {
-                                logger.error("failed to delete blob [{}] in bucket [{}]: {}", delete.getObject(), delete.getBucket(), e
-                                    .getMessage());
-                            }
+                        for (Storage.Objects.Delete delete : deletions) {
+                            // Queue the delete request in batch
+                            delete.queue(batch, new JsonBatchCallback<Void>() {
+                                @Override
+                                public void onFailure(GoogleJsonError e, HttpHeaders responseHeaders) throws IOException {
+                                    logger.error("failed to delete blob [{}] in bucket [{}]: {}", delete.getObject(), delete.getBucket(), e
+                                        .getMessage());
+                                }
 
-                            @Override
-                            public void onSuccess(Void aVoid, HttpHeaders responseHeaders) throws IOException {
-                                countDown.countDown();
-                            }
-                        });
+                                @Override
+                                public void onSuccess(Void aVoid, HttpHeaders responseHeaders) throws IOException {
+                                    countDown.countDown();
+                                }
+                            });
+                        }
+
+                        batch.execute();
+
+                        if (countDown.isCountedDown() == false) {
+                            throw new IOException("Failed to delete all [" + deletions.size() + "] blobs");
+                        }
+                    } finally {
+                        deletions.clear();
                     }
-
-                    SocketAccess.doPrivilegedVoidIOException(batch::execute);
-
-                    if (countDown.isCountedDown() == false) {
-                        throw new IOException("Failed to delete all [" + deletions.size() + "] blobs");
-                    }
-                } finally {
-                    deletions.clear();
                 }
             }
-        }
+        });
     }
 
     /**

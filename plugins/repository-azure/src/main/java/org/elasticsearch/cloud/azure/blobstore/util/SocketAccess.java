@@ -22,13 +22,21 @@ package org.elasticsearch.cloud.azure.blobstore.util;
 import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.SpecialPermission;
 
-import java.io.IOException;
+import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 
-public class SocketAccess {
+/**
+ * This plugin uses azure libraries to connect to azure storage services. For these remote calls the plugin needs
+ * {@link SocketPermission} 'connect' to establish connections. This class wraps the operations requiring access in
+ * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
+ */
+public final class SocketAccess {
+
+    private SocketAccess() {}
 
     public static <T> T doPrivilegedException(PrivilegedExceptionAction<T> operation) throws StorageException, URISyntaxException {
         checkSpecialPermission();
@@ -39,11 +47,11 @@ public class SocketAccess {
         }
     }
 
-    public static void doPrivilegedVoidException(VoidOpException action) throws StorageException, URISyntaxException {
+    public static void doPrivilegedVoidException(StorageRunnable action) throws StorageException, URISyntaxException {
         checkSpecialPermission();
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                action.execute();
+                action.executeCouldThrow();
                 return null;
             });
         } catch (PrivilegedActionException e) {
@@ -64,8 +72,8 @@ public class SocketAccess {
     }
 
     @FunctionalInterface
-    public interface VoidOpException {
-        void execute() throws StorageException, URISyntaxException;
+    public interface StorageRunnable {
+        void executeCouldThrow() throws StorageException, URISyntaxException;
     }
 
 }

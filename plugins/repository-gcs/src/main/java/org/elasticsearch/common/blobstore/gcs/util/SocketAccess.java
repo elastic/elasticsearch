@@ -22,12 +22,20 @@ package org.elasticsearch.common.blobstore.gcs.util;
 import org.elasticsearch.SpecialPermission;
 
 import java.io.IOException;
+import java.net.SocketPermission;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 
-public class SocketAccess {
+/**
+ * This plugin uses google api/client libraries to connect to google cloud services. For these remote calls the plugin
+ * needs {@link SocketPermission} 'connect' to establish connections. This class wraps the operations requiring access
+ * in {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
+ */
+public final class SocketAccess {
+
+    private SocketAccess() {}
 
     public static <T> T doPrivilegedIOException(PrivilegedExceptionAction<T> operation) throws IOException {
         checkSpecialPermission();
@@ -38,11 +46,11 @@ public class SocketAccess {
         }
     }
 
-    public static void doPrivilegedVoidIOException(VoidOpException action) throws IOException {
+    public static void doPrivilegedVoidIOException(StorageRunnable action) throws IOException {
         checkSpecialPermission();
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
-                action.execute();
+                action.executeCouldThrow();
                 return null;
             });
         } catch (PrivilegedActionException e) {
@@ -58,7 +66,7 @@ public class SocketAccess {
     }
 
     @FunctionalInterface
-    public interface VoidOpException {
-        void execute() throws IOException;
+    public interface StorageRunnable {
+        void executeCouldThrow() throws IOException;
     }
 }

@@ -22,12 +22,20 @@ package org.elasticsearch.cloud.aws.util;
 import org.elasticsearch.SpecialPermission;
 
 import java.io.IOException;
+import java.net.SocketPermission;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 
-public class SocketAccess {
+/**
+ * This plugin uses aws libraries to connect to S3 repositories. For these remote calls the plugin needs
+ * {@link SocketPermission} 'connect' to establish connections. This class wraps the operations requiring access in
+ * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
+ */
+public final class SocketAccess {
+
+    private SocketAccess() {}
 
     public static <T> T doPrivileged(PrivilegedAction<T> operation) {
         checkSpecialPermission();
@@ -43,7 +51,7 @@ public class SocketAccess {
         }
     }
 
-    public static void doPrivilegedVoid(VoidOp action) {
+    public static void doPrivilegedVoid(StorageRunnable action) {
         checkSpecialPermission();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             action.execute();
@@ -59,7 +67,7 @@ public class SocketAccess {
     }
 
     @FunctionalInterface
-    public interface VoidOp {
+    public interface StorageRunnable {
         void execute();
     }
 

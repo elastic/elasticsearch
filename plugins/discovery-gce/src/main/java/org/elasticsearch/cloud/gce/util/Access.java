@@ -28,17 +28,21 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 
 /**
- * GCE's http client changes access levels. Additionally remote calls need SocketPermissions for 'connect'.
- * This class wraps these operations in {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
+ * GCE's http client changes access levels. Specifically it needs {@link RuntimePermission} accessDeclaredMembers and
+ * setFactory and {@link java.lang.reflect.ReflectPermission} suppressAccessChecks. For remote calls the plugin needs
+ * SocketPermissions for 'connect'. This class wraps the operations requiring access in
+ * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
  */
-public class Access {
+public final class Access {
+
+    private Access() {}
 
     public static <T> T doPrivileged(PrivilegedAction<T> operation) {
         checkSpecialPermission();
         return AccessController.doPrivileged(operation);
     }
 
-    public static void doPrivilegedVoid(VoidOp action) {
+    public static void doPrivilegedVoid(DiscoveryRunnable action) {
         checkSpecialPermission();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             action.execute();
@@ -63,7 +67,7 @@ public class Access {
     }
 
     @FunctionalInterface
-    public interface VoidOp {
+    public interface DiscoveryRunnable {
         void execute();
     }
 }

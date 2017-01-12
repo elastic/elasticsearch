@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
@@ -59,7 +58,7 @@ public class AggregationCollectorTests extends ESSingleNodeTestCase {
 
     private boolean needsScores(IndexService index, String agg) throws IOException {
         XContentParser aggParser = createParser(JsonXContent.jsonXContent, agg);
-        QueryParseContext parseContext = new QueryParseContext(aggParser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(aggParser);
         aggParser.nextToken();
         SearchContext context = createSearchContext(index);
         final AggregatorFactories factories = AggregatorFactories.parseAggregators(parseContext).build(context, null);

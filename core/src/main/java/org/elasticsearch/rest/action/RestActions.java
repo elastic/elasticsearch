@@ -25,7 +25,6 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
@@ -194,8 +193,8 @@ public class RestActions {
         return queryBuilder;
     }
 
-    public static QueryBuilder getQueryContent(XContentParser requestParser, ParseFieldMatcher parseFieldMatcher) {
-        QueryParseContext context = new QueryParseContext(requestParser, parseFieldMatcher);
+    public static QueryBuilder getQueryContent(XContentParser requestParser) {
+        QueryParseContext context = new QueryParseContext(requestParser);
         return context.parseTopLevelQueryBuilder();
     }
 

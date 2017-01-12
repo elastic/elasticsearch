@@ -67,7 +67,7 @@ public class RestCountAction extends AbstractCatAction {
                         searchSourceBuilder.query(queryBuilder);
                     }
                 } else {
-                    searchSourceBuilder.query(RestActions.getQueryContent(parser, parseFieldMatcher));
+                    searchSourceBuilder.query(RestActions.getQueryContent(parser));
                 }
             });
         } catch (IOException e) {

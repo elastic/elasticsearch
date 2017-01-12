@@ -187,7 +187,7 @@ public class TopHitsTests extends BaseAggregationTestCase<TopHitsAggregationBuil
             "    }\n" +
             "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, source);
-        QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         Exception e = expectThrows(AggregationInitializationException.class, () -> AggregatorFactories.parseAggregators(parseContext));
         assertThat(e.toString(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));

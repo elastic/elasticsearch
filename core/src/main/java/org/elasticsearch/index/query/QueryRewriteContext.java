@@ -104,7 +104,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
      * are configured in the index settings. The default script language will always default to Painless.
      */
     public QueryParseContext newParseContext(XContentParser parser) {
-        return new QueryParseContext(parser, indexSettings.getParseFieldMatcher());
+        return new QueryParseContext(parser);
     }
 
     public long nowInMillis() {

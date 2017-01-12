@@ -20,7 +20,6 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -65,12 +64,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private void assertParseSearchSource(SearchSourceBuilder testBuilder, XContentParser parser) throws IOException {
-        assertParseSearchSource(testBuilder, parser, ParseFieldMatcher.STRICT);
-    }
-
-    private void assertParseSearchSource(SearchSourceBuilder testBuilder, XContentParser parser, ParseFieldMatcher pfm)
-            throws IOException {
-        QueryParseContext parseContext = new QueryParseContext(parser, pfm);
+        QueryParseContext parseContext = new QueryParseContext(parser);
         if (randomBoolean()) {
             parser.nextToken(); // sometimes we move it on the START_OBJECT to
                                 // test the embedded case
@@ -82,7 +76,7 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     private QueryParseContext createParseContext(XContentParser parser) {
-        return new QueryParseContext(parser, ParseFieldMatcher.STRICT);
+        return new QueryParseContext(parser);
     }
 
     public void testSerialization() throws IOException {

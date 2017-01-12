@@ -40,9 +40,6 @@
         }
       ],
       "dynamic": false,
-      "_all": {
-        "enabled": false
-      },
       "properties": {
         "watch_id": {
           "type": "keyword"

@@ -9,9 +9,6 @@
   "mappings": {
     "watch": {
       "dynamic" : "strict",
-      "_all" : {
-        "enabled" : false
-      },
       "properties": {
         "_status": {
           "type": "object",

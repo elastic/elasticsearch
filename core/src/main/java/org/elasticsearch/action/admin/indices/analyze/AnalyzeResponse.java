@@ -39,7 +39,7 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         private int startOffset;
         private int endOffset;
         private int position;
-        private int positionLength;
+        private int positionLength = 1;
         private Map<String, Object> attributes;
         private String type;
 
@@ -117,11 +117,13 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             startOffset = in.readInt();
             endOffset = in.readInt();
             position = in.readVInt();
-            Integer len = in.readOptionalVInt();
-            if (len != null) {
-                positionLength = len;
-            } else {
-                positionLength = 1;
+            if (in.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+                Integer len = in.readOptionalVInt();
+                if (len != null) {
+                    positionLength = len;
+                } else {
+                    positionLength = 1;
+                }
             }
             type = in.readOptionalString();
             if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
@@ -135,7 +137,9 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             out.writeInt(startOffset);
             out.writeInt(endOffset);
             out.writeVInt(position);
-            out.writeOptionalVInt(positionLength > 1 ? positionLength : null);
+            if (out.getVersion().onOrAfter(Version.V_5_2_0_UNRELEASED)) {
+                out.writeOptionalVInt(positionLength > 1 ? positionLength : null);
+            }
             out.writeOptionalString(type);
             if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
                 out.writeGenericValue(attributes);

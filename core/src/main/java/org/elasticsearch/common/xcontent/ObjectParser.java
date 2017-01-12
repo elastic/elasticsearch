@@ -20,7 +20,6 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 
 import java.io.IOException;
@@ -121,7 +120,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     /**
      * Parses a Value from the given {@link XContentParser}
      * @param parser the parser to build a value from
-     * @param context must at least provide a {@link ParseFieldMatcher}
+     * @param context context needed for parsing
      * @return a new value instance drawn from the provided value supplier on {@link #ObjectParser(String, Supplier)}
      * @throws IOException if an IOException occurs.
      */

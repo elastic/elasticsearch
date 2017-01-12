@@ -171,7 +171,7 @@ public final class TaskResult implements Writeable, ToXContent {
         return builder;
     }
 
-    public static final ConstructingObjectParser<TaskResult, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<TaskResult, Void> PARSER = new ConstructingObjectParser<>(
             "stored_task_result", a -> {
                 int i = 0;
                 boolean completed = (boolean) a[i++];

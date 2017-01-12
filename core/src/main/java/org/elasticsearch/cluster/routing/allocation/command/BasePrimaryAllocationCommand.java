@@ -35,8 +35,8 @@ public abstract class BasePrimaryAllocationCommand extends AbstractAllocateAlloc
 
     private static final String ACCEPT_DATA_LOSS_FIELD = "accept_data_loss";
 
-    protected static <T extends Builder<?>> ObjectParser<T, ParseFieldMatcherSupplier> createAllocatePrimaryParser(String command) {
-        ObjectParser<T, ParseFieldMatcherSupplier> parser = AbstractAllocateAllocationCommand.createAllocateParser(command);
+    protected static <T extends Builder<?>> ObjectParser<T, Void> createAllocatePrimaryParser(String command) {
+        ObjectParser<T, Void> parser = AbstractAllocateAllocationCommand.createAllocateParser(command);
         parser.declareBoolean(Builder::setAcceptDataLoss, new ParseField(ACCEPT_DATA_LOSS_FIELD));
         return parser;
     }

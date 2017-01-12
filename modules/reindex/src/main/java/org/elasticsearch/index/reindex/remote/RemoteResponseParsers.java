@@ -21,7 +21,6 @@ package org.elasticsearch.index.reindex.remote;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -55,7 +54,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for an individual {@code hit} element.
      */
-    public static final ConstructingObjectParser<BasicHit, ParseFieldMatcherSupplier> HIT_PARSER =
+    public static final ConstructingObjectParser<BasicHit, Void> HIT_PARSER =
             new ConstructingObjectParser<>("hit", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
@@ -96,7 +95,7 @@ final class RemoteResponseParsers {
             String parent;
             long ttl;
         }
-        ObjectParser<Fields, ParseFieldMatcherSupplier> fieldsParser = new ObjectParser<>("fields", Fields::new);
+        ObjectParser<Fields, Void> fieldsParser = new ObjectParser<>("fields", Fields::new);
         HIT_PARSER.declareObject((hit, fields) -> {
             hit.setRouting(fields.routing);
             hit.setParent(fields.parent);
@@ -110,7 +109,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for the {@code hits} element. Parsed to an array of {@code [total (Long), hits (List<Hit>)]}.
      */
-    public static final ConstructingObjectParser<Object[], ParseFieldMatcherSupplier> HITS_PARSER =
+    public static final ConstructingObjectParser<Object[], Void> HITS_PARSER =
             new ConstructingObjectParser<>("hits", true, a -> a);
     static {
         HITS_PARSER.declareLong(constructorArg(), new ParseField("total"));
@@ -120,7 +119,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for {@code failed} shards in the {@code _shards} elements.
      */
-    public static final ConstructingObjectParser<SearchFailure, ParseFieldMatcherSupplier> SEARCH_FAILURE_PARSER =
+    public static final ConstructingObjectParser<SearchFailure, Void> SEARCH_FAILURE_PARSER =
             new ConstructingObjectParser<>("failure", true, a -> {
                 int i = 0;
                 String index = (String) a[i++];
@@ -153,7 +152,7 @@ final class RemoteResponseParsers {
      * Parser for the {@code _shards} element. Throws everything out except the errors array if there is one. If there isn't one then it
      * parses to an empty list.
      */
-    public static final ConstructingObjectParser<List<Throwable>, ParseFieldMatcherSupplier> SHARDS_PARSER =
+    public static final ConstructingObjectParser<List<Throwable>, Void> SHARDS_PARSER =
             new ConstructingObjectParser<>("_shards", true, a -> {
                 @SuppressWarnings("unchecked")
                 List<Throwable> failures = (List<Throwable>) a[0];
@@ -164,7 +163,7 @@ final class RemoteResponseParsers {
         SHARDS_PARSER.declareObjectArray(optionalConstructorArg(), SEARCH_FAILURE_PARSER, new ParseField("failures"));
     }
 
-    public static final ConstructingObjectParser<Response, ParseFieldMatcherSupplier> RESPONSE_PARSER =
+    public static final ConstructingObjectParser<Response, Void> RESPONSE_PARSER =
             new ConstructingObjectParser<>("search_response", true, a -> {
                 int i = 0;
                 Throwable catastrophicFailure = (Throwable) a[i++];
@@ -203,9 +202,9 @@ final class RemoteResponseParsers {
      * Collects stuff about Throwables and attempts to rebuild them.
      */
     public static class ThrowableBuilder {
-        public static final BiFunction<XContentParser, ParseFieldMatcherSupplier, Throwable> PARSER;
+        public static final BiFunction<XContentParser, Void, Throwable> PARSER;
         static {
-            ObjectParser<ThrowableBuilder, ParseFieldMatcherSupplier> parser = new ObjectParser<>("reason", true, ThrowableBuilder::new);
+            ObjectParser<ThrowableBuilder, Void> parser = new ObjectParser<>("reason", true, ThrowableBuilder::new);
             PARSER = parser.andThen(ThrowableBuilder::build);
             parser.declareString(ThrowableBuilder::setType, new ParseField("type"));
             parser.declareString(ThrowableBuilder::setReason, new ParseField("reason"));
@@ -269,10 +268,10 @@ final class RemoteResponseParsers {
     /**
      * Parses the main action to return just the {@linkplain Version} that it returns. We throw everything else out.
      */
-    public static final ConstructingObjectParser<Version, ParseFieldMatcherSupplier> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Version, Void> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
             "/", true, a -> (Version) a[0]);
     static {
-        ConstructingObjectParser<Version, ParseFieldMatcherSupplier> versionParser = new ConstructingObjectParser<>(
+        ConstructingObjectParser<Version, Void> versionParser = new ConstructingObjectParser<>(
                 "version", true, a -> Version.fromString((String) a[0]));
         versionParser.declareString(constructorArg(), new ParseField("number"));
         MAIN_ACTION_PARSER.declareObject(constructorArg(), versionParser, new ParseField("version"));

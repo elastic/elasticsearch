@@ -36,6 +36,7 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -87,7 +88,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
         assertTrue(openJobResponse.isAcknowledged());
 
-        SchedulerConfig schedulerConfig = createScheduler(job.getId() + "-scheduler", job.getId());
+        SchedulerConfig schedulerConfig = createScheduler(job.getId() + "-scheduler", job.getId(), Collections.singletonList("data-*"));
         PutSchedulerAction.Request putSchedulerRequest = new PutSchedulerAction.Request(schedulerConfig);
         PutSchedulerAction.Response putSchedulerResponse = client().execute(PutSchedulerAction.INSTANCE, putSchedulerRequest).get();
         assertTrue(putSchedulerResponse.isAcknowledged());
@@ -122,7 +123,7 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         OpenJobAction.Response openJobResponse = client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId())).get();
         assertTrue(openJobResponse.isAcknowledged());
 
-        SchedulerConfig schedulerConfig = createScheduler(job.getId() + "-scheduler", job.getId());
+        SchedulerConfig schedulerConfig = createScheduler(job.getId() + "-scheduler", job.getId(), Collections.singletonList("data"));
         PutSchedulerAction.Request putSchedulerRequest = new PutSchedulerAction.Request(schedulerConfig);
         PutSchedulerAction.Response putSchedulerResponse = client().execute(PutSchedulerAction.INSTANCE, putSchedulerRequest).get();
         assertTrue(putSchedulerResponse.isAcknowledged());
@@ -196,11 +197,11 @@ public class ScheduledJobsIT extends ESIntegTestCase {
         return builder;
     }
 
-    private SchedulerConfig createScheduler(String schedulerId, String jobId) {
+    private SchedulerConfig createScheduler(String schedulerId, String jobId, List<String> indexes) {
         SchedulerConfig.Builder builder = new SchedulerConfig.Builder(schedulerId, jobId);
         builder.setQueryDelay(1);
         builder.setFrequency(2);
-        builder.setIndexes(Collections.singletonList("data-*"));
+        builder.setIndexes(indexes);
         builder.setTypes(Collections.singletonList("type"));
         return builder.build();
     }

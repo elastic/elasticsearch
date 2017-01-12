@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.path;
 
-import joptsimple.internal.Strings;
-
 import java.util.HashMap;
 import java.util.Map;
 
@@ -114,7 +112,7 @@ public class PathTrie<T> {
                 // than the value should be updated.
                 if (index == (path.length - 1)) {
                     if (node.value != null) {
-                        throw new IllegalArgumentException("Path [" + Strings.join(path, "/")+ "] already has a value ["
+                        throw new IllegalArgumentException("Path [" + String.join("/", path)+ "] already has a value ["
                                 + node.value + "]");
                     }
                     if (node.value == null) {

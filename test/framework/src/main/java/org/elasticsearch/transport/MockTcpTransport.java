@@ -50,9 +50,11 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -76,7 +78,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
      */
     public static final ConnectionProfile LIGHT_PROFILE;
 
-    private final Map<MockChannel, Boolean> openChannels = new IdentityHashMap<>();
+    private final Set<MockChannel> openChannels = new HashSet<>();
 
     static  {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -289,7 +291,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             this.profile = profile;
             this.onClose = () -> onClose.accept(this);
             synchronized (openChannels) {
-                openChannels.put(this, Boolean.TRUE);
+                openChannels.add(this);
             }
         }
 
@@ -306,7 +308,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             this.activeChannel = null;
             this.onClose = null;
             synchronized (openChannels) {
-                openChannels.put(this, Boolean.TRUE);
+                openChannels.add(this);
             }
         }
 
@@ -363,7 +365,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         @Override
         public void close() throws IOException {
             if (isOpen.compareAndSet(true, false)) {
-                final Boolean removedChannel;
+                final boolean removedChannel;
                 synchronized (openChannels) {
                     removedChannel = openChannels.remove(this);
                 }
@@ -373,8 +375,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                     IOUtils.close(serverSocket, activeChannel, () -> IOUtils.close(workerChannels.keySet()),
                         () -> cancellableThreads.cancel("channel closed"), onClose);
                 }
-                // assert remoteChannel; is not enough it will throw NPE if removeChannel is null
-                assert removedChannel == Boolean.TRUE: "Channel was not removed or removed twice?";
+                assert removedChannel: "Channel was not removed or removed twice?";
             }
         }
 

@@ -22,7 +22,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -135,7 +134,6 @@ public final class IndexSettings {
     private final Settings nodeSettings;
     private final int numberOfShards;
     private final boolean isShadowReplicaIndex;
-    private final ParseFieldMatcher parseFieldMatcher;
     // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
     private volatile Settings settings;
     private volatile IndexMetaData indexMetaData;
@@ -237,7 +235,6 @@ public final class IndexSettings {
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
         this.queryStringAllowLeadingWildcard = QUERY_STRING_ALLOW_LEADING_WILDCARD.get(nodeSettings);
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.defaultAllowUnmappedFields = scopedSettings.get(ALLOW_UNMAPPED);
         this.indexNameMatcher = indexNameMatcher;
         this.durability = scopedSettings.get(INDEX_TRANSLOG_DURABILITY_SETTING);
@@ -388,11 +385,6 @@ public final class IndexSettings {
     public Settings getNodeSettings() {
         return nodeSettings;
     }
-
-    /**
-     * Returns a {@link ParseFieldMatcher} for this index.
-     */
-    public ParseFieldMatcher getParseFieldMatcher() { return parseFieldMatcher; }
 
     /**
      * Returns <code>true</code> if the given expression matches the index name or one of it's aliases

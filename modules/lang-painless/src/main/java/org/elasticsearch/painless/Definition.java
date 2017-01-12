@@ -566,11 +566,11 @@ public final class Definition {
                         }
                         if (line.startsWith("class ")) {
                             String elements[] = line.split("\u0020");
-                            assert elements[2].equals("->");
+                            assert elements[2].equals("->") : "Invalid struct definition [" + String.join(" ", elements) +"]";
                             if (elements.length == 7) {
                                 hierarchy.put(elements[1], Arrays.asList(elements[5].split(",")));
                             } else {
-                                assert elements.length == 5;
+                                assert elements.length == 5 : "Invalid struct definition [" + String.join(" ", elements) + "]";
                             }
                             String className = elements[1];
                             String javaPeer = elements[3];
@@ -612,7 +612,7 @@ public final class Definition {
                     }
                 }
             } catch (Exception e) {
-                throw new RuntimeException("syntax error in " + file + ", line: " + currentLine, e);
+                throw new RuntimeException("error in " + file + ", line: " + currentLine, e);
             }
         }
         return hierarchy;

@@ -84,7 +84,7 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
         if (failure == null) {
             ingestDocument.toXContent(builder, params);
         } else {
-            ElasticsearchException.renderException(builder, params, failure);
+            ElasticsearchException.toXContentError(builder, params, failure);
         }
         builder.endObject();
         return builder;

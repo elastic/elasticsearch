@@ -144,15 +144,15 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
             builder.endObject();
         }
         builder.endArray();
-        super.innerToXContent(builder, params);
     }
 
     @Override
-    protected void causeToXContent(XContentBuilder builder, Params params) throws IOException {
-        if (super.getCause() != null) {
-            // if the cause is null we inject a guessed root cause that will then be rendered twice so wi disable it manually
-            super.causeToXContent(builder, params);
+    protected boolean skipCauseInXContent(Params params) {
+        if (super.skipCauseInXContent(params)) {
+            return true;
         }
+        // if the cause is null we inject a guessed root cause that will then be rendered twice so we disable it manually
+        return super.getCause() == null;
     }
 
     @Override

@@ -77,7 +77,6 @@ public class SearchParseException extends SearchContextException {
             builder.field("line", lineNumber);
             builder.field("col", columnNumber);
         }
-        super.innerToXContent(builder, params);
     }
 
     /**

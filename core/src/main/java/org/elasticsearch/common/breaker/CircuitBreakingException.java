@@ -76,6 +76,5 @@ public class CircuitBreakingException extends ElasticsearchException {
     protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("bytes_wanted", bytesWanted);
         builder.field("bytes_limit", byteLimit);
-        super.innerToXContent(builder, params);
     }
 }

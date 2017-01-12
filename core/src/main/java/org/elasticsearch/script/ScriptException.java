@@ -88,7 +88,6 @@ public class ScriptException extends ElasticsearchException {
     
     @Override
     protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        super.innerToXContent(builder, params);
         builder.field("script_stack", scriptStack);
         builder.field("script", script);
         builder.field("lang", lang);

@@ -33,6 +33,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
+import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
+
 
 public class BytesRestResponse extends RestResponse {
 
@@ -89,7 +93,7 @@ public class BytesRestResponse extends RestResponse {
             this.content = BytesArray.EMPTY;
             this.contentType = TEXT_CONTENT_TYPE;
         } else {
-            try (final XContentBuilder builder = convert(channel, status, e)) {
+            try (final XContentBuilder builder = build(channel, status, e)) {
                 this.content = builder.bytes();
                 this.contentType = builder.contentType().mediaType();
             }
@@ -116,31 +120,23 @@ public class BytesRestResponse extends RestResponse {
 
     private static final Logger SUPPRESSED_ERROR_LOGGER = ESLoggerFactory.getLogger("rest.suppressed");
 
-    private static XContentBuilder convert(RestChannel channel, RestStatus status, Exception e) throws IOException {
-        XContentBuilder builder = channel.newErrorBuilder().startObject();
-        if (e == null) {
-            builder.field("error", "unknown");
-        } else if (channel.detailedErrorsEnabled()) {
-            final ToXContent.Params params;
-            if (channel.request().paramAsBoolean("error_trace", !ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
-                params =  new ToXContent.DelegatingMapParams(
-                        Collections.singletonMap(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false"), channel.request());
+    private static XContentBuilder build(RestChannel channel, RestStatus status, Exception e) throws IOException {
+        ToXContent.Params params = channel.request();
+        if (params.paramAsBoolean("error_trace", !REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT)) {
+            params =  new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
+        } else if (e != null) {
+            Supplier<?> messageSupplier = () -> new ParameterizedMessage("path: {}, params: {}",
+                    channel.request().rawPath(), channel.request().params());
+
+            if (status.getStatus() < 500) {
+                SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
             } else {
-                if (status.getStatus() < 500) {
-                    SUPPRESSED_ERROR_LOGGER.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage("path: {}, params: {}",
-                                    channel.request().rawPath(), channel.request().params()), e);
-                } else {
-                    SUPPRESSED_ERROR_LOGGER.warn(
-                            (Supplier<?>) () -> new ParameterizedMessage("path: {}, params: {}",
-                                    channel.request().rawPath(), channel.request().params()), e);
-                }
-                params = channel.request();
+                SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
             }
-            ElasticsearchException.renderException(builder, params, e);
-        } else {
-            builder.field("error", simpleMessage(e));
         }
+
+        XContentBuilder builder = channel.newErrorBuilder().startObject();
+        ElasticsearchException.toXContentError(builder, params, e, channel.detailedErrorsEnabled());
         builder.field("status", status.getStatus());
         builder.endObject();
         return builder;

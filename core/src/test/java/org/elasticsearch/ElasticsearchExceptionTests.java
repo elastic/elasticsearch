@@ -67,7 +67,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         // in the JSON. Since the stack can be large, it only checks the beginning of the JSON.
         assertExceptionAsJson(e, true, startsWith("{\"type\":\"exception\",\"reason\":\"foo\"," +
                 "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"," +
-                "\"stack_trace\":\"java.lang.IllegalStateException: bar"));
+                "\"stack_trace\":\"[bar]\\n\\tat org.elasticsearch."));
     }
 
     public void testToXContentWithHeaders() throws IOException {

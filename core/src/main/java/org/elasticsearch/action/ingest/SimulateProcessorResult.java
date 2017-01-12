@@ -99,10 +99,10 @@ class SimulateProcessorResult implements Writeable, ToXContent {
 
         if (failure != null && ingestDocument != null) {
             builder.startObject("ignored_error");
-            ElasticsearchException.renderException(builder, params, failure);
+            ElasticsearchException.toXContentError(builder, params, failure);
             builder.endObject();
         } else if (failure != null) {
-            ElasticsearchException.renderException(builder, params, failure);
+            ElasticsearchException.toXContentError(builder, params, failure);
         }
 
         if (ingestDocument != null) {

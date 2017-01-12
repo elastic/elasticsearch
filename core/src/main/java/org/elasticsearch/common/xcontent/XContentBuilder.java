@@ -944,14 +944,6 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
         return this;
     }
 
-    public XContentBuilder nanosAsMillis(String rawFieldName, String readableFieldName, long nanos) throws IOException {
-        if (humanReadable) {
-            field(readableFieldName, String.format(Locale.US, "%.10gms", nanos / 1000000.0));
-        }
-        field(rawFieldName, nanos);
-        return this;
-    }
-
     public XContentBuilder byteSizeField(String rawFieldName, String readableFieldName, ByteSizeValue byteSizeValue) throws IOException {
         if (humanReadable) {
             field(readableFieldName, byteSizeValue.toString());

@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Public interface and serialization container for profiled timings of the
@@ -140,7 +141,7 @@ public class CollectorResult implements ToXContent, Writeable {
         builder = builder.startObject()
                 .field(NAME.getPreferredName(), getName())
                 .field(REASON.getPreferredName(), getReason())
-                .nanosAsMillis(TIME_NANOS.getPreferredName(), TIME.getPreferredName(), getTime());
+                .timeValueField(TIME_NANOS.getPreferredName(), TIME.getPreferredName(), getTime(), TimeUnit.NANOSECONDS);
 
         if (!children.isEmpty()) {
             builder = builder.startArray(CHILDREN.getPreferredName());

@@ -32,6 +32,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * This class is the internal representation of a profiled Query, corresponding
@@ -146,7 +147,7 @@ public final class ProfileResult implements Writeable, ToXContent {
         builder = builder.startObject()
                 .field(TYPE.getPreferredName(), type)
                 .field(DESCRIPTION.getPreferredName(), description)
-                .nanosAsMillis(NODE_TIME_RAW.getPreferredName(), NODE_TIME.getPreferredName(), getTime())
+                .timeValueField(NODE_TIME_RAW.getPreferredName(), NODE_TIME.getPreferredName(), getTime(), TimeUnit.NANOSECONDS)
                 .field(BREAKDOWN.getPreferredName(), timings);
 
         if (!children.isEmpty()) {

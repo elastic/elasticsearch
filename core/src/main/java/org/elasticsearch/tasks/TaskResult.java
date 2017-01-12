@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -171,7 +170,7 @@ public final class TaskResult implements Writeable, ToXContent {
         return builder;
     }
 
-    public static final ConstructingObjectParser<TaskResult, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<TaskResult, Void> PARSER = new ConstructingObjectParser<>(
             "stored_task_result", a -> {
                 int i = 0;
                 boolean completed = (boolean) a[i++];

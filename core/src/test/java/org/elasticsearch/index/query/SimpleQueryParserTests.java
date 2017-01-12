@@ -20,10 +20,13 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.GraphQuery;
+import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
@@ -109,6 +112,53 @@ public class SimpleQueryParserTests extends ESTestCase {
                 .add(new BooleanClause(new SynonymQuery(new Term("field1", "last"),
                     new Term("field1", "last")), defaultOp))
                 .build();
+            assertThat(query, equalTo(expectedQuery));
+        }
+    }
+
+    public void testAnalyzerWithGraph() {
+        SimpleQueryParser.Settings settings = new SimpleQueryParser.Settings();
+        settings.analyzeWildcard(true);
+        Map<String, Float> weights = new HashMap<>();
+        weights.put("field1", 1.0f);
+        SimpleQueryParser parser = new MockSimpleQueryParser(new MockSynonymAnalyzer(), weights, -1, settings);
+
+        for (Operator op : Operator.values()) {
+            BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
+            parser.setDefaultOperator(defaultOp);
+
+            // non-phrase won't detect multi-word synonym because of whitespace splitting
+            Query query = parser.parse("guinea pig");
+
+            Query expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanClause(new TermQuery(new Term("field1", "guinea")), defaultOp))
+                .add(new BooleanClause(new TermQuery(new Term("field1", "pig")), defaultOp))
+                .build();
+            assertThat(query, equalTo(expectedQuery));
+
+            // phrase will pick it up
+            query = parser.parse("\"guinea pig\"");
+
+            expectedQuery = new GraphQuery(
+                new PhraseQuery("field1", "guinea", "pig"),
+                new TermQuery(new Term("field1", "cavy")));
+
+            assertThat(query, equalTo(expectedQuery));
+
+            // phrase with slop
+            query = parser.parse("big \"guinea pig\"~2");
+
+            expectedQuery = new BooleanQuery.Builder()
+                .add(new BooleanClause(new TermQuery(new Term("field1", "big")), defaultOp))
+                .add(new BooleanClause(new GraphQuery(
+                    new PhraseQuery.Builder()
+                        .add(new Term("field1", "guinea"))
+                        .add(new Term("field1", "pig"))
+                        .setSlop(2)
+                        .build(),
+                    new TermQuery(new Term("field1", "cavy"))), defaultOp))
+                .build();
+
             assertThat(query, equalTo(expectedQuery));
         }
     }

@@ -19,15 +19,6 @@ only.  If you want to apply synonyms during indexing please use the
 standard <<analysis-synonym-tokenfilter,synonym token filter>>.
 ===============================
 
-["NOTE",id="synonym-graph-query-note"]
-===============================
-The graph token stream created by this token filter requires special
-query handling. Currently only the <<query-dsl-match-query, Match>> and 
-<<query-dsl-multi-match-query, Multi Match>> queries can do this.  Using 
-it with any other type of analyzed query will potentially result in 
-incorrect search results.
-===============================
-
 Synonyms are configured using a configuration file.
 Here is an example:
 

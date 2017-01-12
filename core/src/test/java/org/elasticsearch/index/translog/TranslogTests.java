@@ -23,6 +23,9 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -31,6 +34,7 @@ import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LineFileDocs;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,6 +51,12 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.Engine.Operation.Origin;
+import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
@@ -67,6 +77,7 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -297,14 +308,14 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(2L));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(125L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(139L));
         }
 
         translog.add(new Translog.Delete(newUid("3")));
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(3L));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(153L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(181L));
         }
 
         final long seqNo = 1;
@@ -313,10 +324,10 @@ public class TranslogTests extends ESTestCase {
         {
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(4L));
-            assertThat(stats.getTranslogSizeInBytes(), equalTo(195L));
+            assertThat(stats.getTranslogSizeInBytes(), equalTo(223L));
         }
 
-        final long expectedSizeInBytes = 238L;
+        final long expectedSizeInBytes = 266L;
         translog.prepareCommit();
         {
             final TranslogStats stats = stats();
@@ -1992,5 +2003,48 @@ public class TranslogTests extends ESTestCase {
 
     public static Translog.Location randomTranslogLocation() {
         return new Translog.Location(randomLong(), randomLong(), randomInt());
+    }
+
+    public void testTranslogOpSerialization() throws Exception {
+        BytesReference B_1 = new BytesArray(new byte[]{1});
+        SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();
+        assert Version.CURRENT.major <= 6 : "Using UNASSIGNED_SEQ_NO can be removed in 7.0, because 6.0+ nodes have actual sequence numbers";
+        long randomSeqNum = randomBoolean() ? SequenceNumbersService.UNASSIGNED_SEQ_NO : randomNonNegativeLong();
+        long randomPrimaryTerm = randomBoolean() ? 0 : randomNonNegativeLong();
+        seqID.seqNo.setLongValue(randomSeqNum);
+        seqID.seqNoDocValue.setLongValue(randomSeqNum);
+        seqID.primaryTerm.setLongValue(randomPrimaryTerm);
+        Field uidField = new Field("_uid", "1", UidFieldMapper.Defaults.FIELD_TYPE);
+        Field versionField = new NumericDocValuesField("_version", 1);
+        Document document = new Document();
+        document.add(new TextField("value", "test", Field.Store.YES));
+        document.add(uidField);
+        document.add(versionField);
+        document.add(seqID.seqNo);
+        document.add(seqID.seqNoDocValue);
+        document.add(seqID.primaryTerm);
+        ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", "type", null, Arrays.asList(document), B_1, null);
+
+        Engine.Index eIndex = new Engine.Index(newUid("1"), doc, randomSeqNum, randomPrimaryTerm,
+                1, VersionType.INTERNAL, Origin.PRIMARY, 0, 0, false);
+        Engine.IndexResult eIndexResult = new Engine.IndexResult(1, randomSeqNum, true);
+        Translog.Index index = new Translog.Index(eIndex, eIndexResult);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        index.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        Translog.Index serializedIndex = new Translog.Index(in);
+        assertEquals(index, serializedIndex);
+
+        Engine.Delete eDelete = new Engine.Delete("type", "1", newUid("1"), randomSeqNum, randomPrimaryTerm,
+                2, VersionType.INTERNAL, Origin.PRIMARY, 0);
+        Engine.DeleteResult eDeleteResult = new Engine.DeleteResult(2, randomSeqNum, true);
+        Translog.Delete delete = new Translog.Delete(eDelete, eDeleteResult);
+
+        out = new BytesStreamOutput();
+        delete.writeTo(out);
+        in = out.bytes().streamInput();
+        Translog.Delete serializedDelete = new Translog.Delete(in);
+        assertEquals(delete, serializedDelete);
     }
 }

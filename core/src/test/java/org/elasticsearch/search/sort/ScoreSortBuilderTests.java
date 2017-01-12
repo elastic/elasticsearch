@@ -21,7 +21,6 @@ package org.elasticsearch.search.sort;
 
 
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -68,7 +67,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser);
         ScoreSortBuilder scoreSort = ScoreSortBuilder.fromXContent(context, "_score");
         assertEquals(order, scoreSort.order());
     }
@@ -81,7 +80,7 @@ public class ScoreSortBuilderTests extends AbstractSortTestCase<ScoreSortBuilder
         parser.nextToken();
         parser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = new QueryParseContext(parser);
 
         try {
           ScoreSortBuilder.fromXContent(context, "_score");

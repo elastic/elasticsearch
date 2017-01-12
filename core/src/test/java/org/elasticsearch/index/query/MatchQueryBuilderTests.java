@@ -32,7 +32,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -311,7 +310,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "    }\n" +
                 "  }\n" +
                 "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, qb);
 
         assertEquals(json, expectedQB, qb);
@@ -342,7 +341,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 "    }\n" +
                 "  }\n" +
                 "}";
-        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, qb);
 
         assertEquals(json, expectedQB, qb);

@@ -69,7 +69,7 @@ public class RestCountAction extends BaseRestHandler {
                     searchSourceBuilder.query(queryBuilder);
                 }
             } else {
-                searchSourceBuilder.query(RestActions.getQueryContent(parser, parseFieldMatcher));
+                searchSourceBuilder.query(RestActions.getQueryContent(parser));
             }
         });
         countRequest.routing(request.param("routing"));

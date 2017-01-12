@@ -17,20 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.common;
+package org.elasticsearch.common.settings;
 
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import java.io.Closeable;
+import java.security.GeneralSecurityException;
 
 /**
- * This interface should be implemented by classes like {@link QueryParseContext} or {@link QueryShardContext} that
- * are able to carry a {@link ParseFieldMatcher}.
+ * An accessor for settings which are securely stored. See {@link SecureSetting}.
  */
-@FunctionalInterface
-public interface ParseFieldMatcherSupplier {
+public interface SecureSettings extends Closeable {
 
-    /**
-     * @return the parseFieldMatcher
-     */
-    ParseFieldMatcher getParseFieldMatcher();
+    /** Returns true iff the settings are loaded and retrievable. */
+    boolean isLoaded();
+
+    /** Returns true iff the given setting exists in this secure settings. */
+    boolean hasSetting(String setting);
+
+    /** Return a string setting. The {@link SecureString} should be closed once it is used. */
+    SecureString getString(String setting) throws GeneralSecurityException;
 }

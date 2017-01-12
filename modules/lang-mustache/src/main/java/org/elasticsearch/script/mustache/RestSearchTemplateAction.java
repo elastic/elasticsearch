@@ -94,7 +94,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, parseFieldMatcher, null);
+        RestSearchAction.parseSearchRequest(searchRequest, request, null);
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;

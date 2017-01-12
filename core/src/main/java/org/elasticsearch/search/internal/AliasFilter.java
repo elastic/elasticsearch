@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,6 +34,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Represents a {@link QueryBuilder} and a list of alias names that filters the builder is composed of.
@@ -66,7 +68,7 @@ public final class AliasFilter implements Writeable {
             final IndexMetaData indexMetaData = context.getIndexSettings().getIndexMetaData();
             /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
              * of dependencies we pass in a function that can perform the parsing. */
-            ShardSearchRequest.FilterParser filterParser = bytes -> {
+            CheckedFunction<byte[], Optional<QueryBuilder>, IOException> filterParser = bytes -> {
                 try (XContentParser parser = XContentFactory.xContent(bytes).createParser(context.getXContentRegistry(), bytes)) {
                     return context.newParseContext(parser).parseInnerQueryBuilder();
                 }

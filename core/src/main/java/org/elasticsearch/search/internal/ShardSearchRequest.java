@@ -22,6 +22,7 @@ package org.elasticsearch.search.internal;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.index.Index;
@@ -89,17 +90,13 @@ public interface ShardSearchRequest {
      */
     void rewrite(QueryShardContext context) throws IOException;
 
-    @FunctionalInterface
-    public interface FilterParser {
-        Optional<QueryBuilder> parse(byte[] bytes) throws IOException;
-    }
     /**
      * Returns the filter associated with listed filtering aliases.
      * <p>
      * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
      * Returns <tt>null</tt> if no filtering is required.</p>
      */
-    static QueryBuilder parseAliasFilter(FilterParser filterParser,
+    static QueryBuilder parseAliasFilter(CheckedFunction<byte[], Optional<QueryBuilder>, IOException> filterParser,
                                          IndexMetaData metaData, String... aliasNames) {
         if (aliasNames == null || aliasNames.length == 0) {
             return null;
@@ -111,7 +108,7 @@ public interface ShardSearchRequest {
                 return null;
             }
             try {
-                return filterParser.parse(alias.filter().uncompressed()).orElse(null);
+                return filterParser.apply(alias.filter().uncompressed()).orElse(null);
             } catch (IOException ex) {
                 throw new AliasFilterParsingException(index, alias.getAlias(), "Invalid alias filter", ex);
             }

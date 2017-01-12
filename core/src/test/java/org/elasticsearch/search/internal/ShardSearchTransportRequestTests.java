@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -47,6 +48,7 @@ import org.elasticsearch.search.AbstractSearchTestCase;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.Optional;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
@@ -161,7 +163,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
     }
 
     public QueryBuilder aliasFilter(IndexMetaData indexMetaData, String... aliasNames) {
-        ShardSearchRequest.FilterParser filterParser = bytes -> {
+        CheckedFunction<byte[], Optional<QueryBuilder>, IOException> filterParser = bytes -> {
             try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry(), bytes)) {
                 return new QueryParseContext(parser).parseInnerQueryBuilder();
             }

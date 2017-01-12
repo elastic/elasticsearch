@@ -7,9 +7,6 @@
   "mappings": {
     "event": {
       "dynamic" : "strict",
-      "_all" : {
-        "enabled" : false
-      },
       "properties": {
         "@timestamp": {
           "type": "date",

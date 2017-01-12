@@ -7,9 +7,6 @@
   },
   "mappings": {
     "_default_": {
-      "_all": {
-        "enabled": false
-      },
       "properties": {
         "cluster_uuid": {
           "type": "keyword"

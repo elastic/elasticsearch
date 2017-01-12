@@ -110,13 +110,14 @@ different `_routing` values.
 
 It is up to the user to ensure that IDs are unique across the index.
 
+[[routing-index-partition]]
 ==== Routing to an index partition
 
 An index can be configured such that custom routing values will go to a subset of the shards rather
 than a single shard. This helps mitigate the risk of ending up with an imbalanced cluster while still
 reducing the impact of searches.
 
-This is done by providing the index level setting `index.routing_partition_size` at index creation.
+This is done by providing the index level setting <<routing-partition-size,`index.routing_partition_size`>> at index creation.
 As the partition size increases, the more evenly distributed the data will become at the
 expense of having to search more shards per request.
 

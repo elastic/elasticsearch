@@ -79,11 +79,12 @@ Checking shards may take a lot of time on large indices.
     which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
     compression ratio, at the expense of slower stored fields performance.
 
-`index.routing_partition_size`::
+[[routing-partition-size]] `index.routing_partition_size`::
 
     The number of shards a custom <<mapping-routing-field,routing>> value can go to.
     Defaults to 1 and can only be set at index creation time. This value must be less
     than the `index.number_of_shards` unless the `index.number_of_shards` value is also 1.
+    See <<routing-index-partition>> for more details about how this setting is used.
 
 [float]
 [[dynamic-index-settings]]

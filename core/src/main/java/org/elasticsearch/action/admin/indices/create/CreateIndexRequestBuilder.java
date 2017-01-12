@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -191,7 +192,9 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
 
     /**
      * Sets the settings and mappings as a single source.
+     * @deprecated use {@link #setSource(String, XContentType)}
      */
+    @Deprecated
     public CreateIndexRequestBuilder setSource(String source) {
         request.source(source);
         return this;
@@ -200,6 +203,16 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     /**
      * Sets the settings and mappings as a single source.
      */
+    public CreateIndexRequestBuilder setSource(String source, XContentType xContentType) {
+        request.source(source, xContentType);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     * @deprecated use {@link #setSource(BytesReference, XContentType)}
+     */
+    @Deprecated
     public CreateIndexRequestBuilder setSource(BytesReference source) {
         request.source(source);
         return this;
@@ -208,6 +221,16 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     /**
      * Sets the settings and mappings as a single source.
      */
+    public CreateIndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
+        request.source(source, xContentType);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     * @deprecated use {@link #setSource(byte[], XContentType)}
+     */
+    @Deprecated
     public CreateIndexRequestBuilder setSource(byte[] source) {
         request.source(source);
         return this;
@@ -216,8 +239,26 @@ public class CreateIndexRequestBuilder extends AcknowledgedRequestBuilder<Create
     /**
      * Sets the settings and mappings as a single source.
      */
+    public CreateIndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
+        request.source(source, xContentType);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     * @deprecated use {@link #setSource(byte[], int, int, XContentType)}
+     */
+    @Deprecated
     public CreateIndexRequestBuilder setSource(byte[] source, int offset, int length) {
         request.source(source, offset, length);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
+        request.source(source, offset, length, xContentType);
         return this;
     }
 

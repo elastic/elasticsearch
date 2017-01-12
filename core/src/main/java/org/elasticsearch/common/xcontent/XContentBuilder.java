@@ -969,13 +969,28 @@ public final class XContentBuilder implements BytesStream, Releasable, Flushable
         return this;
     }
 
+    public XContentBuilder rawField(String name, InputStream value, XContentType contentType) throws IOException {
+        generator.writeRawField(name, value, contentType);
+        return this;
+    }
+
     public XContentBuilder rawField(String name, BytesReference value) throws IOException {
         generator.writeRawField(name, value);
         return this;
     }
 
+    public XContentBuilder rawField(String name, BytesReference value, XContentType contentType) throws IOException {
+        generator.writeRawField(name, value, contentType);
+        return this;
+    }
+
     public XContentBuilder rawValue(BytesReference value) throws IOException {
         generator.writeRawValue(value);
+        return this;
+    }
+
+    public XContentBuilder rawValue(BytesReference value, XContentType contentType) throws IOException {
+        generator.writeRawValue(value, contentType);
         return this;
     }
 

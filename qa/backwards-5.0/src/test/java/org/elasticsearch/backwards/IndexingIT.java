@@ -19,6 +19,7 @@
 package org.elasticsearch.backwards;
 
 import org.apache.http.HttpHost;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
@@ -70,7 +71,7 @@ public class IndexingIT extends ESRestTestCase {
 
     private void createIndex(String name, Settings settings) throws IOException {
         assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
-            new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }")));
+            new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }", ContentType.APPLICATION_JSON)));
     }
 
     private void updateIndexSetting(String name, Settings.Builder settings) throws IOException {
@@ -85,13 +86,14 @@ public class IndexingIT extends ESRestTestCase {
         for (int i = 0; i < numDocs; i++) {
             final int id = idStart + i;
             assertOK(client().performRequest("PUT", index + "/test/" + id, emptyMap(),
-                new StringEntity("{\"test\": \"test_" + id + "\"}")));
+                new StringEntity("{\"test\": \"test_" + id + "\"}", ContentType.APPLICATION_JSON)));
         }
         return numDocs;
     }
 
     public void testSeqNoCheckpoints() throws Exception {
         Nodes nodes = buildNodeAndVersions();
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
         logger.info("cluster discovered: {}", nodes.toString());
         final String bwcNames = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.joining(","));
         Settings.Builder settings = Settings.builder()

@@ -70,14 +70,15 @@ public final class ScriptMetaData implements MetaData.Custom {
         return scriptAsBytes.utf8ToString();
     }
 
-    public static String parseStoredScript(BytesReference scriptAsBytes) {
+    public static String parseStoredScript(BytesReference scriptAsBytes, XContentType xContentType) {
         // Scripts can be stored via API in several ways:
         // 1) wrapped into a 'script' json object or field
         // 2) wrapped into a 'template' json object or field
         // 3) just as is
         // In order to fetch the actual script in consistent manner this parsing logic is needed:
         // EMPTY is ok here because we never call namedObject, we're just copying structure.
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, scriptAsBytes);
+        try (XContentParser parser = xContentType == null ? XContentHelper.createParser(NamedXContentRegistry.EMPTY, scriptAsBytes) :
+                        xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, scriptAsBytes);
              XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             parser.nextToken();
             parser.nextToken();
@@ -215,8 +216,8 @@ public final class ScriptMetaData implements MetaData.Custom {
             }
         }
 
-        public Builder storeScript(String lang, String id, BytesReference script) {
-            BytesReference scriptBytest = new BytesArray(parseStoredScript(script));
+        public Builder storeScript(String lang, String id, BytesReference script, XContentType xContentType) {
+            BytesReference scriptBytest = new BytesArray(parseStoredScript(script, xContentType));
             scripts.put(toKey(lang, id), new ScriptAsBytes(scriptBytest));
             return this;
         }

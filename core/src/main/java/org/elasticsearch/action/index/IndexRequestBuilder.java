@@ -82,9 +82,19 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
 
     /**
      * Sets the source.
+     * @deprecated use {@link #setSource(BytesReference, XContentType)}
      */
+    @Deprecated
     public IndexRequestBuilder setSource(BytesReference source) {
         request.source(source);
+        return this;
+    }
+
+    /**
+     * Sets the source.
+     */
+    public IndexRequestBuilder setSource(BytesReference source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -112,10 +122,23 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * Sets the document source to index.
      * <p>
      * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
-     * or using the {@link #setSource(byte[])}.
+     * or using the {@link #setSource(byte[], XContentType)}.
+     * @deprecated use {@link #setSource(String, XContentType)}
      */
+    @Deprecated
     public IndexRequestBuilder setSource(String source) {
         request.source(source);
+        return this;
+    }
+
+    /**
+     * Sets the document source to index.
+     * <p>
+     * Note, its preferable to either set it using {@link #setSource(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * or using the {@link #setSource(byte[], XContentType)}.
+     */
+    public IndexRequestBuilder setSource(String source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -129,9 +152,19 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
 
     /**
      * Sets the document to index in bytes form.
+     * @deprecated use {@link #setSource(byte[], XContentType)}
      */
+    @Deprecated
     public IndexRequestBuilder setSource(byte[] source) {
         request.source(source);
+        return this;
+    }
+
+    /**
+     * Sets the document to index in bytes form.
+     */
+    public IndexRequestBuilder setSource(byte[] source, XContentType xContentType) {
+        request.source(source, xContentType);
         return this;
     }
 
@@ -142,9 +175,25 @@ public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest,
      * @param source The source to index
      * @param offset The offset in the byte array
      * @param length The length of the data
+     * @deprecated use {@link #setSource(byte[], int, int, XContentType)}
      */
+    @Deprecated
     public IndexRequestBuilder setSource(byte[] source, int offset, int length) {
         request.source(source, offset, length);
+        return this;
+    }
+
+    /**
+     * Sets the document to index in bytes form (assumed to be safe to be used from different
+     * threads).
+     *
+     * @param source The source to index
+     * @param offset The offset in the byte array
+     * @param length The length of the data
+     * @param xContentType The type/format of the source
+     */
+    public IndexRequestBuilder setSource(byte[] source, int offset, int length, XContentType xContentType) {
+        request.source(source, offset, length, xContentType);
         return this;
     }
 

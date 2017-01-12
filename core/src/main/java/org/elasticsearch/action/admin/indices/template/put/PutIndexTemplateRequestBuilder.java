@@ -24,6 +24,7 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.List;
@@ -101,9 +102,19 @@ public class PutIndexTemplateRequestBuilder
 
     /**
      * The settings to crete the index template with (either json/yaml/properties format)
+     * @deprecated use {@link #setSettings(String, XContentType)}
      */
+    @Deprecated
     public PutIndexTemplateRequestBuilder setSettings(String source) {
         request.settings(source);
+        return this;
+    }
+
+    /**
+     * The settings to crete the index template with (either json/yaml/properties format)
+     */
+    public PutIndexTemplateRequestBuilder setSettings(String source, XContentType xContentType) {
+        request.settings(source, xContentType);
         return this;
     }
 
@@ -120,9 +131,23 @@ public class PutIndexTemplateRequestBuilder
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated use {@link #addMapping(String, String, XContentType)}
      */
+    @Deprecated
     public PutIndexTemplateRequestBuilder addMapping(String type, String source) {
         request.mapping(type, source);
+        return this;
+    }
+
+    /**
+     * Adds mapping that will be added when the index template gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     * @param xContentType The type/format of the source
+     */
+    public PutIndexTemplateRequestBuilder addMapping(String type, String source, XContentType xContentType) {
+        request.mapping(type, source, xContentType);
         return this;
     }
 
@@ -226,9 +251,19 @@ public class PutIndexTemplateRequestBuilder
 
     /**
      * The template source definition.
+     * @deprecated use {@link #setSource(String, XContentType)}
      */
+    @Deprecated
     public PutIndexTemplateRequestBuilder setSource(String templateSource) {
         request.source(templateSource);
+        return this;
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequestBuilder setSource(String templateSource, XContentType xContentType) {
+        request.source(templateSource, xContentType);
         return this;
     }
 
@@ -242,7 +277,9 @@ public class PutIndexTemplateRequestBuilder
 
     /**
      * The template source definition.
+     * @deprecated use {@link #setSource(byte[], XContentType)}
      */
+    @Deprecated
     public PutIndexTemplateRequestBuilder setSource(byte[] templateSource) {
         request.source(templateSource);
         return this;
@@ -251,8 +288,26 @@ public class PutIndexTemplateRequestBuilder
     /**
      * The template source definition.
      */
+    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, XContentType xContentType) {
+        request.source(templateSource, xContentType);
+        return this;
+    }
+
+    /**
+     * The template source definition.
+     * @deprecated use {@link #setSource(byte[], int, int, XContentType)}
+     */
+    @Deprecated
     public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, int offset, int length) {
         request.source(templateSource, offset, length);
+        return this;
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequestBuilder setSource(byte[] templateSource, int offset, int length, XContentType xContentType) {
+        request.source(templateSource, offset, length, xContentType);
         return this;
     }
 }

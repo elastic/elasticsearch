@@ -19,12 +19,14 @@
 
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -35,6 +37,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     private String id;
     private String scriptLang;
     private BytesReference script;
+    private XContentType xContentType;
 
     public PutStoredScriptRequest() {
         super();
@@ -92,8 +95,19 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         return script;
     }
 
+    public XContentType xContentType() {
+        return xContentType;
+    }
+
+    @Deprecated
     public PutStoredScriptRequest script(BytesReference source) {
         this.script = source;
+        return this;
+    }
+
+    public PutStoredScriptRequest script(BytesReference source, XContentType xContentType) {
+        this.script = source;
+        this.xContentType = xContentType;
         return this;
     }
 
@@ -103,6 +117,9 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         scriptLang = in.readString();
         id = in.readOptionalString();
         script = in.readBytesReference();
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED) && in.readBoolean()) {
+            xContentType = XContentType.readFrom(in);
+        }
     }
 
     @Override
@@ -111,13 +128,25 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
         out.writeString(scriptLang);
         out.writeOptionalString(id);
         out.writeBytesReference(script);
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            if (xContentType == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                xContentType.writeTo(out);
+            }
+        }
     }
 
     @Override
     public String toString() {
         String sSource = "_na_";
         try {
-            sSource = XContentHelper.convertToJson(script, false);
+            if (xContentType == null) {
+                sSource = XContentHelper.convertToJson(script, false);
+            } else {
+                sSource = XContentHelper.convertToJson(script, false, xContentType);
+            }
         } catch (Exception e) {
             // ignore
         }

@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.cluster.storedscripts;
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 
 public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<PutStoredScriptRequest,
         PutStoredScriptResponse, PutStoredScriptRequestBuilder> {
@@ -40,9 +41,14 @@ public class PutStoredScriptRequestBuilder extends AcknowledgedRequestBuilder<Pu
         return this;
     }
 
+    @Deprecated
     public PutStoredScriptRequestBuilder setSource(BytesReference source) {
         request.script(source);
         return this;
     }
 
+    public PutStoredScriptRequestBuilder setSource(BytesReference source, XContentType xContentType) {
+        request.script(source, xContentType);
+        return this;
+    }
 }

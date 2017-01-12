@@ -28,7 +28,6 @@ public interface RestHandler {
 
     /**
      * Handles a rest request.
-     *
      * @param request The request to handle
      * @param channel The channel to write the request response to
      * @param client A client to use to make internal requests on behalf of the original request

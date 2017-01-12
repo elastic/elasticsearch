@@ -307,6 +307,11 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (contentType == null) {
             throw new IllegalArgumentException("Can't write raw bytes whose xcontent-type can't be guessed");
         }
+        writeRawField(name, content, contentType);
+    }
+
+    @Override
+    public void writeRawField(String name, InputStream content, XContentType contentType) throws IOException {
         if (mayWriteRawData(contentType) == false) {
             // EMPTY is safe here because we never call namedObject when writing raw data
             try (XContentParser parser = XContentFactory.xContent(contentType).createParser(NamedXContentRegistry.EMPTY, content)) {
@@ -328,6 +333,11 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (contentType == null) {
             throw new IllegalArgumentException("Can't write raw bytes whose xcontent-type can't be guessed");
         }
+        writeRawField(name, content, contentType);
+    }
+
+    @Override
+    public final void writeRawField(String name, BytesReference content, XContentType contentType) throws IOException {
         if (mayWriteRawData(contentType) == false) {
             writeFieldName(name);
             copyRawValue(content, contentType.xContent());
@@ -345,6 +355,11 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (contentType == null) {
             throw new IllegalArgumentException("Can't write raw bytes whose xcontent-type can't be guessed");
         }
+        writeRawValue(content, contentType);
+    }
+
+    @Override
+    public final void writeRawValue(BytesReference content, XContentType contentType) throws IOException {
         if (mayWriteRawData(contentType) == false) {
             copyRawValue(content, contentType.xContent());
         } else {

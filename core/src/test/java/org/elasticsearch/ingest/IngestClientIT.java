@@ -38,6 +38,7 @@ import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.ingest.WritePipelineResponse;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -81,7 +82,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endArray()
             .endObject().bytes();
-        client().admin().cluster().preparePutPipeline("_id", pipelineSource)
+        client().admin().cluster().preparePutPipeline("_id", pipelineSource, XContentType.JSON)
                 .get();
         GetPipelineResponse getResponse = client().admin().cluster().prepareGetPipeline("_id")
                 .get();
@@ -104,10 +105,10 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject().bytes();
         SimulatePipelineResponse response;
         if (randomBoolean()) {
-            response = client().admin().cluster().prepareSimulatePipeline(bytes)
+            response = client().admin().cluster().prepareSimulatePipeline(bytes, XContentType.JSON)
                 .setId("_id").get();
         } else {
-            SimulatePipelineRequest request = new SimulatePipelineRequest(bytes);
+            SimulatePipelineRequest request = new SimulatePipelineRequest(bytes, XContentType.JSON);
             request.setId("_id");
             response = client().admin().cluster().simulatePipeline(request).get();
         }
@@ -137,7 +138,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endArray()
             .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         int numRequests = scaledRandomIntBetween(32, 128);
@@ -177,7 +178,7 @@ public class IngestClientIT extends ESIntegTestCase {
             .endObject()
             .endArray()
             .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         client().admin().cluster().putPipeline(putPipelineRequest).get();
 
         GetPipelineRequest getPipelineRequest = new GetPipelineRequest("_id");
@@ -219,7 +220,7 @@ public class IngestClientIT extends ESIntegTestCase {
                 .endObject()
                 .endArray()
                 .endObject().bytes();
-        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source);
+        PutPipelineRequest putPipelineRequest = new PutPipelineRequest("_id", source, XContentType.JSON);
         try {
             client().admin().cluster().putPipeline(putPipelineRequest).get();
         } catch (ExecutionException e) {

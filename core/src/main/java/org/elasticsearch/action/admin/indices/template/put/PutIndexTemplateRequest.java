@@ -179,10 +179,20 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     }
 
     /**
-     * The settings to create the index template with (either json/yaml/properties format).
+     * The settings to create the index template with (either json/yaml format).
+     * @deprecated use {@link #settings(String, XContentType)}
      */
+    @Deprecated
     public PutIndexTemplateRequest settings(String source) {
         this.settings = Settings.builder().loadFromSource(source).build();
+        return this;
+    }
+
+    /**
+     * The settings to create the index template with (either json/yaml format).
+     */
+    public PutIndexTemplateRequest settings(String source, XContentType xContentType) {
+        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
         return this;
     }
 
@@ -193,7 +203,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            settings(builder.string());
+            settings(builder.string(), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -209,9 +219,35 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      *
      * @param type   The mapping type
      * @param source The mapping source
+     * @deprecated use {@link #mapping(String, String, XContentType)}
      */
+    @Deprecated
     public PutIndexTemplateRequest mapping(String type, String source) {
-        mappings.put(type, source);
+        XContentType xContentType = XContentFactory.xContentType(source);
+        return mapping(type, source, xContentType);
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * @param type   The mapping type
+     * @param source The mapping source
+     * @param xContentType The type of content contained within the source
+     */
+    public PutIndexTemplateRequest mapping(String type, String source, XContentType xContentType) {
+        if (xContentType == null) {
+            throw new IllegalArgumentException("could not determine xcontent type");
+        } else if (xContentType == XContentType.JSON) {
+            mappings.put(type, source);
+        } else {
+            try (XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY, source);
+                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+                builder.copyCurrentStructure(parser);
+                mappings.put(type, builder.string());
+            } catch (IOException e) {
+                throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            }
+        }
         return this;
     }
 
@@ -235,11 +271,10 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest mapping(String type, XContentBuilder source) {
         try {
-            mappings.put(type, source.string());
+            return mapping(type, source.string(), source.contentType());
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to build json for mapping request", e);
         }
-        return this;
     }
 
     /**
@@ -256,7 +291,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
-            return mapping(type, builder.string());
+            return mapping(type, builder.string(), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
@@ -280,7 +315,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      */
     public PutIndexTemplateRequest source(XContentBuilder templateBuilder) {
         try {
-            return source(templateBuilder.bytes());
+            return source(templateBuilder.bytes(), templateBuilder.contentType());
         } catch (Exception e) {
             throw new IllegalArgumentException("Failed to build json for template request", e);
         }
@@ -350,7 +385,9 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
 
     /**
      * The template source definition.
+     * @deprecated use {@link #source(String, XContentType)}
      */
+    @Deprecated
     public PutIndexTemplateRequest source(String templateSource) {
         return source(XContentHelper.convertToMap(XContentFactory.xContent(templateSource), templateSource, true));
     }
@@ -358,6 +395,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
+    public PutIndexTemplateRequest source(String templateSource, XContentType xContentType) {
+        return source(XContentHelper.convertToMap(xContentType.xContent(), templateSource, true));
+    }
+
+    /**
+     * The template source definition.
+     * @deprecated use {@link #source(byte[], XContentType)}
+     */
+    @Deprecated
     public PutIndexTemplateRequest source(byte[] source) {
         return source(source, 0, source.length);
     }
@@ -365,6 +411,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
+    public PutIndexTemplateRequest source(byte[] source, XContentType xContentType) {
+        return source(source, 0, source.length, xContentType);
+    }
+
+    /**
+     * The template source definition.
+     * @deprecated use {@link #source(byte[], int, int, XContentType)}
+     */
+    @Deprecated
     public PutIndexTemplateRequest source(byte[] source, int offset, int length) {
         return source(new BytesArray(source, offset, length));
     }
@@ -372,8 +427,24 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
     /**
      * The template source definition.
      */
+    public PutIndexTemplateRequest source(byte[] source, int offset, int length, XContentType xContentType) {
+        return source(new BytesArray(source, offset, length), xContentType);
+    }
+
+    /**
+     * The template source definition.
+     * @deprecated use {@link #source(BytesReference, XContentType)}
+     */
+    @Deprecated
     public PutIndexTemplateRequest source(BytesReference source) {
         return source(XContentHelper.convertToMap(source, true).v2());
+    }
+
+    /**
+     * The template source definition.
+     */
+    public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
+        return source(XContentHelper.convertToMap(source, true, xContentType).v2());
     }
 
     public PutIndexTemplateRequest custom(IndexMetaData.Custom custom) {
@@ -470,8 +541,15 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
         create = in.readBoolean();
         settings = readSettingsFromStream(in);
         int size = in.readVInt();
-        for (int i = 0; i < size; i++) {
-            mappings.put(in.readString(), in.readString());
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            for (int i = 0; i < size; i++) {
+                mappings.put(in.readString(), in.readString());
+            }
+        } else {
+            // we cannot expect that the string is json from older versions so we may need to convert
+            for (int i = 0; i < size; i++) {
+                mapping(in.readString(), in.readString());
+            }
         }
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {

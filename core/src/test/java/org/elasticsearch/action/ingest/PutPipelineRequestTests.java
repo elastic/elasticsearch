@@ -29,48 +29,23 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import static org.hamcrest.CoreMatchers.equalTo;
-
-public class SimulatePipelineRequestTests extends ESTestCase {
-
-    public void testSerialization() throws IOException {
-        SimulatePipelineRequest request = new SimulatePipelineRequest(new BytesArray(""), XContentType.JSON);
-        // Sometimes we set an id
-        if (randomBoolean()) {
-            request.setId(randomAsciiOfLengthBetween(1, 10));
-        }
-
-        // Sometimes we explicitly set a boolean (with whatever value)
-        if (randomBoolean()) {
-            request.setVerbose(randomBoolean());
-        }
-
-        BytesStreamOutput out = new BytesStreamOutput();
-        request.writeTo(out);
-        StreamInput streamInput = out.bytes().streamInput();
-        SimulatePipelineRequest otherRequest = new SimulatePipelineRequest();
-        otherRequest.readFrom(streamInput);
-
-        assertThat(otherRequest.getId(), equalTo(request.getId()));
-        assertThat(otherRequest.isVerbose(), equalTo(request.isVerbose()));
-    }
+public class PutPipelineRequestTests extends ESTestCase {
 
     public void testSerializationWithXContent() throws IOException {
-        SimulatePipelineRequest request =
-            new SimulatePipelineRequest(new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        PutPipelineRequest request = new PutPipelineRequest("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
         assertEquals(XContentType.JSON, request.getXContentType());
 
         BytesStreamOutput output = new BytesStreamOutput();
         request.writeTo(output);
         StreamInput in = StreamInput.wrap(output.bytes().toBytesRef().bytes);
 
-        SimulatePipelineRequest serialized = new SimulatePipelineRequest();
+        PutPipelineRequest serialized = new PutPipelineRequest();
         serialized.readFrom(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getSource().utf8ToString());
 
         // send to old and read from old with a bad content type and see that we find the correct one
-        request = new SimulatePipelineRequest(new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.YAML);
+        request = new PutPipelineRequest("1", new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.YAML);
         assertEquals(XContentType.YAML, request.getXContentType());
 
         output = new BytesStreamOutput();
@@ -79,7 +54,7 @@ public class SimulatePipelineRequestTests extends ESTestCase {
         in = StreamInput.wrap(output.bytes().toBytesRef().bytes);
         in.setVersion(Version.V_5_0_0);
 
-        serialized = new SimulatePipelineRequest();
+        serialized = new PutPipelineRequest();
         serialized.readFrom(in);
         assertEquals(XContentType.JSON, serialized.getXContentType());
         assertEquals("{}", serialized.getSource().utf8ToString());

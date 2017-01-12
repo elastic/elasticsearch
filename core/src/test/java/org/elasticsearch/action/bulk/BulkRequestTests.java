@@ -30,6 +30,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 
@@ -55,7 +56,7 @@ public class BulkRequestTests extends ESTestCase {
             bulkAction = Strings.replace(bulkAction, "\r\n", "\n");
         }
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
         assertThat(((IndexRequest) bulkRequest.requests().get(0)).source(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }")));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
@@ -65,21 +66,21 @@ public class BulkRequestTests extends ESTestCase {
     public void testSimpleBulk2() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk2.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
 
     public void testSimpleBulk3() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk3.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
 
     public void testSimpleBulk4() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk4.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(4));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).id(), equalTo("1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).retryOnConflict(), equalTo(2));
@@ -101,14 +102,14 @@ public class BulkRequestTests extends ESTestCase {
     public void testBulkAllowExplicitIndex() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
         try {
-            new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), null, null, false);
+            new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), null, null, false, XContentType.JSON);
             fail();
         } catch (Exception e) {
 
         }
 
         bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk5.json");
-        new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), "test", null, false);
+        new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), "test", null, false, XContentType.JSON);
     }
 
     public void testBulkAddIterable() {
@@ -128,7 +129,7 @@ public class BulkRequestTests extends ESTestCase {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk6.json");
         BulkRequest bulkRequest = new BulkRequest();
         ParsingException exc = expectThrows(ParsingException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
         assertThat(exc.getMessage(), containsString("Unknown key for a VALUE_STRING in [hello]"));
     }
 
@@ -136,7 +137,7 @@ public class BulkRequestTests extends ESTestCase {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk7.json");
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
         assertThat(exc.getMessage(),
             containsString("Malformed action/metadata line [5], expected a simple value for field [_unkown] but found [START_ARRAY]"));
     }
@@ -145,7 +146,7 @@ public class BulkRequestTests extends ESTestCase {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk8.json");
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
         assertThat(exc.getMessage(), containsString("Action/metadata line [3] contains an unknown parameter [_foo]"));
     }
 
@@ -153,14 +154,14 @@ public class BulkRequestTests extends ESTestCase {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk9.json");
         BulkRequest bulkRequest = new BulkRequest();
         IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null));
+            () -> bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON));
         assertThat(exc.getMessage(), containsString("Malformed action/metadata line [3], expected START_OBJECT or END_OBJECT but found [START_ARRAY]"));
     }
 
     public void testSimpleBulk10() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk10.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null, XContentType.JSON);
         assertThat(bulkRequest.numberOfActions(), equalTo(9));
     }
 
@@ -172,8 +173,8 @@ public class BulkRequestTests extends ESTestCase {
         // We force here a "type is missing" validation error
         bulkRequest.add(new DeleteRequest("index", null, "id"));
         bulkRequest.add(new DeleteRequest("index", "type", "id").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
-        bulkRequest.add(new UpdateRequest("index", "type", "id").doc("{}").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
-        bulkRequest.add(new IndexRequest("index", "type", "id").source("{}").setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new UpdateRequest("index", "type", "id").doc("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
+        bulkRequest.add(new IndexRequest("index", "type", "id").source("{}", XContentType.JSON).setRefreshPolicy(RefreshPolicy.IMMEDIATE));
         ActionRequestValidationException validate = bulkRequest.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.validationErrors(), not(empty()));

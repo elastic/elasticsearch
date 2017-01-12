@@ -245,7 +245,7 @@ public class UpdateNoopIT extends ESIntegTestCase {
 
     private UpdateResponse update(Boolean detectNoop, long expectedVersion, XContentBuilder xContentBuilder) {
         UpdateRequestBuilder updateRequest = client().prepareUpdate("test", "type1", "1")
-                .setDoc(xContentBuilder.bytes().utf8ToString())
+                .setDoc(xContentBuilder)
                 .setDocAsUpsert(true)
                 .setFields("_source");
         if (detectNoop != null) {

@@ -40,7 +40,7 @@ public enum XContentType implements Writeable {
      */
     JSON(0) {
         @Override
-        protected String mediaTypeWithoutParameters() {
+        public String mediaTypeWithoutParameters() {
             return "application/json";
         }
 
@@ -64,7 +64,7 @@ public enum XContentType implements Writeable {
      */
     SMILE(1) {
         @Override
-        protected String mediaTypeWithoutParameters() {
+        public String mediaTypeWithoutParameters() {
             return "application/smile";
         }
 
@@ -83,7 +83,7 @@ public enum XContentType implements Writeable {
      */
     YAML(2) {
         @Override
-        protected String mediaTypeWithoutParameters() {
+        public String mediaTypeWithoutParameters() {
             return "application/yaml";
         }
 
@@ -102,7 +102,7 @@ public enum XContentType implements Writeable {
      */
     CBOR(3) {
         @Override
-        protected String mediaTypeWithoutParameters() {
+        public String mediaTypeWithoutParameters() {
             return "application/cbor";
         }
 
@@ -133,6 +133,16 @@ public enum XContentType implements Writeable {
         return null;
     }
 
+    public static XContentType fromMediaTypeStrict(String mediaType) {
+        final String lowercaseMediaType = mediaType.toLowerCase(Locale.ROOT);
+        for (XContentType type : values()) {
+            if (type.mediaTypeWithoutParameters().equals(mediaType)) {
+                return type;
+            }
+        }
+        return null;
+    }
+
     private static boolean isSameMediaTypeAs(String stringType, XContentType type) {
         return type.mediaTypeWithoutParameters().equalsIgnoreCase(stringType) ||
                 stringType.toLowerCase(Locale.ROOT).startsWith(type.mediaTypeWithoutParameters().toLowerCase(Locale.ROOT) + ";") ||
@@ -157,7 +167,7 @@ public enum XContentType implements Writeable {
 
     public abstract XContent xContent();
 
-    protected abstract String mediaTypeWithoutParameters();
+    public abstract String mediaTypeWithoutParameters();
 
     public static XContentType readFrom(StreamInput in) throws IOException {
         int index = in.readVInt();

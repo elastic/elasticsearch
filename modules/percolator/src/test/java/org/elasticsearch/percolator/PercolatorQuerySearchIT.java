@@ -28,6 +28,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -263,7 +264,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
                         .must(matchQuery("field2", "value"))
                 ).endObject()).get();
 
-        client().prepareIndex("test", "type", "1").setSource("{}").get();
+        client().prepareIndex("test", "type", "1").setSource("{}", XContentType.JSON).get();
         client().prepareIndex("test", "type", "2").setSource("field1", "value").get();
         client().prepareIndex("test", "type", "3").setSource("field1", "value", "field2", "value").get();
         client().admin().indices().prepareRefresh().get();
@@ -305,7 +306,7 @@ public class PercolatorQuerySearchIT extends ESSingleNodeTestCase {
             .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).endObject())
             .get();
 
-        client().prepareIndex("test", "type", "1").setSource("{}").get();
+        client().prepareIndex("test", "type", "1").setSource("{}", XContentType.JSON).get();
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc with source disabled");

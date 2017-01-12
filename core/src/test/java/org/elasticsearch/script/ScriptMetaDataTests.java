@@ -42,23 +42,23 @@ public class ScriptMetaDataTests extends ESTestCase {
 
         XContentBuilder sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("template").field("field", "value").endObject().endObject();
-        builder.storeScript("lang", "template", sourceBuilder.bytes());
+        builder.storeScript("lang", "template", sourceBuilder.bytes(), sourceBuilder.contentType());
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("template", "value").endObject();
-        builder.storeScript("lang", "template_field", sourceBuilder.bytes());
+        builder.storeScript("lang", "template_field", sourceBuilder.bytes(), sourceBuilder.contentType());
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().startObject("script").field("field", "value").endObject().endObject();
-        builder.storeScript("lang", "script", sourceBuilder.bytes());
+        builder.storeScript("lang", "script", sourceBuilder.bytes(), sourceBuilder.contentType());
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("script", "value").endObject();
-        builder.storeScript("lang", "script_field", sourceBuilder.bytes());
+        builder.storeScript("lang", "script_field", sourceBuilder.bytes(), sourceBuilder.contentType());
 
         sourceBuilder = XContentFactory.jsonBuilder();
         sourceBuilder.startObject().field("field", "value").endObject();
-        builder.storeScript("lang", "any", sourceBuilder.bytes());
+        builder.storeScript("lang", "any", sourceBuilder.bytes(), sourceBuilder.contentType());
 
         ScriptMetaData scriptMetaData = builder.build();
         assertEquals("{\"field\":\"value\"}", scriptMetaData.getScript("lang", "template"));
@@ -97,15 +97,15 @@ public class ScriptMetaDataTests extends ESTestCase {
 
     public void testDiff() throws Exception {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("lang", "1", new BytesArray("{\"foo\":\"abc\"}"));
-        builder.storeScript("lang", "2", new BytesArray("{\"foo\":\"def\"}"));
-        builder.storeScript("lang", "3", new BytesArray("{\"foo\":\"ghi\"}"));
+        builder.storeScript("lang", "1", new BytesArray("{\"foo\":\"abc\"}"), XContentType.JSON);
+        builder.storeScript("lang", "2", new BytesArray("{\"foo\":\"def\"}"), XContentType.JSON);
+        builder.storeScript("lang", "3", new BytesArray("{\"foo\":\"ghi\"}"), XContentType.JSON);
         ScriptMetaData scriptMetaData1 = builder.build();
 
         builder = new ScriptMetaData.Builder(scriptMetaData1);
-        builder.storeScript("lang", "2", new BytesArray("{\"foo\":\"changed\"}"));
+        builder.storeScript("lang", "2", new BytesArray("{\"foo\":\"changed\"}"), XContentType.JSON);
         builder.deleteScript("lang", "3");
-        builder.storeScript("lang", "4", new BytesArray("{\"foo\":\"jkl\"}"));
+        builder.storeScript("lang", "4", new BytesArray("{\"foo\":\"jkl\"}"), XContentType.JSON);
         ScriptMetaData scriptMetaData2 = builder.build();
 
         ScriptMetaData.ScriptMetadataDiff diff = (ScriptMetaData.ScriptMetadataDiff) scriptMetaData2.diff(scriptMetaData1);
@@ -124,12 +124,13 @@ public class ScriptMetaDataTests extends ESTestCase {
 
     public void testBuilder() {
         ScriptMetaData.Builder builder = new ScriptMetaData.Builder(null);
-        builder.storeScript("_lang", "_id", new BytesArray("{\"script\":\"1 + 1\"}"));
+        builder.storeScript("_lang", "_id", new BytesArray("{\"script\":\"1 + 1\"}"), XContentType.JSON);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> builder.storeScript("_lang#", "_id", new BytesArray("{\"foo\": \"bar\"}")));
+            () -> builder.storeScript("_lang#", "_id", new BytesArray("{\"foo\": \"bar\"}"), XContentType.JSON));
         assertEquals("stored script language can't contain: '#'", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> builder.storeScript("_lang", "_id#", new BytesArray("{\"foo\": \"bar\"}")));
+        e = expectThrows(IllegalArgumentException.class,
+            () -> builder.storeScript("_lang", "_id#", new BytesArray("{\"foo\": \"bar\"}"), XContentType.JSON));
         assertEquals("stored script id can't contain: '#'", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> builder.deleteScript("_lang#", "_id"));
         assertEquals("stored script language can't contain: '#'", e.getMessage());
@@ -147,7 +148,7 @@ public class ScriptMetaDataTests extends ESTestCase {
             String lang = randomAsciiOfLength(4);
             XContentBuilder sourceBuilder = XContentBuilder.builder(sourceContentType.xContent());
             sourceBuilder.startObject().field(randomAsciiOfLength(4), randomAsciiOfLength(4)).endObject();
-            builder.storeScript(lang, randomAsciiOfLength(i + 1), sourceBuilder.bytes());
+            builder.storeScript(lang, randomAsciiOfLength(i + 1), sourceBuilder.bytes(), sourceBuilder.contentType());
         }
         return builder.build();
     }

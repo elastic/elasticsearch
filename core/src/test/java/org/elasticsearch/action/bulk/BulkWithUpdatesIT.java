@@ -31,6 +31,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -493,8 +494,8 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 "}" +
                 "\n").array();
 
-        builder.add(addParent, 0, addParent.length);
-        builder.add(addChild, 0, addChild.length);
+        builder.add(addParent, 0, addParent.length, XContentType.JSON);
+        builder.add(addChild, 0, addChild.length, XContentType.JSON);
 
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.getItems().length, equalTo(2));
@@ -576,9 +577,9 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 "}" +
                 "\n").array();
 
-        builder.add(addParent, 0, addParent.length);
-        builder.add(addChild1, 0, addChild1.length);
-        builder.add(addChild2, 0, addChild2.length);
+        builder.add(addParent, 0, addParent.length, XContentType.JSON);
+        builder.add(addChild1, 0, addChild1.length, XContentType.JSON);
+        builder.add(addChild2, 0, addChild2.length, XContentType.JSON);
 
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.getItems().length, equalTo(3));
@@ -650,10 +651,10 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
                 "}" +
                 "\n").array();
 
-        builder.add(addParent, 0, addParent.length);
-        builder.add(addChildOK, 0, addChildOK.length);
-        builder.add(addChildMissingRouting, 0, addChildMissingRouting.length);
-        builder.add(addChildOK, 0, addChildOK.length);
+        builder.add(addParent, 0, addParent.length, XContentType.JSON);
+        builder.add(addChildOK, 0, addChildOK.length, XContentType.JSON);
+        builder.add(addChildMissingRouting, 0, addChildMissingRouting.length, XContentType.JSON);
+        builder.add(addChildOK, 0, addChildOK.length, XContentType.JSON);
 
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.getItems().length, equalTo(4));
@@ -733,19 +734,19 @@ public class BulkWithUpdatesIT extends ESIntegTestCase {
     // issue 6630
     public void testThatFailedUpdateRequestReturnsCorrectType() throws Exception {
         BulkResponse indexBulkItemResponse = client().prepareBulk()
-                .add(new IndexRequest("test", "type", "3").source("{ \"title\" : \"Great Title of doc 3\" }"))
-                .add(new IndexRequest("test", "type", "4").source("{ \"title\" : \"Great Title of doc 4\" }"))
-                .add(new IndexRequest("test", "type", "5").source("{ \"title\" : \"Great Title of doc 5\" }"))
-                .add(new IndexRequest("test", "type", "6").source("{ \"title\" : \"Great Title of doc 6\" }"))
+                .add(new IndexRequest("test", "type", "3").source("{ \"title\" : \"Great Title of doc 3\" }", XContentType.JSON))
+                .add(new IndexRequest("test", "type", "4").source("{ \"title\" : \"Great Title of doc 4\" }", XContentType.JSON))
+                .add(new IndexRequest("test", "type", "5").source("{ \"title\" : \"Great Title of doc 5\" }", XContentType.JSON))
+                .add(new IndexRequest("test", "type", "6").source("{ \"title\" : \"Great Title of doc 6\" }", XContentType.JSON))
                 .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
                 .get();
         assertNoFailures(indexBulkItemResponse);
 
         BulkResponse bulkItemResponse = client().prepareBulk()
-                .add(new IndexRequest("test", "type", "1").source("{ \"title\" : \"Great Title of doc 1\" }"))
-                .add(new IndexRequest("test", "type", "2").source("{ \"title\" : \"Great Title of doc 2\" }"))
-                .add(new UpdateRequest("test", "type", "3").doc("{ \"date\" : \"2014-01-30T23:59:57\"}"))
-                .add(new UpdateRequest("test", "type", "4").doc("{ \"date\" : \"2014-13-30T23:59:57\"}"))
+                .add(new IndexRequest("test", "type", "1").source("{ \"title\" : \"Great Title of doc 1\" }", XContentType.JSON))
+                .add(new IndexRequest("test", "type", "2").source("{ \"title\" : \"Great Title of doc 2\" }", XContentType.JSON))
+                .add(new UpdateRequest("test", "type", "3").doc("{ \"date\" : \"2014-01-30T23:59:57\"}", XContentType.JSON))
+                .add(new UpdateRequest("test", "type", "4").doc("{ \"date\" : \"2014-13-30T23:59:57\"}", XContentType.JSON))
                 .add(new DeleteRequest("test", "type", "5"))
                 .add(new DeleteRequest("test", "type", "6"))
         .get();

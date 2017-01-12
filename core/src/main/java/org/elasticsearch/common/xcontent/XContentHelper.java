@@ -55,10 +55,16 @@ public class XContentHelper {
         }
     }
 
+    @Deprecated
     public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered)
             throws ElasticsearchParseException {
+        return convertToMap(bytes, ordered, null);
+    }
+
+    public static Tuple<XContentType, Map<String, Object>> convertToMap(BytesReference bytes, boolean ordered, XContentType xContentType)
+        throws ElasticsearchParseException {
         try {
-            XContentType contentType;
+            XContentType contentType = xContentType;
             InputStream input;
             Compressor compressor = CompressorFactory.compressor(bytes);
             if (compressor != null) {
@@ -66,10 +72,14 @@ public class XContentHelper {
                 if (compressedStreamInput.markSupported() == false) {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
-                contentType = XContentFactory.xContentType(compressedStreamInput);
+                if (contentType == null) {
+                    contentType = XContentFactory.xContentType(compressedStreamInput);
+                }
                 input = compressedStreamInput;
             } else {
-                contentType = XContentFactory.xContentType(bytes);
+                if (contentType == null) {
+                    contentType = XContentFactory.xContentType(bytes);
+                }
                 input = bytes.streamInput();
             }
             return new Tuple<>(contentType, convertToMap(XContentFactory.xContent(contentType), input, ordered));
@@ -105,15 +115,28 @@ public class XContentHelper {
         }
     }
 
+    @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson) throws IOException {
         return convertToJson(bytes, reformatJson, false);
     }
 
+    @Deprecated
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint) throws IOException {
-        XContentType xContentType = XContentFactory.xContentType(bytes);
+        return convertToJson(bytes, reformatJson, prettyPrint, XContentFactory.xContentType(bytes));
+    }
+
+    public static String convertToJson(BytesReference bytes, boolean reformatJson, XContentType xContentType) throws IOException {
+        return convertToJson(bytes, reformatJson, false, xContentType);
+    }
+
+    public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
+        throws IOException {
         if (xContentType == XContentType.JSON && !reformatJson) {
             return bytes.utf8ToString();
+        } else if (xContentType == null) {
+            throw new IllegalArgumentException("the xcontent type must be provided");
         }
+
         // It is safe to use EMPTY here because this never uses namedObject
         try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(NamedXContentRegistry.EMPTY,
                 bytes.streamInput())) {

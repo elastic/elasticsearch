@@ -122,6 +122,7 @@ public class ClientYamlTestClient {
             if (supportedMethods.contains("GET") && RandomizedTest.rarely()) {
                 logger.debug("sending the request body as source param with GET method");
                 queryStringParams.put("source", body);
+                queryStringParams.put("source_type", ContentType.APPLICATION_JSON.toString());
                 requestMethod = "GET";
             } else {
                 requestMethod = RandomizedTest.randomFrom(supportedMethods);

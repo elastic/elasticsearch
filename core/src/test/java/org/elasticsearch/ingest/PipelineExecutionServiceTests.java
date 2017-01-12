@@ -27,6 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.CustomTypeSafeMatcher;
@@ -331,8 +332,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(store.get("_id2")).thenReturn(new Pipeline("_id2", null, null, new CompoundProcessor(mock(Processor.class))));
 
         Map<String, PipelineConfiguration> configurationMap = new HashMap<>();
-        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}")));
-        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}")));
+        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}"), XContentType.JSON));
+        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}"), XContentType.JSON));
         executionService.updatePipelineStats(new IngestMetadata(configurationMap));
 
         @SuppressWarnings("unchecked")
@@ -361,14 +362,14 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     // issue: https://github.com/elastic/elasticsearch/issues/18126
     public void testUpdatingStatsWhenRemovingPipelineWorks() throws Exception {
         Map<String, PipelineConfiguration> configurationMap = new HashMap<>();
-        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}")));
-        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}")));
+        configurationMap.put("_id1", new PipelineConfiguration("_id1", new BytesArray("{}"), XContentType.JSON));
+        configurationMap.put("_id2", new PipelineConfiguration("_id2", new BytesArray("{}"), XContentType.JSON));
         executionService.updatePipelineStats(new IngestMetadata(configurationMap));
         assertThat(executionService.stats().getStatsPerPipeline(), hasKey("_id1"));
         assertThat(executionService.stats().getStatsPerPipeline(), hasKey("_id2"));
 
         configurationMap = new HashMap<>();
-        configurationMap.put("_id3", new PipelineConfiguration("_id3", new BytesArray("{}")));
+        configurationMap.put("_id3", new PipelineConfiguration("_id3", new BytesArray("{}"), XContentType.JSON));
         executionService.updatePipelineStats(new IngestMetadata(configurationMap));
         assertThat(executionService.stats().getStatsPerPipeline(), not(hasKey("_id1")));
         assertThat(executionService.stats().getStatsPerPipeline(), not(hasKey("_id2")));

@@ -55,6 +55,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -376,9 +377,9 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
         return script;
     }
 
-    void validateStoredScript(String id, String scriptLang, BytesReference scriptBytes) {
+    void validateStoredScript(String id, String scriptLang, BytesReference scriptBytes, XContentType xContentType) {
         validateScriptSize(id, scriptBytes.length());
-        String script = ScriptMetaData.parseStoredScript(scriptBytes);
+        String script = ScriptMetaData.parseStoredScript(scriptBytes, xContentType);
         if (Strings.hasLength(scriptBytes)) {
             //Just try and compile it
             try {
@@ -411,7 +412,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     public void storeScript(ClusterService clusterService, PutStoredScriptRequest request, ActionListener<PutStoredScriptResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
         //verify that the script compiles
-        validateStoredScript(request.id(), scriptLang, request.script());
+        validateStoredScript(request.id(), scriptLang, request.script(), request.xContentType());
         clusterService.submitStateUpdateTask("put-script-" + request.id(), new AckedClusterStateUpdateTask<PutStoredScriptResponse>(request, listener) {
 
             @Override
@@ -429,7 +430,7 @@ public class ScriptService extends AbstractComponent implements Closeable, Clust
     static ClusterState innerStoreScript(ClusterState currentState, String validatedScriptLang, PutStoredScriptRequest request) {
         ScriptMetaData scriptMetadata = currentState.metaData().custom(ScriptMetaData.TYPE);
         ScriptMetaData.Builder scriptMetadataBuilder = new ScriptMetaData.Builder(scriptMetadata);
-        scriptMetadataBuilder.storeScript(validatedScriptLang, request.id(), request.script());
+        scriptMetadataBuilder.storeScript(validatedScriptLang, request.id(), request.script(), request.xContentType());
         MetaData.Builder metaDataBuilder = MetaData.builder(currentState.getMetaData())
                 .putCustom(ScriptMetaData.TYPE, scriptMetadataBuilder.build());
         return ClusterState.builder(currentState).metaData(metaDataBuilder).build();

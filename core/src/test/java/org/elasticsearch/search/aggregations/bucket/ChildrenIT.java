@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
@@ -121,8 +122,8 @@ public class ChildrenIT extends ESIntegTestCase {
         requests.add(client().prepareIndex("test", "article", "b").setSource("category", new String[]{"a", "b"}, "randomized", false));
         requests.add(client().prepareIndex("test", "article", "c").setSource("category", new String[]{"a", "b", "c"}, "randomized", false));
         requests.add(client().prepareIndex("test", "article", "d").setSource("category", new String[]{"c"}, "randomized", false));
-        requests.add(client().prepareIndex("test", "comment", "a").setParent("a").setSource("{}"));
-        requests.add(client().prepareIndex("test", "comment", "c").setParent("c").setSource("{}"));
+        requests.add(client().prepareIndex("test", "comment", "a").setParent("a").setSource("{}", XContentType.JSON));
+        requests.add(client().prepareIndex("test", "comment", "c").setParent("c").setSource("{}", XContentType.JSON));
 
         indexRandom(true, requests);
         ensureSearchable("test");
@@ -240,7 +241,7 @@ public class ChildrenIT extends ESIntegTestCase {
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
-        requests.add(client().prepareIndex(indexName, "parent", "1").setSource("{}"));
+        requests.add(client().prepareIndex(indexName, "parent", "1").setSource("{}", XContentType.JSON));
         requests.add(client().prepareIndex(indexName, "child", "0").setParent("1").setSource("count", 1));
         requests.add(client().prepareIndex(indexName, "child", "1").setParent("1").setSource("count", 1));
         requests.add(client().prepareIndex(indexName, "child", "2").setParent("1").setSource("count", 1));

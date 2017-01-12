@@ -88,9 +88,15 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     void writeRawField(String name, InputStream value) throws IOException;
 
+    void writeRawField(String name, InputStream value, XContentType xContentType) throws IOException;
+
     void writeRawField(String name, BytesReference value) throws IOException;
 
+    void writeRawField(String name, BytesReference value, XContentType xContentType) throws IOException;
+
     void writeRawValue(BytesReference value) throws IOException;
+
+    void writeRawValue(BytesReference value, XContentType xContentType) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
 

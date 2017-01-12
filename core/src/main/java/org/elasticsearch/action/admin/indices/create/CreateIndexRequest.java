@@ -331,9 +331,18 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     /**
      * Sets the settings and mappings as a single source.
+     * @deprecated use {@link #source(String, XContentType)}
      */
+    @Deprecated
     public CreateIndexRequest source(String source) {
         return source(source.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(String source, XContentType xContentType) {
+        return source(source.getBytes(StandardCharsets.UTF_8), xContentType);
     }
 
     /**
@@ -345,7 +354,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     /**
      * Sets the settings and mappings as a single source.
+     * @deprecated use {@link #source(byte[], XContentType)}
      */
+    @Deprecated
     public CreateIndexRequest source(byte[] source) {
         return source(source, 0, source.length);
     }
@@ -353,6 +364,15 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Sets the settings and mappings as a single source.
      */
+    public CreateIndexRequest source(byte[] source, XContentType xContentType) {
+        return source(source, 0, source.length, xContentType);
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     * @deprecated use {@link #source(byte[], int, int, XContentType)}
+     */
+    @Deprecated
     public CreateIndexRequest source(byte[] source, int offset, int length) {
         return source(new BytesArray(source, offset, length));
     }
@@ -360,8 +380,25 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Sets the settings and mappings as a single source.
      */
+    public CreateIndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
+        return source(new BytesArray(source, offset, length), xContentType);
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     * @deprecated use {@link #source(BytesReference, XContentType)}
+     */
+    @Deprecated
     public CreateIndexRequest source(BytesReference source) {
         XContentType xContentType = XContentFactory.xContentType(source);
+        source(source, xContentType);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(BytesReference source, XContentType xContentType) {
         if (xContentType != null) {
             source(XContentHelper.convertToMap(source, false).v2());
         } else {

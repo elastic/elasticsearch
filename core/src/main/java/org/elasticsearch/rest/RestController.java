@@ -22,18 +22,19 @@ package org.elasticsearch.rest;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -42,8 +43,8 @@ import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 import static org.elasticsearch.rest.RestStatus.FORBIDDEN;
@@ -165,15 +166,17 @@ public class RestController extends AbstractComponent {
         }
         RestChannel responseChannel = channel;
         try {
-            int contentLength = request.content().length();
-            if (canTripCircuitBreaker(request)) {
-                inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
-            } else {
-                inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
+            final int contentLength = request.hasContent() ? request.content().length() : 0;
+            if (checkContentType(request, responseChannel, contentLength)) {
+                if (canTripCircuitBreaker(request)) {
+                    inFlightRequestsBreaker(circuitBreakerService).addEstimateBytesAndMaybeBreak(contentLength, "<http_request>");
+                } else {
+                    inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
+                }
+                // iff we could reserve bytes for the request we need to send the response also over this channel
+                responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+                dispatchRequest(request, responseChannel, client, threadContext);
             }
-            // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
-            dispatchRequest(request, responseChannel, client, threadContext);
         } catch (Exception e) {
             try {
                 responseChannel.sendResponse(new BytesRestResponse(channel, e));
@@ -214,6 +217,32 @@ public class RestController extends AbstractComponent {
         }
     }
 
+    boolean checkContentType(final RestRequest restRequest, final RestChannel channel, final int contentLength) {
+        if (contentLength > 0) {
+            if (restRequest.getXContentType() == null && restRequest.isPlainText() == false) {
+                try {
+                    XContentBuilder builder = channel.newErrorBuilder();
+                    final List<String> contentTypeHeader = restRequest.getHeader("Content-Type");
+                    final String errorMessage;
+                    if (contentTypeHeader == null) {
+                        errorMessage = "Content-Type header is missing";
+                    } else {
+                        errorMessage = "Content-Type header [" +
+                            Strings.collectionToCommaDelimitedString(restRequest.getHeader("Content-Type")) + "] is not supported";
+                    }
+                    builder.startObject().field("error", errorMessage).endObject();
+                    RestResponse response = new BytesRestResponse(BAD_REQUEST, builder);
+                    response.addHeader("Content-Type", builder.contentType().mediaType());
+                    channel.sendResponse(response);
+                } catch (IOException e) {
+                    logger.warn("Failed to send response", e);
+                }
+                return false;
+            }
+        }
+        return true;
+    }
+
     /**
      * Checks the request parameters against enabled settings for error trace support
      * @return true if the request does not have any parameters that conflict with system settings
@@ -224,9 +253,9 @@ public class RestController extends AbstractComponent {
         if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
             try {
                 XContentBuilder builder = channel.newErrorBuilder();
-                builder.startObject().field("error", "error traces in responses are disabled.").endObject().string();
+                builder.startObject().field("error", "error traces in responses are disabled.").endObject();
                 RestResponse response = new BytesRestResponse(BAD_REQUEST, builder);
-                response.addHeader("Content-Type", "application/json");
+                response.addHeader("Content-Type", builder.contentType().mediaType());
                 channel.sendResponse(response);
             } catch (IOException e) {
                 logger.warn("Failed to send response", e);
@@ -312,8 +341,8 @@ public class RestController extends AbstractComponent {
         }
 
         @Override
-        public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
-            return delegate.newBuilder(autoDetectSource, useFiltering);
+        public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
+            return delegate.newBuilder(xContentType, useFiltering);
         }
 
         @Override

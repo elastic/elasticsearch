@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
@@ -201,7 +202,7 @@ public class CancelTests extends ReindexTestCase {
                 "      \"test\" : {}\n" +
                 "  } ]\n" +
                 "}");
-        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline).get());
+        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
         testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX), (response, total, modified) -> {
             assertThat(response, matcher().updated(modified).reasonCancelled(equalTo("by user request")));
@@ -234,7 +235,7 @@ public class CancelTests extends ReindexTestCase {
                 "      \"test\" : {}\n" +
                 "  } ]\n" +
                 "}");
-        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline).get());
+        assertAcked(client().admin().cluster().preparePutPipeline("set-processed", pipeline, XContentType.JSON).get());
 
         testCancel(UpdateByQueryAction.NAME, updateByQuery().setPipeline("set-processed").source(INDEX).setSlices(5),
                 (response, total, modified) -> {

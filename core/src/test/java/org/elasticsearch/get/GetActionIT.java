@@ -37,6 +37,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -629,8 +630,8 @@ public class GetActionIT extends ESIntegTestCase {
 
         logger.info("indexing documents");
 
-        client().prepareIndex("my-index", "my-type1", "1").setSource(source).get();
-        client().prepareIndex("my-index", "my-type2", "1").setSource(source).get();
+        client().prepareIndex("my-index", "my-type1", "1").setSource(source, XContentType.JSON).get();
+        client().prepareIndex("my-index", "my-type2", "1").setSource(source, XContentType.JSON).get();
 
         logger.info("checking real time retrieval");
 
@@ -698,7 +699,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "    }\n" +
                 "  }\n" +
                 "}";
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
         String doc = "{\n" +
                 "  \"suggest\": {\n" +
@@ -737,10 +738,10 @@ public class GetActionIT extends ESIntegTestCase {
                 "    }\n" +
                 "  }\n" +
                 "}";
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
 
-        client().prepareIndex("test", "doc").setId("1").setSource("{}").setParent("1").get();
+        client().prepareIndex("test", "doc").setId("1").setSource("{}", XContentType.JSON).setParent("1").get();
 
         String[] fieldsList = {"_parent"};
         // before refresh - document is only in translog
@@ -761,12 +762,12 @@ public class GetActionIT extends ESIntegTestCase {
             "  }\n" +
             "}";
 
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
         String doc = "{\n" +
             "  \"text\": \"some text.\"\n" +
             "}\n";
-        client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
+        client().prepareIndex("test", "doc").setId("1").setSource(doc, XContentType.JSON).setRouting("1").get();
         String[] fieldsList = {"_routing"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
@@ -828,7 +829,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "  }\n" +
                 "}";
 
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
         String doc = "{\n" +
                 "  \"text1\": \"some text.\"\n," +
@@ -890,7 +891,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "  }\n" +
                 "}";
 
-        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource));
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")).setSource(createIndexSource, XContentType.JSON));
         ensureGreen();
         String doc = "{\n" +
                 "  \"token_count\": \"A text with five words.\",\n" +

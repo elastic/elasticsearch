@@ -23,15 +23,26 @@ import java.util.Objects;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 
 public class SourceToParse {
 
     public static SourceToParse source(String index, String type, String id, BytesReference source) {
-        return source(Origin.PRIMARY, index, type, id, source);
+        return source(Origin.PRIMARY, index, type, id, source, XContentFactory.xContentType(source));
+    }
+
+    public static SourceToParse source(String index, String type, String id, BytesReference source, XContentType contentType) {
+        return source(Origin.PRIMARY, index, type, id, source, contentType);
     }
 
     public static SourceToParse source(Origin origin, String index, String type, String id, BytesReference source) {
-        return new SourceToParse(origin, index, type, id, source);
+        return source(origin, index, type, id, source, XContentFactory.xContentType(source));
+    }
+
+    public static SourceToParse source(Origin origin, String index, String type, String id, BytesReference source,
+                                       XContentType contentType) {
+        return new SourceToParse(origin, index, type, id, source, contentType);
     }
 
     private final Origin origin;
@@ -48,7 +59,9 @@ public class SourceToParse {
 
     private String parentId;
 
-    private SourceToParse(Origin origin, String index, String type, String id, BytesReference source) {
+    private XContentType xContentType;
+
+    private SourceToParse(Origin origin, String index, String type, String id, BytesReference source, XContentType xContentType) {
         this.origin = Objects.requireNonNull(origin);
         this.index = Objects.requireNonNull(index);
         this.type = Objects.requireNonNull(type);
@@ -56,6 +69,7 @@ public class SourceToParse {
         // we always convert back to byte array, since we store it and Field only supports bytes..
         // so, we might as well do it here, and improve the performance of working with direct byte arrays
         this.source = new BytesArray(source.toBytesRef());
+        this.xContentType = xContentType;
     }
 
     public Origin origin() {

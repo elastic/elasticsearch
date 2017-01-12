@@ -55,10 +55,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
  *
  * The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
- * {@link #source(byte[])} to be set.
+ * {@link #source(byte[], XContentType)} to be set.
  *
- * The source (content to index) can be set in its bytes form using ({@link #source(byte[])}),
- * its string form ({@link #source(String)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
+ * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
+ * its string form ({@link #source(String, XContentType)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
  * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
  *
  * If the {@link #id(String)} is not set, it will be automatically generated.
@@ -103,7 +103,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Constructs a new index request against the specific index. The {@link #type(String)}
-     * {@link #source(byte[])} must be set.
+     * {@link #source(byte[], XContentType)} must be set.
      */
     public IndexRequest(String index) {
         this.index = index;
@@ -179,14 +179,16 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /**
-     * The content type that will be used when generating a document from user provided objects like Maps.
+     * The content type. This will be used when generating a document from user provided objects like Maps and when parsing the
+     * source at index time
      */
     public XContentType getContentType() {
         return contentType;
     }
 
     /**
-     * Sets the content type that will be used when generating a document from user provided objects (like Map).
+     * Sets the content type. This will be used when generating a document from user provided objects (like Map) and when parsing the
+     * source at index time
      */
     public IndexRequest contentType(XContentType contentType) {
         this.contentType = contentType;
@@ -284,7 +286,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public Map<String, Object> sourceAsMap() {
-        return XContentHelper.convertToMap(source, false).v2();
+        return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
     /**
@@ -314,11 +316,24 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the document source to index.
      *
-     * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
-     * or using the {@link #source(byte[])}.
+     * @deprecated use {@link #source(String, XContentType)}
      */
+    @Deprecated
     public IndexRequest source(String source) {
         this.source = new BytesArray(source.getBytes(StandardCharsets.UTF_8));
+        this.contentType = XContentFactory.xContentType(source);
+        return this;
+    }
+
+    /**
+     * Sets the document source to index.
+     *
+     * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
+     * or using the {@link #source(byte[], XContentType)}.
+     */
+    public IndexRequest source(String source, XContentType xContentType) {
+        this.source = new BytesArray(source.getBytes(StandardCharsets.UTF_8));
+        this.contentType = xContentType;
         return this;
     }
 
@@ -327,6 +342,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public IndexRequest source(XContentBuilder sourceBuilder) {
         source = sourceBuilder.bytes();
+        contentType = sourceBuilder.contentType();
         return this;
     }
 
@@ -360,17 +376,54 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Sets the document to index in bytes form.
+     * @deprecated use {@link #source(BytesReference, XContentType)}
      */
+    @Deprecated
     public IndexRequest source(BytesReference source) {
         this.source = source;
+        this.contentType = XContentFactory.xContentType(source);
         return this;
     }
 
     /**
      * Sets the document to index in bytes form.
      */
+    public IndexRequest source(BytesReference source, XContentType xContentType) {
+        this.source = source;
+        this.contentType = xContentType;
+        return this;
+    }
+
+    /**
+     * Sets the document to index in bytes form.
+     * @deprecated use {@link #source(byte[], XContentType)}
+     */
+    @Deprecated
     public IndexRequest source(byte[] source) {
         return source(source, 0, source.length);
+    }
+
+    /**
+     * Sets the document to index in bytes form.
+     */
+    public IndexRequest source(byte[] source, XContentType xContentType) {
+        return source(source, 0, source.length, xContentType);
+    }
+
+    /**
+     * Sets the document to index in bytes form (assumed to be safe to be used from different
+     * threads).
+     *
+     * @param source The source to index
+     * @param offset The offset in the byte array
+     * @param length The length of the data
+     * @deprecated use {@link #source(byte[], int, int, XContentType)}
+     */
+    @Deprecated
+    public IndexRequest source(byte[] source, int offset, int length) {
+        this.source = new BytesArray(source, offset, length);
+        this.contentType = XContentFactory.xContentType(source);
+        return this;
     }
 
     /**
@@ -381,8 +434,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * @param offset The offset in the byte array
      * @param length The length of the data
      */
-    public IndexRequest source(byte[] source, int offset, int length) {
+    public IndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
         this.source = new BytesArray(source, offset, length);
+        this.contentType = xContentType;
         return this;
     }
 
@@ -515,6 +569,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         pipeline = in.readOptionalString();
         isRetry = in.readBoolean();
         autoGeneratedTimestamp = in.readLong();
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            contentType = XContentType.readFrom(in);
+        } else {
+            contentType = XContentFactory.xContentType(source);
+        }
     }
 
     @Override
@@ -543,6 +602,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(pipeline);
         out.writeBoolean(isRetry);
         out.writeLong(autoGeneratedTimestamp);
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            contentType.writeTo(out);
+        }
     }
 
     @Override

@@ -34,6 +34,7 @@ import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
@@ -536,7 +537,7 @@ public class UpdateIT extends ESIntegTestCase {
         // With internal versions, tt means "if object is there with version X, update it or explode. If it is not there, index.
         client().prepareUpdate(indexOrAlias(), "type", "3")
                 .setScript(new Script(ScriptType.INLINE, "put_values", "", Collections.singletonMap("text", "v2")))
-                .setVersion(10).setUpsert("{ \"text\": \"v0\" }").get();
+                .setVersion(10).setUpsert("{ \"text\": \"v0\" }", XContentType.JSON).get();
         get = get("test", "type", "3");
         assertThat(get.getVersion(), equalTo(1L));
         assertThat((String) get.getSource().get("text"), equalTo("v0"));

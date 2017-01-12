@@ -327,7 +327,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         if ((updateRequest.fetchSource() != null && updateRequest.fetchSource().fetchSource()) ||
                             (updateRequest.fields() != null && updateRequest.fields().length > 0)) {
                             Tuple<XContentType, Map<String, Object>> sourceAndContent =
-                                XContentHelper.convertToMap(indexSourceAsBytes, true);
+                                XContentHelper.convertToMap(indexSourceAsBytes, true, updateIndexRequest.getContentType());
                             updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, request.index(),
                                 indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
                         }

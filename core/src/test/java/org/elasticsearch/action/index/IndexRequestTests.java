@@ -18,16 +18,21 @@
  */
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
@@ -83,19 +88,19 @@ public class IndexRequestTests extends ESTestCase {
     public void testIndexingRejectsLongIds() {
         String id = randomAsciiOfLength(511);
         IndexRequest request = new IndexRequest("index", "type", id);
-        request.source("{}");
+        request.source("{}", XContentType.JSON);
         ActionRequestValidationException validate = request.validate();
         assertNull(validate);
 
         id = randomAsciiOfLength(512);
         request = new IndexRequest("index", "type", id);
-        request.source("{}");
+        request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertNull(validate);
 
         id = randomAsciiOfLength(513);
         request = new IndexRequest("index", "type", id);
-        request.source("{}");
+        request.source("{}", XContentType.JSON);
         validate = request.validate();
         assertThat(validate, notNullValue());
         assertThat(validate.getMessage(),
@@ -149,5 +154,34 @@ public class IndexRequestTests extends ESTestCase {
                 ",seqNo=" + SequenceNumbersService.UNASSIGNED_SEQ_NO +
                 ",shards={\"total\":" + total + ",\"successful\":" + successful + ",\"failed\":0}]",
                 indexResponse.toString());
+    }
+
+    public void testIndexRequestXContentSerialization() throws IOException {
+        IndexRequest indexRequest = new IndexRequest("foo", "bar", "1");
+        indexRequest.source("{}", XContentType.JSON);
+        assertEquals(XContentType.JSON, indexRequest.getContentType());
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        indexRequest.writeTo(out);
+        StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        IndexRequest serialized = new IndexRequest();
+        serialized.readFrom(in);
+        assertEquals(XContentType.JSON, serialized.getContentType());
+
+        // test with an incorrect content type and send it to an old version then see that we get the right content type when reading
+        indexRequest = new IndexRequest("foo", "bar", "1");
+        indexRequest.source("{}", XContentType.YAML);
+        assertEquals(XContentType.YAML, indexRequest.getContentType());
+
+        out = new BytesStreamOutput();
+        out.setVersion(Version.V_5_0_0);
+        indexRequest.writeTo(out);
+        in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
+        in.setVersion(Version.V_5_0_0);
+
+        serialized = new IndexRequest();
+        serialized.readFrom(in);
+        assertEquals(XContentType.JSON, serialized.getContentType());
+        assertEquals("{}", serialized.source().utf8ToString());
     }
 }

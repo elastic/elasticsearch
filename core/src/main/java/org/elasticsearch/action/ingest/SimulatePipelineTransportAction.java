@@ -47,7 +47,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
 
     @Override
     protected void doExecute(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
-        final Map<String, Object> source = XContentHelper.convertToMap(request.getSource(), false).v2();
+        final Map<String, Object> source = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
 
         final SimulatePipelineRequest.Parsed simulateRequest;
         try {

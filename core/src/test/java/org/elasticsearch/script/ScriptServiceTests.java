@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
@@ -435,7 +436,7 @@ public class ScriptServiceTests extends ESTestCase {
                 .metaData(MetaData.builder()
                         .putCustom(ScriptMetaData.TYPE,
                                 new ScriptMetaData.Builder(null).storeScript("_lang", "_id",
-                                    new BytesArray("{\"script\":\"abc\"}")).build()))
+                                    new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON).build()))
                 .build();
 
         DeleteStoredScriptRequest request = new DeleteStoredScriptRequest("_lang", "_id");
@@ -457,7 +458,7 @@ public class ScriptServiceTests extends ESTestCase {
                 .metaData(MetaData.builder()
                         .putCustom(ScriptMetaData.TYPE,
                                 new ScriptMetaData.Builder(null).storeScript("_lang", "_id",
-                                        new BytesArray("{\"script\":\"abc\"}")).build()))
+                                        new BytesArray("{\"script\":\"abc\"}"), XContentType.JSON).build()))
                 .build();
 
         assertEquals("abc", scriptService.getStoredScript(cs, new GetStoredScriptRequest("_lang", "_id")));
@@ -471,12 +472,14 @@ public class ScriptServiceTests extends ESTestCase {
         int maxSize = 0xFFFF;
         buildScriptService(Settings.EMPTY);
         // allowed
-        scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 13) + "\"}"));
+        scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 13) + "\"}"),
+            XContentType.JSON);
 
         // disallowed
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> {
-                    scriptService.validateStoredScript("_id", "test", new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 12) + "\"}"));
+                    scriptService.validateStoredScript("_id", "test",
+                        new BytesArray("{\"script\":\"" + randomAsciiOfLength(maxSize - 12) + "\"}"), XContentType.JSON);
                 });
         assertThat(e.getMessage(), equalTo(
                 "Limit of script size in bytes [" + maxSize+ "] has been exceeded for script [_id] with size [" + (maxSize + 1) + "]"));

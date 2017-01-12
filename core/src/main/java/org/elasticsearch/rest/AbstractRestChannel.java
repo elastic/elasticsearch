@@ -20,7 +20,6 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -58,27 +57,25 @@ public abstract class AbstractRestChannel implements RestChannel {
 
     @Override
     public XContentBuilder newBuilder() throws IOException {
-        return newBuilder(request.hasContent() ? request.content() : null, true);
+        return newBuilder(request.getXContentType(), true);
     }
 
     @Override
     public XContentBuilder newErrorBuilder() throws IOException {
         // Disable filtering when building error responses
-        return newBuilder(request.hasContent() ? request.content() : null, false);
+        return newBuilder(request.getXContentType(), false);
     }
 
     @Override
-    public XContentBuilder newBuilder(@Nullable BytesReference autoDetectSource, boolean useFiltering) throws IOException {
+    public XContentBuilder newBuilder(@Nullable XContentType xContentType, boolean useFiltering) throws IOException {
         XContentType contentType = XContentType.fromMediaTypeOrFormat(format);
         if (contentType == null) {
-            // try and guess it from the auto detect source
-            if (autoDetectSource != null) {
-                contentType = XContentFactory.xContentType(autoDetectSource);
+            if (xContentType != null) {
+                contentType = xContentType;
+            } else {
+                // default to JSON output
+                contentType = XContentType.JSON;
             }
-        }
-        if (contentType == null) {
-            // default to JSON
-            contentType = XContentType.JSON;
         }
 
         Set<String> includes = Collections.emptySet();

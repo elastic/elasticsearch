@@ -38,6 +38,7 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -953,6 +954,21 @@ public final class Settings implements ToXContent {
          */
         public Builder loadFromSource(String source) {
             SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromSource(source);
+            try {
+                Map<String, String> loadedSettings = settingsLoader.load(source);
+                put(loadedSettings);
+            } catch (Exception e) {
+                throw new SettingsException("Failed to load settings from [" + source + "]", e);
+            }
+            return this;
+        }
+
+        /**
+         * Loads settings from the actual string content that represents them using the
+         * {@link SettingsLoaderFactory#loaderFromXContentType(XContentType)} method to obtain a loader
+         */
+        public Builder loadFromSource(String source, XContentType xContentType) {
+            SettingsLoader settingsLoader = SettingsLoaderFactory.loaderFromXContentType(xContentType);
             try {
                 Map<String, String> loadedSettings = settingsLoader.load(source);
                 put(loadedSettings);

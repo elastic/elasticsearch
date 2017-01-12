@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
@@ -29,7 +30,9 @@ import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,7 +49,9 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
             XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
             XContentHelper.copyCurrentStructure(contentBuilder.generator(), parser);
             builder.setConfig(contentBuilder.bytes());
+            builder.setXContentType(contentBuilder.contentType());
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
+
     }
 
     public static ContextParser<Void, PipelineConfiguration> getParser() {
@@ -56,6 +61,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
 
         private String id;
         private BytesReference config;
+        private XContentType xContentType;
 
         void setId(String id) {
             this.id = id;
@@ -65,8 +71,15 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
             this.config = config;
         }
 
+        void setXContentType(XContentType xContentType) {
+            this.xContentType = xContentType;
+        }
+
         PipelineConfiguration build() {
-            return new PipelineConfiguration(id, config);
+            if (xContentType == null) {
+                xContentType = XContentFactory.xContentType(config);
+            }
+            return new PipelineConfiguration(id, config, xContentType);
         }
     }
 
@@ -75,10 +88,12 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     // and the way the map of maps config is read requires a deep copy (it removes instead of gets entries to check for unused options)
     // also the get pipeline api just directly returns this to the caller
     private final BytesReference config;
+    private final XContentType xContentType;
 
-    public PipelineConfiguration(String id, BytesReference config) {
+    public PipelineConfiguration(String id, BytesReference config, XContentType xContentType) {
         this.id = id;
         this.config = config;
+        this.xContentType = xContentType;
     }
 
     public String getId() {
@@ -86,7 +101,17 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public Map<String, Object> getConfigAsMap() {
-        return XContentHelper.convertToMap(config, true).v2();
+        return XContentHelper.convertToMap(config, true, xContentType).v2();
+    }
+
+    // pkg-private for tests
+    XContentType getXContentType() {
+        return xContentType;
+    }
+
+    // pkg-private for tests
+    BytesReference getConfig() {
+        return config;
     }
 
     @Override
@@ -99,7 +124,13 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        return new PipelineConfiguration(in.readString(), in.readBytesReference());
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            return new PipelineConfiguration(in.readString(), in.readBytesReference(), XContentType.readFrom(in));
+        } else {
+            final String id = in.readString();
+            final BytesReference config = in.readBytesReference();
+            return new PipelineConfiguration(id, config, XContentFactory.xContentType(config));
+        }
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
@@ -110,6 +141,9 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeBytesReference(config);
+        if (out.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            xContentType.writeTo(out);
+        }
     }
 
     @Override

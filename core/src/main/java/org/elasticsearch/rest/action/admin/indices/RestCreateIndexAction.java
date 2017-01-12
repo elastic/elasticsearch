@@ -45,7 +45,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
         if (request.hasContent()) {
-            createIndexRequest.source(request.content());
+            createIndexRequest.source(request.content(), request.getXContentType());
         }
         createIndexRequest.updateAllTypes(request.paramAsBoolean("update_all_types", false));
         createIndexRequest.timeout(request.paramAsTime("timeout", createIndexRequest.timeout()));

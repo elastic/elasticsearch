@@ -22,19 +22,24 @@ package org.elasticsearch.action.admin.indices.mapping.put;
 import com.carrotsearch.hppc.ObjectHashSet;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
@@ -245,7 +250,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
      */
     public PutMappingRequest source(XContentBuilder mappingBuilder) {
         try {
-            return source(mappingBuilder.string());
+            return source(mappingBuilder.string(), mappingBuilder.contentType());
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to build json for mapping request", e);
         }
@@ -259,7 +264,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(mappingSource);
-            return source(builder.string());
+            return source(builder.string(), XContentType.JSON);
         } catch (IOException e) {
             throw new ElasticsearchGenerationException("Failed to generate [" + mappingSource + "]", e);
         }
@@ -267,9 +272,22 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     /**
      * The mapping source definition.
+     * @deprecated use {@link #source(String, XContentType)}
      */
+    @Deprecated
     public PutMappingRequest source(String mappingSource) {
-        this.source = mappingSource;
+        return source(mappingSource, XContentFactory.xContentType(mappingSource));
+    }
+
+    /**
+     * The mapping source definition.
+     */
+    public PutMappingRequest source(String mappingSource, XContentType xContentType) {
+        try {
+            this.source = XContentHelper.convertToJson(new BytesArray(mappingSource.getBytes(StandardCharsets.UTF_8)), false, xContentType);
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to convert mapping source to json", e);
+        }
         return this;
     }
 
@@ -290,7 +308,11 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         type = in.readOptionalString();
-        source = in.readString();
+        if (in.getVersion().onOrAfter(Version.V_5_3_0_UNRELEASED)) {
+            source = in.readString();
+        } else {
+            source = XContentHelper.convertToJson(new BytesArray(in.readString().getBytes(StandardCharsets.UTF_8)), false);
+        }
         updateAllTypes = in.readBoolean();
         readTimeout(in);
         concreteIndex = in.readOptionalWriteable(Index::new);

@@ -75,6 +75,8 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
+        // Initializing Jackson requires RuntimePermission accessDeclaredMembers
+        // The ClientConfiguration class requires RuntimePermission getClassLoader
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
                 // kick jackson to do some static caching of declared members info

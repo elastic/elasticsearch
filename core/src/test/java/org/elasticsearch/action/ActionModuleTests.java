@@ -122,7 +122,7 @@ public class ActionModuleTests extends ESTestCase {
     public void testPluginCantOverwriteBuiltinRestHandler() throws IOException {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
-            public List<RestHandler> initRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+            public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                     IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
                 return singletonList(new RestMainAction(settings, restController));
@@ -152,7 +152,7 @@ public class ActionModuleTests extends ESTestCase {
         }
         ActionPlugin registersFakeHandler = new ActionPlugin() {
             @Override
-            public List<RestHandler> initRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+            public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
                     IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                     IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
                 return singletonList(new FakeHandler(restController));

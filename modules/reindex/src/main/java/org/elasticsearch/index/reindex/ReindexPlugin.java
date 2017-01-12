@@ -59,7 +59,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin {
     }
 
     @Override
-    public List<RestHandler> initRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         return Arrays.asList(

@@ -44,7 +44,7 @@ import static java.util.Collections.singletonList;
 public class TestDeprecationPlugin extends Plugin implements ActionPlugin, SearchPlugin {
 
     @Override
-    public List<RestHandler> initRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         return Collections.singletonList(new TestDeprecationHeaderRestAction(settings, restController));

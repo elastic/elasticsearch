@@ -631,7 +631,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSnapshotAction(settings, restController));
         registerHandler.accept(new RestTemplatesAction(settings, restController));
         for (ActionPlugin plugin : actionPlugins) {
-            for (RestHandler handler : plugin.initRestHandlers(settings, restController, clusterSettings, indexScopedSettings,
+            for (RestHandler handler : plugin.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings,
                     settingsFilter, indexNameExpressionResolver, nodesInCluster)) {
                 registerHandler.accept(handler);
             }

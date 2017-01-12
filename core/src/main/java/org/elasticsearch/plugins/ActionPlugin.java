@@ -72,7 +72,7 @@ public interface ActionPlugin {
     /**
      * Rest handlers added by this plugin.
      */
-    default List<RestHandler> initRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
+    default List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
             IndexNameExpressionResolver indexNameExpressionResolver, Supplier<DiscoveryNodes> nodesInCluster) {
         return Collections.emptyList();

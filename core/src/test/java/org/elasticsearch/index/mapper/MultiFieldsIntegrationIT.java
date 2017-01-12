@@ -166,6 +166,42 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(countResponse.getHits().totalHits(), equalTo(1L));
     }
 
+    public void testTokenSumMultiField() throws Exception {
+        assertAcked(
+            client().admin().indices().prepareCreate("my-index")
+                .addMapping("my-type", XContentFactory.jsonBuilder().startObject().startObject("my-type")
+                    .startObject("properties")
+                    .startObject("a")
+                    .field("type", "token_sum")
+                    .field("analyzer", "simple")
+                    .startObject("fields")
+                    .startObject("b")
+                    .field("type", "keyword")
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject()
+                    .endObject().endObject())
+        );
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
+        MappingMetaData mappingMetaData = getMappingsResponse.mappings().get("my-index").get("my-type");
+        assertThat(mappingMetaData, not(nullValue()));
+        Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
+        Map aField = ((Map) XContentMapValues.extractValue("properties.a", mappingSource));
+        assertThat(aField.size(), equalTo(3));
+        assertThat(aField.get("type").toString(), equalTo("token_sum"));
+        assertThat(aField.get("fields"), notNullValue());
+
+        Map bField = ((Map) XContentMapValues.extractValue("properties.a.fields.b", mappingSource));
+        assertThat(bField.size(), equalTo(1));
+        assertThat(bField.get("type").toString(), equalTo("keyword"));
+
+        client().prepareIndex("my-index", "my-type", "1").setSource("a", "my tokens").setRefreshPolicy(IMMEDIATE).get();
+        SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "my tokens")).get();
+        assertThat(countResponse.getHits().totalHits(), equalTo(1L));
+    }
+
     public void testCompletionMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")

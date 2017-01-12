@@ -34,6 +34,7 @@ string::        <<text,`text`>> and <<keyword,`keyword`>>
 <<search-suggesters-completion,Completion datatype>>::
                     `completion` to provide auto-complete suggestions
 <<token-count>>::   `token_count` to count the number of tokens in a string
+<<token-sum>>::   `token_sum` to calculate the sum of integer values stored in tokens
 {plugins}/mapper-size.html[`mapper-murmur3`]:: `murmur3` to compute hashes of values at index-time and store them in the index
 
 <<percolator>>::    Accepts queries from the query-dsl
@@ -81,6 +82,8 @@ include::types/string.asciidoc[]
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
+
+include::types/token-sum.asciidoc[]
 
 include::types/percolator.asciidoc[]
 

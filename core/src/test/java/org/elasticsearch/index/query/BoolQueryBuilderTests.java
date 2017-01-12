@@ -24,7 +24,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -332,7 +331,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     public void testUnknownQueryName() throws IOException {
         String query = "{\"bool\" : {\"must\" : { \"unknown_query\" : { } } } }";
 
-        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertEquals("no [query] registered for [unknown_query]", ex.getMessage());
     }
 
@@ -356,7 +355,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "    }\n" +
                 "  }\n" +
                 "}";
-        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertEquals("[match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", ex.getMessage());
     }
 

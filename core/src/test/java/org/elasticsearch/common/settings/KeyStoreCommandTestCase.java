@@ -75,7 +75,7 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
         KeyStoreWrapper keystore = KeyStoreWrapper.create(password.toCharArray());
         assertEquals(0, settings.length % 2);
         for (int i = 0; i < settings.length; i += 2) {
-            keystore.setStringSetting(settings[i], settings[i + 1].toCharArray());
+            keystore.setString(settings[i], settings[i + 1].toCharArray());
         }
         keystore.save(env.configFile());
         return keystore;
@@ -92,6 +92,6 @@ public abstract class KeyStoreCommandTestCase extends CommandTestCase {
     }
 
     void assertSecureString(KeyStoreWrapper keystore, String setting, String value) throws Exception {
-        assertEquals(value, keystore.getStringSetting(setting).toString());
+        assertEquals(value, keystore.getString(setting).toString());
     }
 }

@@ -20,10 +20,12 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
@@ -133,6 +135,33 @@ public class Queries {
         } else {
             return query;
         }
+    }
+
+    /**
+     * Potentially apply minimum should match value if we have a query that it can be applied to,
+     * otherwise return the original query.
+     */
+    public static Query maybeApplyMinimumShouldMatch(Query query, @Nullable String minimumShouldMatch) {
+        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
+        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
+        // and multiple variations of the same word in the query (synonyms for instance).
+        if (query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
+            return applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+        } else if (query instanceof ExtendedCommonTermsQuery) {
+            ((ExtendedCommonTermsQuery)query).setLowFreqMinimumNumberShouldMatch(minimumShouldMatch);
+        } else if (query instanceof GraphQuery && ((GraphQuery) query).hasBoolean()) {
+            // we have a graph query that has at least one boolean sub-query
+            // re-build and set minimum should match value on all boolean queries
+            List<Query> oldQueries = ((GraphQuery) query).getQueries();
+            Query[] queries = new Query[oldQueries.size()];
+            for (int i = 0; i < queries.length; i++) {
+                queries[i] = maybeApplyMinimumShouldMatch(oldQueries.get(i), minimumShouldMatch);
+            }
+
+            return new GraphQuery(queries);
+        }
+
+        return query;
     }
 
     private static Pattern spaceAroundLessThanPattern = Pattern.compile("(\\s+<\\s*)|(\\s*<\\s+)");

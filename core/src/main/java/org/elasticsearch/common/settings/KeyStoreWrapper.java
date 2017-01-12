@@ -54,6 +54,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 
 /**
  * A wrapper around a Java KeyStore which provides supplements the keystore with extra metadata.
@@ -64,7 +65,7 @@ import org.apache.lucene.util.SetOnce;
  * in a single thread. Once decrypted, keys may be read with the wrapper in
  * multiple threads.
  */
-public class KeyStoreWrapper implements Closeable {
+public class KeyStoreWrapper implements SecureSettings {
 
     /** The name of the keystore file to read and write. */
     private static final String KEYSTORE_FILENAME = "elasticsearch.keystore";
@@ -159,7 +160,7 @@ public class KeyStoreWrapper implements Closeable {
         }
     }
 
-    /** Returns true iff {@link #decrypt(char[])} has been called. */
+    @Override
     public boolean isLoaded() {
         return keystore.get() != null;
     }
@@ -225,20 +226,25 @@ public class KeyStoreWrapper implements Closeable {
         }
     }
 
-    /** Returns the names of all settings in this keystore. */
     public Set<String> getSettings() {
         return settingNames;
     }
 
+    @Override
+    public boolean hasSetting(String setting) {
+        return settingNames.contains(setting);
+    }
+
     // TODO: make settings accessible only to code that registered the setting
     /** Retrieve a string setting. The {@link SecureString} should be closed once it is used. */
-    SecureString getStringSetting(String setting) throws GeneralSecurityException {
+    @Override
+    public SecureString getString(String setting) throws GeneralSecurityException {
         KeyStore.Entry entry = keystore.get().getEntry(setting, keystorePassword.get());
         if (entry instanceof KeyStore.SecretKeyEntry == false) {
             throw new IllegalStateException("Secret setting " + setting + " is not a string");
         }
         // TODO: only allow getting a setting once?
-        KeyStore.SecretKeyEntry secretKeyEntry = (KeyStore.SecretKeyEntry)entry;
+        KeyStore.SecretKeyEntry secretKeyEntry = (KeyStore.SecretKeyEntry) entry;
         PBEKeySpec keySpec = (PBEKeySpec) secretFactory.getKeySpec(secretKeyEntry.getSecretKey(), PBEKeySpec.class);
         SecureString value = new SecureString(keySpec.getPassword());
         keySpec.clearPassword();
@@ -250,7 +256,7 @@ public class KeyStoreWrapper implements Closeable {
      *
      * @throws IllegalArgumentException if the value is not ASCII
      */
-    void setStringSetting(String setting, char[] value) throws GeneralSecurityException {
+    void setString(String setting, char[] value) throws GeneralSecurityException {
         if (ASCII_ENCODER.canEncode(CharBuffer.wrap(value)) == false) {
             throw new IllegalArgumentException("Value must be ascii");
         }

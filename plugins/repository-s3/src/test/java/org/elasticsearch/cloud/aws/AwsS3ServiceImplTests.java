@@ -37,7 +37,8 @@ import static org.hamcrest.Matchers.is;
 public class AwsS3ServiceImplTests extends ESTestCase {
 
     public void testAWSCredentialsWithSystemProviders() {
-        AWSCredentialsProvider credentialsProvider = InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY);
+        AWSCredentialsProvider credentialsProvider =
+            InternalAwsS3Service.buildCredentials(logger, deprecationLogger, Settings.EMPTY, Settings.EMPTY);
         assertThat(credentialsProvider, instanceOf(InstanceProfileCredentialsProvider.class));
     }
 

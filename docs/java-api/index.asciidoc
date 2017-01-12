@@ -1,7 +1,7 @@
 [[java-api]]
 = Java API
 :ref: http://www.elastic.co/guide/en/elasticsearch/reference/5.x
-:version: 5.1.1
+:version: 5.1.2
 
 [preface]
 == Preface

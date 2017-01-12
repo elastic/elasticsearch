@@ -5,6 +5,7 @@
 --
 This section summarizes the changes in each release.
 
+* <<release-notes-5.1.2>>
 * <<release-notes-5.1.1>>
 * <<release-notes-5.1.0>>
 * <<release-notes-5.0.2>>
@@ -21,6 +22,7 @@ This section summarizes the changes in each release.
 * <<release-notes-5.0.0-alpha1-2x>>
 
 --
+include::release-notes/5.1.2.asciidoc[]
 include::release-notes/5.1.1.asciidoc[]
 include::release-notes/5.1.0.asciidoc[]
 include::release-notes/5.0.2.asciidoc[]

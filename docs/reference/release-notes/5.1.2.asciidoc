@@ -1,0 +1,108 @@
+[[release-notes-5.1.2]]
+== 5.1.2 Release Notes
+
+Also see <<breaking-changes-5.1>>.
+
+[[enhancement-5.1.2]]
+[float]
+=== Enhancements
+
+Internal::
+* Don't output null source node in RecoveryFailedException {pull}21963[#21963]
+
+Mapping::
+* Only update DocumentMapper if field type changes {pull}22165[#22165]
+
+Network::
+* Disable the Netty recycler and pooled allocator {pull}22452[#22452] (issues: {issue}22189[#22189], {issue}22360[#22360], {issue}22406[#22406], {issue}5904[#5904])
+* Tell Netty not to be unsafe in transport client {pull}22284[#22284]
+
+Plugins::
+* Provide helpful error message if a plugin exists {pull}22305[#22305] (issue: {issue}22084[#22084])
+* Add shutdown hook for closing CLI commands {pull}22126[#22126] (issue: {issue}22111[#22111])
+
+
+
+[[bug-5.1.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Allow terms aggregations on pure boolean scripts. {pull}22201[#22201] (issue: {issue}20941[#20941])
+* IP range masks exclude the maximum address of the range. {pull}22018[#22018] (issue: {issue}22005[#22005])
+* Fix `other_bucket` on the `filters` agg to be enabled if a key is set. {pull}21994[#21994] (issue: {issue}21951[#21951])
+
+Allocation::
+* Promote shadow replica to primary when initializing primary fails {pull}22021[#22021]
+* Trim in-sync allocations set only when it grows {pull}21976[#21976] (issue: {issue}21719[#21719])
+
+Analysis::
+* Pre-built analysis factories do not implement MultiTermAware correctly. {pull}21981[#21981]
+
+CRUD::
+* Reject external versioning and explicit version numbers on create {pull}21998[#21998]
+
+Core::
+* Support negative numbers in readVLong {pull}22314[#22314]
+
+Exceptions::
+* Fixing shard recovery error message to report the number of docs correctly for each node {pull}22515[#22515] (issue: {issue}21893[#21893])
+
+Index APIs::
+* Ensure shrunk indices carry over version information from its source {pull}22469[#22469] (issue: {issue}22373[#22373])
+
+Java REST Client::
+* Don't use null charset in RequestLogger {pull}22197[#22197] (issue: {issue}22190[#22190])
+
+Mapping::
+* The `_all` default mapper is not completely configured. {pull}22236[#22236]
+* Fix MapperService.allEnabled(). {pull}22227[#22227]
+
+Nested Docs::
+* Fix bug in query builder rewrite that ignores the ignore_unmapped option {pull}22456[#22456]
+
+Packaging::
+* Another fix for handling of paths on Windows {pull}22132[#22132] (issue: {issue}21921[#21921])
+
+Percolator::
+* Fix NPE in percolator's 'now' range check for percolator queries with range queries {pull}22356[#22356] (issue: {issue}22355[#22355])
+
+Plugin Lang Painless::
+* Update Painless Loop Counter to be Higher {pull}22560[#22560] (issue: {issue}22508[#22508])
+
+Plugin Repository Azure::
+* readonly on azure repository must be taken into account {pull}22055[#22055] (issues: {issue}22007[#22007], {issue}22053[#22053])
+
+Recovery::
+* Fix primary relocation for shadow replicas {pull}22474[#22474] (issue: {issue}20300[#20300])
+* Don't close store under CancellableThreads {pull}22434[#22434] (issue: {issue}22325[#22325])
+* Use a fresh recovery id when retrying recoveries {pull}22325[#22325] (issue: {issue}22043[#22043])
+* Allow flush/force_merge/upgrade on shard marked as relocated {pull}22078[#22078] (issue: {issue}22043[#22043])
+
+Reindex API::
+* Don't close rest client from its callback {pull}22061[#22061] (issue: {issue}22027[#22027])
+
+Search::
+* Improve concurrency of ShardCoreKeyMap. {pull}22316[#22316]
+* Make `-0` compare less than `+0` consistently. {pull}22173[#22173] (issue: {issue}22167[#22167])
+* FiltersAggregationBuilder: rewriting filter queries, the same way as in FilterAggregationBuilder {pull}22076[#22076]
+
+Stats::
+* Implement stats for geo_point and geo_shape field {pull}22391[#22391] (issue: {issue}22384[#22384])
+* Use reader for doc stats {pull}22317[#22317] (issue: {issue}22285[#22285])
+* Avoid NPE in NodeService#stats if HTTP is disabled {pull}22060[#22060] (issue: {issue}22058[#22058])
+* Add support for "include_segment_file_sizes" in indices stats REST handler {pull}21879[#21879] (issue: {issue}21878[#21878])
+
+Term Vectors::
+* Fix _termvectors with preference to not hit NPE {pull}21959[#21959]
+* Return correct term statistics when a field is not found in a shard {pull}21922[#21922] (issue: {issue}21906[#21906])
+
+
+
+[[regression-5.1.2]]
+[float]
+=== Regressions
+
+Logging::
+* Restores the original default format of search slow log {pull}21770[#21770] (issue: {issue}21711[#21711])
+

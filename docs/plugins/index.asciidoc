@@ -2,7 +2,7 @@
 
 :ref:            https://www.elastic.co/guide/en/elasticsearch/reference/5.x
 :guide:          https://www.elastic.co/guide
-:version:        5.1.1
+:version:        5.1.2
 :lucene_version: 6.3.0
 :plugin_url:      https://artifacts.elastic.co/downloads/elasticsearch-plugins
 

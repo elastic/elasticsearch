@@ -74,7 +74,7 @@ public class HistogramAggregationBuilder
 
         PARSER.declareField((histogram, extendedBounds) -> {
             histogram.extendedBounds(extendedBounds[0], extendedBounds[1]);
-        }, EXTENDED_BOUNDS_PARSER::apply, ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+        }, parser -> EXTENDED_BOUNDS_PARSER.apply(parser, null), ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
 
         PARSER.declareField(HistogramAggregationBuilder::order, HistogramAggregationBuilder::parseOrder,
                 Histogram.ORDER_FIELD, ObjectParser.ValueType.OBJECT);

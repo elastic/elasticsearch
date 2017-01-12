@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.completion;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -50,7 +49,7 @@ public abstract class QueryContextTestCase<QC extends ToXContent> extends ESTest
             toXContent.toXContent(builder, ToXContent.EMPTY_PARAMS);
             XContentParser parser = createParser(builder);
             parser.nextToken();
-            QC fromXContext = fromXContent(new QueryParseContext(parser, ParseFieldMatcher.STRICT));
+            QC fromXContext = fromXContent(new QueryParseContext(parser));
             assertEquals(toXContent, fromXContext);
             assertEquals(toXContent.hashCode(), fromXContext.hashCode());
         }

@@ -45,11 +45,6 @@
           "type" : "boolean",
           "description" : "A comma-separated list of search groups for `search` index metric"
         },
-        "human": {
-            "type": "boolean",
-            "description": "Whether to return time and byte values in human-readable format.",
-            "default": false
-        },
         "level": {
           "type" : "enum",
           "description": "Return indices stats aggregated at index, node or shard level",

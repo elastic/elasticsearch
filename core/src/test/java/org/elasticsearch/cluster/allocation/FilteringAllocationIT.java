@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.allocation;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -155,8 +154,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().prepareUpdateSettings()
             .setTransientSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
             .execute().actionGet());
-        assertEquals("illegal value can't update [" + filterSetting.getKey() + "] from [{}] to [{" + ipKey + "=192.168.1.1.}]",
-            e.getMessage());
+        assertEquals("invalid IP address [192.168.1.1.] for [" + ipKey + "]", e.getMessage());
     }
 }
 

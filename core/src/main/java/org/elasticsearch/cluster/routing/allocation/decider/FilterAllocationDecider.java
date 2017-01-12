@@ -69,11 +69,11 @@ public class FilterAllocationDecider extends AllocationDecider {
     private static final String CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX = "cluster.routing.allocation.include";
     private static final String CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX = "cluster.routing.allocation.exclude";
     public static final Setting<Settings> CLUSTER_ROUTING_REQUIRE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_REQUIRE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_INCLUDE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_INCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
     public static final Setting<Settings> CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING =
-        Setting.groupSetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", Property.Dynamic, Property.NodeScope);
+        Setting.groupSetting(CLUSTER_ROUTING_EXCLUDE_GROUP_PREFIX + ".", IP_VALIDATOR, Property.Dynamic, Property.NodeScope);
 
     private volatile DiscoveryNodeFilters clusterRequireFilters;
     private volatile DiscoveryNodeFilters clusterIncludeFilters;
@@ -84,9 +84,9 @@ public class FilterAllocationDecider extends AllocationDecider {
         setClusterRequireFilters(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING.get(settings));
         setClusterExcludeFilters(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.get(settings));
         setClusterIncludeFilters(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters, IP_VALIDATOR);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters, IP_VALIDATOR);
-        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters, IP_VALIDATOR);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_REQUIRE_GROUP_SETTING, this::setClusterRequireFilters);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING, this::setClusterExcludeFilters);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_INCLUDE_GROUP_SETTING, this::setClusterIncludeFilters);
     }
 
     @Override

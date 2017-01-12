@@ -38,6 +38,11 @@ public class DiscoveryNodeFilters {
         OR
     }
 
+    /**
+     * Validates the IP addresses in a group of {@link Settings} by looking for the keys
+     * "_ip", "_host_ip", and "_publish_ip" and ensuring each of their comma separated values
+     * is a valid IP address.
+     */
     public static final Consumer<Settings> IP_VALIDATOR = (settings) -> {
         Map<String, String> settingsMap = settings.getAsMap();
         for (Map.Entry<String, String> entry : settingsMap.entrySet()) {

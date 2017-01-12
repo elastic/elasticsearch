@@ -1,6 +1,15 @@
 [[breaking_60_mappings_changes]]
 === Mapping changes
 
+==== The `_all` meta field is now disabled by default
+
+On new mappings, the `_all` meta field that contains a copy of the text from
+each field is now disabled by default. The `query_string` and
+`simple_query_string` queries that previously used `_all` to search will now
+check if `_all` is enabled/disabled and switch to executing the query across all
+fields if `_all` is disabled. `_all` can no longer be configured for indices
+created with Elasticsearch version 6.0 or later.
+
 ==== Unrecognized `match_mapping_type` options not silently ignored
 
 Previously Elastiscearch would silently ignore any dynamic templates that

@@ -87,7 +87,15 @@ due to dynamic mapping, and 'foo' does not correctly parse into a date:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_validate/query?q=post_date:foo%5d
+GET twitter/tweet/_validate/query
+{
+  "query": {
+    "query_string": {
+      "query": "post_date:foo",
+      "lenient": false
+    }
+  }
+}
 --------------------------------------------------
 // CONSOLE
 
@@ -102,7 +110,15 @@ about why a query failed:
 
 [source,js]
 --------------------------------------------------
-GET twitter/tweet/_validate/query?q=post_date:foo%5d&explain=true
+GET twitter/tweet/_validate/query?explain=true
+{
+  "query": {
+    "query_string": {
+      "query": "post_date:foo",
+      "lenient": false
+    }
+  }
+}
 --------------------------------------------------
 // CONSOLE
 

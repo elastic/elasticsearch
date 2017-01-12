@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.ml.transforms.date.DateTransform;
 import org.elasticsearch.xpack.ml.transforms.date.DoubleDateTransform;
 
 public abstract class AbstractDataToProcessWriter implements DataToProcessWriter {
+
     protected static final int TIME_FIELD_OUT_INDEX = 0;
     private static final int MS_IN_SECOND = 1000;
 

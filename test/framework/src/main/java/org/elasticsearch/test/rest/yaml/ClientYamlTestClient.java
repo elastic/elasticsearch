@@ -59,7 +59,7 @@ public class ClientYamlTestClient {
      * Query params that don't need to be declared in the spec, they are supported by default.
      */
     private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet(
-            "error_trace", "filter_path", "pretty", "source");
+            "error_trace", "filter_path", "human", "pretty", "source");
 
     private final ClientYamlSuiteRestSpec restSpec;
     private final RestClient restClient;

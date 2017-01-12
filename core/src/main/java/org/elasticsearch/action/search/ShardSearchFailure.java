@@ -24,7 +24,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,6 +38,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 
 /**
  * Represents a failure to search on a specific shard.
@@ -208,8 +208,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
             } else {
-                throw new ParsingException(parser.getTokenLocation(),
-                        "Failed to parse object: unsupported token found [" + token + "]");
+                throwUnknownToken(token, parser.getTokenLocation());
             }
         }
         return new ShardSearchFailure(exception,

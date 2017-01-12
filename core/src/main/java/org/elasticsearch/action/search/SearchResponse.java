@@ -47,6 +47,7 @@ import java.util.Map;
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
 
 /**
@@ -225,7 +226,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         InternalSearchHits hits = null;
         boolean timedOut = false;
         Boolean terminatedEarly = null;
-        int tookInMillis = 0;
+        long tookInMillis = 0;
         int successfulShards = 0;
         int totalShards = 0;
         String scrollId = null;
@@ -237,13 +238,12 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 if (Fields._SCROLL_ID.equals(currentFieldName)) {
                     scrollId = parser.text();
                 } else if (Fields.TOOK.equals(currentFieldName)) {
-                    tookInMillis = parser.intValue();
+                    tookInMillis = parser.longValue();
                 } else if (Fields.TIMED_OUT.equals(currentFieldName)) {
                     timedOut = parser.booleanValue();
                 } else if (Fields.TERMINATED_EARLY.equals(currentFieldName)) {
                     terminatedEarly = parser.booleanValue();
-                }
-                else {
+                } else {
                     throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
@@ -258,28 +258,30 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 } else if (SearchProfileShardResults.PROFILE_NAME.equals(currentFieldName)) {
                     // TODO parse "profile" section
                     parser.skipChildren();
-                } else if (RestActions.ShardsFields._SHARDS.equals(currentFieldName)) {
+                } else if (RestActions._SHARDS_FIELD.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (RestActions.ShardsFields.FAILED.equals(currentFieldName)) {
+                            if (RestActions.FAILED_FIELD.equals(currentFieldName)) {
                                 parser.intValue(); // we don't need it but need to consume it
-                            } else if (RestActions.ShardsFields.SUCCESSFUL.equals(currentFieldName)) {
+                            } else if (RestActions.SUCCESSFUL_FIELD.equals(currentFieldName)) {
                                 successfulShards = parser.intValue();
-                            } else if (RestActions.ShardsFields.TOTAL.equals(currentFieldName)) {
+                            } else if (RestActions.TOTAL_FIELD.equals(currentFieldName)) {
                                 totalShards = parser.intValue();
                             } else {
                                 throwUnknownField(currentFieldName, parser.getTokenLocation());
                             }
                         } else if (token == XContentParser.Token.START_ARRAY) {
-                            if (RestActions.ShardsFields.FAILURES.equals(currentFieldName)) {
+                            if (RestActions.FAILURES_FIELD.equals(currentFieldName)) {
                                 while((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                                     failures.add(ShardSearchFailure.fromXContent(parser));
                                 }
                             } else {
                                 throwUnknownField(currentFieldName, parser.getTokenLocation());
                             }
+                        } else {
+                            throwUnknownToken(token, parser.getTokenLocation());
                         }
                     }
                 } else {
@@ -287,8 +289,8 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
                 }
             }
         }
-        return new SearchResponse(new InternalSearchResponse(hits, null, null, null, timedOut, terminatedEarly),
-                scrollId, totalShards, successfulShards, tookInMillis, failures.toArray(new ShardSearchFailure[0]));
+        return new SearchResponse(new InternalSearchResponse(hits, null, null, null, timedOut, terminatedEarly), scrollId, totalShards,
+                successfulShards, tookInMillis, failures.toArray(new ShardSearchFailure[failures.size()]));
     }
 
     @Override
@@ -375,13 +377,13 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             return profileResults.getShardResults();
         }
 
-        public static InternalSearchResponse readInternalSearchResponse(StreamInput in) throws IOException {
+        static InternalSearchResponse readInternalSearchResponse(StreamInput in) throws IOException {
             InternalSearchResponse response = new InternalSearchResponse();
             response.readFrom(in);
             return response;
         }
 
-        public void readFrom(StreamInput in) throws IOException {
+        void readFrom(StreamInput in) throws IOException {
             hits = readSearchHits(in);
             if (in.readBoolean()) {
                 aggregations = InternalAggregations.readAggregations(in);
@@ -394,7 +396,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
             profileResults = in.readOptionalWriteable(SearchProfileShardResults::new);
         }
 
-        public void writeTo(StreamOutput out) throws IOException {
+        void writeTo(StreamOutput out) throws IOException {
             hits.writeTo(out);
             if (aggregations == null) {
                 out.writeBoolean(false);

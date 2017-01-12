@@ -50,7 +50,7 @@ public class ShardSearchFailureTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         ShardSearchFailure response = createTestItem();
-        XContentType xcontentType = XContentType.JSON; //randomFrom(XContentType.values());
+        XContentType xcontentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
         builder.startObject();
         builder = response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -65,7 +65,7 @@ public class ShardSearchFailureTests extends ESTestCase {
         assertEquals(response.shardId(), parsed.shardId());
 
         // we cannot compare the cause, because it will be wrapped in an outer ElasticSearchException
-        // best effort: try to check that the original message appears somewhere in the renderes xContent
+        // best effort: try to check that the original message appears somewhere in the rendered xContent
         String originalMsg = response.getCause().getMessage();
         assertTrue(parsed.getCause().getMessage().contains(originalMsg));
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.search.SearchResponse.InternalSearchResponse;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,14 +44,14 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class SearchResponseTests extends ESTestCase {
 
-    public static SearchResponse createTestItem() {
+    public static SearchResponse createTestItem(boolean withFailures) {
         InternalSearchHits hits = InternalSearchHitsTests.createTestItem();
         boolean timedOut = randomBoolean();
         Boolean terminatedEarly = randomBoolean() ? null : randomBoolean();
-        int tookInMillis = randomIntBetween(0, 1000);
-        int successfulShards = tookInMillis;
+        long tookInMillis = randomNonNegativeLong();
+        int successfulShards = randomInt();
         int totalShards = randomInt();
-        int numFailures = randomIntBetween(0, 3);
+        int numFailures = withFailures ? randomIntBetween(1, 5) : 0;
         ShardSearchFailure[] failures = new ShardSearchFailure[numFailures];
         for (int i = 0; i < numFailures; i++) {
             failures[i] = ShardSearchFailureTests.createTestItem();
@@ -65,7 +65,8 @@ public class SearchResponseTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
-        SearchResponse response = createTestItem();
+        // the "_shard/total/failures" section makes if impossible to directly compare xContent, so we omit it here
+        SearchResponse response = createTestItem(false);
         XContentType xcontentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
         builder = response.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -74,33 +75,39 @@ public class SearchResponseTests extends ESTestCase {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
         SearchResponse parsed = SearchResponse.fromXContent(parser);
 
-        // the "_shard/total/failures" section makes if impossible to directly compare xContent, because
-        // the failures in the parsed SearchResponse are wrapped in an extra ElasticSearchException on the client side.
-        // Because of this we compare the "top level" fields for equality and the subsections xContent equivalence independently
-        assertEquals(response.getScrollId(), parsed.getScrollId());
-        assertEquals(response.getTookInMillis(), parsed.getTookInMillis());
-        assertEquals(response.getTook(), parsed.getTook());
-        assertEquals(response.isTimedOut(), parsed.isTimedOut());
-        assertEquals(response.isTerminatedEarly(), parsed.isTerminatedEarly());
-        assertEquals(response.getFailedShards(), parsed.getFailedShards());
-        assertEquals(response.getSuccessfulShards(), parsed.getSuccessfulShards());
-        assertEquals(response.getTotalShards(), parsed.getTotalShards());
-
-        // compare the "hits" section by comparing xContent equivalence
-        assertToXContentEquivalent(toXContent(response.getHits(), xcontentType), toXContent(parsed.getHits(), xcontentType),
-                xcontentType);
+        assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertNull(parser.nextToken());
     }
 
-    public void testToXContent() throws IOException {
+    /**
+     * The "_shard/total/failures" section makes if impossible to directly compare xContent, because
+     * the failures in the parsed SearchResponse are wrapped in an extra ElasticSearchException on the client side.
+     * Because of this, in this special test case we compare the "top level" fields for equality
+     * and the subsections xContent equivalence independently
+     */
+    public void testFromXContentWithFailures() throws IOException {
+        SearchResponse response = createTestItem(true);
+        XContentType xcontentType = randomFrom(XContentType.values());
+        XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
+        builder = response.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        XContentParser parser = createParser(builder);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+        SearchResponse parsed = SearchResponse.fromXContent(parser);
+        // check that we at least get the same number of shardFailures
+        assertEquals(response.getShardFailures().length, parsed.getShardFailures().length);
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertNull(parser.nextToken());
+    }
+
+    public void testToXContent() {
         InternalSearchHit hit = new InternalSearchHit(1, "id1", new Text("type"), Collections.emptyMap());
         hit.score(2.0f);
         InternalSearchHit[] hits = new InternalSearchHit[] { hit };
         SearchResponse response = new SearchResponse(
                 new InternalSearchResponse(new InternalSearchHits(hits, 100, 1.5f), null, null, null, false, null), null, 0, 0, 0,
                 new ShardSearchFailure[0]);
-        BytesReference xContent = toXContent(response, XContentType.JSON);
         assertEquals(
                 "{\"took\":0,"
                 + "\"timed_out\":false,"
@@ -114,7 +121,7 @@ public class SearchResponseTests extends ESTestCase {
                     + "\"max_score\":1.5,"
                     + "\"hits\":[{\"_type\":\"type\",\"_id\":\"id1\",\"_score\":2.0}]"
                     + "}"
-                + "}", xContent.utf8ToString());
+                + "}", Strings.toString(response));
     }
 
 }

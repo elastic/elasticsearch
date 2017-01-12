@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.watcher.support.search;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -33,13 +32,11 @@ import java.util.Map;
 public class WatcherSearchTemplateService extends AbstractComponent {
 
     private final ScriptService scriptService;
-    private final ParseFieldMatcher parseFieldMatcher;
     private final NamedXContentRegistry xContentRegistry;
 
     public WatcherSearchTemplateService(Settings settings, ScriptService scriptService, NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.scriptService = scriptService;
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
         this.xContentRegistry = xContentRegistry;
     }
 
@@ -70,7 +67,7 @@ public class WatcherSearchTemplateService extends AbstractComponent {
         BytesReference source = request.getSearchSource();
         if (source != null && source.length() > 0) {
             try (XContentParser parser = XContentFactory.xContent(source).createParser(xContentRegistry, source)) {
-                sourceBuilder.parseXContent(new QueryParseContext(parser, parseFieldMatcher));
+                sourceBuilder.parseXContent(new QueryParseContext(parser));
                 searchRequest.source(sourceBuilder);
             }
         }

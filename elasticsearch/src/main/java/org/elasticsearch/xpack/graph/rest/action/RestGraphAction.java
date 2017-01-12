@@ -87,7 +87,7 @@ public class RestGraphAction extends XPackRestHandler {
         Hop currentHop = graphRequest.createNextHop(null);
 
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            QueryParseContext context = new QueryParseContext(parser, parseFieldMatcher);
+            QueryParseContext context = new QueryParseContext(parser);
 
             XContentParser.Token token = parser.nextToken();
 

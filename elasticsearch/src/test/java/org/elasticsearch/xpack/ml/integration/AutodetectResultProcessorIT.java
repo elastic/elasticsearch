@@ -123,7 +123,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         bucket.setRecords(Collections.emptyList());
         assertEquals(bucket, persistedBucket.results().get(0));
 
-        QueryPage<AnomalyRecord> persistedRecords = jobProvider.records(JOB_ID, new RecordsQueryBuilder().includeInterim(true).build());
+        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().includeInterim(true).build());
         assertResultsAreSame(records, persistedRecords);
 
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
@@ -190,7 +190,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         QueryPage<Influencer> persistedInfluencers = getInfluencers();
         assertEquals(0, persistedInfluencers.count());
 
-        QueryPage<AnomalyRecord> persistedRecords = jobProvider.records(JOB_ID, new RecordsQueryBuilder().includeInterim(true).build());
+        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().includeInterim(true).build());
         assertEquals(0, persistedRecords.count());
     }
 
@@ -236,7 +236,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         finalBucket.setRecords(Collections.emptyList());
         assertEquals(finalBucket, persistedBucket.results().get(0));
 
-        QueryPage<AnomalyRecord> persistedRecords = jobProvider.records(JOB_ID, new RecordsQueryBuilder().includeInterim(true).build());
+        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().includeInterim(true).build());
         assertResultsAreSame(finalAnomalyRecords, persistedRecords);
     }
 
@@ -273,9 +273,7 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         QueryPage<Bucket> persistedBucket = getBucketQueryPage(new BucketsQueryBuilder().includeInterim(true).build());
         assertEquals(1, persistedBucket.count());
 
-        QueryPage<AnomalyRecord> persistedRecords = jobProvider.records(JOB_ID,
-                new RecordsQueryBuilder().size(200).includeInterim(true).build());
-
+        QueryPage<AnomalyRecord> persistedRecords = getRecords(new RecordsQueryBuilder().size(200).includeInterim(true).build());
         List<AnomalyRecord> allRecords = new ArrayList<>(firstSetOfRecords);
         allRecords.addAll(secondSetOfRecords);
         assertResultsAreSame(allRecords, persistedRecords);
@@ -507,6 +505,23 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
         AtomicReference<QueryPage<Influencer>> resultHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         jobProvider.influencers(JOB_ID, new InfluencersQueryBuilder().build(), page -> {
+            resultHolder.set(page);
+            latch.countDown();
+        }, e -> {
+            errorHolder.set(e);
+            latch.countDown();
+        });
+        latch.await();
+        if (errorHolder.get() != null) {
+            throw errorHolder.get();
+        }
+        return resultHolder.get();
+    }
+    private QueryPage<AnomalyRecord> getRecords(RecordsQueryBuilder.RecordsQuery recordsQuery) throws Exception {
+        AtomicReference<Exception> errorHolder = new AtomicReference<>();
+        AtomicReference<QueryPage<AnomalyRecord>> resultHolder = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        jobProvider.records(JOB_ID, recordsQuery, page -> {
             resultHolder.set(page);
             latch.countDown();
         }, e -> {

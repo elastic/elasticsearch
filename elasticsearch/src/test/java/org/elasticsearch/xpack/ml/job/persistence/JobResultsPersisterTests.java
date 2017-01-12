@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -17,17 +17,16 @@ import org.elasticsearch.xpack.ml.job.results.AnomalyRecord;
 import org.elasticsearch.xpack.ml.job.results.Bucket;
 import org.elasticsearch.xpack.ml.job.results.BucketInfluencer;
 import org.elasticsearch.xpack.ml.job.results.Influencer;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 
 public class JobResultsPersisterTests extends ESTestCase {
@@ -35,8 +34,8 @@ public class JobResultsPersisterTests extends ESTestCase {
     private static final String JOB_ID = "foo";
 
     public void testPersistBucket_OneRecord() throws IOException {
-        AtomicReference<BulkRequest> reference = new AtomicReference<>();
-        Client client = mockClient(reference);
+        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+        Client client = mockClient(captor);
         Bucket bucket = new Bucket("foo", new Date(), 123456);
         bucket.setAnomalyScore(99.9);
         bucket.setEventCount(57);
@@ -60,7 +59,7 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
         persister.bulkPersisterBuilder(JOB_ID).persistBucket(bucket).executeRequest();
-        BulkRequest bulkRequest = reference.get();
+        BulkRequest bulkRequest = captor.getValue();
         assertEquals(2, bulkRequest.numberOfActions());
 
         String s = ((IndexRequest)bulkRequest.requests().get(0)).source().utf8ToString();
@@ -83,8 +82,8 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistRecords() throws IOException {
-        AtomicReference<BulkRequest> reference = new AtomicReference<>();
-        Client client = mockClient(reference);
+        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+        Client client = mockClient(captor);
 
         List<AnomalyRecord> records = new ArrayList<>();
         AnomalyRecord r1 = new AnomalyRecord(JOB_ID, new Date(), 42, 1);
@@ -115,7 +114,7 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
         persister.bulkPersisterBuilder(JOB_ID).persistRecords(records).executeRequest();
-        BulkRequest bulkRequest = reference.get();
+        BulkRequest bulkRequest = captor.getValue();
         assertEquals(1, bulkRequest.numberOfActions());
 
         String s = ((IndexRequest) bulkRequest.requests().get(0)).source().utf8ToString();
@@ -140,8 +139,8 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistInfluencers() throws IOException {
-        AtomicReference<BulkRequest> reference = new AtomicReference<>();
-        Client client = mockClient(reference);
+        ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
+        Client client = mockClient(captor);
 
         List<Influencer> influencers = new ArrayList<>();
         Influencer inf = new Influencer(JOB_ID, "infName1", "infValue1", new Date(), 600, 1);
@@ -152,7 +151,7 @@ public class JobResultsPersisterTests extends ESTestCase {
 
         JobResultsPersister persister = new JobResultsPersister(Settings.EMPTY, client);
         persister.bulkPersisterBuilder(JOB_ID).persistInfluencers(influencers).executeRequest();
-        BulkRequest bulkRequest = reference.get();
+        BulkRequest bulkRequest = captor.getValue();
         assertEquals(1, bulkRequest.numberOfActions());
 
         String s = ((IndexRequest) bulkRequest.requests().get(0)).source().utf8ToString();
@@ -164,14 +163,11 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
-    private Client mockClient(AtomicReference reference) {
+    private Client mockClient(ArgumentCaptor<BulkRequest> captor) {
         Client client = mock(Client.class);
-        doAnswer(invocationOnMock -> {
-            reference.set(invocationOnMock.getArguments()[1]);
-            ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-            listener.onResponse(new BulkResponse(new BulkItemResponse[0], 0L));
-            return null;
-        }).when(client).execute(any(), any(), any());
+        ActionFuture<BulkResponse> future = mock(ActionFuture.class);
+        when(future.actionGet()).thenReturn(new BulkResponse(new BulkItemResponse[0], 0L));
+        when(client.bulk(captor.capture())).thenReturn(future);
         return client;
     }
 }

@@ -10,7 +10,6 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
@@ -31,11 +30,11 @@ import org.elasticsearch.xpack.ml.job.IgnoreDowntime;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.job.JobStatus;
 import org.elasticsearch.xpack.ml.job.ModelSnapshot;
-import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.audit.Auditor;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.metadata.Allocation;
 import org.elasticsearch.xpack.ml.job.metadata.MlMetadata;
+import org.elasticsearch.xpack.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.job.persistence.JobProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
@@ -419,26 +418,10 @@ public class JobManager extends AbstractComponent {
      * Update a persisted model snapshot metadata document to match the
      * argument supplied.
      *
-     * @param jobId                 the job id
      * @param modelSnapshot         the updated model snapshot object to be stored
-     * @param restoreModelSizeStats should the model size stats in this
-     *                              snapshot be made the current ones for this job?
      */
-    public void updateModelSnapshot(String jobId, ModelSnapshot modelSnapshot, boolean restoreModelSizeStats) {
-        // For Elasticsearch the update can be done in exactly the same way as
-        // the original persist
-        jobResultsPersister.persistModelSnapshot(modelSnapshot);
-        if (restoreModelSizeStats) {
-            if (modelSnapshot.getModelSizeStats() != null) {
-                jobResultsPersister.persistModelSizeStats(modelSnapshot.getModelSizeStats());
-            }
-            if (modelSnapshot.getQuantiles() != null) {
-                jobResultsPersister.persistQuantiles(modelSnapshot.getQuantiles());
-            }
-        }
-        // Commit so that when the REST API call that triggered the update
-        // returns the updated document is searchable
-        jobResultsPersister.commitStateWrites(jobId);
+    public void updateModelSnapshot(ModelSnapshot modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
+        jobResultsPersister.updateModelSnapshot(modelSnapshot, handler, errorHandler);
     }
 
     private static MlMetadata.Builder createMlMetadataBuilder(ClusterState currentState) {

@@ -93,7 +93,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     private double initialAnomalyScore;
     private double maxNormalizedProbability;
     private int recordCount;
-    private List<AnomalyRecord> records = Collections.emptyList();
+    private List<AnomalyRecord> records = new ArrayList<>();
     private long eventCount;
     private boolean isInterim;
     private boolean hadBigNormalizedUpdate;

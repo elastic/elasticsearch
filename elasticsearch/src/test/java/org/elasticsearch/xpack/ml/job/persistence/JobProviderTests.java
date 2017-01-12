@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -495,7 +494,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(ResourceNotFoundException.class, holder[0].getClass());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
     public void testRecords() throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
@@ -523,20 +521,18 @@ public class JobProviderTests extends ESTestCase {
         int from = 14;
         int size = 2;
         String sortfield = "minefield";
-        ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
         SearchResponse response = createSearchResponse(true, source);
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareSearch(AnomalyDetectorsIndex.jobResultsIndexName(jobId),
-                        Result.TYPE.getPreferredName(), from, size, response, queryBuilder);
-
-        Client client = clientBuilder.build();
+        Client client = getMockedClient(qb -> {}, response);
         JobProvider provider = createProvider(client);
 
         RecordsQueryBuilder rqb = new RecordsQueryBuilder().from(from).size(size).epochStart(String.valueOf(now.getTime()))
                 .epochEnd(String.valueOf(now.getTime())).includeInterim(true).sortField(sortfield).anomalyScoreThreshold(11.1)
                 .normalizedProbability(2.2);
 
-        QueryPage<AnomalyRecord> recordPage = provider.records(jobId, rqb.build());
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
+        provider.records(jobId, rqb.build(), page -> holder[0] = page, RuntimeException::new);
+        QueryPage<AnomalyRecord> recordPage = holder[0];
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
         assertEquals(22.4, records.get(0).getTypical().get(0), 0.000001);
@@ -547,7 +543,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals("irrascible", records.get(1).getFunction());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
     public void testRecords_UsingBuilder()
             throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";
@@ -576,13 +571,9 @@ public class JobProviderTests extends ESTestCase {
         int from = 14;
         int size = 2;
         String sortfield = "minefield";
-        ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
         SearchResponse response = createSearchResponse(true, source);
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareSearch(AnomalyDetectorsIndex.jobResultsIndexName(jobId),
-                        Result.TYPE.getPreferredName(), from, size, response, queryBuilder);
 
-        Client client = clientBuilder.build();
+        Client client = getMockedClient(qb -> {}, response);
         JobProvider provider = createProvider(client);
 
         RecordsQueryBuilder rqb = new RecordsQueryBuilder();
@@ -595,7 +586,10 @@ public class JobProviderTests extends ESTestCase {
         rqb.anomalyScoreThreshold(11.1);
         rqb.normalizedProbability(2.2);
 
-        QueryPage<AnomalyRecord> recordPage = provider.records(jobId, rqb.build());
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
+        provider.records(jobId, rqb.build(), page -> holder[0] = page, RuntimeException::new);
+        QueryPage<AnomalyRecord> recordPage = holder[0];
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
         assertEquals(22.4, records.get(0).getTypical().get(0), 0.000001);
@@ -606,7 +600,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals("irrascible", records.get(1).getFunction());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
     public void testBucketRecords() throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
@@ -636,17 +629,14 @@ public class JobProviderTests extends ESTestCase {
         int from = 14;
         int size = 2;
         String sortfield = "minefield";
-        ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
         SearchResponse response = createSearchResponse(true, source);
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareSearch(AnomalyDetectorsIndex.jobResultsIndexName(jobId),
-                        Result.TYPE.getPreferredName(), from, size, response, queryBuilder);
-
-        Client client = clientBuilder.build();
+        Client client = getMockedClient(qb -> {}, response);
         JobProvider provider = createProvider(client);
 
-        QueryPage<AnomalyRecord> recordPage = provider.bucketRecords(jobId, bucket, from, size, true, sortfield, true, "");
-
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        QueryPage<AnomalyRecord>[] holder = new QueryPage[1];
+        provider.bucketRecords(jobId, bucket, from, size, true, sortfield, true, "", page -> holder[0] = page, RuntimeException::new);
+        QueryPage<AnomalyRecord> recordPage = holder[0];
         assertEquals(2L, recordPage.count());
         List<AnomalyRecord> records = recordPage.results();
         assertEquals(22.4, records.get(0).getTypical().get(0), 0.000001);
@@ -657,7 +647,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals("irrascible", records.get(1).getFunction());
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
     public void testexpandBucket() throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";
         Date now = new Date();
@@ -676,20 +665,16 @@ public class JobProviderTests extends ESTestCase {
             source.add(recordMap);
         }
 
-        ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
         SearchResponse response = createSearchResponse(true, source);
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareSearchAnySize(AnomalyDetectorsIndex.jobResultsIndexName(jobId),
-                        Result.TYPE.getPreferredName(), response, queryBuilder);
-
-        Client client = clientBuilder.build();
+        Client client = getMockedClient(qb -> {}, response);
         JobProvider provider = createProvider(client);
 
-        int records = provider.expandBucket(jobId, false, bucket);
+        Integer[] holder = new Integer[1];
+        provider.expandBucket(jobId, false, bucket, null, 0, records -> holder[0] = records, RuntimeException::new);
+        int records = holder[0];
         assertEquals(400L, records);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
     public void testexpandBucket_WithManyRecords()
             throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentification";
@@ -709,16 +694,13 @@ public class JobProviderTests extends ESTestCase {
             source.add(recordMap);
         }
 
-        ArgumentCaptor<QueryBuilder> queryBuilder = ArgumentCaptor.forClass(QueryBuilder.class);
         SearchResponse response = createSearchResponse(true, source);
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-                .prepareSearchAnySize(AnomalyDetectorsIndex.jobResultsIndexName(jobId),
-                        Result.TYPE.getPreferredName(), response, queryBuilder);
-
-        Client client = clientBuilder.build();
+        Client client = getMockedClient(qb -> {}, response);
         JobProvider provider = createProvider(client);
 
-        int records = provider.expandBucket(jobId, false, bucket);
+        Integer[] holder = new Integer[1];
+        provider.expandBucket(jobId, false, bucket, null, 0, records -> holder[0] = records, RuntimeException::new);
+        int records = holder[0];
         // This is not realistic, but is an artifact of the fact that the mock
         // query
         // returns all the records, not a subset
@@ -900,7 +882,6 @@ public class JobProviderTests extends ESTestCase {
         assertEquals(5.0, records.get(1).getInitialAnomalyScore(), 0.00001);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/prelert-legacy/issues/127")
     public void testModelSnapshots() throws InterruptedException, ExecutionException, IOException {
         String jobId = "TestJobIdentificationForInfluencers";
         Date now = new Date();

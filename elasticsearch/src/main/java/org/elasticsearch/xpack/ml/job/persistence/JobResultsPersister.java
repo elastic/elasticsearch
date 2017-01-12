@@ -6,12 +6,10 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,12 +28,12 @@ import org.elasticsearch.xpack.ml.job.results.Influencer;
 import org.elasticsearch.xpack.ml.job.results.ModelDebugOutput;
 import org.elasticsearch.xpack.ml.job.results.PerPartitionMaxProbabilities;
 import org.elasticsearch.xpack.ml.job.results.Result;
-import org.elasticsearch.xpack.ml.utils.FixBlockingClientOperations;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
@@ -200,7 +198,7 @@ public class JobResultsPersister extends AbstractComponent {
             }
             logger.trace("[{}] ES API CALL: bulk request with {} actions", jobId, bulkRequest.numberOfActions());
 
-            BulkResponse addRecordsResponse = FixBlockingClientOperations.executeBlocking(client, BulkAction.INSTANCE, bulkRequest);
+            BulkResponse addRecordsResponse = client.bulk(bulkRequest).actionGet();
             if (addRecordsResponse.hasFailures()) {
                 logger.error("[{}] Bulk index of results has errors: {}", jobId, addRecordsResponse.buildFailureMessage());
             }
@@ -243,6 +241,17 @@ public class JobResultsPersister extends AbstractComponent {
         Persistable persistable = new Persistable(modelSnapshot.getJobId(), modelSnapshot, ModelSnapshot.TYPE.getPreferredName(),
                 modelSnapshot.getSnapshotId());
         persistable.persist(AnomalyDetectorsIndex.jobResultsIndexName(modelSnapshot.getJobId()));
+    }
+
+    public void updateModelSnapshot(ModelSnapshot modelSnapshot, Consumer<Boolean> handler, Consumer<Exception> errorHandler) {
+        String index = AnomalyDetectorsIndex.jobResultsIndexName(modelSnapshot.getJobId());
+        IndexRequest indexRequest = new IndexRequest(index, ModelSnapshot.TYPE.getPreferredName(), modelSnapshot.getSnapshotId());
+        try {
+            indexRequest.source(toXContentBuilder(modelSnapshot));
+        } catch (IOException e) {
+            errorHandler.accept(e);
+        }
+        client.index(indexRequest, ActionListener.wrap(r -> handler.accept(true), errorHandler));
     }
 
     /**
@@ -322,7 +331,7 @@ public class JobResultsPersister extends AbstractComponent {
         // Refresh should wait for Lucene to make the data searchable
         logger.trace("[{}] ES API CALL: refresh index {}", jobId, indexName);
         RefreshRequest refreshRequest = new RefreshRequest(indexName);
-        FixBlockingClientOperations.executeBlocking(client, RefreshAction.INSTANCE, refreshRequest);
+        client.admin().indices().refresh(refreshRequest).actionGet();
         return true;
     }
 
@@ -363,7 +372,7 @@ public class JobResultsPersister extends AbstractComponent {
             try {
                 IndexRequest indexRequest = new IndexRequest(indexName, type, id)
                         .source(toXContentBuilder(object));
-                FixBlockingClientOperations.executeBlocking(client, IndexAction.INSTANCE, indexRequest);
+                client.index(indexRequest).actionGet();
                 return true;
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] Error writing {}", new Object[]{jobId, type}), e);

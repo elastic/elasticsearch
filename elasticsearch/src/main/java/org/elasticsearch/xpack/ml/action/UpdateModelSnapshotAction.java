@@ -273,15 +273,13 @@ UpdateModelSnapshotAction.RequestBuilder> {
                     }
                     ModelSnapshot modelSnapshot = changeCandidates.get(0);
                     modelSnapshot.setDescription(request.getDescriptionString());
-                    jobManager.updateModelSnapshot(request.getJobId(), modelSnapshot, false);
-
-                    modelSnapshot.setDescription(request.getDescriptionString());
-
-                    // The quantiles can be large, and totally dominate the output -
-                    // it's clearer to remove them
-                    modelSnapshot.setQuantiles(null);
-
-                    listener.onResponse(new Response(modelSnapshot));
+                    jobManager.updateModelSnapshot(modelSnapshot, b -> {
+                        modelSnapshot.setDescription(request.getDescriptionString());
+                        // The quantiles can be large, and totally dominate the output -
+                        // it's clearer to remove them
+                        modelSnapshot.setQuantiles(null);
+                        listener.onResponse(new Response(modelSnapshot));
+                    }, listener::onFailure);
                 }, listener::onFailure);
             }, listener::onFailure);
         }

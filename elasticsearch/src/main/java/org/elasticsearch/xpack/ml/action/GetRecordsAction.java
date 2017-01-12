@@ -369,9 +369,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
                     .sortField(request.sort)
                     .sortDescending(request.decending)
                     .build();
-
-            QueryPage<AnomalyRecord> page = jobProvider.records(request.jobId, query);
-            listener.onResponse(new Response(page));
+            jobProvider.records(request.jobId, query, page -> listener.onResponse(new Response(page)), listener::onFailure);
         }
     }
 

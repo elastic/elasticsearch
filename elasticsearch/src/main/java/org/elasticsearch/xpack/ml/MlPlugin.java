@@ -25,6 +25,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -174,7 +175,8 @@ public class MlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
+                                               ResourceWatcherService resourceWatcherService,
+                                               ScriptService scriptService, SearchRequestParsers searchRequestParsers,
                                                NamedXContentRegistry xContentRegistry) {
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
         JobProvider jobProvider = new JobProvider(client, 0, parseFieldMatcherSupplier.getParseFieldMatcher());

@@ -180,7 +180,7 @@ that do not explicitly set it.
 [float]
 ==== path
 
-deprecated[1.0.0,Use <<copy-to,`copy_to`>> instead]
+deprecated[2.0.0,Use <<copy-to,`copy_to`>> instead]
 
 In the <<mapping-core-types,core_types>>
 section, a field can have a `index_name` associated with it in order to

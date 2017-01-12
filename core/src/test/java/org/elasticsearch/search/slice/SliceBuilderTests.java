@@ -29,7 +29,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -104,7 +103,7 @@ public class SliceBuilderTests extends ESTestCase {
         sliceBuilder.innerToXContent(builder);
         builder.endObject();
         XContentParser parser = createParser(shuffleXContent(builder));
-        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser);
         SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(context);
         assertNotSame(sliceBuilder, secondSliceBuilder);
         assertEquals(sliceBuilder, secondSliceBuilder);

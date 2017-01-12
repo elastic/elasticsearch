@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -1229,7 +1228,7 @@ public class IndicesService extends AbstractLifecycleComponent
          * of dependencies we pass in a function that can perform the parsing. */
         ShardSearchRequest.FilterParser filterParser = bytes -> {
             try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes)) {
-                return new QueryParseContext(parser, new ParseFieldMatcher(settings)).parseInnerQueryBuilder();
+                return new QueryParseContext(parser).parseInnerQueryBuilder();
             }
         };
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, expressions);

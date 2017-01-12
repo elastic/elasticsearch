@@ -27,7 +27,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.geopoint.search.GeoPointInBBoxQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -479,7 +478,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                         "    \"boost\" : 1.0\n" +
                         "  }\n" +
                         "}";
-        QueryBuilder parsedGeoBboxShortcut = parseQuery(deprecatedJson, ParseFieldMatcher.EMPTY);
+        QueryBuilder parsedGeoBboxShortcut = parseQuery(deprecatedJson);
         assertThat(parsedGeoBboxShortcut, equalTo(parsed));
         assertWarnings("Deprecated field [geo_bbox] used, expected [geo_bounding_box] instead");
     }

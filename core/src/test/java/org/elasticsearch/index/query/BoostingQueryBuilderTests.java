@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.BoostingQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.internal.SearchContext;
@@ -107,7 +106,7 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
                 "  }" +
                 "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, query);
-        QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = createParseContext(parser);
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
 
@@ -121,7 +120,7 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
                 "  }\n" +
                 "}";
         parser = createParser(JsonXContent.jsonXContent, query);
-        context = createParseContext(parser, ParseFieldMatcher.EMPTY);
+        context = createParseContext(parser);
         innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
         assertWarnings("query malformed, empty clause found at [3:20]");

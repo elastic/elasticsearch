@@ -29,7 +29,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
@@ -266,7 +265,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                         "    \"boost\" : 1.0\n" +
                         "  }\n" +
                         "}";
-        QueryBuilder inShortcutParsed = parseQuery(deprecatedJson, ParseFieldMatcher.EMPTY);
+        QueryBuilder inShortcutParsed = parseQuery(deprecatedJson);
         assertThat(inShortcutParsed, equalTo(parsed));
         assertWarnings("Deprecated field [in] used, expected [terms] instead");
     }

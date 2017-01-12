@@ -23,7 +23,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -215,7 +214,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
                 "   }" +
                 "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, query);
-        QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = createParseContext(parser);
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertFalse(innerQueryBuilder.isPresent());
         assertWarnings("query malformed, empty clause found at [3:17]");

@@ -20,12 +20,10 @@
 package org.elasticsearch.index.query.functionscore;
 
 import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -615,7 +613,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "  }\n" +
                 "}";
 
-        FunctionScoreQueryBuilder parsed = (FunctionScoreQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        FunctionScoreQueryBuilder parsed = (FunctionScoreQueryBuilder) parseQuery(json);
         // this should be equivalent to the same with a match_all query
         String expected =
                 "{\n" +
@@ -637,7 +635,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     "  }\n" +
                     "}";
 
-        FunctionScoreQueryBuilder expectedParsed = (FunctionScoreQueryBuilder) parseQuery(json, ParseFieldMatcher.EMPTY);
+        FunctionScoreQueryBuilder expectedParsed = (FunctionScoreQueryBuilder) parseQuery(json);
         assertEquals(expectedParsed, parsed);
 
         assertEquals(json, 2, parsed.filterFunctionBuilders().length);

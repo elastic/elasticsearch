@@ -20,7 +20,6 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.index.IndexableField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -351,6 +350,6 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
     }
 
     private static QueryParseContext createParseContext(XContentParser parser) {
-        return new QueryParseContext(parser, ParseFieldMatcher.STRICT);
+        return new QueryParseContext(parser);
     };
 }

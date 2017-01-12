@@ -22,7 +22,6 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -129,7 +128,7 @@ public class HighlightBuilderTests extends ESTestCase {
             XContentBuilder shuffled = shuffleXContent(builder);
 
             XContentParser parser = createParser(shuffled);
-            QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
+            QueryParseContext context = new QueryParseContext(parser);
             parser.nextToken();
             HighlightBuilder secondHighlightBuilder;
             try {
@@ -170,7 +169,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
     private <T extends Throwable> T expectParseThrows(Class<T> exceptionClass, String highlightElement) throws IOException {
         XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
-        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(parser);
         return expectThrows(exceptionClass, () -> HighlightBuilder.fromXContent(context));
     }
 
@@ -380,7 +379,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 "}\n";
         XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = new QueryParseContext(parser);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
                 highlightBuilder.preTags());
@@ -392,7 +391,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 "}\n";
         parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
                 highlightBuilder.preTags());
@@ -413,21 +412,21 @@ public class HighlightBuilderTests extends ESTestCase {
         String highlightElement = "{ }";
         XContentParser parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = new QueryParseContext(parser);
         HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { } }";
         parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
 
         highlightElement = "{ \"fields\" : { \"foo\" : { } } }";
         parser = createParser(JsonXContent.jsonXContent, highlightElement);
 
-        context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
+        context = new QueryParseContext(parser);
         highlightBuilder = HighlightBuilder.fromXContent(context);
         assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
     }

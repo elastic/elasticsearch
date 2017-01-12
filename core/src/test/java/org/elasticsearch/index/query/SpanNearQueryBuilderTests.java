@@ -23,7 +23,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanNearQuery;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
@@ -147,7 +146,7 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
                 "  }\n" +
                 "}";
 
-        parseQuery(json, ParseFieldMatcher.EMPTY);
+        parseQuery(json);
         // we should get warning headers
         assertWarnings("Deprecated field [collect_payloads] used, replaced by [no longer supported]");
     }

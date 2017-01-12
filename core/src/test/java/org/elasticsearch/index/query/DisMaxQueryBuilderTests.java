@@ -24,7 +24,6 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -94,7 +93,7 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
                 + "             { \"queries\" : [ {\"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } } ] "
                 + "             }"
                 + "           }";
-        QueryBuilder queryBuilder = parseQuery(queryString, ParseFieldMatcher.EMPTY);
+        QueryBuilder queryBuilder = parseQuery(queryString);
         QueryShardContext context = createShardContext();
         Query luceneQuery = queryBuilder.toQuery(context);
         assertThat(luceneQuery, instanceOf(MatchNoDocsQuery.class));

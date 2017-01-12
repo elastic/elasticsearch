@@ -23,7 +23,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.search.internal.SearchContext;
@@ -161,7 +160,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 "    }\n" +
                 "}";
 
-        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(contentString, ParseFieldMatcher.EMPTY);
+        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(contentString);
         assertEquals(testQuery, parsed);
 
         parseQuery(contentString);
@@ -174,7 +173,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
                 "        \"values\" : [ ]\n" +
                 "    }\n" +
                 "}";
-        parsed = (IdsQueryBuilder) parseQuery(contentString2, ParseFieldMatcher.EMPTY);
+        parsed = (IdsQueryBuilder) parseQuery(contentString2);
         assertEquals(testQuery, parsed);
 
         parseQuery(contentString2);

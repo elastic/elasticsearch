@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -71,7 +70,7 @@ public class RestSearchAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         request.withContentOrSourceParamParserOrNull(parser ->
-            parseSearchRequest(searchRequest, request, parseFieldMatcher, parser));
+            parseSearchRequest(searchRequest, request, parser));
 
         return channel -> client.search(searchRequest, new RestStatusToXContentListener<>(channel));
     }
@@ -82,15 +81,15 @@ public class RestSearchAction extends BaseRestHandler {
      * @param requestContentParser body of the request to read. This method does not attempt to read the body from the {@code request}
      *        parameter
      */
-    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request, ParseFieldMatcher parseFieldMatcher,
-            XContentParser requestContentParser) throws IOException {
+    public static void parseSearchRequest(SearchRequest searchRequest, RestRequest request,
+                                          XContentParser requestContentParser) throws IOException {
 
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
         searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
-            QueryParseContext context = new QueryParseContext(requestContentParser, parseFieldMatcher);
+            QueryParseContext context = new QueryParseContext(requestContentParser);
             searchRequest.source().parseXContent(context);
         }
 

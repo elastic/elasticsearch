@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -129,7 +128,7 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
                 "  }" +
                 "}";
         XContentParser parser = createParser(JsonXContent.jsonXContent, query);
-        QueryParseContext context = createParseContext(parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext context = createParseContext(parser);
         Optional<QueryBuilder> innerQueryBuilder = context.parseInnerQueryBuilder();
         assertTrue(innerQueryBuilder.isPresent() == false);
         assertWarnings("query malformed, empty clause found at [1:40]");

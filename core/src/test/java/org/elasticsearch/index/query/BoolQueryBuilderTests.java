@@ -24,7 +24,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -338,7 +337,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "}" +
               "}";
 
-        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
+        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query);
         assertEquals(query, 0, queryBuilder.must().size());
         assertEquals(query, 0, queryBuilder.filter().size());
         assertEquals(query, 0, queryBuilder.mustNot().size());
@@ -367,7 +366,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "  \"minimum_number_should_match\" : 1" +
                 "}}";
 
-        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
+        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query);
         assertEquals(query, 1, queryBuilder.should().size());
         assertEquals(query, "1", queryBuilder.minimumShouldMatch());
         // we should have deprecation warning headers regardless of throwing an exception
@@ -380,7 +379,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
     public void testUnknownQueryName() throws IOException {
         String query = "{\"bool\" : {\"must\" : { \"unknown_query\" : { } } } }";
 
-        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertEquals("no [query] registered for [unknown_query]", ex.getMessage());
     }
 
@@ -402,7 +401,7 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
                 "    }\n" +
                 "  }\n" +
                 "}";
-        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query, ParseFieldMatcher.EMPTY));
+        ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
         assertEquals("[match] malformed query, expected [END_OBJECT] but found [FIELD_NAME]", ex.getMessage());
     }
 

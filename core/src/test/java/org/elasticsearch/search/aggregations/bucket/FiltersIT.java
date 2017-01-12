@@ -22,7 +22,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -213,7 +212,7 @@ public class FiltersIT extends ESIntegTestCase {
         String emtpyFilterBody = "{ \"filters\" : [ {} ] }";
         XContentParser parser = createParser(JsonXContent.jsonXContent, emtpyFilterBody);
         parser.nextToken();
-        QueryParseContext parseContext = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext parseContext = new QueryParseContext(parser);
         AggregationBuilder filtersAgg = FiltersAggregationBuilder.parse("tag1", parseContext);
 
         SearchResponse response = client().prepareSearch("idx").addAggregation(filtersAgg).execute().actionGet();
@@ -230,7 +229,7 @@ public class FiltersIT extends ESIntegTestCase {
         String emtpyFilterBody = "{ \"filters\" : {\"foo\" : {} } }";
         XContentParser parser = createParser(JsonXContent.jsonXContent, emtpyFilterBody);
         parser.nextToken();
-        QueryParseContext parseContext = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
+        QueryParseContext parseContext = new QueryParseContext(parser);
         AggregationBuilder filtersAgg = FiltersAggregationBuilder.parse("tag1", parseContext);
 
         SearchResponse response = client().prepareSearch("idx").addAggregation(filtersAgg)

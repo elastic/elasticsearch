@@ -105,7 +105,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
      * are configured in the index settings. The default script language will always default to Painless.
      */
     public QueryParseContext newParseContext(XContentParser parser) {
-        return new QueryParseContext(parser, indexSettings.getParseFieldMatcher());
+        return new QueryParseContext(parser);
     }
 
     /**
@@ -114,7 +114,7 @@ public class QueryRewriteContext implements ParseFieldMatcherSupplier {
      */
     public QueryParseContext newParseContextWithLegacyScriptLanguage(XContentParser parser) {
         String defaultScriptLanguage = ScriptSettings.getLegacyDefaultLang(indexSettings.getNodeSettings());
-        return new QueryParseContext(defaultScriptLanguage, parser, indexSettings.getParseFieldMatcher());
+        return new QueryParseContext(defaultScriptLanguage, parser);
     }
 
     public long nowInMillis() {

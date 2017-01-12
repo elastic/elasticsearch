@@ -23,7 +23,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -146,7 +145,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             String elementName = itemParser.currentName();
             itemParser.nextToken();
 
-            QueryParseContext context = new QueryParseContext(itemParser, ParseFieldMatcher.STRICT);
+            QueryParseContext context = new QueryParseContext(itemParser);
             T parsedItem = fromXContent(context, elementName);
             assertNotSame(testItem, parsedItem);
             assertEquals(testItem, parsedItem);

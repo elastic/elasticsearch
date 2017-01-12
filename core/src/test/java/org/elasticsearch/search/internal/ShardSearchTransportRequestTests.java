@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -164,7 +163,7 @@ public class ShardSearchTransportRequestTests extends AbstractSearchTestCase {
     public QueryBuilder aliasFilter(IndexMetaData indexMetaData, String... aliasNames) {
         ShardSearchRequest.FilterParser filterParser = bytes -> {
             try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry(), bytes)) {
-                return new QueryParseContext(parser, new ParseFieldMatcher(Settings.EMPTY)).parseInnerQueryBuilder();
+                return new QueryParseContext(parser).parseInnerQueryBuilder();
             }
         };
         return ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliasNames);

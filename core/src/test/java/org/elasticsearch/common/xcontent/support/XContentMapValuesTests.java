@@ -251,19 +251,17 @@ public class XContentMapValuesTests extends ESTestCase {
                             put("nested", 2);
                             put("nested_2", 3);
                         }}));
-        Map<String, Object> falteredMap = XContentMapValues.filter(map, new String[]{"array.nested"}, Strings.EMPTY_ARRAY);
-        assertThat(falteredMap.size(), equalTo(1));
+        Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[]{"array.nested"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
 
-        // Selecting members of objects within arrays (ex. [ 1, { nested: "value"} ])  always returns all values in the array (1 in the ex)
-        // this is expected behavior as this types of objects are not supported in ES
-        assertThat((Integer) ((List) falteredMap.get("array")).get(0), equalTo(1));
-        assertThat(((Map<String, Object>) ((List) falteredMap.get("array")).get(1)).size(), equalTo(1));
-        assertThat((Integer) ((Map<String, Object>) ((List) falteredMap.get("array")).get(1)).get("nested"), equalTo(2));
+        assertThat(((List) filteredMap.get("array")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(0)).size(), equalTo(1));
+        assertThat((Integer) ((Map<String, Object>) ((List) filteredMap.get("array")).get(0)).get("nested"), equalTo(2));
 
-        falteredMap = XContentMapValues.filter(map, new String[]{"array.*"}, Strings.EMPTY_ARRAY);
-        assertThat(falteredMap.size(), equalTo(1));
-        assertThat((Integer) ((List) falteredMap.get("array")).get(0), equalTo(1));
-        assertThat(((Map<String, Object>) ((List) falteredMap.get("array")).get(1)).size(), equalTo(2));
+        filteredMap = XContentMapValues.filter(map, new String[]{"array.*"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((List) filteredMap.get("array")).size(), equalTo(1));
+        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(0)).size(), equalTo(2));
 
         map.clear();
         map.put("field", "value");
@@ -272,16 +270,16 @@ public class XContentMapValuesTests extends ESTestCase {
                     put("field", "value");
                     put("field2", "value2");
                 }});
-        falteredMap = XContentMapValues.filter(map, new String[]{"obj.field"}, Strings.EMPTY_ARRAY);
-        assertThat(falteredMap.size(), equalTo(1));
-        assertThat(((Map<String, Object>) falteredMap.get("obj")).size(), equalTo(1));
-        assertThat((String) ((Map<String, Object>) falteredMap.get("obj")).get("field"), equalTo("value"));
+        filteredMap = XContentMapValues.filter(map, new String[]{"obj.field"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(1));
+        assertThat((String) ((Map<String, Object>) filteredMap.get("obj")).get("field"), equalTo("value"));
 
-        falteredMap = XContentMapValues.filter(map, new String[]{"obj.*"}, Strings.EMPTY_ARRAY);
-        assertThat(falteredMap.size(), equalTo(1));
-        assertThat(((Map<String, Object>) falteredMap.get("obj")).size(), equalTo(2));
-        assertThat((String) ((Map<String, Object>) falteredMap.get("obj")).get("field"), equalTo("value"));
-        assertThat((String) ((Map<String, Object>) falteredMap.get("obj")).get("field2"), equalTo("value2"));
+        filteredMap = XContentMapValues.filter(map, new String[]{"obj.*"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(2));
+        assertThat((String) ((Map<String, Object>) filteredMap.get("obj")).get("field"), equalTo("value"));
+        assertThat((String) ((Map<String, Object>) filteredMap.get("obj")).get("field2"), equalTo("value2"));
 
     }
 
@@ -588,5 +586,16 @@ public class XContentMapValuesTests extends ESTestCase {
 
         assertEquals(Collections.singletonMap("foobar", 2), XContentMapValues.filter(map, new String[] {"foobar"}, new String[0]));
         assertEquals(Collections.singletonMap("foobaz", 3), XContentMapValues.filter(map, new String[0], new String[] {"foobar"}));
+    }
+
+    public void testPrefix() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("photos", Arrays.asList(new String[] {"foo", "bar"}));
+        map.put("photosCount", 2);
+
+        Map<String, Object> filtered = XContentMapValues.filter(map, new String[] {"photosCount"}, new String[0]);
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("photosCount", 2);
+        assertEquals(expected, filtered);
     }
 }

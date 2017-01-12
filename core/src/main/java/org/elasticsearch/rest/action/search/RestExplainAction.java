@@ -65,7 +65,7 @@ public class RestExplainAction extends BaseRestHandler {
         String queryString = request.param("q");
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
-                explainRequest.query(RestActions.getQueryContent(parser, parseFieldMatcher));
+                explainRequest.query(RestActions.getQueryContent(parser));
             } else if (queryString != null) {
                 QueryBuilder query = RestActions.urlParamsToQueryBuilder(request);
                 explainRequest.query(query);

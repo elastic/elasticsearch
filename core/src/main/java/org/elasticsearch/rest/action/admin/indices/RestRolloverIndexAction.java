@@ -22,7 +22,6 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -44,7 +43,7 @@ public class RestRolloverIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
-        request.applyContentParser(parser -> RolloverRequest.PARSER.parse(parser, rolloverIndexRequest, () -> ParseFieldMatcher.EMPTY));
+        request.applyContentParser(parser -> RolloverRequest.PARSER.parse(parser, rolloverIndexRequest, null));
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));

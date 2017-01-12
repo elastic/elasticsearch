@@ -31,7 +31,6 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
@@ -56,10 +55,10 @@ public class GeoDistanceRangeAggregatorFactory
     private final GeoDistance distanceType;
     private final boolean keyed;
 
-    public GeoDistanceRangeAggregatorFactory(String name, Type type, ValuesSourceConfig<ValuesSource.GeoPoint> config, GeoPoint origin,
+    public GeoDistanceRangeAggregatorFactory(String name, ValuesSourceConfig<ValuesSource.GeoPoint> config, GeoPoint origin,
             Range[] ranges, DistanceUnit unit, GeoDistance distanceType, boolean keyed, SearchContext context,
             AggregatorFactory<?> parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metaData) throws IOException {
-        super(name, type, config, context, parent, subFactoriesBuilder, metaData);
+        super(name, config, context, parent, subFactoriesBuilder, metaData);
         this.origin = origin;
         this.ranges = ranges;
         this.unit = unit;

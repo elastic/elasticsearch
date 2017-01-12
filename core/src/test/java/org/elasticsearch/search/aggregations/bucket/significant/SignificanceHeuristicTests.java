@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.significant;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -48,7 +47,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.Perce
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
 
@@ -219,57 +217,56 @@ public class SignificanceHeuristicTests extends ESTestCase {
     public void testBuilderAndParser() throws Exception {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, emptyList());
         ParseFieldRegistry<SignificanceHeuristicParser> heuristicParserMapper = searchModule.getSignificanceHeuristicParserRegistry();
-        SearchContext searchContext = new SignificantTermsTestSearchContext();
 
         // test jlh with string
-        assertTrue(parseFromString(heuristicParserMapper, searchContext, "\"jlh\":{}") instanceof JLHScore);
+        assertTrue(parseFromString(heuristicParserMapper, "\"jlh\":{}") instanceof JLHScore);
         // test gnd with string
-        assertTrue(parseFromString(heuristicParserMapper, searchContext, "\"gnd\":{}") instanceof GND);
+        assertTrue(parseFromString(heuristicParserMapper, "\"gnd\":{}") instanceof GND);
         // test mutual information with string
         boolean includeNegatives = randomBoolean();
         boolean backgroundIsSuperset = randomBoolean();
         String mutual = "\"mutual_information\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":"
                 + backgroundIsSuperset + "}";
         assertEquals(new MutualInformation(includeNegatives, backgroundIsSuperset),
-                parseFromString(heuristicParserMapper, searchContext, mutual));
+                parseFromString(heuristicParserMapper, mutual));
         String chiSquare = "\"chi_square\":{\"include_negatives\": " + includeNegatives + ", \"background_is_superset\":"
                 + backgroundIsSuperset + "}";
         assertEquals(new ChiSquare(includeNegatives, backgroundIsSuperset),
-                parseFromString(heuristicParserMapper, searchContext, chiSquare));
+                parseFromString(heuristicParserMapper, chiSquare));
 
         // test with builders
-        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new JLHScore()), instanceOf(JLHScore.class));
-        assertThat(parseFromBuilder(heuristicParserMapper, searchContext, new GND(backgroundIsSuperset)), instanceOf(GND.class));
+        assertThat(parseFromBuilder(heuristicParserMapper, new JLHScore()), instanceOf(JLHScore.class));
+        assertThat(parseFromBuilder(heuristicParserMapper, new GND(backgroundIsSuperset)), instanceOf(GND.class));
         assertEquals(new MutualInformation(includeNegatives, backgroundIsSuperset),
-                parseFromBuilder(heuristicParserMapper, searchContext, new MutualInformation(includeNegatives, backgroundIsSuperset)));
+                parseFromBuilder(heuristicParserMapper, new MutualInformation(includeNegatives, backgroundIsSuperset)));
         assertEquals(new ChiSquare(includeNegatives, backgroundIsSuperset),
-                parseFromBuilder(heuristicParserMapper, searchContext, new ChiSquare(includeNegatives, backgroundIsSuperset)));
+                parseFromBuilder(heuristicParserMapper, new ChiSquare(includeNegatives, backgroundIsSuperset)));
 
         // test exceptions
         String faultyHeuristicdefinition = "\"mutual_information\":{\"include_negatives\": false, \"some_unknown_field\": false}";
         String expectedError = "unknown field [some_unknown_field]";
-        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+        checkParseException(heuristicParserMapper, faultyHeuristicdefinition, expectedError);
 
         faultyHeuristicdefinition = "\"chi_square\":{\"unknown_field\": true}";
         expectedError = "unknown field [unknown_field]";
-        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+        checkParseException(heuristicParserMapper, faultyHeuristicdefinition, expectedError);
 
         faultyHeuristicdefinition = "\"jlh\":{\"unknown_field\": true}";
         expectedError = "expected an empty object, but found ";
-        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+        checkParseException(heuristicParserMapper, faultyHeuristicdefinition, expectedError);
 
         faultyHeuristicdefinition = "\"gnd\":{\"unknown_field\": true}";
         expectedError = "unknown field [unknown_field]";
-        checkParseException(heuristicParserMapper, searchContext, faultyHeuristicdefinition, expectedError);
+        checkParseException(heuristicParserMapper, faultyHeuristicdefinition, expectedError);
     }
 
     protected void checkParseException(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
-            SearchContext searchContext, String faultyHeuristicDefinition, String expectedError) throws IOException {
+            String faultyHeuristicDefinition, String expectedError) throws IOException {
 
         try {
             XContentParser stParser = createParser(JsonXContent.jsonXContent, 
                     "{\"field\":\"text\", " + faultyHeuristicDefinition + ",\"min_doc_count\":200}");
-            QueryParseContext parseContext = new QueryParseContext(stParser, ParseFieldMatcher.STRICT);
+            QueryParseContext parseContext = new QueryParseContext(stParser);
             stParser.nextToken();
             SignificantTermsAggregationBuilder.getParser(significanceHeuristicParserRegistry).parse("testagg", parseContext);
             fail();
@@ -279,19 +276,19 @@ public class SignificanceHeuristicTests extends ESTestCase {
     }
 
     protected SignificanceHeuristic parseFromBuilder(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
-            SearchContext searchContext, SignificanceHeuristic significanceHeuristic) throws IOException {
+            SignificanceHeuristic significanceHeuristic) throws IOException {
         SignificantTermsAggregationBuilder stBuilder = significantTerms("testagg");
         stBuilder.significanceHeuristic(significanceHeuristic).field("text").minDocCount(200);
         XContentBuilder stXContentBuilder = XContentFactory.jsonBuilder();
         stBuilder.internalXContent(stXContentBuilder, null);
         XContentParser stParser = createParser(JsonXContent.jsonXContent, stXContentBuilder.string());
-        return parseSignificanceHeuristic(significanceHeuristicParserRegistry, searchContext, stParser);
+        return parseSignificanceHeuristic(significanceHeuristicParserRegistry, stParser);
     }
 
     private SignificanceHeuristic parseSignificanceHeuristic(
-            ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry, SearchContext searchContext,
+            ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
             XContentParser stParser) throws IOException {
-        QueryParseContext parseContext = new QueryParseContext(stParser, ParseFieldMatcher.STRICT);
+        QueryParseContext parseContext = new QueryParseContext(stParser);
         stParser.nextToken();
         SignificantTermsAggregationBuilder aggregatorFactory =
                 (SignificantTermsAggregationBuilder) SignificantTermsAggregationBuilder.getParser(
@@ -304,10 +301,10 @@ public class SignificanceHeuristicTests extends ESTestCase {
     }
 
     protected SignificanceHeuristic parseFromString(ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry,
-            SearchContext searchContext, String heuristicString) throws IOException {
+            String heuristicString) throws IOException {
         XContentParser stParser = createParser(JsonXContent.jsonXContent, 
                 "{\"field\":\"text\", " + heuristicString + ", \"min_doc_count\":200}");
-        return parseSignificanceHeuristic(significanceHeuristicParserRegistry, searchContext, stParser);
+        return parseSignificanceHeuristic(significanceHeuristicParserRegistry, stParser);
     }
 
     void testBackgroundAssertions(SignificanceHeuristic heuristicIsSuperset, SignificanceHeuristic heuristicNotSuperset) {

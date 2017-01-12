@@ -20,7 +20,6 @@
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -189,7 +188,7 @@ public final class TaskInfo implements Writeable, ToXContent {
         return builder;
     }
 
-    public static final ConstructingObjectParser<TaskInfo, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<TaskInfo, Void> PARSER = new ConstructingObjectParser<>(
             "task_info", a -> {
                 int i = 0;
                 TaskId id = new TaskId((String) a[i++], (Long) a[i++]);

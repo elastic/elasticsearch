@@ -53,7 +53,6 @@ import java.util.function.Supplier;
 public abstract class AbstractSearchTestCase extends ESTestCase {
 
     protected NamedWriteableRegistry namedWriteableRegistry;
-    protected SearchRequestParsers searchRequestParsers;
     private TestSearchExtPlugin searchExtPlugin;
     private NamedXContentRegistry xContentRegistry;
 
@@ -67,7 +66,6 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
         xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
-        searchRequestParsers = searchModule.getSearchRequestParsers();
     }
 
     @Override

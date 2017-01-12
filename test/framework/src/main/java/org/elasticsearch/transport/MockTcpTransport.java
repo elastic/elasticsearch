@@ -49,6 +49,8 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -73,6 +75,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
      * types.
      */
     public static final ConnectionProfile LIGHT_PROFILE;
+
+    private final Map<MockChannel, Boolean> openChannels = new IdentityHashMap<>();
 
     static  {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -284,6 +288,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             this.serverSocket = null;
             this.profile = profile;
             this.onClose = () -> onClose.accept(this);
+            synchronized (openChannels) {
+                openChannels.put(this, Boolean.TRUE);
+            }
         }
 
         /**
@@ -353,12 +360,17 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         @Override
         public void close() throws IOException {
             if (isOpen.compareAndSet(true, false)) {
+                final Boolean removedChannel;
+                synchronized (openChannels) {
+                    removedChannel = openChannels.remove(this);
+                }
                 //establish a happens-before edge between closing and accepting a new connection
                 synchronized (this) {
                     onChannelClosed(this);
                     IOUtils.close(serverSocket, activeChannel, () -> IOUtils.close(workerChannels.keySet()),
                         () -> cancellableThreads.cancel("channel closed"), onClose);
                 }
+                assert removedChannel : "Channel was not removed or removed twice?";
             }
         }
     }
@@ -388,12 +400,14 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     @Override
     protected void stopInternal() {
         ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        synchronized (openChannels) {
+            assert openChannels.isEmpty() : "there are still open channels: " + openChannels;
+        }
     }
 
     @Override
     protected Version getCurrentVersion() {
         return mockVersion;
     }
-
 }
 

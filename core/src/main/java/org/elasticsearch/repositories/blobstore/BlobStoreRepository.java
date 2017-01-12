@@ -176,8 +176,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private static final String SNAPSHOT_CODEC = "snapshot";
 
-    static final String SNAPSHOTS_FILE = "index"; // package private for unit testing
-
     private static final String INDEX_FILE_PREFIX = "index-";
 
     private static final String INDEX_LATEST_BLOB = "index.latest";
@@ -373,7 +371,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 BlobPath indexPath = basePath().add("indices").add(indexId.getId());
                 BlobContainer indexMetaDataBlobContainer = blobStore().blobContainer(indexPath);
                 try {
-                    indexMetaDataFormat(snapshot.version()).delete(indexMetaDataBlobContainer, snapshotId.getUUID());
+                    indexMetaDataFormat.delete(indexMetaDataBlobContainer, snapshotId.getUUID());
                 } catch (IOException ex) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to delete metadata for index [{}]", snapshotId, index), ex);
                 }
@@ -421,7 +419,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (snapshotInfo != null) {
             // we know the version the snapshot was created with
             try {
-                snapshotFormat(snapshotInfo.version()).delete(snapshotsBlobContainer, blobId);
+                snapshotFormat.delete(snapshotsBlobContainer, blobId);
             } catch (IOException e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] Unable to delete snapshot file [{}]", snapshotInfo.snapshotId(), blobId), e);
             }
@@ -439,7 +437,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         if (snapshotInfo != null) {
             // we know the version the snapshot was created with
             try {
-                globalMetaDataFormat(snapshotInfo.version()).delete(snapshotsBlobContainer, blobId);
+                globalMetaDataFormat.delete(snapshotsBlobContainer, blobId);
             } catch (IOException e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] Unable to delete global metadata file [{}]", snapshotInfo.snapshotId(), blobId), e);
             }
@@ -522,7 +520,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
         }
         try {
-            metaData = globalMetaDataFormat(snapshotVersion).read(snapshotsBlobContainer, snapshotId.getUUID());
+            metaData = globalMetaDataFormat.read(snapshotsBlobContainer, snapshotId.getUUID());
         } catch (NoSuchFileException ex) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
         } catch (IOException ex) {
@@ -533,7 +531,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             BlobPath indexPath = basePath().add("indices").add(index.getId());
             BlobContainer indexMetaDataBlobContainer = blobStore().blobContainer(indexPath);
             try {
-                metaDataBuilder.put(indexMetaDataFormat(snapshotVersion).read(indexMetaDataBlobContainer, snapshotId.getUUID()), false);
+                metaDataBuilder.put(indexMetaDataFormat.read(indexMetaDataBlobContainer, snapshotId.getUUID()), false);
             } catch (ElasticsearchParseException | IOException ex) {
                 if (ignoreIndexErrors) {
                     logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] [{}] failed to read metadata for index", snapshotId, index.getName()), ex);
@@ -561,27 +559,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             return new RateLimiter.SimpleRateLimiter(maxSnapshotBytesPerSec.getMbFrac());
         }
-    }
-
-    /**
-     * Returns appropriate global metadata format based on the provided version of the snapshot
-     */
-    private BlobStoreFormat<MetaData> globalMetaDataFormat(Version version) {
-        return globalMetaDataFormat;
-    }
-
-    /**
-     * Returns appropriate snapshot format based on the provided version of the snapshot
-     */
-    private BlobStoreFormat<SnapshotInfo> snapshotFormat(Version version) {
-        return snapshotFormat;
-    }
-
-    /**
-     * Returns appropriate index metadata format based on the provided version of the snapshot
-     */
-    private BlobStoreFormat<IndexMetaData> indexMetaDataFormat(Version version) {
-        return indexMetaDataFormat;
     }
 
     @Override
@@ -643,6 +620,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
                 try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY, out.bytes())) {
                     repositoryData = RepositoryData.snapshotsFromXContent(parser, indexGen);
+                } catch (NotXContentException e) {
+                    logger.warn("[{}] index blob is not valid x-content [{} bytes]", snapshotsIndexBlobName, out.bytes().length());
+                    throw e;
                 }
             }
 

@@ -34,8 +34,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -141,7 +140,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     }
 
     private <T> void execute(String method, String uri, Map<String, String> params, HttpEntity entity,
-            BiFunction<XContentParser, ParseFieldMatcherSupplier, T> parser, Consumer<? super T> listener) {
+            BiFunction<XContentParser, Void, T> parser, Consumer<? super T> listener) {
         // Preserve the thread context so headers survive after the call
         ThreadContext.StoredContext ctx = threadPool.getThreadContext().newStoredContext();
         class RetryHelper extends AbstractRunnable {
@@ -175,10 +174,16 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                             // EMPTY is safe here because we don't call namedObject
                             try (XContentParser xContentParser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
                                     content)) {
-                                parsedResponse = parser.apply(xContentParser, () -> ParseFieldMatcher.STRICT);
+                                parsedResponse = parser.apply(xContentParser, null);
+                            } catch (ParsingException e) {
+                                /* Because we're streaming the response we can't get a copy of it here. The best we can do is hint that it
+                                 * is totally wrong and we're probably not talking to Elasticsearch. */
+                                throw new ElasticsearchException(
+                                        "Error parsing the response, remote is likely not an Elasticsearch instance", e);
                             }
                         } catch (IOException e) {
-                            throw new ElasticsearchException("Error deserializing response", e);
+                            throw new ElasticsearchException("Error deserializing response, remote is likely not an Elasticsearch instance",
+                                    e);
                         }
                         listener.accept(parsedResponse);
                     }

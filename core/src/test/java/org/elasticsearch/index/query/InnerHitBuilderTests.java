@@ -19,7 +19,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -107,7 +106,7 @@ public class InnerHitBuilderTests extends ESTestCase {
             }
 
             XContentParser parser = createParser(shuffled);
-            QueryParseContext context = new QueryParseContext(parser, ParseFieldMatcher.EMPTY);
+            QueryParseContext context = new QueryParseContext(parser);
             InnerHitBuilder secondInnerHits = InnerHitBuilder.fromXContent(context);
             assertThat(innerHit, not(sameInstance(secondInnerHits)));
             assertThat(innerHit, equalTo(secondInnerHits));

@@ -46,6 +46,10 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 public class GoogleCloudStorageRepository extends BlobStoreRepository {
 
+    // package private for testing
+    static final ByteSizeValue MIN_CHUNK_SIZE = new ByteSizeValue(1, ByteSizeUnit.BYTES);
+    static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
+
     public static final String TYPE = "gcs";
 
     public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
@@ -57,7 +61,7 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
     public static final Setting<Boolean> COMPRESS =
             boolSetting("compress", false, Property.NodeScope, Property.Dynamic);
     public static final Setting<ByteSizeValue> CHUNK_SIZE =
-            byteSizeSetting("chunk_size", new ByteSizeValue(100, ByteSizeUnit.MB), Property.NodeScope, Property.Dynamic);
+            byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope, Property.Dynamic);
     public static final Setting<String> APPLICATION_NAME =
             new Setting<>("application_name", GoogleCloudStoragePlugin.NAME, Function.identity(), Property.NodeScope, Property.Dynamic);
     public static final Setting<String> SERVICE_ACCOUNT =
@@ -77,9 +81,9 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
                                         GoogleCloudStorageService storageService) throws Exception {
         super(metadata, environment.settings(), namedXContentRegistry);
 
-        String bucket = get(BUCKET, metadata);
-        String application = get(APPLICATION_NAME, metadata);
-        String serviceAccount = get(SERVICE_ACCOUNT, metadata);
+        String bucket = getSetting(BUCKET, metadata);
+        String application = getSetting(APPLICATION_NAME, metadata);
+        String serviceAccount = getSetting(SERVICE_ACCOUNT, metadata);
 
         String basePath = BASE_PATH.get(metadata.settings());
         if (Strings.hasLength(basePath)) {
@@ -105,8 +109,8 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
             readTimeout = timeout;
         }
 
-        this.compress = get(COMPRESS, metadata);
-        this.chunkSize = get(CHUNK_SIZE, metadata);
+        this.compress = getSetting(COMPRESS, metadata);
+        this.chunkSize = getSetting(CHUNK_SIZE, metadata);
 
         logger.debug("using bucket [{}], base_path [{}], chunk_size [{}], compress [{}], application [{}]",
                 bucket, basePath, chunkSize, compress, application);
@@ -139,7 +143,7 @@ public class GoogleCloudStorageRepository extends BlobStoreRepository {
     /**
      * Get a given setting from the repository settings, throwing a {@link RepositoryException} if the setting does not exist or is empty.
      */
-    static <T> T get(Setting<T> setting, RepositoryMetaData metadata) {
+    static <T> T getSetting(Setting<T> setting, RepositoryMetaData metadata) {
         T value = setting.get(metadata.settings());
         if (value == null) {
             throw new RepositoryException(metadata.name(), "Setting [" + setting.getKey() + "] is not defined for repository");

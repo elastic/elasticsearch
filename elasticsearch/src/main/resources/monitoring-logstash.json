@@ -174,6 +174,40 @@
                       }
                     }
                   }
+                },
+                "cgroup": {
+                  "properties": {
+                    "cpuacct": {
+                      "properties": {
+                        "control_group": {
+                          "type": "keyword"
+                        },
+                        "usage_nanos": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "cpu": {
+                      "properties": {
+                        "control_group": {
+                          "type": "keyword"
+                        },
+                        "stat": {
+                          "properties": {
+                            "number_of_elapsed_periods": {
+                              "type": "long"
+                            },
+                            "number_of_times_throttled": {
+                              "type": "long"
+                            },
+                            "time_throttled_nanos": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             },

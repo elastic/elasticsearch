@@ -78,7 +78,6 @@ public interface ActionPlugin {
         return Collections.emptyList();
     }
 
-
     /**
      * Returns headers which should be copied through rest requests on to internal requests.
      */

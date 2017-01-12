@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -82,6 +84,21 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     public void testEqualsAndHashcode() throws IOException {
         checkEqualsAndHashCode(createSearchRequest(), SearchRequestTests::copyRequest, this::mutate);
+    }
+
+    public void testInvalidFromAndSize() throws IOException {
+        SearchRequest searchRequest = createSearchRequest();
+        searchRequest.source(new SearchSourceBuilder()).source().from(new Integer(-1));
+        ActionRequestValidationException ex = searchRequest.validate();
+        assertNotNull("from validation should fail", ex);
+        assertTrue(ex.getMessage().contains("from must be no negative but was [-1]"));
+
+        searchRequest =  createSearchRequest();
+        searchRequest.source(new SearchSourceBuilder()).source().size(new Integer(-1));
+        ex = searchRequest.validate();
+        assertNotNull("size validation should fail", ex);
+        assertTrue(ex.getMessage().contains("size must be no negative but was [-1]"));
+
     }
 
     private SearchRequest mutate(SearchRequest searchRequest) throws IOException {

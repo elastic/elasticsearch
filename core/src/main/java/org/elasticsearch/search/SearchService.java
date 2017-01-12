@@ -663,8 +663,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             return;
         }
         QueryShardContext queryShardContext = context.getQueryShardContext();
-        context.from(source.from());
-        context.size(source.size());
+        if (source.from() != null) {
+            context.from(source.from());
+        } else {
+            context.from(-1);
+        }
+        if (source.size() != null) {
+            context.size(source.size());
+        } else {
+            context.size(-1);
+        }
         Map<String, InnerHitBuilder> innerHitBuilders = new HashMap<>();
         if (source.query() != null) {
             InnerHitBuilder.extractInnerHits(source.query(), innerHitBuilders);

@@ -137,7 +137,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException e = searchRequest.validate();
-        if (searchRequest.source().from() != -1) {
+        if (searchRequest.source().from() != null) {
             e = addValidationError("from is not supported in this context", e);
         }
         if (searchRequest.source().storedFields() != null) {

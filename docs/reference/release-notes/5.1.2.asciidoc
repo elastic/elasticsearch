@@ -14,7 +14,7 @@ Mapping::
 * Only update DocumentMapper if field type changes {pull}22165[#22165]
 
 Network::
-* Disable the Netty recycler and pooled allocator {pull}22452[#22452] (issues: {issue}22189[#22189], {issue}22360[#22360], {issue}22406[#22406], {issue}5904[#5904])
+* Disable the Netty recycler {pull}22452[#22452] (issues: {issue}22189[#22189], {issue}22360[#22360], {issue}22406[#22406], {issue}5904[#5904])
 * Tell Netty not to be unsafe in transport client {pull}22284[#22284]
 
 Plugins::

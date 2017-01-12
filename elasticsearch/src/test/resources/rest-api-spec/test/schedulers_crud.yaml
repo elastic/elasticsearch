@@ -31,6 +31,22 @@ setup:
                 "time_format":"epoch"
             }
           }
+
+---
+"Test get all schedulers and stats given no scheduler exists":
+
+  - do:
+      xpack.ml.get_schedulers:
+        scheduler_id: "_all"
+  - match: { count: 0 }
+  - match: { schedulers: [] }
+
+  - do:
+      xpack.ml.get_schedulers_stats:
+        scheduler_id: "_all"
+  - match: { count: 0 }
+  - match: { schedulers: [] }
+
 ---
 "Test put scheduler referring to missing job_id":
   - do:

@@ -183,7 +183,7 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
 
         @Override
         public RestStatus status() {
-            return lists.count() == 0 ? RestStatus.NOT_FOUND : RestStatus.OK;
+            return RestStatus.OK;
         }
 
         @Override
@@ -319,23 +319,16 @@ public class GetListAction extends Action<GetListAction.Request, GetListAction.R
                 public void onResponse(SearchResponse response) {
 
                     try {
-                        QueryPage<ListDocument> responseBody;
-                        if (response.getHits().hits().length > 0) {
-                            List<ListDocument> docs = new ArrayList<>(response.getHits().hits().length);
-                            for (SearchHit hit : response.getHits().getHits()) {
-                                BytesReference docSource = hit.sourceRef();
-                                XContentParser parser =
-                                        XContentFactory.xContent(docSource).createParser(NamedXContentRegistry.EMPTY, docSource);
-                                docs.add(ListDocument.PARSER.apply(parser, () -> parseFieldMatcher));
-                            }
-
-                            responseBody = new QueryPage<>(docs, docs.size(), ListDocument.RESULTS_FIELD);
-
-                            Response listResponse = new Response(responseBody);
-                            listener.onResponse(listResponse);
-                        } else {
-                            this.onFailure(QueryPage.emptyQueryPage(ListDocument.RESULTS_FIELD));
+                        List<ListDocument> docs = new ArrayList<>();
+                        for (SearchHit hit : response.getHits().getHits()) {
+                            BytesReference docSource = hit.sourceRef();
+                            XContentParser parser =
+                                    XContentFactory.xContent(docSource).createParser(NamedXContentRegistry.EMPTY, docSource);
+                            docs.add(ListDocument.PARSER.apply(parser, () -> parseFieldMatcher));
                         }
+
+                        Response listResponse = new Response(new QueryPage<>(docs, docs.size(), ListDocument.RESULTS_FIELD));
+                        listener.onResponse(listResponse);
 
                     } catch (Exception e) {
                         this.onFailure(e);

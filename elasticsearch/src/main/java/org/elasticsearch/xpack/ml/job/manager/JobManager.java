@@ -101,7 +101,7 @@ public class JobManager extends AbstractComponent {
         Job job = mlMetadata.getJobs().get(jobId);
         if (job == null) {
             logger.debug(String.format(Locale.ROOT, "Cannot find job '%s'", jobId));
-            throw QueryPage.emptyQueryPage(Job.RESULTS_FIELD);
+            throw ExceptionsHelper.missingJobException(jobId);
         }
 
         logger.debug("Returning job [" + jobId + "]");

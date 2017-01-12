@@ -23,11 +23,10 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.DataCounts;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.ml.job.persistence.QueryPage;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -129,7 +129,7 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         public static class JobStats implements ToXContent, Writeable {
             private final String jobId;
@@ -236,11 +236,6 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         }
 
         @Override
-        public RestStatus status() {
-            return jobsStats.count() == 0 ? RestStatus.NOT_FOUND : RestStatus.OK;
-        }
-
-        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();;
             jobsStats.doXContentBody(builder, params);
@@ -305,6 +300,9 @@ public class GetJobsStatsAction extends Action<GetJobsStatsAction.Request, GetJo
         protected void doExecute(Request request, ActionListener<Response> listener) {
             logger.debug("Get stats for job '{}'", request.getJobId());
             QueryPage<Job> jobs = jobManager.getJob(request.getJobId(), clusterService.state());
+            if (jobs.count() == 0) {
+                listener.onResponse(new GetJobsStatsAction.Response(new QueryPage<>(Collections.emptyList(), 0, Job.RESULTS_FIELD)));
+            }
             MlMetadata mlMetadata = clusterService.state().metaData().custom(MlMetadata.TYPE);
 
             AtomicInteger counter = new AtomicInteger(0);

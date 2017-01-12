@@ -55,7 +55,7 @@ public class MlJobIT extends ESRestTestCase {
                 () -> client().performRequest("get", MlPlugin.BASE_PATH + "anomaly_detectors/non-existing-job/_stats"));
 
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
-        assertThat(e.getMessage(), containsString("Could not find requested jobs"));
+        assertThat(e.getMessage(), containsString("No known job with id 'non-existing-job'"));
     }
 
     public void testGetJob_GivenJobExists() throws Exception {

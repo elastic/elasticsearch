@@ -1,5 +1,21 @@
 ---
+"Test get all jobs and stats given no job exists":
+
+  - do:
+      xpack.ml.get_jobs:
+        job_id: "_all"
+  - match: { count: 0 }
+  - match: { jobs: [] }
+
+  - do:
+      xpack.ml.get_jobs_stats:
+        job_id: "_all"
+  - match: { count: 0 }
+  - match: { jobs: [] }
+
+---
 "Test job crud apis":
+
   - do:
       xpack.ml.put_job:
         job_id: farequote

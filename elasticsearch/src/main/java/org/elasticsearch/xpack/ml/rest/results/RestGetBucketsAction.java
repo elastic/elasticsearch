@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.ml.job.Job;
@@ -90,6 +90,6 @@ public class RestGetBucketsAction extends BaseRestHandler {
             request.setIncludeInterim(restRequest.paramAsBoolean(GetBucketsAction.Request.INCLUDE_INTERIM.getPreferredName(), false));
         }
 
-        return channel -> transportAction.execute(request, new RestStatusToXContentListener<>(channel));
+        return channel -> transportAction.execute(request, new RestToXContentListener<>(channel));
     }
 }

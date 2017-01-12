@@ -23,10 +23,9 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.Job;
@@ -112,7 +111,7 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
         }
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         private QueryPage<Job> jobs;
 
@@ -144,11 +143,6 @@ public class GetJobsAction extends Action<GetJobsAction.Request, GetJobsAction.R
             jobs.doXContentBody(builder, params);
             builder.endObject();
             return builder;
-        }
-
-        @Override
-        public RestStatus status() {
-            return jobs.count() == 0 ? RestStatus.NOT_FOUND : RestStatus.OK;
         }
 
         @Override

@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.GetSchedulersAction;
 import org.elasticsearch.xpack.ml.scheduler.SchedulerConfig;
@@ -35,6 +35,6 @@ public class RestGetSchedulersAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetSchedulersAction.Request request = new GetSchedulersAction.Request(restRequest.param(SchedulerConfig.ID.getPreferredName()));
-        return channel -> transportGetSchedulersAction.execute(request, new RestStatusToXContentListener<>(channel));
+        return channel -> transportGetSchedulersAction.execute(request, new RestToXContentListener<>(channel));
     }
 }

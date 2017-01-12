@@ -11,7 +11,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.ml.MlPlugin;
 import org.elasticsearch.xpack.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.ml.job.Job;
@@ -34,6 +34,6 @@ public class RestGetJobsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetJobsAction.Request request = new GetJobsAction.Request(restRequest.param(Job.ID.getPreferredName()));
-        return channel -> transportGetJobAction.execute(request, new RestStatusToXContentListener<>(channel));
+        return channel -> transportGetJobAction.execute(request, new RestToXContentListener<>(channel));
     }
 }

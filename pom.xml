@@ -6,7 +6,7 @@
 
     <groupId>org.elasticsearch</groupId>
     <artifactId>parent</artifactId>
-    <version>2.4.4-SNAPSHOT</version>
+    <version>2.4.5-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>Elasticsearch: Parent POM</name>
     <description>Parent POM</description>

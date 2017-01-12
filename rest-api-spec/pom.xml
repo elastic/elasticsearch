@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.elasticsearch</groupId>
   <artifactId>rest-api-spec</artifactId>
-  <version>2.4.4-SNAPSHOT</version>
+  <version>2.4.5-SNAPSHOT</version>
   <name>Rest API Specification</name>
   <description>REST API Specification and tests for use with the Elasticsearch REST Test framework</description>
   <parent>

@@ -18,7 +18,7 @@ governing permissions and limitations under the License. -->
     <parent>
         <groupId>org.elasticsearch.plugin</groupId>
         <artifactId>plugins</artifactId>
-        <version>2.4.4-SNAPSHOT</version>
+        <version>2.4.5-SNAPSHOT</version>
     </parent>
 
     <artifactId>cloud-azure</artifactId>

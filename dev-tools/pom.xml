@@ -2,7 +2,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.elasticsearch</groupId>
   <artifactId>dev-tools</artifactId>
-  <version>2.4.4-SNAPSHOT</version>
+  <version>2.4.5-SNAPSHOT</version>
   <name>Build Tools and Resources</name>
   <description>Tools to assist in building and developing in the Elasticsearch project</description>
   <parent>

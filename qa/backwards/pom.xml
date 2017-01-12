@@ -5,7 +5,7 @@
     <parent>
         <groupId>org.elasticsearch</groupId>
         <artifactId>parent</artifactId>
-        <version>2.4.4-SNAPSHOT</version>
+        <version>2.4.5-SNAPSHOT</version>
         <relativePath>../..</relativePath>
         <!-- Depend on the normal parent here because the QA parent has a bunch
             of stuff for smoke tests which doesn't and breaks things. -->

@@ -2,7 +2,7 @@
 
 :ref: https://www.elastic.co/guide/en/elasticsearch/reference/2.4
 :guide: https://www.elastic.co/guide
-:version:        2.4.3
+:version:        2.4.4
 :plugin_url:     https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin
 
 [[intro]]

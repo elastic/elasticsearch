@@ -1,0 +1,33 @@
+[[release-notes-2.4.4]]
+== 2.4.4 Release Notes
+
+[[enhancement-2.4.4]]
+[float]
+=== Enhancements
+
+Mapping::
+* Only update DocumentMapper if field type changes {pull}22165[#22165]
+
+
+
+[[bug-2.4.4]]
+[float]
+=== Bug fixes
+
+Internal::
+* Fix ShardInfo#toString {pull}22157[#22157] (issue: {issue}20853[#20853])
+
+Logging::
+* The log message of changing `max_thread_count` fixed {pull}22184[#22184]
+
+
+
+[[docs-2.4.4]]
+[float]
+=== Docs
+
+Java API::
+* Adds removed inQuery method alternative {pull}22467[#22467] (issue: {issue}13145[#13145])
+
+
+

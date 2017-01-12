@@ -39,7 +39,7 @@ public class ShardSearchFailureTests extends ESTestCase {
 
     public static ShardSearchFailure createTestItem() {
         String randomMessage = randomAsciiOfLengthBetween(3, 20);
-        Exception ex = new ParsingException(0, 0, randomMessage , null);
+        Exception ex = new ParsingException(0, 0, randomMessage , new IllegalArgumentException("some bad argument"));
         String nodeId = randomAsciiOfLengthBetween(5, 10);
         String indexName = randomAsciiOfLengthBetween(5, 10);
         String indexUuid = randomAsciiOfLengthBetween(5, 10);
@@ -67,7 +67,10 @@ public class ShardSearchFailureTests extends ESTestCase {
         // we cannot compare the cause, because it will be wrapped in an outer ElasticSearchException
         // best effort: try to check that the original message appears somewhere in the rendered xContent
         String originalMsg = response.getCause().getMessage();
-        assertTrue(parsed.getCause().getMessage().contains(originalMsg));
+        assertEquals(parsed.getCause().getMessage(), "Elasticsearch exception [type=parsing_exception, reason=" + originalMsg +"]");
+        String nestedMsg = response.getCause().getCause().getMessage();
+        assertEquals(parsed.getCause().getCause().getMessage(),
+                "Elasticsearch exception [type=illegal_argument_exception, reason=" + nestedMsg + "]");
 
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertNull(parser.nextToken());

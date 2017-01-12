@@ -226,9 +226,9 @@ public class SearchResponse extends ActionResponse implements StatusToXContentOb
         InternalSearchHits hits = null;
         boolean timedOut = false;
         Boolean terminatedEarly = null;
-        long tookInMillis = 0;
-        int successfulShards = 0;
-        int totalShards = 0;
+        long tookInMillis = -1;
+        int successfulShards = -1;
+        int totalShards = -1;
         String scrollId = null;
         List<ShardSearchFailure> failures = new ArrayList<>();
         while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

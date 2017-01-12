@@ -33,13 +33,13 @@ compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-rawtypes,-tr
 
 dependencies {
     // network stack
-    compile "io.netty:netty-buffer:4.1.6.Final"
-    compile "io.netty:netty-codec:4.1.6.Final"
-    compile "io.netty:netty-codec-http:4.1.6.Final"
-    compile "io.netty:netty-common:4.1.6.Final"
-    compile "io.netty:netty-handler:4.1.6.Final"
-    compile "io.netty:netty-resolver:4.1.6.Final"
-    compile "io.netty:netty-transport:4.1.6.Final"
+    compile "io.netty:netty-buffer:4.1.7.Final"
+    compile "io.netty:netty-codec:4.1.7.Final"
+    compile "io.netty:netty-codec-http:4.1.7.Final"
+    compile "io.netty:netty-common:4.1.7.Final"
+    compile "io.netty:netty-handler:4.1.7.Final"
+    compile "io.netty:netty-resolver:4.1.7.Final"
+    compile "io.netty:netty-transport:4.1.7.Final"
 }
 
 thirdPartyAudit.excludes = [
@@ -131,9 +131,6 @@ thirdPartyAudit.excludes = [
         'io.netty.util.internal.PlatformDependent0',
         'io.netty.util.internal.PlatformDependent0$2',
         'io.netty.util.internal.PlatformDependent0$3',
-        'io.netty.util.internal.UnsafeAtomicIntegerFieldUpdater',
-        'io.netty.util.internal.UnsafeAtomicLongFieldUpdater',
-        'io.netty.util.internal.UnsafeAtomicReferenceFieldUpdater',
         'io.netty.util.internal.chmv8.ConcurrentHashMapV8',
         'io.netty.util.internal.chmv8.ConcurrentHashMapV8$1',
         'io.netty.util.internal.chmv8.ConcurrentHashMapV8$TreeBin',

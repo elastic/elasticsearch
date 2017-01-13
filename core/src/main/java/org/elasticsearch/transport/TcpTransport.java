@@ -451,9 +451,6 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
         try {
             ensureOpen();
             try (Releasable ignored = connectionLock.acquire(node.getId())) {
-                if (!lifecycle.started()) {
-                    throw new IllegalStateException("can't add nodes to a stopped transport");
-                }
                 NodeChannels nodeChannels = connectedNodes.get(node);
                 if (nodeChannels != null) {
                     return;
@@ -891,7 +888,7 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                     }
                 }
 
-                for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext(); ) {
+                for (Iterator<NodeChannels> it = connectedNodes.values().iterator(); it.hasNext();) {
                     NodeChannels nodeChannels = it.next();
                     it.remove();
                     IOUtils.closeWhileHandlingException(nodeChannels);
@@ -913,7 +910,8 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     protected void onException(Channel channel, Exception e) throws IOException {
         if (!lifecycle.started()) {
-            // ignore
+            // just close and ignore - we are already stopped and just need to make sure we release all resources
+            disconnectFromNodeChannel(channel, e);
             return;
         }
         if (isCloseConnectionException(e)) {

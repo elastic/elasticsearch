@@ -8,9 +8,6 @@
   },
   "mappings": {
     "_default_": {
-      "_all": {
-        "enabled": false
-      },
       "date_detection": false,
       "properties": {
         "cluster_uuid": {

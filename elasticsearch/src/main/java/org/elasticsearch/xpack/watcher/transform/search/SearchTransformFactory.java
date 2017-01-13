@@ -11,7 +11,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.xpack.security.InternalClient;
 import org.elasticsearch.xpack.watcher.support.init.proxy.WatcherClientProxy;
 import org.elasticsearch.xpack.watcher.support.search.WatcherSearchTemplateService;
@@ -24,17 +23,17 @@ public class SearchTransformFactory extends TransformFactory<SearchTransform, Se
     private final TimeValue defaultTimeout;
     private final WatcherSearchTemplateService searchTemplateService;
 
-    public SearchTransformFactory(Settings settings, InternalClient client, SearchRequestParsers searchRequestParsers,
-            NamedXContentRegistry xContentRegistry, ScriptService scriptService) {
-        this(settings, new WatcherClientProxy(settings, client), searchRequestParsers, xContentRegistry, scriptService);
+    public SearchTransformFactory(Settings settings, InternalClient client, NamedXContentRegistry xContentRegistry,
+            ScriptService scriptService) {
+        this(settings, new WatcherClientProxy(settings, client), xContentRegistry, scriptService);
     }
 
-    public SearchTransformFactory(Settings settings, WatcherClientProxy client, SearchRequestParsers searchRequestParsers,
-            NamedXContentRegistry xContentRegistry, ScriptService scriptService) {
+    public SearchTransformFactory(Settings settings, WatcherClientProxy client, NamedXContentRegistry xContentRegistry,
+            ScriptService scriptService) {
         super(Loggers.getLogger(ExecutableSearchTransform.class, settings));
         this.client = client;
         this.defaultTimeout = settings.getAsTime("xpack.watcher.transform.search.default_timeout", null);
-        this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, searchRequestParsers, xContentRegistry);
+        this.searchTemplateService = new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
     }
 
     @Override

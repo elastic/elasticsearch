@@ -87,7 +87,7 @@ public class RestGraphAction extends XPackRestHandler {
         Hop currentHop = graphRequest.createNextHop(null);
 
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            QueryParseContext context = new QueryParseContext(parser, parseFieldMatcher);
+            QueryParseContext context = new QueryParseContext(parser);
 
             XContentParser.Token token = parser.nextToken();
 
@@ -115,7 +115,7 @@ public class RestGraphAction extends XPackRestHandler {
 
             if (token == XContentParser.Token.START_ARRAY) {
                 if (VERTICES_FIELD.match(fieldName)) {
-                    parseVertices(parser, context, currentHop, graphRequest);
+                    parseVertices(parser, currentHop);
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(fieldName)) {
@@ -135,12 +135,10 @@ public class RestGraphAction extends XPackRestHandler {
             } else {
                 throw new ElasticsearchParseException("Illegal property in graph definition " + fieldName, token.name());
             }
-
         }
-
     }
 
-    private void parseVertices(XContentParser parser, QueryParseContext context, Hop currentHop, GraphExploreRequest graphRequest)
+    private void parseVertices(XContentParser parser, Hop currentHop)
             throws IOException {
         XContentParser.Token token;
 
@@ -324,7 +322,6 @@ public class RestGraphAction extends XPackRestHandler {
             } else {
                 throw new ElasticsearchParseException("Unknown object property: [" + fieldName + "]");
             }
-
         }
     }
 }

@@ -10,9 +10,6 @@
   "mappings": {
     "triggered_watch": {
       "dynamic" : "strict",
-      "_all" : {
-        "enabled" : false
-      },
       "properties": {
         "trigger_event": {
           "type": "object",

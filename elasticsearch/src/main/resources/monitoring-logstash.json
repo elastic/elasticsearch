@@ -7,9 +7,6 @@
   },
   "mappings": {
     "_default_": {
-      "_all": {
-        "enabled": false
-      },
       "properties": {
         "cluster_uuid": {
           "type": "keyword"
@@ -161,16 +158,20 @@
             },
             "os": {
               "properties": {
-                "load": {
+                "cpu": {
                   "properties": {
-                    "1m": {
-                      "type": "half_float"
-                    },
-                    "5m": {
-                      "type": "half_float"
-                    },
-                    "15m": {
-                      "type": "half_float"
+                    "load_average": {
+                      "properties": {
+                        "1m": {
+                          "type": "half_float"
+                        },
+                        "5m": {
+                          "type": "half_float"
+                        },
+                        "15m": {
+                          "type": "half_float"
+                        }
+                      }
                     }
                   }
                 }

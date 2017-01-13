@@ -32,7 +32,6 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -219,7 +218,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
     }
 
     public Collection<Object> createComponents(Clock clock, ScriptService scriptService, InternalClient internalClient,
-                                               SearchRequestParsers searchRequestParsers, XPackLicenseState licenseState,
+                                               XPackLicenseState licenseState,
                                                HttpClient httpClient, HttpRequestTemplate.Parser httpTemplateParser,
                                                ThreadPool threadPool, ClusterService clusterService, CryptoService cryptoService,
                                                NamedXContentRegistry xContentRegistry, Collection<Object> components) {
@@ -237,8 +236,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final ConditionRegistry conditionRegistry = new ConditionRegistry(Collections.unmodifiableMap(parsers), clock);
         final Map<String, TransformFactory> transformFactories = new HashMap<>();
         transformFactories.put(ScriptTransform.TYPE, new ScriptTransformFactory(settings, scriptService));
-        transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, internalClient, searchRequestParsers,
-                xContentRegistry, scriptService));
+        transformFactories.put(SearchTransform.TYPE, new SearchTransformFactory(settings, internalClient, xContentRegistry, scriptService));
         final TransformRegistry transformRegistry = new TransformRegistry(settings, Collections.unmodifiableMap(transformFactories));
 
         final Map<String, ActionFactory> actionFactoryMap = new HashMap<>();
@@ -261,7 +259,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
 
         final Map<String, InputFactory> inputFactories = new HashMap<>();
         inputFactories.put(SearchInput.TYPE,
-                new SearchInputFactory(settings, internalClient, searchRequestParsers, xContentRegistry, scriptService));
+                new SearchInputFactory(settings, internalClient, xContentRegistry, scriptService));
         inputFactories.put(SimpleInput.TYPE, new SimpleInputFactory(settings));
         inputFactories.put(HttpInput.TYPE, new HttpInputFactory(settings, httpClient, templateEngine, httpTemplateParser));
         inputFactories.put(NoneInput.TYPE, new NoneInputFactory(settings));
@@ -294,7 +292,7 @@ public class Watcher implements ActionPlugin, ScriptPlugin {
         final TriggeredWatchStore triggeredWatchStore = new TriggeredWatchStore(settings, watcherClientProxy, triggeredWatchParser);
 
         final WatcherSearchTemplateService watcherSearchTemplateService =
-                new WatcherSearchTemplateService(settings, scriptService, searchRequestParsers, xContentRegistry);
+                new WatcherSearchTemplateService(settings, scriptService, xContentRegistry);
         final WatchExecutor watchExecutor = getWatchExecutor(threadPool);
         final Watch.Parser watchParser = new Watch.Parser(settings, triggerService, registry, inputRegistry, cryptoService, clock);
 

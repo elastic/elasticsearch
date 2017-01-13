@@ -57,13 +57,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
 
     /**
-     * Passed in the {@link Params} of {@link #toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params, Throwable)}
+     * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params, Throwable)}
      * to control if the {@code caused_by} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
      * internal only and not available as a URL parameter.
      */
     public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
     /**
-     * Passed in the {@link Params} of {@link #toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params, Throwable)}
+     * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params, Throwable)}
      * to control if the {@code stack_trace} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
      * internal only and not available as a URL parameter. Use the {@code error_trace} parameter instead.
      */
@@ -258,7 +258,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         Throwable ex = ExceptionsHelper.unwrapCause(this);
         if (ex != this) {
-            toXContent(builder, params, this);
+            generateThrowableXContent(builder, params, this);
         } else {
             builder.field(TYPE, getExceptionName());
             builder.field(REASON, getMessage());
@@ -283,7 +283,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 if (cause != null) {
                     builder.field(CAUSED_BY);
                     builder.startObject();
-                    toXContent(builder, params, cause);
+                    generateThrowableXContent(builder, params, cause);
                     builder.endObject();
                 }
             }
@@ -338,7 +338,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Static toXContent helper method that also renders non {@link org.elasticsearch.ElasticsearchException} instances as XContent,
      * delegating the rendering to {@link ElasticsearchException#toXContent(XContentBuilder, Params)}.
      */
-    public static void toXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
+    public static void generateThrowableXContent(XContentBuilder builder, Params params, Throwable t) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
         ElasticsearchException exception;
@@ -398,7 +398,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             }
             builder.endArray();
         }
-        toXContent(builder, params, e);
+        generateThrowableXContent(builder, params, e);
         builder.endObject();
     }
 

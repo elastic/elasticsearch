@@ -486,7 +486,7 @@ public abstract class BulkByScrollTask extends CancellableTask {
                 status.toXContent(builder, params);
             } else {
                 builder.startObject();
-                ElasticsearchException.toXContent(builder, params, exception);
+                ElasticsearchException.generateThrowableXContent(builder, params, exception);
                 builder.endObject();
             }
             return builder;

@@ -30,6 +30,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.is;
+
 public class IndexingOperationListenerTests extends ESTestCase{
 
     // this test also tests if calls are correct if one or more listeners throw exceptions
@@ -40,15 +42,18 @@ public class IndexingOperationListenerTests extends ESTestCase{
         AtomicInteger preDelete = new AtomicInteger();
         AtomicInteger postDelete = new AtomicInteger();
         AtomicInteger postDeleteException = new AtomicInteger();
+        ShardId randomShardId = new ShardId(new Index(randomAsciiOfLength(10), randomAsciiOfLength(10)), randomIntBetween(1, 10));
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
             public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
+                assertThat(shardId, is(randomShardId));
                 preIndex.incrementAndGet();
                 return operation;
             }
 
             @Override
             public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
+                assertThat(shardId, is(randomShardId));
                 if (result.hasFailure() == false) {
                     postIndex.incrementAndGet();
                 } else {
@@ -58,17 +63,20 @@ public class IndexingOperationListenerTests extends ESTestCase{
 
             @Override
             public void postIndex(ShardId shardId, Engine.Index index, Exception ex) {
+                assertThat(shardId, is(randomShardId));
                 postIndexException.incrementAndGet();
             }
 
             @Override
             public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
+                assertThat(shardId, is(randomShardId));
                 preDelete.incrementAndGet();
                 return delete;
             }
 
             @Override
             public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
+                assertThat(shardId, is(randomShardId));
                 if (result.hasFailure() == false) {
                     postDelete.incrementAndGet();
                 } else {
@@ -78,6 +86,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
 
             @Override
             public void postDelete(ShardId shardId, Engine.Delete delete, Exception ex) {
+                assertThat(shardId, is(randomShardId));
                 postDeleteException.incrementAndGet();
             }
         };
@@ -123,10 +132,9 @@ public class IndexingOperationListenerTests extends ESTestCase{
         Collections.shuffle(indexingOperationListeners, random());
         IndexingOperationListener.CompositeListener compositeListener =
                 new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
-        ShardId shardId = new ShardId(new Index(randomAsciiOfLength(10), randomAsciiOfLength(10)), randomIntBetween(1, 10));
         Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", "1"));
         Engine.Index index = new Engine.Index(new Term("_uid", "1"), null);
-        compositeListener.postDelete(shardId, delete, new Engine.DeleteResult(1, SequenceNumbersService.UNASSIGNED_SEQ_NO, true));
+        compositeListener.postDelete(randomShardId, delete, new Engine.DeleteResult(1, SequenceNumbersService.UNASSIGNED_SEQ_NO, true));
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -134,7 +142,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        compositeListener.postDelete(shardId, delete, new RuntimeException());
+        compositeListener.postDelete(randomShardId, delete, new RuntimeException());
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -142,7 +150,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.preDelete(shardId, delete);
+        compositeListener.preDelete(randomShardId, delete);
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -150,7 +158,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(shardId, index, new Engine.IndexResult(0, SequenceNumbersService.UNASSIGNED_SEQ_NO, false));
+        compositeListener.postIndex(randomShardId, index, new Engine.IndexResult(0, SequenceNumbersService.UNASSIGNED_SEQ_NO, false));
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -158,7 +166,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(shardId, index, new RuntimeException());
+        compositeListener.postIndex(randomShardId, index, new RuntimeException());
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(2, postIndexException.get());
@@ -166,7 +174,7 @@ public class IndexingOperationListenerTests extends ESTestCase{
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.preIndex(shardId, index);
+        compositeListener.preIndex(randomShardId, index);
         assertEquals(2, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(2, postIndexException.get());

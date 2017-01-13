@@ -25,12 +25,6 @@ run it using Gradle:
 gradle run
 -------------------------------------
 
-or to attach a remote debugger, run it as:
-
--------------------------------------
-gradle run --debug-jvm
--------------------------------------
-
 === Test case filtering.
 
 - `tests.class` is a class-filtering shell-like glob pattern,

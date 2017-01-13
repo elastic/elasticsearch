@@ -52,7 +52,8 @@ public final class AssertingTransportInterceptor implements TransportInterceptor
         }
 
         @Override
-        public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
+        public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                   ThreadContext threadContext) {
             return Collections.singletonList(new AssertingTransportInterceptor(settings, namedWriteableRegistry));
         }
     }

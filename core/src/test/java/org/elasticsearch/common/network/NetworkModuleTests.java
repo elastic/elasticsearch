@@ -247,7 +247,8 @@ public class NetworkModuleTests extends ModuleTestCase {
         NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> {
             newNetworkModule(settings, false, new NetworkPlugin() {
                 @Override
-                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
+                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                           ThreadContext threadContext) {
                     return Collections.singletonList(null);
                 }
             });

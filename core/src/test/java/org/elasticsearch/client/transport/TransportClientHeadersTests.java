@@ -129,7 +129,8 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
             private InternalTransportServiceInterceptor instance = new InternalTransportServiceInterceptor();
 
             @Override
-            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
+            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                       ThreadContext threadContext) {
                 return Collections.singletonList(new TransportInterceptor() {
                     @Override
                     public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,

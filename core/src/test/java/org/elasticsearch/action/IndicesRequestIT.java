@@ -744,7 +744,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         public static class TestPlugin extends Plugin implements NetworkPlugin {
             public final InterceptingTransportService instance = new InterceptingTransportService();
             @Override
-            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
+            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                       ThreadContext threadContext) {
                 return Collections.singletonList(instance);
             }
         }

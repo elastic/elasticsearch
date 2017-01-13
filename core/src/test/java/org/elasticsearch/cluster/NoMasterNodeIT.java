@@ -121,14 +121,12 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 ClusterBlockException.class, RestStatus.SERVICE_UNAVAILABLE
         );
 
-        checkWriteAction(
-                false, timeout,
+        checkUpdateAction(false, timeout,
                 client().prepareUpdate("test", "type1", "1")
                         .setScript(new Script(
                             ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
 
-        checkWriteAction(
-                autoCreateIndex, timeout,
+        checkUpdateAction(autoCreateIndex, timeout,
                 client().prepareUpdate("no_index", "type1", "1")
                         .setScript(new Script(
                             ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "test script", Collections.emptyMap())).setTimeout(timeout));
@@ -143,18 +141,29 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("test", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.add(client().prepareIndex("test", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        checkBulkAction(false, bulkRequestBuilder);
+        // the request should fail very quickly - use a large timeout and make sure it didn't pass...
+        timeout = new TimeValue(5000);
+        bulkRequestBuilder.setTimeout(timeout);
+        checkWriteAction(false, timeout, bulkRequestBuilder);
 
         bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "1").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
         bulkRequestBuilder.add(client().prepareIndex("no_index", "type1", "2").setSource(XContentFactory.jsonBuilder().startObject().endObject()));
-        checkBulkAction(autoCreateIndex, bulkRequestBuilder);
+        if (autoCreateIndex) {
+            // we expect the bulk to fail because it will try to go to the master. Use small timeout and detect it has passed
+            timeout = new TimeValue(200);
+        } else {
+            // the request should fail very quickly - use a large timeout and make sure it didn't pass...
+            timeout = new TimeValue(5000);
+        }
+        bulkRequestBuilder.setTimeout(timeout);
+        checkWriteAction(autoCreateIndex, timeout, bulkRequestBuilder);
 
         internalCluster().startNode(settings);
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").execute().actionGet();
     }
 
-    void checkWriteAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?, ?> builder) {
+    void checkUpdateAction(boolean autoCreateIndex, TimeValue timeout, ActionRequestBuilder<?, ?, ?> builder) {
         // we clean the metadata when loosing a master, therefore all operations on indices will auto create it, if allowed
         long now = System.currentTimeMillis();
         try {
@@ -172,18 +181,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         }
     }
 
-    void checkBulkAction(boolean indexShouldBeAutoCreated, BulkRequestBuilder builder) {
-        // bulk operation do not throw MasterNotDiscoveredException exceptions. The only test that auto create kicked in and failed is
-        // via the timeout, as bulk operation do not wait on blocks.
-        TimeValue timeout;
-        if (indexShouldBeAutoCreated) {
-            // we expect the bulk to fail because it will try to go to the master. Use small timeout and detect it has passed
-            timeout = new TimeValue(200);
-        } else {
-            // the request should fail very quickly - use a large timeout and make sure it didn't pass...
-            timeout = new TimeValue(5000);
-        }
-        builder.setTimeout(timeout);
+    void checkWriteAction(boolean indexShouldBeAutoCreated, TimeValue timeout, ActionRequestBuilder<?, ?, ?> builder) {
         long now = System.currentTimeMillis();
         try {
             builder.get();
@@ -195,7 +193,7 @@ public class NoMasterNodeIT extends ESIntegTestCase {
                 assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
             } else {
                 // timeout is 5000
-                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() - 50));
+                assertThat(System.currentTimeMillis() - now, lessThan(timeout.millis() + 50));
             }
         }
     }

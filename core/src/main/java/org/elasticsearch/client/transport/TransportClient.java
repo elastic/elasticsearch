@@ -29,6 +29,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
@@ -172,7 +173,9 @@ public abstract class TransportClient extends AbstractClient {
                 bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService);
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = new TransportService(settings, transport, threadPool,
-                networkModule.getTransportInterceptor(), null);
+                networkModule.getTransportInterceptor(),
+                boundTransportAddress -> DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 0),
+                    UUIDs.randomBase64UUID()), null);
             modules.add((b -> {
                 b.bind(BigArrays.class).toInstance(bigArrays);
                 b.bind(PluginsService.class).toInstance(pluginsService);

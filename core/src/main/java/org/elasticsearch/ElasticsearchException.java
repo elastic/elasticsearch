@@ -266,8 +266,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
 
             Set<String> customHeaders = null;
             for (String key : headers.keySet()) {
-                if (key.startsWith(ES_HEADER_PREFIX)) {
-                    headerToXContent(builder, key.substring(ES_HEADER_PREFIX.length()), headers.get(key));
+                if (key.startsWith("es.")) {
+                    headerToXContent(builder, key.substring("es.".length()), headers.get(key));
                 } else {
                     if (customHeaders == null) {
                         customHeaders = new HashSet<>();
@@ -364,7 +364,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * exception is rendered. When it equals to true, all detail are provided including guesses root causes, cause and potentially stack
      * trace.
      */
-    public static void toXContentError(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed) throws IOException {
+    public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e, boolean detailed)
+            throws IOException {
         // No exception to render as an error
         if (e == null) {
             builder.field(ERROR, "unknown");
@@ -403,10 +404,10 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     /**
-     * Same as {@link ElasticsearchException#toXContentError(XContentBuilder, Params, Exception, boolean)} with all details.
+     * Same as {@link ElasticsearchException#generateFailureXContent(XContentBuilder, Params, Exception, boolean)} with all details.
      */
-    public static void toXContentError(XContentBuilder builder, Params params, @Nullable Exception e) throws IOException {
-        toXContentError(builder, params, e, true);
+    public static void generateFailureXContent(XContentBuilder builder, Params params, @Nullable Exception e) throws IOException {
+        generateFailureXContent(builder, params, e, true);
     }
 
     /**

@@ -413,9 +413,25 @@ public class XContentMapValues {
         return Long.parseLong(node.toString());
     }
 
+    public static boolean nodeBooleanValue(Object node, String name, boolean defaultValue) {
+        try {
+            return nodeBooleanValue(node, defaultValue);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Could not convert [" + name + "] to boolean.", ex);
+        }
+    }
+
     public static boolean nodeBooleanValue(Object node, boolean defaultValue) {
         String nodeValue = node != null ? node.toString() : null;
         return Booleans.parseBoolean(nodeValue, defaultValue);
+    }
+
+    public static boolean nodeBooleanValue(Object node, String name) {
+        try {
+            return nodeBooleanValue(node);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException("Could not convert [" + name + "] to boolean.", ex);
+        }
     }
 
     public static boolean nodeBooleanValue(Object node) {

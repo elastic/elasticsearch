@@ -366,22 +366,14 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
                     throw new IllegalArgumentException("malformed indices section, should be an array of strings");
                 }
             } else if (name.equals("partial")) {
-                try {
-                    partial(nodeBooleanValue(entry.getValue()));
-                } catch (IllegalArgumentException ex) {
-                    throw new IllegalArgumentException("Could not convert [partial] to boolean.", ex);
-                }
+                partial(nodeBooleanValue(entry.getValue(), "partial"));
             } else if (name.equals("settings")) {
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section, should indices an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
             } else if (name.equals("include_global_state")) {
-                try {
-                    includeGlobalState = nodeBooleanValue(entry.getValue());
-                } catch (IllegalArgumentException ex) {
-                    throw new IllegalArgumentException("Could not convert [include_global_state] to boolean.", ex);
-                }
+                includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");
             }
         }
         indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));

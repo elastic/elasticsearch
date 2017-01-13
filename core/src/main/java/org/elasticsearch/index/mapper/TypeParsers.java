@@ -56,7 +56,7 @@ public class TypeParsers {
     public static boolean nodeBooleanValue(String fieldName, String propertyName, Object node,
                                            Mapper.TypeParser.ParserContext parserContext) {
         if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            return XContentMapValues.nodeBooleanValue(node);
+            return XContentMapValues.nodeBooleanValue(node, fieldName + "." + propertyName);
         } else {
             return nodeBooleanValueLenient(fieldName, propertyName, node);
         }

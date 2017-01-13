@@ -122,7 +122,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                     }
                     iterator.remove();
                 } else if (fieldName.equals("eager_global_ordinals")) {
-                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(fieldNode));
+                    builder.eagerGlobalOrdinals(XContentMapValues.nodeBooleanValue(fieldNode, "eager_global_ordinals"));
                     iterator.remove();
                 }
             }

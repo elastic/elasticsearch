@@ -1002,13 +1002,13 @@ In addition to the `match_all`, `match`, `bool`, and `range` queries, there are 
 
 Aggregations provide the ability to group and extract statistics from your data. The easiest way to think about aggregations is by roughly equating it to the SQL GROUP BY and the SQL aggregate functions. In Elasticsearch, you have the ability to execute searches returning hits and at the same time return aggregated results separate from the hits all in one response. This is very powerful and efficient in the sense that you can run queries and multiple aggregations and get the results back of both (or either) operations in one shot avoiding network roundtrips using a concise and simplified API.
 
-To start with, this example groups all the accounts by state, and then returns the top 10 (default) states sorted by count descending (also default):
+To start with, this example groups all the accounts by state, and then returns the top 10 states sorted by count descending (default):
 
 [source,js]
 --------------------------------------------------
 GET /bank/_search
 {
-  "size": 0,
+  "size": 10,
   "aggs": {
     "group_by_state": {
       "terms": {
@@ -1020,6 +1020,8 @@ GET /bank/_search
 --------------------------------------------------
 // CONSOLE
 // TEST[continued]
+
+Note that if `size` is not specified, it defaults to 10.
 
 In SQL, the above aggregation is similar in concept to:
 

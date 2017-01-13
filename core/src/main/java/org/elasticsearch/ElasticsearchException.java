@@ -275,7 +275,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 }
             }
 
-            innerToXContent(builder, params);
+            metadataToXContent(builder, params);
 
             boolean skipCause = skipCauseInXContent(params);
             if (skipCause == false) {
@@ -320,7 +320,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     /**
      * Renders additional per exception information into the XContent
      */
-    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
     }
 
     /**

@@ -131,7 +131,7 @@ public class SearchPhaseExecutionException extends ElasticsearchException {
     }
 
     @Override
-    protected void innerToXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void metadataToXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("phase", phaseName);
         final boolean group = params.paramAsBoolean("group_shard_failures", true); // we group by default
         builder.field("grouped", group); // notify that it's grouped

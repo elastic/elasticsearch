@@ -53,7 +53,7 @@ public class TransportXPackInfoActionTests extends ESTestCase {
         }
 
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+                x -> null, null);
         TransportXPackInfoAction action = new TransportXPackInfoAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), licenseService, featureSets);
 

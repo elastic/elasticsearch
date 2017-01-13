@@ -42,7 +42,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
     public void testReservedRoles() {
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+                x -> null, null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 
@@ -88,7 +88,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         final List<RoleDescriptor> storeRoleDescriptors = randomRoleDescriptors();
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+                x -> null, null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 
@@ -140,7 +140,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
 
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+                x -> null, null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 
@@ -204,7 +204,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         final List<RoleDescriptor> storeRoleDescriptors = randomRoleDescriptors();
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+                x -> null, null);
         TransportGetRolesAction action = new TransportGetRolesAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), rolesStore, transportService, new ReservedRolesStore());
 

@@ -41,7 +41,7 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         final String roleName = randomFrom(new ArrayList<>(ReservedRolesStore.names()));
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+                (x) -> null, null);
         TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), rolesStore, transportService);
 
@@ -72,7 +72,7 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+                (x) -> null, null);
         TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), rolesStore, transportService);
 
@@ -116,7 +116,7 @@ public class TransportDeleteRoleActionTests extends ESTestCase {
         final String roleName = randomFrom("admin", "dept_a", "restricted");
         NativeRolesStore rolesStore = mock(NativeRolesStore.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+                (x) -> null, null);
         TransportDeleteRoleAction action = new TransportDeleteRoleAction(Settings.EMPTY, mock(ThreadPool.class), mock(ActionFilters.class),
                 mock(IndexNameExpressionResolver.class), rolesStore, transportService);
 

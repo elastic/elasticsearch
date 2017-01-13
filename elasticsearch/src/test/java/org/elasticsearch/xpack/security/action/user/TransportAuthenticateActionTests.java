@@ -36,7 +36,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getUser()).thenReturn(randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE));
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+                x -> null, null);
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), securityContext);
 
@@ -62,7 +62,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
     public void testNullUser() {
         SecurityContext securityContext = mock(SecurityContext.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+                x -> null, null);
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), securityContext);
 
@@ -90,7 +90,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getUser()).thenReturn(user);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null);
+                x -> null, null);
         TransportAuthenticateAction action = new TransportAuthenticateAction(Settings.EMPTY, mock(ThreadPool.class), transportService,
                 mock(ActionFilters.class), mock(IndexNameExpressionResolver.class), securityContext);
 

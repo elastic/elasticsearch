@@ -1606,7 +1606,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         latch.await();
         serviceA.removeConnectionListener(waitForConnection);
         serviceB.removeConnectionListener(waitForConnection);
-        serviceB.removeConnectionListener(waitForConnection);
+        serviceC.removeConnectionListener(waitForConnection);
 
 
         Map<TransportService, DiscoveryNode> toNodeMap = new HashMap<>();

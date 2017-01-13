@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -72,6 +73,27 @@ public abstract class AbstractPrivilegeTestCase extends SecurityIntegTestCase {
                 statusLine.getStatusCode(), statusLine.getReasonPhrase(),
                 EntityUtils.toString(responseException.getResponse().getEntity()));
         assertThat(message, statusLine.getStatusCode(), is(403));
+    }
+
+
+    protected void assertBodyHasAccessIsDenied(String user, String method, String uri, String body) throws IOException {
+        assertBodyHasAccessIsDenied(user, method, uri, body, new HashMap<>());
+    }
+
+    /**
+     * Like {@code assertAcessIsDenied}, but for _bulk requests since the entire
+     * request will not be failed, just the individual ones
+     */
+    protected void assertBodyHasAccessIsDenied(String user, String method, String uri, String body,
+                                               Map<String, String> params) throws IOException {
+        Response resp = getRestClient().performRequest(method, uri, params, entityOrNull(body),
+                new BasicHeader(UsernamePasswordToken.BASIC_AUTH_HEADER,
+                        UsernamePasswordToken.basicAuthHeaderValue(user, new SecuredString("passwd".toCharArray()))));
+        StatusLine statusLine = resp.getStatusLine();
+        assertThat(statusLine.getStatusCode(), is(200));
+        HttpEntity bodyEntity = resp.getEntity();
+        String bodyStr = EntityUtils.toString(bodyEntity);
+        assertThat(bodyStr, containsString("unauthorized for user [" + user + "]"));
     }
 
     private static HttpEntity entityOrNull(String body) {

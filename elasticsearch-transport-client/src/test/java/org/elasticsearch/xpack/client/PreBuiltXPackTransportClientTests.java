@@ -20,6 +20,7 @@ import static org.junit.Assert.assertEquals;
  */
 public class PreBuiltXPackTransportClientTests extends RandomizedTest {
 
+    @Test
     public void testPluginInstalled() {
         try (TransportClient client = new PreBuiltXPackTransportClient(Settings.EMPTY)) {
             Settings settings = client.settings();

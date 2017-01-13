@@ -88,7 +88,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
 
     /**
      * The name of a node attribute to select nodes that should be connected to in the remote cluster.
-     * For instance a node can be configured with <tt>node.node_attr.gateway: true</tt> in order to be eligible as a gateway node between
+     * For instance a node can be configured with <tt>node.attr.gateway: true</tt> in order to be eligible as a gateway node between
      * clusters. In that case <tt>search.remote.node_attribute: gateway</tt> can be used to filter out other nodes in the remote cluster.
      * The value of the setting is expected to be a boolean, <tt>true</tt> for nodes that can become gateways, <tt>false</tt> otherwise.
      */
@@ -177,15 +177,24 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
      *
      * @param perClusterIndices a map to fill with remote cluster indices from the given request indices
      * @param requestIndices the indices in the search request to filter
+     * @param indexExists a predicate that can test if a certain index or alias exists
+     *
      * @return all indices in the requestIndices array that are not remote cluster indices
      */
-    public String[] filterIndices(Map<String, List<String>> perClusterIndices, String[] requestIndices) {
+    public String[] filterIndices(Map<String, List<String>> perClusterIndices, String[] requestIndices, Predicate<String> indexExists) {
         List<String> localIndicesList = new ArrayList<>();
         for (String index : requestIndices) {
             int i = index.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR);
             if (i >= 0) {
                 String remoteCluster = index.substring(0, i);
                 if (isRemoteClusterRegistered(remoteCluster)) {
+                    if (indexExists.test(index)) {
+                        // we use : as a separator for remote clusters. might conflict if there is an index that is actually named
+                        // remote_cluster_alias:index_name - for this case we fail the request. the user can easily change the cluster alias
+                        // if that happens
+                        throw new IllegalArgumentException("Index " + index + " exists but there is also a remote cluster named: "
+                            + remoteCluster + " can't filter indices");
+                    }
                     String remoteIndex = index.substring(i + 1);
                     List<String> indices = perClusterIndices.get(remoteCluster);
                     if (indices == null) {

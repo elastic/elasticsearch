@@ -144,11 +144,15 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     assertFalse(service.isRemoteClusterRegistered("foo"));
                     Map<String, List<String>> perClusterIndices = new HashMap<>();
                     String[] localIndices = service.filterIndices(perClusterIndices, new String[]{"foo:bar", "cluster_1:bar",
-                        "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"});
+                        "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, i -> false);
                     assertArrayEquals(new String[]{"foo:bar", "foo"}, localIndices);
                     assertEquals(2, perClusterIndices.size());
                     assertEquals(Arrays.asList("bar", "test"), perClusterIndices.get("cluster_1"));
                     assertEquals(Arrays.asList("foo:bar", "foo*"), perClusterIndices.get("cluster_2"));
+
+                    expectThrows(IllegalArgumentException.class, () ->
+                    service.filterIndices(perClusterIndices, new String[]{"foo:bar", "cluster_1:bar",
+                        "cluster_2:foo:bar", "cluster_1:test", "cluster_2:foo*", "foo"}, i -> "cluster_1:bar".equals(i)));
                 }
             }
         }

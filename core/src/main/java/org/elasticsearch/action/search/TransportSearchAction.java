@@ -122,9 +122,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         final long startTimeInMillis = Math.max(0, System.currentTimeMillis());
         final String[] localIndices;
         final Map<String, List<String>> remoteIndicesByCluster;
+        final ClusterState clusterState = clusterService.state();
         if (remoteClusterService.isCrossClusterSearchEnabled()) {
             remoteIndicesByCluster = new HashMap<>();
-            localIndices = remoteClusterService.filterIndices(remoteIndicesByCluster, searchRequest.indices());
+            localIndices = remoteClusterService.filterIndices(remoteIndicesByCluster, searchRequest.indices(),
+                idx -> indexNameExpressionResolver.hasIndexOrAlias(idx, clusterState));
         } else {
             remoteIndicesByCluster = Collections.emptyMap();
             localIndices = searchRequest.indices();
@@ -132,7 +134,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         if (remoteIndicesByCluster.isEmpty()) {
             executeSearch((SearchTask)task, startTimeInMillis, searchRequest, localIndices, Collections.emptyList(),
-                (nodeId) -> null, Collections.emptyMap(), listener);
+                (nodeId) -> null, clusterState, Collections.emptyMap(), listener);
         } else {
             remoteClusterService.collectSearchShards(searchRequest, remoteIndicesByCluster,
                 ActionListener.wrap((searchShardsResponses) -> {
@@ -141,16 +143,16 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     Function<String, Transport.Connection> connectionFunction = remoteClusterService.processRemoteShards(
                         searchShardsResponses, remoteShardIterators, remoteAliasFilters);
                     executeSearch((SearchTask)task, startTimeInMillis, searchRequest, localIndices, remoteShardIterators,
-                        connectionFunction, remoteAliasFilters, listener);
+                        connectionFunction, clusterState, remoteAliasFilters, listener);
                 }, listener::onFailure));
         }
     }
 
     private void executeSearch(SearchTask task, long startTimeInMillis, SearchRequest searchRequest, String[] localIndices,
                                List<ShardIterator> remoteShardIterators, Function<String, Transport.Connection> remoteConnections,
-                               Map<String, AliasFilter> remoteAliasMap, ActionListener<SearchResponse> listener) {
+                               ClusterState clusterState, Map<String, AliasFilter> remoteAliasMap,
+                               ActionListener<SearchResponse> listener) {
 
-        ClusterState clusterState = clusterService.state();
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead

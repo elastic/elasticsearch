@@ -55,8 +55,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -81,7 +83,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
 
     private final TransportService transportService;
     private final ConnectionProfile remoteProfile;
-    private final CopyOnWriteArrayList<DiscoveryNode> connectedNodes = new CopyOnWriteArrayList<>();
+    private final Set<DiscoveryNode> connectedNodes = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private final Supplier<DiscoveryNode> nodeSupplier;
     private final String clusterAlias;
     private final int maxNumRemoteConnections;
@@ -410,7 +412,7 @@ final class RemoteClusterConnection extends AbstractComponent implements Transpo
                     cancellableThreads.cancel("connect handler is closed");
                     running.acquire(); // acquire the semaphore to ensure all connections are closed and all thread joined
                     running.release();
-                    maybeConnect(); // now go an notify pending listeners
+                    maybeConnect(); // now go and notify pending listeners
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();

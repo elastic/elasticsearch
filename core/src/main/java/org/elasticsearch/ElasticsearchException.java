@@ -265,14 +265,14 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.field(REASON, getMessage());
 
             Set<String> customHeaders = null;
-            for (String header : headers.keySet()) {
-                if (header.startsWith(ES_HEADER_PREFIX)) {
-                    headerToXContent(builder, header.substring(ES_HEADER_PREFIX.length()), headers.get(header));
+            for (String key : headers.keySet()) {
+                if (key.startsWith(ES_HEADER_PREFIX)) {
+                    headerToXContent(builder, key.substring(ES_HEADER_PREFIX.length()), headers.get(key));
                 } else {
                     if (customHeaders == null) {
                         customHeaders = new HashSet<>();
                     }
-                    customHeaders.add(header);
+                    customHeaders.add(key);
                 }
             }
 

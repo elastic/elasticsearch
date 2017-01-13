@@ -6,11 +6,8 @@
 Previously, Elasticsearch recognized the strings `true`, `false`, `on`, `off`, `yes`, `no`, `0`, `1` as booleans. Elasticsearch 6.0
 recognizes only `true` and `false` as boolean and will throw an error otherwise. For backwards compatibility purposes, during the 6.x
 series the previous coercion rules will continue to work on pre-6.0 indices. This means that you do not need to change affected existing
-mappings immediately and can also read existing documents but for example the following operations will not be possible (even on
-pre-6.0 indices):
-
-* Adding new documents to existing indices that violate the strict `boolean` coercion rules.
-* Creating new indices from index templates that violate the strict `boolean` coercion rules.
+mappings immediately. However, it is not possible to create new indices from existing index templates that violate the strict `boolean`
+coercion rules.
 
 ==== The `_all` meta field is now disabled by default
 

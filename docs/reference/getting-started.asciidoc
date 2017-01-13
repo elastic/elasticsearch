@@ -772,7 +772,7 @@ GET /bank/_search
 // CONSOLE
 // TEST[continued]
 
-Note that if `size` is not specified, it defaults to 10.
+Note that if `size` is not specified or if `size` is set to 0 , it defaults to 10.
 
 This example does a `match_all` and returns documents 11 through 20:
 

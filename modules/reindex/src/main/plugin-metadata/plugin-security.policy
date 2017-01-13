@@ -18,6 +18,7 @@
  */
 
 grant {
+   // transport module is used in tests and accepts socket connections
    permission java.net.SocketPermission "*", "accept";
 };
 

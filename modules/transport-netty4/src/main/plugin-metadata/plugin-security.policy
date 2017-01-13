@@ -18,6 +18,7 @@
  */
 
 grant {
+   // netty accepts socket connections
    permission java.net.SocketPermission "*", "accept";
 };
 

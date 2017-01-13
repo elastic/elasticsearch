@@ -52,7 +52,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
     }
 
     @Override
-    protected void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
+    public void doExecute(Task task, DeleteByQueryRequest request, ActionListener<BulkIndexByScrollResponse> listener) {
         if (request.getSlices() > 1) {
             ReindexParallelizationHelper.startSlices(client, taskManager, DeleteByQueryAction.INSTANCE, clusterService.localNode().getId(),
                     (ParentBulkByScrollTask) task, request, listener);

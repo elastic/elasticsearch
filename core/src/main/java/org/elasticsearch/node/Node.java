@@ -22,6 +22,7 @@ package org.elasticsearch.node;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
@@ -213,6 +214,7 @@ public class Node implements Closeable {
     private final PluginsService pluginsService;
     private final NodeClient client;
     private final Collection<LifecycleComponent> pluginLifecycleComponents;
+    private final LocalNodeFactory localNodeFactory;
 
     /**
      * Constructs a node with the given settings.
@@ -249,7 +251,6 @@ public class Node implements Closeable {
             } catch (IOException ex) {
                 throw new IllegalStateException("Failed to created node environment", ex);
             }
-
             final boolean hadPredefinedNodeName = NODE_NAME_SETTING.exists(tmpSettings);
             Logger logger = Loggers.getLogger(Node.class, tmpSettings);
             final String nodeId = nodeEnvironment.nodeId();
@@ -285,6 +286,8 @@ public class Node implements Closeable {
 
             this.pluginsService = new PluginsService(tmpSettings, environment.modulesFile(), environment.pluginsFile(), classpathPlugins);
             this.settings = pluginsService.updatedSettings();
+            localNodeFactory = new LocalNodeFactory(settings, nodeEnvironment.nodeId());
+
             // create the environment based on the finalized (processed) view of the settings
             // this is just to makes sure that people get the same settings, no matter where they ask them from
             this.environment = new Environment(this.settings);
@@ -319,7 +322,8 @@ public class Node implements Closeable {
             resourcesToClose.add(resourceWatcherService);
             final NetworkService networkService = new NetworkService(settings,
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class)));
-            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
+            final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool,
+                localNodeFactory::getNode);
             clusterService.addListener(scriptModule.getScriptService());
             resourcesToClose.add(clusterService);
             final IngestService ingestService = new IngestService(settings, threadPool, this.environment,
@@ -389,7 +393,7 @@ public class Node implements Closeable {
             final MetaDataUpgrader metaDataUpgrader = new MetaDataUpgrader(customMetaDataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = newTransportService(settings, transport, threadPool,
-                networkModule.getTransportInterceptor(), settingsModule.getClusterSettings());
+                networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings());
             final Consumer<Binder> httpBind;
             if (networkModule.isHttpEnabled()) {
                 HttpServerTransport httpServerTransport = networkModule.getHttpServerTransportSupplier().get();
@@ -490,8 +494,10 @@ public class Node implements Closeable {
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                                   TransportInterceptor interceptor, ClusterSettings clusterSettings) {
-        return new TransportService(settings, transport, threadPool, interceptor, clusterSettings);
+                                                   TransportInterceptor interceptor,
+                                                   Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+                                                   ClusterSettings clusterSettings) {
+        return new TransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings);
     }
 
     protected void processRecoverySettings(ClusterSettings clusterSettings, RecoverySettings recoverySettings) {
@@ -577,17 +583,13 @@ public class Node implements Closeable {
         validateNodeBeforeAcceptingRequests(settings, transportService.boundAddress(), pluginsService.filterPlugins(Plugin.class).stream()
             .flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList()));
 
-        DiscoveryNode localNode = DiscoveryNode.createLocal(settings,
-            transportService.boundAddress().publishAddress(), injector.getInstance(NodeEnvironment.class).nodeId());
-
-        // TODO: need to find a cleaner way to start/construct a service with some initial parameters,
-        // playing nice with the life cycle interfaces
-        clusterService.setLocalNode(localNode);
-        transportService.setLocalNode(localNode);
         clusterService.addStateApplier(transportService.getTaskManager());
-
         clusterService.start();
-
+        assert localNodeFactory.getNode() != null;
+        assert transportService.getLocalNode().equals(localNodeFactory.getNode())
+            : "transportService has a different local node than the factory provided";
+        assert clusterService.localNode().equals(localNodeFactory.getNode())
+            : "clusterService has a different local node than the factory provided";
         // start after cluster service so the local disco is known
         discovery.start();
         transportService.acceptIncomingRequests();
@@ -893,5 +895,27 @@ public class Node implements Closeable {
     protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
                                                        ThreadPool threadPool, NodeClient client) {
         return new InternalClusterInfoService(settings, clusterService, threadPool, client);
+    }
+
+    private static class LocalNodeFactory implements Function<BoundTransportAddress, DiscoveryNode> {
+        private final SetOnce<DiscoveryNode> localNode = new SetOnce<>();
+        private final String persistentNodeId;
+        private final Settings settings;
+
+        private LocalNodeFactory(Settings settings, String persistentNodeId) {
+            this.persistentNodeId = persistentNodeId;
+            this.settings = settings;
+        }
+
+        @Override
+        public DiscoveryNode apply(BoundTransportAddress boundTransportAddress) {
+            localNode.set(DiscoveryNode.createLocal(settings, boundTransportAddress.publishAddress(), persistentNodeId));
+            return localNode.get();
+        }
+
+        DiscoveryNode getNode() {
+            assert localNode.get() != null;
+            return localNode.get();
+        }
     }
 }

@@ -99,7 +99,8 @@ public class ClusterService extends AbstractLifecycleComponent {
             Setting.positiveTimeSetting("cluster.service.slow_task_logging_threshold", TimeValue.timeValueSeconds(30),
                     Property.Dynamic, Property.NodeScope);
 
-    public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
+    public static final String CLUSTER_UPDATE_THREAD_NAME = "clusterService#updateTask";
+    public static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
     private final ThreadPool threadPool;
     private final ClusterName clusterName;
 
@@ -111,7 +112,8 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private TimeValue slowTaskLoggingThreshold;
 
-    private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
+    private volatile PrioritizedEsThreadPoolExecutor clusterServiceThreadExecutor;
+    private volatile PrioritizedEsThreadPoolExecutor masterServiceThreadExecutor;
 
     /**
      * Those 3 state listeners are changing infrequently - CopyOnWriteArrayList is just fine
@@ -133,6 +135,8 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     private final AtomicReference<ClusterState> state;
 
+    private final AtomicReference<ClusterState> masterState;
+
     private final ClusterBlocks.Builder initialBlocks;
 
     private NodeConnectionsService nodeConnectionsService;
@@ -148,6 +152,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         // will be replaced on doStart.
         this.state = new AtomicReference<>(ClusterState.builder(clusterName).build());
+        this.masterState = new AtomicReference<>(state.get());
 
         this.clusterSettings.addSettingsUpdateConsumer(CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 this::setSlowTaskLoggingThreshold);
@@ -173,6 +178,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             DiscoveryNodes nodes = DiscoveryNodes.builder(clusterState.nodes()).add(localNode).localNodeId(localNode.getId()).build();
             return ClusterState.builder(clusterState).nodes(nodes).build();
         });
+        this.masterState.set(state.get());
     }
 
     private void updateState(UnaryOperator<ClusterState> updateFunction) {
@@ -219,8 +225,11 @@ public class ClusterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(discoverySettings, "please set discovery settings before starting");
         addListener(localNodeMasterListeners);
         updateState(state -> ClusterState.builder(state).blocks(initialBlocks).build());
-        this.threadPoolExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME),
-                threadPool.getThreadContext());
+        this.masterState.set(state.get());
+        this.clusterServiceThreadExecutor = EsExecutors.newSinglePrioritizing(CLUSTER_UPDATE_THREAD_NAME,
+            daemonThreadFactory(settings, CLUSTER_UPDATE_THREAD_NAME), threadPool.getThreadContext());
+        this.masterServiceThreadExecutor = EsExecutors.newSinglePrioritizing(MASTER_UPDATE_THREAD_NAME,
+            daemonThreadFactory(settings, MASTER_UPDATE_THREAD_NAME), threadPool.getThreadContext());
     }
 
     @Override
@@ -234,7 +243,8 @@ public class ClusterService extends AbstractLifecycleComponent {
                 logger.debug("failed to notify listeners on shutdown", ex);
             }
         }
-        ThreadPool.terminate(threadPoolExecutor, 10, TimeUnit.SECONDS);
+        ThreadPool.terminate(masterServiceThreadExecutor, 10, TimeUnit.SECONDS);
+        ThreadPool.terminate(clusterServiceThreadExecutor, 10, TimeUnit.SECONDS);
         // close timeout listeners that did not have an ongoing timeout
         timeoutClusterStateListeners.forEach(TimeoutClusterStateListener::onClose);
         removeListener(localNodeMasterListeners);
@@ -352,7 +362,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
         // call the post added notification on the same event thread
         try {
-            threadPoolExecutor.execute(new SourcePrioritizedRunnable(Priority.HIGH, "_add_listener_") {
+            clusterServiceThreadExecutor.execute(new SourcePrioritizedRunnable(Priority.HIGH, "_add_listener_") {
                 @Override
                 public void run() {
                     if (timeout != null) {
@@ -458,6 +468,8 @@ public class ClusterService extends AbstractLifecycleComponent {
 
             final UpdateTask firstTask = updateTasks.get(0);
 
+            final PrioritizedEsThreadPoolExecutor threadPoolExecutor =
+                executor.isPublishingTask() ? masterServiceThreadExecutor : clusterServiceThreadExecutor;
             final TimeValue timeout = config.timeout();
             if (timeout != null) {
                 threadPoolExecutor.execute(firstTask, threadPool.scheduler(), timeout, () -> onTimeout(updateTasks, source, timeout));
@@ -504,7 +516,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      * Returns the tasks that are pending.
      */
     public List<PendingClusterTask> pendingTasks() {
-        PrioritizedEsThreadPoolExecutor.Pending[] pendings = threadPoolExecutor.getPending();
+        PrioritizedEsThreadPoolExecutor.Pending[] pendings = masterServiceThreadExecutor.getPending();
         List<PendingClusterTask> pendingClusterTasks = new ArrayList<>(pendings.length);
         for (PrioritizedEsThreadPoolExecutor.Pending pending : pendings) {
             final String source;
@@ -533,7 +545,7 @@ public class ClusterService extends AbstractLifecycleComponent {
      * Returns the number of currently pending tasks.
      */
     public int numberOfPendingTasks() {
-        return threadPoolExecutor.getNumberOfPendingTasks();
+        return masterServiceThreadExecutor.getNumberOfPendingTasks();
     }
 
     /**
@@ -542,26 +554,45 @@ public class ClusterService extends AbstractLifecycleComponent {
      * @return A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
      */
     public TimeValue getMaxTaskWaitTime() {
-        return threadPoolExecutor.getMaxTaskWaitTime();
+        return masterServiceThreadExecutor.getMaxTaskWaitTime();
     }
 
     /** asserts that the current thread is the cluster state update thread */
     public static boolean assertClusterStateThread() {
-        assert Thread.currentThread().getName().contains(ClusterService.UPDATE_THREAD_NAME) :
+        assert Thread.currentThread().getName().contains(ClusterService.CLUSTER_UPDATE_THREAD_NAME) :
                 "not called from the cluster state update thread";
         return true;
     }
 
+    public static boolean assertMasterStateThread() {
+        assert Thread.currentThread().getName().contains(ClusterService.MASTER_UPDATE_THREAD_NAME) :
+            "not called from the master state update thread";
+        return true;
+    }
+
+    public static boolean assertClusterOrMasterStateThread() {
+        assert Thread.currentThread().getName().contains(ClusterService.CLUSTER_UPDATE_THREAD_NAME) ||
+            Thread.currentThread().getName().contains(ClusterService.MASTER_UPDATE_THREAD_NAME) :
+            "not called from the master/cluster state update thread";
+        return true;
+    }
+
     /** asserts that the current thread is <b>NOT</b> the cluster state update thread */
-    public static boolean assertNotClusterStateUpdateThread(String reason) {
-        assert Thread.currentThread().getName().contains(UPDATE_THREAD_NAME) == false :
+    public static boolean assertNotClusterUpdateThread(String reason) {
+        assert Thread.currentThread().getName().contains(CLUSTER_UPDATE_THREAD_NAME) == false :
             "Expected current thread [" + Thread.currentThread() + "] to not be the cluster state update thread. Reason: [" + reason + "]";
+        return true;
+    }
+
+    public static boolean assertNotMasterUpdateThread(String reason) {
+        assert Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME) == false :
+            "Expected current thread [" + Thread.currentThread() + "] to not be the master state update thread. Reason: [" + reason + "]";
         return true;
     }
 
     /** asserts that the current stack trace does <b>NOT</b> invlove a cluster state applier */
     private static boolean assertNotCalledFromClusterStateApplier(String reason) {
-        if (Thread.currentThread().getName().contains(UPDATE_THREAD_NAME)) {
+        if (Thread.currentThread().getName().contains(CLUSTER_UPDATE_THREAD_NAME)) {
             for (StackTraceElement element: Thread.currentThread().getStackTrace()) {
                 if (element.getClassName().equals(ClusterService.class.getName())
                     && element.getMethodName().equals("callClusterStateAppliers")) {
@@ -600,7 +631,20 @@ public class ClusterService extends AbstractLifecycleComponent {
         }
 
         logger.debug("processing [{}]: execute", taskInputs.summary);
-        ClusterState previousClusterState = state();
+        final ClusterState previousClusterState;
+        if (taskInputs.isPublishingTask()) {
+            final ClusterState previousMasterState = masterState.get();
+            final ClusterState previousLocalState = state.get();
+            if (previousMasterState.version() < previousLocalState.version()  ||
+                (previousMasterState.version() == previousLocalState.version() && previousLocalState.nodes().getMasterNodeId() == null)) {
+                // previousMasterState is stale, for example when this node is trying to become master and another node was master before
+                previousClusterState = previousLocalState;
+            } else {
+                previousClusterState = previousMasterState;
+            }
+        } else {
+            previousClusterState = state.get();
+        }
 
         if (!previousClusterState.nodes().isLocalNodeElectedMaster() && taskInputs.runOnlyOnMaster()) {
             logger.debug("failing [{}]: local node is no longer master", taskInputs.summary);
@@ -625,10 +669,15 @@ public class ClusterService extends AbstractLifecycleComponent {
                 logger.debug("cluster state updated, version [{}], source [{}]", newClusterState.version(), taskInputs.summary);
             }
             try {
-                publishAndApplyChanges(taskInputs, taskOutputs);
+                if (taskInputs.isPublishingTask()) {
+                    publishChanges(taskInputs, taskOutputs);
+                } else {
+                    applyChanges(taskInputs, taskOutputs);
+                }
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
-                logger.debug("processing [{}]: took [{}] done applying updated cluster_state (version: {}, uuid: {})", taskInputs.summary,
-                    executionTime, newClusterState.version(), newClusterState.stateUUID());
+                logger.debug("processing [{}]: took [{}] done {} updated cluster_state (version: {}, uuid: {})", taskInputs.summary,
+                    executionTime, taskInputs.isPublishingTask() ? "publishing" : "applying", newClusterState.version(),
+                    newClusterState.stateUUID());
                 warnAboutSlowTaskIfNeeded(executionTime, taskInputs.summary);
             } catch (Exception e) {
                 TimeValue executionTime = TimeValue.timeValueMillis(Math.max(0, TimeValue.nsecToMSec(currentTimeInNanos() - startTimeNS)));
@@ -661,7 +710,7 @@ public class ClusterService extends AbstractLifecycleComponent {
                 nonFailedTasks.add(updateTask);
             }
         }
-        ClusterState newClusterState = patchVersionsAndNoMasterBlocks(previousClusterState, clusterTasksResult);
+        ClusterState newClusterState = patchVersionsAndNoMasterBlocks(taskInputs, previousClusterState, clusterTasksResult);
 
         return new TaskOutputs(taskInputs, previousClusterState, newClusterState, nonFailedTasks,
                                   clusterTasksResult.executionResults);
@@ -708,7 +757,8 @@ public class ClusterService extends AbstractLifecycleComponent {
         return clusterTasksResult;
     }
 
-    private ClusterState patchVersionsAndNoMasterBlocks(ClusterState previousClusterState, ClusterTasksResult<Object> executionResult) {
+    private ClusterState patchVersionsAndNoMasterBlocks(TaskInputs taskInputs, ClusterState previousClusterState,
+                                                        ClusterTasksResult<Object> executionResult) {
         ClusterState newClusterState = executionResult.resultingState;
 
         if (executionResult.noMaster) {
@@ -727,7 +777,8 @@ public class ClusterService extends AbstractLifecycleComponent {
                     .nodes(discoveryNodes)
                     .build();
             }
-        } else if (newClusterState.nodes().isLocalNodeElectedMaster() && previousClusterState != newClusterState) {
+        } else if (newClusterState.nodes().isLocalNodeElectedMaster() && taskInputs.isPublishingTask() &&
+            previousClusterState != newClusterState) {
             // only the master controls the version numbers
             Builder builder = ClusterState.builder(newClusterState).incrementVersion();
             if (previousClusterState.routingTable() != newClusterState.routingTable()) {
@@ -754,7 +805,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         return newClusterState;
     }
 
-    private void publishAndApplyChanges(TaskInputs taskInputs, TaskOutputs taskOutputs) {
+    private void publishChanges(TaskInputs taskInputs, TaskOutputs taskOutputs) {
         ClusterState previousClusterState = taskOutputs.previousClusterState;
         ClusterState newClusterState = taskOutputs.newClusterState;
 
@@ -774,26 +825,52 @@ public class ClusterService extends AbstractLifecycleComponent {
 
         nodeConnectionsService.connectToNodes(newClusterState.nodes());
 
-        // if we are the master, publish the new state to all nodes
-        // we publish here before we send a notification to all the listeners, since if it fails
-        // we don't want to notify
-        if (newClusterState.nodes().isLocalNodeElectedMaster()) {
-            logger.debug("publishing cluster state version [{}]", newClusterState.version());
-            try {
-                clusterStatePublisher.accept(clusterChangedEvent, ackListener);
-            } catch (Discovery.FailedToCommitClusterStateException t) {
-                final long version = newClusterState.version();
-                logger.warn(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "failing [{}]: failed to commit cluster state version [{}]", taskInputs.summary, version),
-                    t);
-                // ensure that list of connected nodes in NodeConnectionsService is in-sync with the nodes of the current cluster state
-                nodeConnectionsService.connectToNodes(previousClusterState.nodes());
-                nodeConnectionsService.disconnectFromNodesExcept(previousClusterState.nodes());
-                taskOutputs.publishingFailed(t);
-                return;
+        logger.debug("publishing cluster state version [{}]", newClusterState.version());
+        try {
+            clusterStatePublisher.accept(clusterChangedEvent, ackListener);
+        } catch (Discovery.FailedToCommitClusterStateException t) {
+            final long version = newClusterState.version();
+            logger.warn(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "failing [{}]: failed to commit cluster state version [{}]", taskInputs.summary, version),
+                t);
+            // ensure that list of connected nodes in NodeConnectionsService is in-sync with the nodes of the current cluster state
+            nodeConnectionsService.connectToNodes(previousClusterState.nodes());
+            nodeConnectionsService.disconnectFromNodesExcept(previousClusterState.nodes());
+            taskOutputs.publishingFailed(t);
+            return;
+        }
+
+        masterState.set(taskOutputs.newClusterState);
+
+        taskOutputs.processedDifferentClusterState(previousClusterState, newClusterState);
+
+        try {
+            taskOutputs.clusterStatePublished(clusterChangedEvent);
+        } catch (Exception e) {
+            logger.error(
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "exception thrown while notifying executor of new cluster state publication [{}]",
+                    taskInputs.summary),
+                e);
+        }
+    }
+
+    private void applyChanges(TaskInputs taskInputs, TaskOutputs taskOutputs) {
+        ClusterState previousClusterState = taskOutputs.previousClusterState;
+        ClusterState newClusterState = taskOutputs.newClusterState;
+
+        ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent(taskInputs.summary, newClusterState, previousClusterState);
+        // new cluster state, notify all listeners
+        final DiscoveryNodes.Delta nodesDelta = clusterChangedEvent.nodesDelta();
+        if (nodesDelta.hasChanges() && logger.isInfoEnabled()) {
+            String summary = nodesDelta.shortSummary();
+            if (summary.length() > 0) {
+                logger.info("{}, reason: {}", summary, taskInputs.summary);
             }
         }
+
+        nodeConnectionsService.connectToNodes(newClusterState.nodes());
 
         logger.debug("applying cluster state version {}", newClusterState.version());
         try {
@@ -822,31 +899,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             }
         });
 
-        //manual ack only from the master at the end of the publish
-        if (newClusterState.nodes().isLocalNodeElectedMaster()) {
-            try {
-                ackListener.onNodeAck(newClusterState.nodes().getLocalNode(), null);
-            } catch (Exception e) {
-                final DiscoveryNode localNode = newClusterState.nodes().getLocalNode();
-                logger.debug(
-                    (Supplier<?>) () -> new ParameterizedMessage("error while processing ack for master node [{}]", localNode),
-                    e);
-            }
-        }
-
         taskOutputs.processedDifferentClusterState(previousClusterState, newClusterState);
-
-        if (newClusterState.nodes().isLocalNodeElectedMaster()) {
-            try {
-                taskOutputs.clusterStatePublished(clusterChangedEvent);
-            } catch (Exception e) {
-                logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                        "exception thrown while notifying executor of new cluster state publication [{}]",
-                        taskInputs.summary),
-                    e);
-            }
-        }
     }
 
     private void callClusterStateAppliers(ClusterState newClusterState, ClusterChangedEvent clusterChangedEvent) {
@@ -876,6 +929,10 @@ public class ClusterService extends AbstractLifecycleComponent {
 
         public boolean runOnlyOnMaster() {
             return executor.runOnlyOnMaster();
+        }
+
+        public boolean isPublishingTask() {
+            return executor.isPublishingTask();
         }
 
         public void onNoLongerMaster() {

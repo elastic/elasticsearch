@@ -378,6 +378,11 @@ public class TribeService extends AbstractLifecycleComponent {
         }
 
         @Override
+        public boolean isPublishingTask() {
+            return false;
+        }
+
+        @Override
         public ClusterTasksResult<ClusterChangedEvent> execute(ClusterState currentState, List<ClusterChangedEvent> tasks) throws Exception {
             ClusterTasksResult.Builder<ClusterChangedEvent> builder = ClusterTasksResult.builder();
             ClusterState.Builder newState = ClusterState.builder(currentState).incrementVersion();

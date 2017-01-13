@@ -47,6 +47,7 @@ import org.elasticsearch.common.util.concurrent.BaseFuture;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -136,8 +137,7 @@ public class ClusterServiceTests extends ESTestCase {
                 // skip
             }
         });
-        timedClusterService.setClusterStatePublisher((event, ackListener) -> {
-        });
+        timedClusterService.setClusterStatePublisher(ClusterServiceUtils.createClusterStatePublisher(timedClusterService));
         timedClusterService.setDiscoverySettings(new DiscoverySettings(Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         timedClusterService.start();
@@ -391,7 +391,7 @@ public class ClusterServiceTests extends ESTestCase {
 
         latch.await();
         assertNotNull(assertionRef.get());
-        assertThat(assertionRef.get().getMessage(), containsString("not be the cluster state update thread. Reason: [Blocking operation]"));
+        assertThat(assertionRef.get().getMessage(), containsString("not be the master state update thread. Reason: [Blocking operation]"));
     }
 
     public void testOneExecutorDontStarveAnother() throws InterruptedException {
@@ -836,7 +836,7 @@ public class ClusterServiceTests extends ESTestCase {
                         "test3",
                         "org.elasticsearch.cluster.service.ClusterServiceTests$TimedClusterService",
                         Level.DEBUG,
-                        "*processing [test3]: took [3s] done applying updated cluster_state (version: *, uuid: *)"));
+                        "*processing [test3]: took [3s] done publishing updated cluster_state (version: *, uuid: *)"));
 
         Logger clusterLogger = Loggers.getLogger("org.elasticsearch.cluster.service");
         Loggers.addAppender(clusterLogger, mockAppender);

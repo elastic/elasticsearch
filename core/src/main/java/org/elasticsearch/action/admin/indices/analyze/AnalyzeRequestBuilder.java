@@ -116,7 +116,7 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<An
     /**
      * Sets attributes that will include results
      */
-    public AnalyzeRequestBuilder setAttributes(String attributes){
+    public AnalyzeRequestBuilder setAttributes(String... attributes){
         request.attributes(attributes);
         return this;
     }

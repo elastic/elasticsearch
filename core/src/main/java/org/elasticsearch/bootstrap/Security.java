@@ -86,12 +86,6 @@ import java.util.Map;
  * cleanups to the scripting apis). But still it can provide some defense for users
  * that enable dynamic scripting without being fully aware of the consequences.
  * <br>
- * <h1>Disabling Security</h1>
- * SecurityManager can be disabled completely with this setting:
- * <pre>
- * es.security.manager.enabled = false
- * </pre>
- * <br>
  * <h1>Debugging Security</h1>
  * A good place to start when there is a problem is to turn on security debugging:
  * <pre>

@@ -139,9 +139,7 @@ public class SearchSortValues implements ToXContent, Writeable {
     }
 
     public static SearchSortValues fromXContent(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureFieldName(parser, parser.currentToken(), Fields.SORT);
-        XContentParser.Token token = parser.nextToken();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, token, parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
         return new SearchSortValues(parser.list().toArray());
     }
 

@@ -93,7 +93,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     @Override
     public String index() {
         if (shardTarget != null) {
-            return shardTarget.index();
+            return shardTarget.getIndex();
         }
         return null;
     }
@@ -104,7 +104,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
     @Override
     public int shardId() {
         if (shardTarget != null) {
-            return shardTarget.shardId().id();
+            return shardTarget.getShardId().id();
         }
         return -1;
     }
@@ -156,7 +156,7 @@ public class ShardSearchFailure implements ShardOperationFailedException {
         builder.field("shard", shardId());
         builder.field("index", index());
         if (shardTarget != null) {
-            builder.field("node", shardTarget.nodeId());
+            builder.field("node", shardTarget.getNodeId());
         }
         if (cause != null) {
             builder.field("reason");

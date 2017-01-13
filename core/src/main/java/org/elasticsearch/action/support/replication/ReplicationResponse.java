@@ -73,7 +73,7 @@ public class ReplicationResponse extends ActionResponse {
         this.shardInfo = shardInfo;
     }
 
-    public static class ShardInfo implements Streamable, ToXContent {
+    public static class ShardInfo implements Streamable, ToXContentObject {
 
         private static final String _SHARDS = "_shards";
         private static final String TOTAL = "total";
@@ -179,7 +179,7 @@ public class ReplicationResponse extends ActionResponse {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(_SHARDS);
+            builder.startObject();
             builder.field(TOTAL, total);
             builder.field(SUCCESSFUL, successful);
             builder.field(FAILED, getFailed());
@@ -195,18 +195,12 @@ public class ReplicationResponse extends ActionResponse {
         }
 
         public static ShardInfo fromXContent(XContentParser parser) throws IOException {
-            XContentParser.Token token = parser.nextToken();
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
-
-            String currentFieldName = parser.currentName();
-            if (_SHARDS.equals(currentFieldName) == false) {
-                throwUnknownField(currentFieldName, parser.getTokenLocation());
-            }
-            token = parser.nextToken();
+            XContentParser.Token token = parser.currentToken();
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
 
             int total = 0, successful = 0;
             List<Failure> failuresList = null;
+            String currentFieldName = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();

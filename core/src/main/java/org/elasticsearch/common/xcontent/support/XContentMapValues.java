@@ -264,7 +264,7 @@ public class XContentMapValues {
 
                 List<Object> filteredValue = filter((Iterable<?>) value,
                         subIncludeAutomaton, subIncludeState, excludeAutomaton, excludeState, matchAllAutomaton);
-                if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
+                if (filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
                 }
 
@@ -287,6 +287,7 @@ public class XContentMapValues {
             CharacterRunAutomaton excludeAutomaton, int initialExcludeState,
             CharacterRunAutomaton matchAllAutomaton) {
         List<Object> filtered = new ArrayList<>();
+        boolean isInclude = includeAutomaton.isAccept(initialIncludeState);
         for (Object value : iterable) {
             if (value instanceof Map) {
                 int includeState = includeAutomaton.step(initialIncludeState, '.');
@@ -305,9 +306,8 @@ public class XContentMapValues {
                 if (filteredValue.isEmpty() == false) {
                     filtered.add(filteredValue);
                 }
-            } else {
-                // TODO: we have tests relying on this behavior on arrays even
-                // if the path does not match, but this looks like a bug?
+            } else if (isInclude) {
+                // #22557: only accept this array value if the key we are on is accepted:
                 filtered.add(value);
             }
         }

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.GraphQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.query.SimpleQueryParser.Settings;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -412,15 +414,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
         SimpleQueryParser sqp = new SimpleQueryParser(luceneAnalyzer, resolvedFieldsAndWeights, flags, newSettings, context);
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
-
         Query query = sqp.parse(queryText);
-        // If the coordination factor is disabled on a boolean query we don't apply the minimum should match.
-        // This is done to make sure that the minimum_should_match doesn't get applied when there is only one word
-        // and multiple variations of the same word in the query (synonyms for instance).
-        if (minimumShouldMatch != null && query instanceof BooleanQuery && !((BooleanQuery) query).isCoordDisabled()) {
-            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
-        }
-        return query;
+        return Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
     }
 
     private static String resolveIndexName(String fieldName, QueryShardContext context) {

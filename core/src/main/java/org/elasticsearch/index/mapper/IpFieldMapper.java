@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -32,7 +31,6 @@ import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -41,7 +39,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -51,11 +48,9 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.AbstractList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.Map;
 
 /** A {@link FieldMapper} for ip addresses. */
@@ -238,7 +233,7 @@ public class IpFieldMapper extends FieldMapper {
                 InetAddressPoint.decode(min), InetAddressPoint.decode(max));
         }
 
-        private static class IpScriptDocValues extends AbstractList<String> implements ScriptDocValues<String> {
+        public static final class IpScriptDocValues extends AbstractList<String> implements ScriptDocValues<String> {
 
             private final RandomAccessOrds values;
 

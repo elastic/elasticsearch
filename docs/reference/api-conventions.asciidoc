@@ -118,6 +118,7 @@ The special characters used for date rounding must be URI encoded as follows:
 `|`:: `%7C`
 `+`:: `%2B`
 `:`:: `%3A`
+`,`:: `%2C`
 ======================================================
 
 The following example shows different forms of date math index names and the final index names

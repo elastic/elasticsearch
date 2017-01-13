@@ -90,9 +90,9 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
         final Client client = internalCluster().smartClient();
         SearchResponse searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
-        String firstNodeId = searchResponse.getHits().getAt(0).shard().nodeId();
+        String firstNodeId = searchResponse.getHits().getAt(0).shard().getNodeId();
         searchResponse = client.prepareSearch("test").setQuery(matchAllQuery()).execute().actionGet();
-        String secondNodeId = searchResponse.getHits().getAt(0).shard().nodeId();
+        String secondNodeId = searchResponse.getHits().getAt(0).shard().getNodeId();
 
         assertThat(firstNodeId, not(equalTo(secondNodeId)));
     }
@@ -220,7 +220,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         for (int i = 0; i < 2; i++) {
             SearchResponse searchResponse = request.execute().actionGet();
             assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
-            hitNodes.add(searchResponse.getHits().getAt(0).shard().nodeId());
+            hitNodes.add(searchResponse.getHits().getAt(0).shard().getNodeId());
         }
         assertThat(hitNodes.size(), greaterThan(1));
     }

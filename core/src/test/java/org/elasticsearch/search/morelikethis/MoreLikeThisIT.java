@@ -263,9 +263,9 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThrows(client().prepareSearch().setQuery(
                 new MoreLikeThisQueryBuilder(new String[] {"string_value", "int_value"}, null, new Item[] {new Item("test", "type", "1")}).minTermFreq(1).minDocFreq(1)), SearchPhaseExecutionException.class);
 
-        // mlt query with no field -> OK
+        // mlt query with no field -> No results (because _all is not enabled)
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery(new String[] {"index"}).minTermFreq(1).minDocFreq(1)).execute().actionGet();
-        assertHitCount(searchResponse, 2L);
+        assertHitCount(searchResponse, 0L);
 
         // mlt query with string fields
         searchResponse = client().prepareSearch().setQuery(moreLikeThisQuery(new String[]{"string_value"}, new String[] {"index"}, null).minTermFreq(1).minDocFreq(1)).execute().actionGet();

@@ -432,15 +432,12 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
     @Override
     public void connectToNode(DiscoveryNode node, ConnectionProfile connectionProfile) {
         connectionProfile = connectionProfile == null ? defaultConnectionProfile : connectionProfile;
-        if (!lifecycle.started()) {
-            throw new IllegalStateException("can't add nodes to a stopped transport");
-        }
         if (node == null) {
             throw new ConnectTransportException(null, "can't connect to a null node");
         }
-        globalLock.readLock().lock();
+        globalLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
-
+            ensureOpen();
             try (Releasable ignored = connectionLock.acquire(node.getId())) {
                 if (!lifecycle.started()) {
                     throw new IllegalStateException("can't add nodes to a stopped transport");
@@ -477,23 +474,40 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
 
     @Override
     public final NodeChannels openConnection(DiscoveryNode node, ConnectionProfile connectionProfile) throws IOException {
+        if (node == null) {
+            throw new ConnectTransportException(null, "can't open connection to a null node");
+        }
+        boolean success = false;
+        NodeChannels nodeChannels = null;
+        globalLock.readLock().lock(); // ensure we don't open connections while we are closing
         try {
-            NodeChannels nodeChannels = connectToChannels(node, connectionProfile);
-            final Channel channel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
-            final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
-                defaultConnectionProfile.getConnectTimeout() :
-                connectionProfile.getConnectTimeout();
-            final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
-                connectTimeout : connectionProfile.getHandshakeTimeout();
-            final Version version = executeHandshake(node, channel, handshakeTimeout);
-            transportServiceAdapter.onConnectionOpened(node);
-            return new NodeChannels(nodeChannels, version); // clone the channels - we now have the correct version
-        } catch (ConnectTransportException e) {
-            throw e;
-        } catch (Exception e) {
-            // ConnectTransportExceptions are handled specifically on the caller end - we wrap the actual exception to ensure
-            // only relevant exceptions are logged on the caller end.. this is the same as in connectToNode
-            throw new ConnectTransportException(node, "general node connection failure", e);
+            ensureOpen();
+            try {
+                nodeChannels = connectToChannels(node, connectionProfile);
+                final Channel channel = nodeChannels.getChannels().get(0); // one channel is guaranteed by the connection profile
+                final TimeValue connectTimeout = connectionProfile.getConnectTimeout() == null ?
+                    defaultConnectionProfile.getConnectTimeout() :
+                    connectionProfile.getConnectTimeout();
+                final TimeValue handshakeTimeout = connectionProfile.getHandshakeTimeout() == null ?
+                    connectTimeout : connectionProfile.getHandshakeTimeout();
+                final Version version = executeHandshake(node, channel, handshakeTimeout);
+                transportServiceAdapter.onConnectionOpened(node);
+                nodeChannels = new NodeChannels(nodeChannels, version);// clone the channels - we now have the correct version
+                success = true;
+                return nodeChannels;
+            } catch (ConnectTransportException e) {
+                throw e;
+            } catch (Exception e) {
+                // ConnectTransportExceptions are handled specifically on the caller end - we wrap the actual exception to ensure
+                // only relevant exceptions are logged on the caller end.. this is the same as in connectToNode
+                throw new ConnectTransportException(node, "general node connection failure", e);
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(nodeChannels);
+                }
+            }
+        } finally {
+            globalLock.readLock().unlock();
         }
     }
 
@@ -1567,6 +1581,16 @@ public abstract class TcpTransport<Channel> extends AbstractLifecycleComponent i
                 // the channel is closed ie. due to connection reset or broken pipes
                 handler.handleException(new TransportException("connection reset"));
             }
+        }
+    }
+
+    /**
+     * Ensures this transport is still started / open
+     * @throws IllegalStateException if the transport is not started / open
+     */
+    protected final void ensureOpen() {
+        if (lifecycle.started() == false) {
+            throw new IllegalStateException("transport has been stopped");
         }
     }
 }

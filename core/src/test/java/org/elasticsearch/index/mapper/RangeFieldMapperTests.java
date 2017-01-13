@@ -229,56 +229,6 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     }
 
     @Override
-    protected void doTestIncludeInAll(String type) throws Exception {
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type);
-        if (type.equals("date_range")) {
-            mapping = mapping.field("format", DATE_FORMAT);
-        }
-        mapping = mapping.endObject().endObject().endObject().endObject();
-
-        DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
-
-        assertEquals(mapping.string(), mapper.mappingSource().toString());
-
-        ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(getFromField(), getFrom(type))
-            .field(getToField(), getTo(type))
-            .endObject()
-            .endObject().bytes());
-
-        IndexableField[] fields = doc.rootDoc().getFields("_all");
-        assertEquals(1, fields.length);
-
-        assertThat(fields[0].stringValue(), containsString(type.equals("date_range") ? "1477872000000" : "5"));
-
-        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("properties").startObject("field").field("type", type);
-        if (type.equals("date_range")) {
-            mapping = mapping.field("format", DATE_FORMAT);
-        }
-        mapping = mapping.field("include_in_all", false).endObject().endObject()
-            .endObject().endObject();
-
-        mapper = parser.parse("type", new CompressedXContent(mapping.string()));
-
-        assertEquals(mapping.string(), mapper.mappingSource().toString());
-
-        doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("field")
-            .field(getFromField(), getFrom(type))
-            .field(getToField(), getTo(type))
-            .endObject()
-            .endObject().bytes());
-
-        fields = doc.rootDoc().getFields("_all");
-        assertEquals(0, fields.length);
-    }
-
-    @Override
     protected void doTestNullValue(String type) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field").field("type", type).field("store", true);

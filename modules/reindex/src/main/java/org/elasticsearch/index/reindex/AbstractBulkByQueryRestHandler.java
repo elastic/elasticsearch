@@ -22,14 +22,12 @@ package org.elasticsearch.index.reindex;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,9 +42,8 @@ public abstract class AbstractBulkByQueryRestHandler<
         Request extends AbstractBulkByScrollRequest<Request>,
         A extends GenericAction<Request, BulkIndexByScrollResponse>> extends AbstractBaseReindexRestHandler<Request, A> {
 
-    protected AbstractBulkByQueryRestHandler(Settings settings, SearchRequestParsers searchRequestParsers, ClusterService clusterService,
-            A action) {
-        super(settings, searchRequestParsers, clusterService, action);
+    protected AbstractBulkByQueryRestHandler(Settings settings, A action) {
+        super(settings, action);
     }
 
     protected void parseInternalRequest(Request internal, RestRequest restRequest,
@@ -65,8 +62,7 @@ public abstract class AbstractBulkByQueryRestHandler<
              * the generated parser probably is a noop but we should do the accounting just in case. It doesn't hurt to close twice but it
              * really hurts not to close if by some miracle we have to. */
             try {
-                RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParsers, parseFieldMatcher,
-                        searchRequestParser);
+                RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParser);
             } finally {
                 IOUtils.close(searchRequestParser);
             }

@@ -23,6 +23,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllField;
@@ -51,7 +52,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
     public static class Defaults {
         public static final String NAME = AllFieldMapper.NAME;
         public static final String INDEX_NAME = AllFieldMapper.NAME;
-        public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.UNSET_ENABLED;
+        public static final EnabledAttributeMapper ENABLED = EnabledAttributeMapper.UNSET_DISABLED;
         public static final int POSITION_INCREMENT_GAP = 100;
 
         public static final MappedFieldType FIELD_TYPE = new AllFieldType();
@@ -102,6 +103,11 @@ public class AllFieldMapper extends MetadataFieldMapper {
         @Override
         public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node,
                                                  ParserContext parserContext) throws MapperParsingException {
+            if (node.isEmpty() == false &&
+                    parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
+                throw new IllegalArgumentException("[_all] is disabled in 6.0. As a replacement, you can use an [copy_to] " +
+                                "on mapping fields to create your own catch all field.");
+            }
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             builder.fieldType().setIndexAnalyzer(parserContext.getIndexAnalyzers().getDefaultIndexAnalyzer());
             builder.fieldType().setSearchAnalyzer(parserContext.getIndexAnalyzers().getDefaultSearchAnalyzer());

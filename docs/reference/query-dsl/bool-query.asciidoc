@@ -25,7 +25,9 @@ be set using the
 parameter.
 
 |`must_not` |The clause (query) must not appear in the matching
-documents.
+documents.  Clauses are executed in <<query-filter-context,filter context>> meaning
+that scoring is ignored and clauses are considered for caching. Because scoring is
+ignored, a score of `0` for all documents is returned.
 |=======================================================================
 
 [IMPORTANT]

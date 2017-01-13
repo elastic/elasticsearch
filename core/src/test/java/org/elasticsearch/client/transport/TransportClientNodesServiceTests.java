@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -142,6 +143,9 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                         }
                     };
                 }
+            }, (addr) -> {
+                assert addr == null : "boundAddress: " + addr;
+                return DiscoveryNode.createLocal(settings, LocalTransportAddress.buildUnique(), UUIDs.randomBase64UUID());
             }, null);
             transportService.start();
             transportService.acceptIncomingRequests();

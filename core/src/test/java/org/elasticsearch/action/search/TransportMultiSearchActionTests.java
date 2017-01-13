@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.tasks.TaskManager;
@@ -49,7 +50,7 @@ import static org.mockito.Mockito.when;
 public class TransportMultiSearchActionTests extends ESTestCase {
 
     public void testBatchExecute() throws Exception {
-        // Initialize depedencies of TransportMultiSearchAction
+        // Initialize dependencies of TransportMultiSearchAction
         Settings settings = Settings.builder()
                 .put("node.name", TransportMultiSearchActionTests.class.getSimpleName())
                 .build();
@@ -58,7 +59,7 @@ public class TransportMultiSearchActionTests extends ESTestCase {
         ThreadPool threadPool = new ThreadPool(settings);
         TaskManager taskManager = mock(TaskManager.class);
         TransportService transportService = new TransportService(Settings.EMPTY, null, null, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-                null) {
+            boundAddress -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null) {
             @Override
             public TaskManager getTaskManager() {
                 return taskManager;

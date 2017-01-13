@@ -424,7 +424,7 @@ public class UnicastZenPingTests extends ESTestCase {
             Version.CURRENT);
         closeables.push(transport);
         final TransportService transportService =
-            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
         final int limitPortCounts = randomIntBetween(1, 10);
         final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
@@ -467,7 +467,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(transport);
 
         final TransportService transportService =
-            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
 
         final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
@@ -517,7 +517,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(transport);
 
         final TransportService transportService =
-            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
         final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 3));
         try {
@@ -705,7 +705,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(transport);
 
         final TransportService transportService =
-            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
         final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
             executorService,
@@ -753,7 +753,8 @@ public class UnicastZenPingTests extends ESTestCase {
             .build();
         final Transport transport = supplier.apply(nodeSettings, version);
         final MockTransportService transportService =
-            new MockTransportService(nodeSettings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            new MockTransportService(nodeSettings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,  boundAddress ->
+                new DiscoveryNode(nodeId, nodeId, boundAddress.publishAddress(), emptyMap(), nodeRoles, version), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         final ConcurrentMap<TransportAddress, AtomicInteger> counters = ConcurrentCollections.newConcurrentMap();
@@ -764,10 +765,8 @@ public class UnicastZenPingTests extends ESTestCase {
                 counters.get(node.getAddress()).incrementAndGet();
             }
         });
-        final DiscoveryNode node =
-            new DiscoveryNode(nodeId, nodeId, transportService.boundAddress().publishAddress(), emptyMap(), nodeRoles, version);
-        transportService.setLocalNode(node);
-        return new NetworkHandle((InetSocketTransportAddress)transport.boundAddress().publishAddress(), transportService, node, counters);
+        return new NetworkHandle((InetSocketTransportAddress)transport.boundAddress().publishAddress(), transportService,
+            transportService.getLocalNode(), counters);
     }
 
     private static class NetworkHandle {

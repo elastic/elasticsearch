@@ -192,7 +192,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         transport = new CapturingTransport();
         clusterService = createClusterService(THREAD_POOL);
         final TransportService transportService = new TransportService(clusterService.getSettings(), transport, THREAD_POOL,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         setClusterState(clusterService, TEST_INDEX);

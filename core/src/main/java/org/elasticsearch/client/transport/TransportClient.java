@@ -29,6 +29,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
@@ -59,6 +60,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -171,8 +173,15 @@ public abstract class TransportClient extends AbstractClient {
             NetworkModule networkModule = new NetworkModule(settings, true, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
                 bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService);
             final Transport transport = networkModule.getTransportSupplier().get();
+            final TransportAddress address;
+            try {
+                address = transport.addressesFromString("0.0.0.0:0", 1)[0]; // this is just a dummy transport address
+            } catch (UnknownHostException e) {
+                throw new RuntimeException(e);
+            }
             final TransportService transportService = new TransportService(settings, transport, threadPool,
-                networkModule.getTransportInterceptor(), null);
+                networkModule.getTransportInterceptor(),
+                boundTransportAddress -> DiscoveryNode.createLocal(settings, address, UUIDs.randomBase64UUID()), null);
             modules.add((b -> {
                 b.bind(BigArrays.class).toInstance(bigArrays);
                 b.bind(PluginsService.class).toInstance(pluginsService);

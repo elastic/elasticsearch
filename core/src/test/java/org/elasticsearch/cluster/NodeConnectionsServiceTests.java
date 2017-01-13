@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -152,7 +153,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.transport = new MockTransport();
-        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, LocalTransportAddress.buildUnique(), UUIDs.randomBase64UUID()), null);
         transportService.start();
         transportService.acceptIncomingRequests();
     }

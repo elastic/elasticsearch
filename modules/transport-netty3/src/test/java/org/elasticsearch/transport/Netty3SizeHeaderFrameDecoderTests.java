@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -68,7 +69,8 @@ public class Netty3SizeHeaderFrameDecoderTests extends ESTestCase {
             new NamedWriteableRegistry(Collections.emptyList()), new NoneCircuitBreakerService());
         nettyTransport.start();
         TransportService transportService = new TransportService(settings, nettyTransport, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            (boundAddress) -> DiscoveryNode.createLocal(settings, boundAddress.publishAddress(), "someID"), null);
         nettyTransport.transportServiceAdapter(transportService.createAdapter());
 
         TransportAddress[] boundAddresses = nettyTransport.boundAddress().boundAddresses();

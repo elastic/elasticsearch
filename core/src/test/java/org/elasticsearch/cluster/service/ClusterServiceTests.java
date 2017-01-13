@@ -123,9 +123,7 @@ public class ClusterServiceTests extends ESTestCase {
     TimedClusterService createTimedClusterService(boolean makeMaster) throws InterruptedException {
         TimedClusterService timedClusterService = new TimedClusterService(Settings.builder().put("cluster.name",
             "ClusterServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool);
-        timedClusterService.setLocalNode(new DiscoveryNode("node1", LocalTransportAddress.buildUnique(), emptyMap(),
-            emptySet(), Version.CURRENT));
+            threadPool, () -> new DiscoveryNode("node1",  LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
             public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
@@ -1056,9 +1054,7 @@ public class ClusterServiceTests extends ESTestCase {
     public void testDisconnectFromNewlyAddedNodesIfClusterStatePublishingFails() throws InterruptedException {
         TimedClusterService timedClusterService = new TimedClusterService(Settings.builder().put("cluster.name",
             "ClusterServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool);
-        timedClusterService.setLocalNode(new DiscoveryNode("node1", LocalTransportAddress.buildUnique(), emptyMap(),
-            emptySet(), Version.CURRENT));
+            threadPool, () -> new DiscoveryNode("node1", LocalTransportAddress.buildUnique(), emptyMap(), emptySet(), Version.CURRENT));
         Set<DiscoveryNode> currentNodes = new HashSet<>();
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
@@ -1274,8 +1270,9 @@ public class ClusterServiceTests extends ESTestCase {
 
         public volatile Long currentTimeOverride = null;
 
-        public TimedClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-            super(settings, clusterSettings, threadPool);
+        public TimedClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
+                                   Supplier<DiscoveryNode> localNodeSupplier) {
+            super(settings, clusterSettings, threadPool, localNodeSupplier);
         }
 
         @Override

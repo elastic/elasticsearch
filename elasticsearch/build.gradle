@@ -32,6 +32,8 @@ check.dependsOn noBootstrapTest
 noBootstrapTest.mustRunAfter test
 
 integTest {
+    // Cannot run integration tests when cross compiling
+    enabled project.cppCrossCompile == ''
     cluster {
         //setting 'useNativeProcess', 'true'
         distribution = 'zip'
@@ -47,8 +49,8 @@ task downloadCppDist(type: DownloadS3Task) {
   destDir file("${buildDir}/cppDist")
   flatten true
   download "maven/${project.group}/ml-cpp/${project.version}/ml-cpp-windows-x86_64-${project.version}.zip"
-  download  "maven/${project.group}/ml-cpp/${project.version}/ml-cpp-linux-x86_64-${project.version}.zip"
-  download  "maven/${project.group}/ml-cpp/${project.version}/ml-cpp-darwin-x86_64-${project.version}.zip"
+  download "maven/${project.group}/ml-cpp/${project.version}/ml-cpp-linux-x86_64-${project.version}.zip"
+  download "maven/${project.group}/ml-cpp/${project.version}/ml-cpp-darwin-x86_64-${project.version}.zip"
   outputs.file(file("${buildDir}/cppDist/ml-cpp-windows-x86_64-${project.version}.zip"))
   outputs.file(file("${buildDir}/cppDist/ml-cpp-darwin-x86_64-${project.version}.zip"))
   outputs.file(file("${buildDir}/cppDist/ml-cpp-linux-x86_64-${project.version}.zip"))

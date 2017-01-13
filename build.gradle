@@ -20,6 +20,18 @@ if (envMlAwsSecretKey != null) {
   project.ext.mlAwsSecretKey = PRELERT_AWS_SECRET_ACCESS_KEY
 }
 
+String cppCrossCompile = System.env.CPP_CROSS_COMPILE
+if (cppCrossCompile != null) {
+  project.ext.cppCrossCompile = cppCrossCompile
+} else if (project.hasProperty("CPP_CROSS_COMPILE")) {
+  project.ext.cppCrossCompile = CPP_CROSS_COMPILE
+} else {
+  project.ext.cppCrossCompile = ''
+}
+if (project.ext.cppCrossCompile != '' && project.ext.cppCrossCompile != 'macosx') {
+  throw new GradleException("CPP_CROSS_COMPILE property must be empty or 'macosx'")
+}
+
 project.ext.isWindows = OperatingSystem.current().isWindows()
 project.ext.isLinux = OperatingSystem.current().isLinux()
 project.ext.isMacOsX = OperatingSystem.current().isMacOsX()
@@ -40,18 +52,19 @@ if (['true', 'false', 'auto'].contains(cppEnabledStr) == false) {
 }
 project.ext.cppEnabled = cppEnabledStr == 'true'
 if (cppEnabledStr == 'auto') {
-    // Disable the C++ build if the 3rd party tools/libraries aren't available
-    String[] cmdArray = [ project.ext.bash, '-c', 'source cpp/set_env.sh && cpp/3rd_party/3rd_party.sh --check' ]
-    Process checkProcess = Runtime.getRuntime().exec(cmdArray, null, rootDir)
-    StringBuffer checkOutput = new StringBuffer()
-    checkProcess.consumeProcessOutputStream(checkOutput)
-    if (checkProcess.waitFor() == 0) {
-        project.ext.cppEnabled = true
-    } else {
-        println 'C++ dependencies not available - disabling C++ build'
-        println checkOutput
-        project.ext.cppEnabled = false
-    }
+  // Disable the C++ build if the 3rd party tools/libraries aren't available
+  String[] cmdArray = [ project.ext.bash, '-c',
+    'export CPP_CROSS_COMPILE=' + project.ext.cppCrossCompile + ' && source cpp/set_env.sh && cpp/3rd_party/3rd_party.sh --check' ]
+  Process checkProcess = Runtime.getRuntime().exec(cmdArray, null, rootDir)
+  StringBuffer checkOutput = new StringBuffer()
+  checkProcess.consumeProcessOutputStream(checkOutput)
+  if (checkProcess.waitFor() == 0) {
+    project.ext.cppEnabled = true
+  } else {
+    println 'C++ dependencies not available - disabling C++ build'
+    println checkOutput
+    project.ext.cppEnabled = false
+  }
 }
 
 allprojects {

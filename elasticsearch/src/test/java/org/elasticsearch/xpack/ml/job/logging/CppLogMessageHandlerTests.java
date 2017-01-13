@@ -28,7 +28,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
                 + "\"method\":\"core::CLogger::reconfigureLogToNamedPipe\",\"file\":\"CLogger.cc\",\"line\":333}\n"
                 + "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\",\"pid\":10211,\"thread\":\"0x7fff7d2a8000\","
                 + "\"message\":\"controller (64 bit): Version based on 6.5.0 (Build DEVELOPMENT BUILD by dave) "
-                + "Copyright (c) Ml Ltd 2006-2016\",\"method\":\"main\",\"file\":\"Main.cc\",\"line\":123}\n"
+                + "Copyright (c) 2016 Elasticsearch BV\",\"method\":\"main\",\"file\":\"Main.cc\",\"line\":123}\n"
                 + "{\"logger\":\"controller\",\"timestamp\":1478261169065,\"level\":\"ERROR\",\"pid\":10211,\"thread\":\"0x7fff7d2a8000\","
                 + "\"message\":\"Did not understand verb 'a'\",\"class\":\"ml\","
                 + "\"method\":\"controller::CCommandProcessor::handleCommand\",\"file\":\"CCommandProcessor.cc\",\"line\":100}\n"

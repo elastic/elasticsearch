@@ -267,7 +267,9 @@ public class MockRepository extends FsRepository {
                             }
                         }
                     }
-                } else {
+                }
+                // don't block on the index-N files, as getRepositoryData depends on it
+                else if (blobName.startsWith("index-") == false) {
                     if (shouldFail(blobName, randomControlIOExceptionRate) && (incrementAndGetFailureCount() < maximumNumberOfFailures)) {
                         logger.info("throwing random IOException for file [{}] at path [{}]", blobName, path());
                         throw new IOException("Random IOException");

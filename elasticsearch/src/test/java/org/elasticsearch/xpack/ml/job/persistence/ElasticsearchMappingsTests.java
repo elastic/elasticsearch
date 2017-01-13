@@ -67,7 +67,6 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
         // These are not reserved because they're Elasticsearch keywords, not
         // field names
-        overridden.add(ElasticsearchMappings.ALL);
         overridden.add(ElasticsearchMappings.ANALYZER);
         overridden.add(ElasticsearchMappings.COPY_TO);
         overridden.add(ElasticsearchMappings.DYNAMIC);

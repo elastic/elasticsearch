@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,7 +70,7 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
         public static final ParseField MAX_NORMALIZED_PROBABILITY = new ParseField("normalized_probability");
         public static final ParseField PARTITION_VALUE = new ParseField("partition_value");
 
-        private static final ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
@@ -86,8 +85,8 @@ public class GetRecordsAction extends Action<GetRecordsAction.Request, GetRecord
             PARSER.declareDouble(Request::setMaxNormalizedProbability, MAX_NORMALIZED_PROBABILITY);
         }
 
-        public static Request parseRequest(String jobId, XContentParser parser, ParseFieldMatcherSupplier parseFieldMatcherSupplier) {
-            Request request = PARSER.apply(parser, parseFieldMatcherSupplier);
+        public static Request parseRequest(String jobId, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
             if (jobId != null) {
                 request.jobId = jobId;
             }

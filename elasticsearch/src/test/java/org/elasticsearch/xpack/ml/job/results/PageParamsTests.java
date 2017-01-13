@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
@@ -13,8 +12,8 @@ import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
 public class PageParamsTests extends AbstractSerializingTestCase<PageParams> {
 
     @Override
-    protected PageParams parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return PageParams.PARSER.apply(parser, () -> matcher);
+    protected PageParams parseInstance(XContentParser parser) {
+        return PageParams.PARSER.apply(parser, null);
     }
 
     @Override

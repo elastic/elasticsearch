@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -45,7 +44,7 @@ public class ModelSizeStats extends ToXContentToBytes implements Writeable {
     public static final ParseField LOG_TIME_FIELD = new ParseField("log_time");
     public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp");
 
-    public static final ConstructingObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
             RESULT_TYPE_FIELD.getPreferredName(), a -> new Builder((String) a[0]));
 
     static {

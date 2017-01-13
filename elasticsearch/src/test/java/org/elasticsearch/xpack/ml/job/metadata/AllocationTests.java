@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.metadata;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.JobStatus;
@@ -29,8 +28,8 @@ public class AllocationTests extends AbstractSerializingTestCase<Allocation> {
     }
 
     @Override
-    protected Allocation parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return Allocation.PARSER.apply(parser, () -> matcher).build();
+    protected Allocation parseInstance(XContentParser parser) {
+        return Allocation.PARSER.apply(parser, null).build();
     }
 
     public void testUnsetIgnoreDownTime() {

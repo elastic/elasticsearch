@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,8 +57,8 @@ public class PutJobAction extends Action<PutJobAction.Request, PutJobAction.Resp
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
 
-        public static Request parseRequest(String jobId, XContentParser parser, ParseFieldMatcherSupplier matcherSupplier) {
-            Job job = Job.PARSER.apply(parser, matcherSupplier).build(true, jobId);
+        public static Request parseRequest(String jobId, XContentParser parser) {
+            Job job = Job.PARSER.apply(parser, null).build(true, jobId);
             return new Request(job);
         }
 

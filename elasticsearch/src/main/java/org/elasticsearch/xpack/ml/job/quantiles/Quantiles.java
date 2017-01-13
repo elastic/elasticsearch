@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.quantiles;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,7 +35,7 @@ public class Quantiles extends ToXContentToBytes implements Writeable {
      */
     public static final ParseField TYPE = new ParseField("quantiles");
 
-    public static final ConstructingObjectParser<Quantiles, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Quantiles, Void> PARSER = new ConstructingObjectParser<>(
             TYPE.getPreferredName(), a -> new Quantiles((String) a[0], (Date) a[1], (String) a[2]));
 
     static {

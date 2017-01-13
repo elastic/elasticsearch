@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.metadata;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -80,8 +79,8 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
     }
 
     @Override
-    protected MlMetadata parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return MlMetadata.ML_METADATA_PARSER.apply(parser, () -> matcher).build();
+    protected MlMetadata parseInstance(XContentParser parser) {
+        return MlMetadata.ML_METADATA_PARSER.apply(parser, null).build();
     }
 
     @Override

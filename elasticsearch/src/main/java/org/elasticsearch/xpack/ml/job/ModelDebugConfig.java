@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -72,7 +71,7 @@ public class ModelDebugConfig extends ToXContentToBytes implements Writeable {
     private static final ParseField BOUNDS_PERCENTILE_FIELD = new ParseField("bounds_percentile");
     private static final ParseField TERMS_FIELD = new ParseField("terms");
 
-    public static final ConstructingObjectParser<ModelDebugConfig, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<ModelDebugConfig, Void> PARSER = new ConstructingObjectParser<>(
             TYPE_FIELD.getPreferredName(), a -> {
                 if (a[0] == null) {
                     return new ModelDebugConfig((Double) a[1], (String) a[2]);

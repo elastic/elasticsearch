@@ -5,14 +5,13 @@
  */
 package org.elasticsearch.xpack.ml.lists;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 public class ListDocumentTests extends AbstractSerializingTestCase<ListDocument> {
 
@@ -32,8 +31,8 @@ public class ListDocumentTests extends AbstractSerializingTestCase<ListDocument>
     }
 
     @Override
-    protected ListDocument parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return ListDocument.PARSER.apply(parser, () -> matcher);
+    protected ListDocument parseInstance(XContentParser parser) {
+        return ListDocument.PARSER.apply(parser, null);
     }
 
     public void testNullId() {

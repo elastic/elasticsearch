@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.transform;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,7 +27,7 @@ public class TransformConfigs extends ToXContentToBytes implements Writeable {
     public static final ParseField TRANSFORMS = new ParseField("transforms");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<TransformConfigs, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<TransformConfigs, Void> PARSER = new ConstructingObjectParser<>(
             TRANSFORMS.getPreferredName(), a -> new TransformConfigs((List<TransformConfig>) a[0]));
 
     static {

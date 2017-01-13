@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -183,8 +182,8 @@ public class DetectorTests extends AbstractSerializingTestCase<Detector> {
     }
 
     @Override
-    protected Detector parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return Detector.PARSER.apply(parser, () -> matcher).build();
+    protected Detector parseInstance(XContentParser parser) {
+        return Detector.PARSER.apply(parser, null).build();
     }
 
     public void testVerifyFieldNames_givenInvalidChars() {

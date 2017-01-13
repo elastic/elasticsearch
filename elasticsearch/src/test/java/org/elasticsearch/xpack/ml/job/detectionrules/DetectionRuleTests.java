@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.detectionrules;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.condition.Condition;
@@ -110,7 +109,7 @@ public class DetectionRuleTests extends AbstractSerializingTestCase<DetectionRul
     }
 
     @Override
-    protected DetectionRule parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return DetectionRule.PARSER.apply(parser, () -> matcher);
+    protected DetectionRule parseInstance(XContentParser parser) {
+        return DetectionRule.PARSER.apply(parser, null);
     }
 }

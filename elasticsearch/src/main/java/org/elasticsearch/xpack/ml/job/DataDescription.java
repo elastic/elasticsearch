@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -133,7 +132,7 @@ public class DataDescription extends ToXContentToBytes implements Writeable {
     private final char fieldDelimiter;
     private final char quoteCharacter;
 
-    public static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER =
+    public static final ObjectParser<Builder, Void> PARSER =
             new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), Builder::new);
 
     static {

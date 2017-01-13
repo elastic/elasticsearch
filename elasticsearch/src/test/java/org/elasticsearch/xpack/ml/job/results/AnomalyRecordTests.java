@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
@@ -77,7 +76,7 @@ public class AnomalyRecordTests extends AbstractSerializingTestCase<AnomalyRecor
     }
 
     @Override
-    protected AnomalyRecord parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return AnomalyRecord.PARSER.apply(parser, () -> matcher);
+    protected AnomalyRecord parseInstance(XContentParser parser) {
+        return AnomalyRecord.PARSER.apply(parser, null);
     }
 }

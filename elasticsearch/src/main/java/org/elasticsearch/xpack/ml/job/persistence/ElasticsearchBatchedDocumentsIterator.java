@@ -10,7 +10,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
@@ -37,28 +36,21 @@ abstract class ElasticsearchBatchedDocumentsIterator<T> implements BatchedDocume
     private volatile long totalHits;
     private volatile String scrollId;
     private volatile boolean isScrollInitialised;
-    protected ParseFieldMatcher parseFieldMatcher;
 
-    public ElasticsearchBatchedDocumentsIterator(Client client, String index, ParseFieldMatcher parseFieldMatcher) {
-        this.parseFieldMatcher = parseFieldMatcher;
-        this.client = Objects.requireNonNull(client);
-        this.index = Objects.requireNonNull(index);
-        this.parseFieldMatcher = Objects.requireNonNull(parseFieldMatcher);
-        totalHits = 0;
-        count = 0;
-        filterBuilder = new ResultsFilterBuilder();
-        isScrollInitialised = false;
+    public ElasticsearchBatchedDocumentsIterator(Client client, String index) {
+        this(client, index, new ResultsFilterBuilder());
     }
 
-    protected ElasticsearchBatchedDocumentsIterator(Client client, String index, ParseFieldMatcher parseFieldMatcher,
-                                                    QueryBuilder queryBuilder) {
-        this.parseFieldMatcher = parseFieldMatcher;
+    protected ElasticsearchBatchedDocumentsIterator(Client client, String index, QueryBuilder queryBuilder) {
+        this(client, index, new ResultsFilterBuilder(queryBuilder));
+    }
+
+    private ElasticsearchBatchedDocumentsIterator(Client client, String index, ResultsFilterBuilder resultsFilterBuilder) {
         this.client = Objects.requireNonNull(client);
         this.index = Objects.requireNonNull(index);
-        this.parseFieldMatcher = Objects.requireNonNull(parseFieldMatcher);
         totalHits = 0;
         count = 0;
-        filterBuilder = new ResultsFilterBuilder(queryBuilder);
+        filterBuilder = Objects.requireNonNull(resultsFilterBuilder);
         isScrollInitialised = false;
     }
 

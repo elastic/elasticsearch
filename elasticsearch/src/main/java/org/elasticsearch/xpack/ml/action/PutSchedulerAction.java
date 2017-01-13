@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,8 +58,8 @@ public class PutSchedulerAction extends Action<PutSchedulerAction.Request, PutSc
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContent {
 
-        public static Request parseRequest(String schedulerId, XContentParser parser, ParseFieldMatcherSupplier matcherSupplier) {
-            SchedulerConfig.Builder scheduler = SchedulerConfig.PARSER.apply(parser, matcherSupplier);
+        public static Request parseRequest(String schedulerId, XContentParser parser) {
+            SchedulerConfig.Builder scheduler = SchedulerConfig.PARSER.apply(parser, null);
             scheduler.setId(schedulerId);
             return new Request(scheduler.build());
         }

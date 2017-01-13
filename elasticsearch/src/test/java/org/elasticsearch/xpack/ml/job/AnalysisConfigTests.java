@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -82,8 +81,8 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
     }
 
     @Override
-    protected AnalysisConfig parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return AnalysisConfig.PARSER.apply(parser, () -> matcher).build();
+    protected AnalysisConfig parseInstance(XContentParser parser) {
+        return AnalysisConfig.PARSER.apply(parser, null).build();
     }
 
     public void testFieldConfiguration_singleDetector_notPreSummarised() {

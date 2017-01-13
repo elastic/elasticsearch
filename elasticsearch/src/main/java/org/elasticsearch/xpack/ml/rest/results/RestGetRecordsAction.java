@@ -41,7 +41,7 @@ public class RestGetRecordsAction extends BaseRestHandler {
         final GetRecordsAction.Request request;
         if (restRequest.hasContent()) {
             XContentParser parser = restRequest.contentParser();
-            request = GetRecordsAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
+            request = GetRecordsAction.Request.parseRequest(jobId, parser);
         }
         else {
             request = new GetRecordsAction.Request(jobId);

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.scheduler;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -64,7 +63,7 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
     public static final ParseField AGGS = new ParseField("aggs");
     public static final ParseField SCRIPT_FIELDS = new ParseField("script_fields");
 
-    public static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("scheduler_config", Builder::new);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("scheduler_config", Builder::new);
 
     static {
         PARSER.declareString(Builder::setId, ID);
@@ -74,15 +73,14 @@ public class SchedulerConfig extends ToXContentToBytes implements Writeable {
         PARSER.declareLong(Builder::setQueryDelay, QUERY_DELAY);
         PARSER.declareLong(Builder::setFrequency, FREQUENCY);
         PARSER.declareObject(Builder::setQuery,
-                (p, c) -> new QueryParseContext(p, c.getParseFieldMatcher()).parseInnerQueryBuilder(), QUERY);
-        PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(
-                new QueryParseContext(p, c.getParseFieldMatcher())), AGGREGATIONS);
-        PARSER.declareObject(Builder::setAggregations,(p, c) -> AggregatorFactories.parseAggregators(
-                new QueryParseContext(p, c.getParseFieldMatcher())), AGGS);
+                (p, c) -> new QueryParseContext(p).parseInnerQueryBuilder(), QUERY);
+        PARSER.declareObject(Builder::setAggregations, (p, c) -> AggregatorFactories.parseAggregators(new QueryParseContext(p)),
+                AGGREGATIONS);
+        PARSER.declareObject(Builder::setAggregations,(p, c) -> AggregatorFactories.parseAggregators(new QueryParseContext(p)), AGGS);
         PARSER.declareObject(Builder::setScriptFields, (p, c) -> {
                 List<SearchSourceBuilder.ScriptField> parsedScriptFields = new ArrayList<>();
                 while (p.nextToken() != XContentParser.Token.END_OBJECT) {
-                    parsedScriptFields.add(new SearchSourceBuilder.ScriptField(new QueryParseContext(p, c.getParseFieldMatcher())));
+                    parsedScriptFields.add(new SearchSourceBuilder.ScriptField(new QueryParseContext(p)));
             }
             parsedScriptFields.sort(Comparator.comparing(SearchSourceBuilder.ScriptField::fieldName));
             return parsedScriptFields;

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.ValidateDetectorAction.Request;
 import org.elasticsearch.xpack.ml.job.Detector;
@@ -30,8 +29,8 @@ public class ValidateDetectorActionRequestTests extends AbstractStreamableXConte
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return Request.parseRequest(parser, () -> matcher);
+    protected Request parseInstance(XContentParser parser) {
+        return Request.parseRequest(parser);
     }
 
 }

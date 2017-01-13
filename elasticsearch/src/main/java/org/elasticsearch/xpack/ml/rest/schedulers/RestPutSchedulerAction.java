@@ -36,8 +36,7 @@ public class RestPutSchedulerAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String schedulerId = restRequest.param(SchedulerConfig.ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
-        PutSchedulerAction.Request putSchedulerRequest = PutSchedulerAction.Request.parseRequest(schedulerId, parser,
-                () -> parseFieldMatcher);
+        PutSchedulerAction.Request putSchedulerRequest = PutSchedulerAction.Request.parseRequest(schedulerId, parser);
         return channel -> transportPutSchedulerAction.execute(putSchedulerRequest, new RestToXContentListener<>(channel));
     }
 

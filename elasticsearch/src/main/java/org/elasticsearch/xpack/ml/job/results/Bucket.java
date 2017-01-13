@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -59,7 +58,7 @@ public class Bucket extends ToXContentToBytes implements Writeable {
     public static final String RESULT_TYPE_VALUE = "bucket";
     public static final ParseField RESULT_TYPE_FIELD = new ParseField(RESULT_TYPE_VALUE);
 
-    public static final ConstructingObjectParser<Bucket, ParseFieldMatcherSupplier> PARSER =
+    public static final ConstructingObjectParser<Bucket, Void> PARSER =
             new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a -> new Bucket((String) a[0], (Date) a[1], (long) a[2]));
 
     static {

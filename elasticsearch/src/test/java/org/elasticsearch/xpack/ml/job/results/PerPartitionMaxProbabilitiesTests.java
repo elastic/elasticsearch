@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
@@ -35,8 +34,8 @@ public class PerPartitionMaxProbabilitiesTests extends AbstractSerializingTestCa
     }
 
     @Override
-    protected PerPartitionMaxProbabilities parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return PerPartitionMaxProbabilities.PARSER.apply(parser, () -> matcher);
+    protected PerPartitionMaxProbabilities parseInstance(XContentParser parser) {
+        return PerPartitionMaxProbabilities.PARSER.apply(parser, null);
     }
 
     public void testCreateFromAListOfRecords() {

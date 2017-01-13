@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer.output;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -81,7 +80,7 @@ public class NormalizerResultHandler extends AbstractComponent {
 
     private void parseResult(XContent xContent, BytesReference bytesRef) throws IOException {
         XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, bytesRef);
-        NormalizerResult result = NormalizerResult.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        NormalizerResult result = NormalizerResult.PARSER.apply(parser, null);
         normalizedResults.add(result);
     }
 

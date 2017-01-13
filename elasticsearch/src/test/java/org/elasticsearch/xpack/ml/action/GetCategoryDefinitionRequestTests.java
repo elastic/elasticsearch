@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.results.PageParams;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
@@ -33,7 +32,7 @@ public class GetCategoryDefinitionRequestTests extends AbstractStreamableXConten
     }
 
     @Override
-    protected GetCategoriesDefinitionAction.Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return GetCategoriesDefinitionAction.Request.parseRequest(null, parser, () -> matcher);
+    protected GetCategoriesDefinitionAction.Request parseInstance(XContentParser parser) {
+        return GetCategoriesDefinitionAction.Request.parseRequest(null, parser);
     }
 }

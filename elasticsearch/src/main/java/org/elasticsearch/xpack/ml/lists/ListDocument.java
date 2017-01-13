@@ -5,20 +5,19 @@
  */
 package org.elasticsearch.xpack.ml.lists;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
-
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
 
 public class ListDocument extends ToXContentToBytes implements Writeable {
     public static final ParseField TYPE = new ParseField("list");
@@ -29,7 +28,7 @@ public class ListDocument extends ToXContentToBytes implements Writeable {
     public static final ParseField RESULTS_FIELD = new ParseField("lists");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<ListDocument, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<ListDocument, Void> PARSER = new ConstructingObjectParser<>(
             TYPE.getPreferredName(), a -> new ListDocument((String) a[0], (List<String>) a[1]));
 
     static {

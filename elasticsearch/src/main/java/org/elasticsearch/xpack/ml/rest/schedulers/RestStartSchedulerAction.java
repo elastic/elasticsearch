@@ -63,7 +63,7 @@ public class RestStartSchedulerAction extends BaseRestHandler {
         StartSchedulerAction.Request jobSchedulerRequest;
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();
-            jobSchedulerRequest = StartSchedulerAction.Request.parseRequest(schedulerId, parser, () -> parseFieldMatcher);
+            jobSchedulerRequest = StartSchedulerAction.Request.parseRequest(schedulerId, parser);
         } else {
             long startTimeMillis = parseDateOrThrow(restRequest.param(StartSchedulerAction.START_TIME.getPreferredName(),
                     DEFAULT_START), StartSchedulerAction.START_TIME.getPreferredName());

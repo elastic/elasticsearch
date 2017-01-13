@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.detectionrules;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,7 +30,7 @@ public class RuleCondition extends ToXContentToBytes implements Writeable {
     public static final ParseField FIELD_VALUE_FIELD = new ParseField("field_value");
     public static final ParseField VALUE_LIST_FIELD = new ParseField("value_list");
 
-    public static final ConstructingObjectParser<RuleCondition, ParseFieldMatcherSupplier> PARSER =
+    public static final ConstructingObjectParser<RuleCondition, Void> PARSER =
             new ConstructingObjectParser<>(RULE_CONDITION_FIELD.getPreferredName(),
                     a -> new RuleCondition((RuleConditionType) a[0], (String) a[1], (String) a[2], (Condition) a[3], (String) a[4]));
 

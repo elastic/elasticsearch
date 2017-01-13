@@ -51,7 +51,7 @@ public class RestGetModelSnapshotsAction extends BaseRestHandler {
         Request getModelSnapshots;
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();
-            getModelSnapshots = Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
+            getModelSnapshots = Request.parseRequest(jobId, parser);
         } else {
             getModelSnapshots = new Request(jobId);
             getModelSnapshots.setSort(restRequest.param(Request.SORT.getPreferredName(), DEFAULT_SORT));

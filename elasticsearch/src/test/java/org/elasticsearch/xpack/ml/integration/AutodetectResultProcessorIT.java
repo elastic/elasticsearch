@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -68,9 +67,8 @@ public class AutodetectResultProcessorIT extends ESSingleNodeTestCase {
     private void createComponents() {
         renormalizer = new NoOpRenormalizer();
         jobResultsPersister = new JobResultsPersister(nodeSettings(), client());
-        ParseFieldMatcher matcher = new ParseFieldMatcher(nodeSettings());
-        autodetectResultsParser = new AutodetectResultsParser(nodeSettings(), () -> matcher);
-        jobProvider = new JobProvider(client(), 1, matcher);
+        autodetectResultsParser = new AutodetectResultsParser(nodeSettings());
+        jobProvider = new JobProvider(client(), 1);
     }
 
     public void testProcessResults() throws Exception {

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.xpack.ml.job.transform;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.condition.Condition;
 import org.elasticsearch.xpack.ml.job.condition.Operator;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -50,8 +50,8 @@ public class TransformConfigsTests extends AbstractSerializingTestCase<Transform
     }
 
     @Override
-    protected TransformConfigs parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return TransformConfigs.PARSER.apply(parser, () -> matcher);
+    protected TransformConfigs parseInstance(XContentParser parser) {
+        return TransformConfigs.PARSER.apply(parser, null);
     }
 
     public void testInputOutputFieldNames() {

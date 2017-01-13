@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job.logging;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -169,7 +168,7 @@ public class CppLogMessageHandler implements Closeable {
     private void parseMessage(XContent xContent, BytesReference bytesRef) {
         try {
             XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, bytesRef);
-            CppLogMessage msg = CppLogMessage.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+            CppLogMessage msg = CppLogMessage.PARSER.apply(parser, null);
             Level level = Level.getLevel(msg.getLevel());
             if (level == null) {
                 // This isn't expected to ever happen

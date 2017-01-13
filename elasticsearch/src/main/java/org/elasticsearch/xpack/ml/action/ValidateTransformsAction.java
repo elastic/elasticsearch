@@ -17,7 +17,6 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -67,7 +66,7 @@ extends Action<ValidateTransformsAction.Request, ValidateTransformsAction.Respon
         public static final ParseField TRANSFORMS = new ParseField("transforms");
 
         @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(NAME,
+        public static final ConstructingObjectParser<Request, Void> PARSER = new ConstructingObjectParser<>(NAME,
                 a -> new Request((List<TransformConfig>) a[0]));
 
         static {

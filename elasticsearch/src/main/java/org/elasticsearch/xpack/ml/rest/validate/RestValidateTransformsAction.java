@@ -33,10 +33,8 @@ public class RestValidateTransformsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         XContentParser parser = restRequest.contentOrSourceParamParser();
-        ValidateTransformsAction.Request validateDetectorRequest = ValidateTransformsAction.Request.PARSER.apply(parser,
-                () -> parseFieldMatcher);
-        return channel -> transportValidateAction.execute(validateDetectorRequest,
-                new AcknowledgedRestListener<ValidateTransformsAction.Response>(channel));
+        ValidateTransformsAction.Request validateDetectorRequest = ValidateTransformsAction.Request.PARSER.apply(parser, null);
+        return channel -> transportValidateAction.execute(validateDetectorRequest, new AcknowledgedRestListener<>(channel));
     }
 
 }

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.scheduler;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
@@ -24,7 +23,7 @@ public class SchedulerTests extends AbstractSerializingTestCase<Scheduler> {
     }
 
     @Override
-    protected Scheduler parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return Scheduler.PARSER.apply(parser, () -> matcher);
+    protected Scheduler parseInstance(XContentParser parser) {
+        return Scheduler.PARSER.apply(parser, null);
     }
 }

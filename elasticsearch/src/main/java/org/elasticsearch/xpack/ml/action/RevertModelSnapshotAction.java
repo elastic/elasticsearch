@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -84,7 +83,7 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
         public static final ParseField DESCRIPTION = new ParseField("description");
         public static final ParseField DELETE_INTERVENING = new ParseField("delete_intervening_results");
 
-        private static ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
+        private static ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
@@ -94,8 +93,8 @@ extends Action<RevertModelSnapshotAction.Request, RevertModelSnapshotAction.Resp
             PARSER.declareBoolean(Request::setDeleteInterveningResults, DELETE_INTERVENING);
         }
 
-        public static Request parseRequest(String jobId, XContentParser parser, ParseFieldMatcherSupplier parseFieldMatcherSupplier) {
-            Request request = PARSER.apply(parser, parseFieldMatcherSupplier);
+        public static Request parseRequest(String jobId, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
             if (jobId != null) {
                 request.jobId = jobId;
             }

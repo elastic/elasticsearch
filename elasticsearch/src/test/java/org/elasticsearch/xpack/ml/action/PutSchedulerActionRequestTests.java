@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.PutSchedulerAction.Request;
 import org.elasticsearch.xpack.ml.scheduler.SchedulerConfig;
@@ -38,8 +37,8 @@ public class PutSchedulerActionRequestTests extends AbstractStreamableXContentTe
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return Request.parseRequest(schedulerId, parser, () -> matcher);
+    protected Request parseInstance(XContentParser parser) {
+        return Request.parseRequest(schedulerId, parser);
     }
 
 }

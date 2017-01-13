@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -51,7 +50,7 @@ public class MlMetadata implements MetaData.Custom {
     public static final MlMetadata EMPTY_METADATA = new MlMetadata(Collections.emptySortedMap(),
             Collections.emptySortedMap(), Collections.emptySortedMap());
 
-    public static final ObjectParser<Builder, ParseFieldMatcherSupplier> ML_METADATA_PARSER = new ObjectParser<>("ml_metadata",
+    public static final ObjectParser<Builder, Void> ML_METADATA_PARSER = new ObjectParser<>("ml_metadata",
             Builder::new);
 
     static {

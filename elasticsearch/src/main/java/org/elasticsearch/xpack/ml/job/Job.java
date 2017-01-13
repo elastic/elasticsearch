@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -74,7 +73,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContent 
 
     public static final String ALL = "_all";
 
-    public static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("job_details", Builder::new);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("job_details", Builder::new);
 
     static {
         PARSER.declareString(Builder::setId, ID);

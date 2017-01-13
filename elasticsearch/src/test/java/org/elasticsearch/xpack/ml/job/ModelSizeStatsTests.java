@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.ModelSizeStats.MemoryStatus;
@@ -92,7 +91,7 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
     }
 
     @Override
-    protected ModelSizeStats parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return ModelSizeStats.PARSER.apply(parser, () -> matcher).build();
+    protected ModelSizeStats parseInstance(XContentParser parser) {
+        return ModelSizeStats.PARSER.apply(parser, null).build();
     }
 }

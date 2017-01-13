@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.common.ParseFieldMatcher;
+import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
 import org.elasticsearch.xpack.ml.job.transform.TransformType;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
-
-import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,8 +37,8 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     @Override
-    protected Job parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return Job.PARSER.apply(parser, () -> matcher).build();
+    protected Job parseInstance(XContentParser parser) {
+        return Job.PARSER.apply(parser, null).build();
     }
 
     public void testConstructor_GivenEmptyJobConfiguration() {

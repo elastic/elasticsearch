@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.GetInfluencersAction.Request;
 import org.elasticsearch.xpack.ml.job.results.PageParams;
@@ -14,8 +13,8 @@ import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 public class GetInfluencersActionRequestTests extends AbstractStreamableXContentTestCase<GetInfluencersAction.Request> {
 
     @Override
-    protected Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return GetInfluencersAction.Request.parseRequest(null, parser, () -> matcher);
+    protected Request parseInstance(XContentParser parser) {
+        return GetInfluencersAction.Request.parseRequest(null, parser);
     }
 
     @Override

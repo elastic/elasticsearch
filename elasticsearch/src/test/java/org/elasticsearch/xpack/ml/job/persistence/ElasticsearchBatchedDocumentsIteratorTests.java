@@ -11,7 +11,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -44,7 +43,7 @@ public class ElasticsearchBatchedDocumentsIteratorTests extends ESTestCase {
     public void setUpMocks() {
         client = Mockito.mock(Client.class);
         wasScrollCleared = false;
-        testIterator = new TestIterator(client, INDEX_NAME, ParseFieldMatcher.STRICT);
+        testIterator = new TestIterator(client, INDEX_NAME);
         givenClearScrollRequest();
     }
 
@@ -189,8 +188,8 @@ public class ElasticsearchBatchedDocumentsIteratorTests extends ESTestCase {
     }
 
     private static class TestIterator extends ElasticsearchBatchedDocumentsIterator<String> {
-        public TestIterator(Client client, String jobId, ParseFieldMatcher parseFieldMatcher) {
-            super(client, jobId, parseFieldMatcher);
+        public TestIterator(Client client, String jobId) {
+            super(client, jobId);
         }
 
         @Override

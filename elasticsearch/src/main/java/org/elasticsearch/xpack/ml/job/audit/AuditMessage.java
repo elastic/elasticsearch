@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.audit;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,7 +29,7 @@ public class AuditMessage extends ToXContentToBytes implements Writeable {
     public static final ParseField LEVEL = new ParseField("level");
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
 
-    public static final ObjectParser<AuditMessage, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(TYPE.getPreferredName(),
+    public static final ObjectParser<AuditMessage, Void> PARSER = new ObjectParser<>(TYPE.getPreferredName(),
             AuditMessage::new);
 
     static {

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -65,7 +64,7 @@ public class ModelDebugConfigTests extends AbstractSerializingTestCase<ModelDebu
     }
 
     @Override
-    protected ModelDebugConfig parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return ModelDebugConfig.PARSER.apply(parser, () -> matcher);
+    protected ModelDebugConfig parseInstance(XContentParser parser) {
+        return ModelDebugConfig.PARSER.apply(parser, null);
     }
 }

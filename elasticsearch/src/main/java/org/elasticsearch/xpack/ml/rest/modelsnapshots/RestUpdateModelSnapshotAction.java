@@ -41,8 +41,7 @@ public class RestUpdateModelSnapshotAction extends BaseRestHandler {
         UpdateModelSnapshotAction.Request getModelSnapshots = UpdateModelSnapshotAction.Request.parseRequest(
                 restRequest.param(Job.ID.getPreferredName()),
                 restRequest.param(ModelSnapshot.SNAPSHOT_ID.getPreferredName()),
-                parser, () -> parseFieldMatcher
-                );
+                parser);
 
         return channel -> transportAction.execute(getModelSnapshots, new RestStatusToXContentListener<>(channel));
     }

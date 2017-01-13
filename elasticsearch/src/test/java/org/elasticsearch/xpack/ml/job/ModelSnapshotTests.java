@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.ModelSizeStats.MemoryStatus;
@@ -211,7 +210,7 @@ public class ModelSnapshotTests extends AbstractSerializingTestCase<ModelSnapsho
     }
 
     @Override
-    protected ModelSnapshot parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return ModelSnapshot.PARSER.apply(parser, () -> matcher);
+    protected ModelSnapshot parseInstance(XContentParser parser) {
+        return ModelSnapshot.PARSER.apply(parser, null);
     }
 }

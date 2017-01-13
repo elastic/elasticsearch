@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,7 +69,7 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
         public static final ParseField MAX_NORMALIZED_PROBABILITY = new ParseField("max_normalized_probability");
         public static final ParseField TIMESTAMP = new ParseField("timestamp");
 
-        private static final ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
@@ -88,9 +87,8 @@ public class GetBucketsAction extends Action<GetBucketsAction.Request, GetBucket
             PARSER.declareString(Request::setPartitionValue, PARTITION_VALUE);
         }
 
-        public static Request parseRequest(String jobId, XContentParser parser,
-                ParseFieldMatcherSupplier parseFieldMatcherSupplier) {
-            Request request = PARSER.apply(parser, parseFieldMatcherSupplier);
+        public static Request parseRequest(String jobId, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
             if (jobId != null) {
                 request.jobId = jobId;
             }

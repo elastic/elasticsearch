@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.ValidateTransformAction.Request;
 import org.elasticsearch.xpack.ml.job.transform.TransformConfig;
@@ -27,8 +26,8 @@ public class ValidateTransformActionRequestTests extends AbstractStreamableXCont
     }
 
     @Override
-    protected Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return Request.parseRequest(parser, () -> matcher);
+    protected Request parseInstance(XContentParser parser) {
+        return Request.parseRequest(parser);
     }
 
 }

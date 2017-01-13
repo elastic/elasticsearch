@@ -7,14 +7,13 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.xpack.ml.job.quantiles.Quantiles;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
@@ -46,7 +45,7 @@ public class ModelSnapshot extends ToXContentToBytes implements Writeable {
      */
     public static final ParseField TYPE = new ParseField("model_snapshot");
 
-    public static final ConstructingObjectParser<ModelSnapshot, ParseFieldMatcherSupplier> PARSER =
+    public static final ConstructingObjectParser<ModelSnapshot, Void> PARSER =
             new ConstructingObjectParser<>(TYPE.getPreferredName(), a -> new ModelSnapshot((String) a[0]));
 
     static {

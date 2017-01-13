@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
@@ -31,7 +31,7 @@ public class Influence extends ToXContentToBytes implements Writeable {
     public static final ParseField INFLUENCER_FIELD_VALUES = new ParseField("influencer_field_values");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Influence, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Influence, Void> PARSER = new ConstructingObjectParser<>(
             INFLUENCER.getPreferredName(), a -> new Influence((String) a[0], (List<String>) a[1]));
 
     static {

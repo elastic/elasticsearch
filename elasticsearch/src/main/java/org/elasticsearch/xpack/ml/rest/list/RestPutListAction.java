@@ -32,7 +32,7 @@ public class RestPutListAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         XContentParser parser = restRequest.contentOrSourceParamParser();
-        PutListAction.Request putListRequest = PutListAction.Request.parseRequest(parser, () -> parseFieldMatcher);
+        PutListAction.Request putListRequest = PutListAction.Request.parseRequest(parser);
         return channel -> transportCreateListAction.execute(putListRequest, new AcknowledgedRestListener<>(channel));
     }
 

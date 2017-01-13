@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,7 +26,7 @@ public class FlushAcknowledgement extends ToXContentToBytes implements Writeable
     public static final ParseField TYPE = new ParseField("flush");
     public static final ParseField ID = new ParseField("id");
 
-    public static final ConstructingObjectParser<FlushAcknowledgement, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<FlushAcknowledgement, Void> PARSER = new ConstructingObjectParser<>(
             TYPE.getPreferredName(), a -> new FlushAcknowledgement((String) a[0]));
 
     static {

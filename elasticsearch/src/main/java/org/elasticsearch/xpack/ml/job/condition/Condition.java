@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.condition;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,7 +30,7 @@ public class Condition extends ToXContentToBytes implements Writeable {
     public static final ParseField CONDITION_FIELD = new ParseField("condition");
     public static final ParseField FILTER_VALUE_FIELD = new ParseField("value");
 
-    public static final ConstructingObjectParser<Condition, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Condition, Void> PARSER = new ConstructingObjectParser<>(
             CONDITION_FIELD.getPreferredName(), a -> new Condition((Operator) a[0], (String) a[1]));
 
     static {

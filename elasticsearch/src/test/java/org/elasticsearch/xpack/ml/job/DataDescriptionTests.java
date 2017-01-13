@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
@@ -176,7 +175,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         BytesArray json = new BytesArray("{ \"format\":\"INEXISTENT_FORMAT\" }");
         XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
         ParsingException ex = expectThrows(ParsingException.class,
-                () -> DataDescription.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
+                () -> DataDescription.PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [format]"));
         Throwable cause = ex.getCause();
         assertNotNull(cause);
@@ -189,7 +188,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         BytesArray json = new BytesArray("{ \"field_delimiter\":\",,\" }");
         XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
         ParsingException ex = expectThrows(ParsingException.class,
-                () -> DataDescription.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
+                () -> DataDescription.PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [field_delimiter]"));
         Throwable cause = ex.getCause();
         assertNotNull(cause);
@@ -202,7 +201,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
         BytesArray json = new BytesArray("{ \"quote_character\":\"''\" }");
         XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
         ParsingException ex = expectThrows(ParsingException.class,
-                () -> DataDescription.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
+                () -> DataDescription.PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[data_description] failed to parse field [quote_character]"));
         Throwable cause = ex.getCause();
         assertNotNull(cause);
@@ -245,7 +244,7 @@ public class DataDescriptionTests extends AbstractSerializingTestCase<DataDescri
     }
 
     @Override
-    protected DataDescription parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return DataDescription.PARSER.apply(parser, () -> matcher).build();
+    protected DataDescription parseInstance(XContentParser parser) {
+        return DataDescription.PARSER.apply(parser, null).build();
     }
 }

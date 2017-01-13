@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -1105,7 +1104,7 @@ public class JobProviderTests extends ESTestCase {
     }
 
     private JobProvider createProvider(Client client) {
-        return new JobProvider(client, 0, ParseFieldMatcher.STRICT);
+        return new JobProvider(client, 0);
     }
 
     private static GetResponse createGetResponse(boolean exists, Map<String, Object> source) throws IOException {

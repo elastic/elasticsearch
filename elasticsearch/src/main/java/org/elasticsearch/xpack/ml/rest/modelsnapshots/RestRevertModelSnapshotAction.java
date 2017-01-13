@@ -44,7 +44,7 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
         RevertModelSnapshotAction.Request request;
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();
-            request = RevertModelSnapshotAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
+            request = RevertModelSnapshotAction.Request.parseRequest(jobId, parser);
         } else {
             request = new RevertModelSnapshotAction.Request(jobId);
             request.setTime(restRequest.param(RevertModelSnapshotAction.Request.TIME.getPreferredName(), TIME_DEFAULT));

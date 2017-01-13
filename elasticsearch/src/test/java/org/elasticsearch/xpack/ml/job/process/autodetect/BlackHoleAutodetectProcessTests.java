@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,7 +25,7 @@ public class BlackHoleAutodetectProcessTests extends ESTestCase {
                     .createParser(NamedXContentRegistry.EMPTY, process.getProcessOutStream());
             parser.nextToken(); // FlushAcknowledgementParser expects this to be
                                 // called first
-            AutodetectResult result = AutodetectResult.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+            AutodetectResult result = AutodetectResult.PARSER.apply(parser, null);
             FlushAcknowledgement ack = result.getFlushAcknowledgement();
             assertEquals(flushId, ack.getId());
         }

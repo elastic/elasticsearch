@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -35,7 +34,7 @@ public class CategoryDefinition extends ToXContentToBytes implements Writeable {
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("categories");
 
-    public static final ConstructingObjectParser<CategoryDefinition, ParseFieldMatcherSupplier> PARSER =
+    public static final ConstructingObjectParser<CategoryDefinition, Void> PARSER =
             new ConstructingObjectParser<>(TYPE.getPreferredName(), a -> new CategoryDefinition((String) a[0]));
 
     static {

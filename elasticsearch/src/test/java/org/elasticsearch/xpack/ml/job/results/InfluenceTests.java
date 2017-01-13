@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
@@ -31,8 +30,8 @@ public class InfluenceTests extends AbstractSerializingTestCase<Influence> {
     }
 
     @Override
-    protected Influence parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return Influence.PARSER.apply(parser, () -> matcher);
+    protected Influence parseInstance(XContentParser parser) {
+        return Influence.PARSER.apply(parser, null);
     }
 
 }

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.scheduler;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -80,8 +79,8 @@ public class SchedulerConfigTests extends AbstractSerializingTestCase<SchedulerC
     }
 
     @Override
-    protected SchedulerConfig parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return SchedulerConfig.PARSER.apply(parser, () -> matcher).build();
+    protected SchedulerConfig parseInstance(XContentParser parser) {
+        return SchedulerConfig.PARSER.apply(parser, null).build();
     }
 
     public void testFillDefaults() {

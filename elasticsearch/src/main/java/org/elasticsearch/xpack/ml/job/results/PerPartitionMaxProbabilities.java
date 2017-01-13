@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -46,7 +45,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
     public static final ParseField PER_PARTITION_MAX_PROBABILITIES = new ParseField("per_partition_max_probabilities");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<PerPartitionMaxProbabilities, ParseFieldMatcherSupplier> PARSER =
+    public static final ConstructingObjectParser<PerPartitionMaxProbabilities, Void> PARSER =
             new ConstructingObjectParser<>(RESULT_TYPE_VALUE, a ->
                     new PerPartitionMaxProbabilities((String) a[0], (Date) a[1], (long) a[2], (List<PartitionProbability>) a[3]));
 
@@ -205,7 +204,7 @@ public class PerPartitionMaxProbabilities extends ToXContentToBytes implements W
      */
     public static class PartitionProbability extends ToXContentToBytes implements Writeable  {
 
-        public static final ConstructingObjectParser<PartitionProbability, ParseFieldMatcherSupplier> PARSER =
+        public static final ConstructingObjectParser<PartitionProbability, Void> PARSER =
                 new ConstructingObjectParser<>("partitionProbability",
                         a -> new PartitionProbability((String) a[0], (double) a[1]));
 

@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -27,7 +26,7 @@ public class PageParams extends ToXContentToBytes implements Writeable {
     public static final int DEFAULT_SIZE = 100;
 
 
-    public static final ConstructingObjectParser<PageParams, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<PageParams, Void> PARSER = new ConstructingObjectParser<>(
             PAGE.getPreferredName(), a -> new PageParams((int) a[0], (int) a[1]));
 
     public static final int MAX_FROM_SIZE_SUM = 10000;

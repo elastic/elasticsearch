@@ -16,7 +16,6 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -64,7 +63,7 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
         public static final ParseField END = new ParseField("end");
         public static final ParseField ADVANCE_TIME = new ParseField("advance_time");
 
-        private static final ObjectParser<Request, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(NAME, Request::new);
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
         static {
             PARSER.declareString((request, jobId) -> request.jobId = jobId, Job.ID);
@@ -74,8 +73,8 @@ public class FlushJobAction extends Action<FlushJobAction.Request, FlushJobActio
             PARSER.declareString(Request::setAdvanceTime, ADVANCE_TIME);
         }
 
-        public static Request parseRequest(String jobId, XContentParser parser, ParseFieldMatcherSupplier parseFieldMatcherSupplier) {
-            Request request = PARSER.apply(parser, parseFieldMatcherSupplier);
+        public static Request parseRequest(String jobId, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
             if (jobId != null) {
                 request.jobId = jobId;
             }

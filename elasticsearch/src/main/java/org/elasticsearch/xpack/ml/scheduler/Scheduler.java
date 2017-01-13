@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.scheduler;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -26,7 +25,7 @@ public class Scheduler extends AbstractDiffable<Scheduler> implements ToXContent
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("schedulers");
 
-    public static final ConstructingObjectParser<Scheduler, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>("scheduler",
+    public static final ConstructingObjectParser<Scheduler, Void> PARSER = new ConstructingObjectParser<>("scheduler",
             a -> new Scheduler(((SchedulerConfig.Builder) a[0]).build(), (SchedulerStatus) a[1]));
 
     static {

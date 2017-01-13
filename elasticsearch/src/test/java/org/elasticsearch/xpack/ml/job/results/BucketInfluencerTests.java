@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
@@ -45,8 +44,8 @@ public class BucketInfluencerTests extends AbstractSerializingTestCase<BucketInf
     }
 
     @Override
-    protected BucketInfluencer parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return BucketInfluencer.PARSER.apply(parser, () -> matcher);
+    protected BucketInfluencer parseInstance(XContentParser parser) {
+        return BucketInfluencer.PARSER.apply(parser, null);
     }
 
     public void testEquals_GivenNull() {

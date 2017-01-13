@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -28,7 +27,7 @@ public class AutodetectResult extends ToXContentToBytes implements Writeable {
     public static final ParseField TYPE = new ParseField("autodetect_result");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<AutodetectResult, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<AutodetectResult, Void> PARSER = new ConstructingObjectParser<>(
             TYPE.getPreferredName(), a -> new AutodetectResult((Bucket) a[0], (List<AnomalyRecord>) a[1], (List<Influencer>) a[2],
                     (Quantiles) a[3], (ModelSnapshot) a[4], a[5] == null ? null : ((ModelSizeStats.Builder) a[5]).build(),
                     (ModelDebugOutput) a[6], (CategoryDefinition) a[7], (FlushAcknowledgement) a[8]));

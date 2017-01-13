@@ -7,17 +7,16 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Date;
@@ -45,7 +44,7 @@ public class Influencer extends ToXContentToBytes implements Writeable {
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("influencers");
 
-    public static final ConstructingObjectParser<Influencer, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Influencer, Void> PARSER = new ConstructingObjectParser<>(
             RESULT_TYPE_FIELD.getPreferredName(), a -> new Influencer((String) a[0], (String) a[1], (String) a[2],
             (Date) a[3], (long) a[4], (int) a[5]));
 

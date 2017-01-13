@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -92,7 +91,7 @@ public class Detector extends ToXContentToBytes implements Writeable {
     public static final ParseField EXCLUDE_FREQUENT_FIELD = new ParseField("exclude_frequent");
     public static final ParseField DETECTOR_RULES_FIELD = new ParseField("detector_rules");
 
-    public static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("detector", Builder::new);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("detector", Builder::new);
 
     static {
         PARSER.declareString(Builder::setDetectorDescription, DETECTOR_DESCRIPTION_FIELD);

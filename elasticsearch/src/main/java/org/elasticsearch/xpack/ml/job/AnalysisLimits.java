@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,7 +30,7 @@ public class AnalysisLimits extends ToXContentToBytes implements Writeable {
     public static final ParseField MODEL_MEMORY_LIMIT = new ParseField("model_memory_limit");
     public static final ParseField CATEGORIZATION_EXAMPLES_LIMIT = new ParseField("categorization_examples_limit");
 
-    public static final ConstructingObjectParser<AnalysisLimits, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<AnalysisLimits, Void> PARSER = new ConstructingObjectParser<>(
             "analysis_limits", a -> new AnalysisLimits((Long) a[0], (Long) a[1]));
 
     static {

@@ -7,14 +7,13 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.job.Job;
 import org.elasticsearch.xpack.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
@@ -48,7 +47,7 @@ public class BucketInfluencer extends ToXContentToBytes implements Writeable {
      */
     public static final String BUCKET_TIME = "bucket_time";
 
-    public static final ConstructingObjectParser<BucketInfluencer, ParseFieldMatcherSupplier> PARSER =
+    public static final ConstructingObjectParser<BucketInfluencer, Void> PARSER =
             new ConstructingObjectParser<>(RESULT_TYPE_FIELD.getPreferredName(), a -> new BucketInfluencer((String) a[0],
                     (Date) a[1], (long) a[2], (int) a[3]));
 

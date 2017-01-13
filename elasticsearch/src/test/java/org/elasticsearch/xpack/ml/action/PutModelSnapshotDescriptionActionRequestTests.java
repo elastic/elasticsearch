@@ -5,17 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.action.UpdateModelSnapshotAction.Request;
 import org.elasticsearch.xpack.ml.support.AbstractStreamableXContentTestCase;
 
 public class PutModelSnapshotDescriptionActionRequestTests
-extends AbstractStreamableXContentTestCase<UpdateModelSnapshotAction.Request> {
+        extends AbstractStreamableXContentTestCase<UpdateModelSnapshotAction.Request> {
 
     @Override
-    protected Request parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return UpdateModelSnapshotAction.Request.parseRequest(null, null, parser, () -> matcher);
+    protected Request parseInstance(XContentParser parser) {
+        return UpdateModelSnapshotAction.Request.parseRequest(null, null, parser);
     }
 
     @Override

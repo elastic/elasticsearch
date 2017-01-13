@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
@@ -98,8 +97,8 @@ public class BucketTests extends AbstractSerializingTestCase<Bucket> {
     }
 
     @Override
-    protected Bucket parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return Bucket.PARSER.apply(parser, () -> matcher);
+    protected Bucket parseInstance(XContentParser parser) {
+        return Bucket.PARSER.apply(parser, null);
     }
 
     public void testEquals_GivenDifferentClass() {

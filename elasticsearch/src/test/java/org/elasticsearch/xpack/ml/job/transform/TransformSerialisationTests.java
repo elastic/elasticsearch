@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.transform;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -20,7 +19,7 @@ public class TransformSerialisationTests extends ESTestCase {
 
         String json = "{\"inputs\":\"dns\", \"transform\":\"domain_split\"}";
         XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
-        TransformConfig tr = TransformConfig.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        TransformConfig tr = TransformConfig.PARSER.apply(parser, null);
 
         assertEquals(1, tr.getInputs().size());
         assertEquals("dns", tr.getInputs().get(0));
@@ -32,7 +31,7 @@ public class TransformSerialisationTests extends ESTestCase {
 
         json = "{\"inputs\":\"dns\", \"transform\":\"domain_split\", \"outputs\":\"catted\"}";
         parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
-        tr = TransformConfig.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        tr = TransformConfig.PARSER.apply(parser, null);
 
         assertEquals(1, tr.getInputs().size());
         assertEquals("dns", tr.getInputs().get(0));
@@ -46,7 +45,7 @@ public class TransformSerialisationTests extends ESTestCase {
 
         String json = "{\"inputs\":[\"dns\"], \"transform\":\"domain_split\"}";
         XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
-        TransformConfig tr = TransformConfig.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        TransformConfig tr = TransformConfig.PARSER.apply(parser, null);
 
         assertEquals(1, tr.getInputs().size());
         assertEquals("dns", tr.getInputs().get(0));
@@ -54,7 +53,7 @@ public class TransformSerialisationTests extends ESTestCase {
 
         json = "{\"inputs\":[\"a\", \"b\", \"c\"], \"transform\":\"concat\", \"outputs\":[\"catted\"]}";
         parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
-        tr = TransformConfig.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT);
+        tr = TransformConfig.PARSER.apply(parser, null);
 
         assertEquals(3, tr.getInputs().size());
         assertEquals("a", tr.getInputs().get(0));

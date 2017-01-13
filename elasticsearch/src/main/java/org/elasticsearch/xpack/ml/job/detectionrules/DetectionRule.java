@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.detectionrules;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -33,7 +32,7 @@ public class DetectionRule extends ToXContentToBytes implements Writeable {
     public static final ParseField CONDITIONS_CONNECTIVE_FIELD = new ParseField("conditions_connective");
     public static final ParseField RULE_CONDITIONS_FIELD = new ParseField("rule_conditions");
 
-    public static final ConstructingObjectParser<DetectionRule, ParseFieldMatcherSupplier> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DetectionRule, Void> PARSER = new ConstructingObjectParser<>(
             DETECTION_RULE_FIELD.getPreferredName(),
             arr -> {
                 @SuppressWarnings("unchecked")

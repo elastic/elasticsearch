@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.condition;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -64,15 +63,14 @@ public class ConditionTests extends AbstractSerializingTestCase<Condition> {
     }
 
     @Override
-    protected Condition parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return Condition.PARSER.apply(parser, () -> matcher);
+    protected Condition parseInstance(XContentParser parser) {
+        return Condition.PARSER.apply(parser, null);
     }
 
     public void testInvalidTransformName() throws Exception {
         BytesArray json = new BytesArray("{ \"value\":\"someValue\" }");
         XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> Condition.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> Condition.PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("Required [operator]"));
     }
 

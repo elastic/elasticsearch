@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.output;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -32,11 +31,8 @@ import java.util.stream.StreamSupport;
  */
 public class AutodetectResultsParser extends AbstractComponent {
 
-    private final ParseFieldMatcherSupplier parseFieldMatcherSupplier;
-
-    public AutodetectResultsParser(Settings settings, ParseFieldMatcherSupplier parseFieldMatcherSupplier) {
+    public AutodetectResultsParser(Settings settings) {
         super(settings);
-        this.parseFieldMatcherSupplier = parseFieldMatcherSupplier;
     }
 
     public Stream<AutodetectResult> parseResults(InputStream in) throws ElasticsearchParseException {
@@ -100,10 +96,8 @@ public class AutodetectResultsParser extends AbstractComponent {
 
         @Override
         public AutodetectResult next() {
-            return AutodetectResult.PARSER.apply(parser, parseFieldMatcherSupplier);
+            return AutodetectResult.PARSER.apply(parser, null);
         }
-
     }
-
 }
 

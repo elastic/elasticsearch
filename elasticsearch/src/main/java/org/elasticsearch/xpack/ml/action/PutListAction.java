@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -62,8 +61,8 @@ public class PutListAction extends Action<PutListAction.Request, PutListAction.R
 
     public static class Request extends MasterNodeReadRequest<Request> implements ToXContent {
 
-        public static Request parseRequest(XContentParser parser, ParseFieldMatcherSupplier matcherSupplier) {
-            ListDocument listDocument = ListDocument.PARSER.apply(parser, matcherSupplier);
+        public static Request parseRequest(XContentParser parser) {
+            ListDocument listDocument = ListDocument.PARSER.apply(parser, null);
             return new Request(listDocument);
         }
 

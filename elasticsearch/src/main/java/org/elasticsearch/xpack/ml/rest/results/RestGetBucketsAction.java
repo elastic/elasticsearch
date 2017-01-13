@@ -48,7 +48,7 @@ public class RestGetBucketsAction extends BaseRestHandler {
         final GetBucketsAction.Request request;
         if (restRequest.hasContent()) {
             XContentParser parser = restRequest.contentParser();
-            request = GetBucketsAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
+            request = GetBucketsAction.Request.parseRequest(jobId, parser);
         } else {
             request = new GetBucketsAction.Request(jobId);
 

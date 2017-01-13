@@ -12,8 +12,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -136,13 +134,9 @@ public class MlPlugin extends Plugin implements ActionPlugin {
     private final Settings settings;
     private final Environment env;
 
-    private final ParseFieldMatcherSupplier parseFieldMatcherSupplier;
-
     public MlPlugin(Settings settings) {
         this.settings = settings;
         this.env = new Environment(settings);
-        ParseFieldMatcher matcher = new ParseFieldMatcher(settings);
-        parseFieldMatcherSupplier = () -> matcher;
     }
 
     @Override
@@ -167,7 +161,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
         NamedXContentRegistry.Entry entry = new NamedXContentRegistry.Entry(
                 MetaData.Custom.class,
                 new ParseField("ml"),
-                parser -> MlMetadata.ML_METADATA_PARSER.parse(parser, parseFieldMatcherSupplier).build()
+                parser -> MlMetadata.ML_METADATA_PARSER.parse(parser, null).build()
         );
         return Collections.singletonList(entry);
     }
@@ -177,7 +171,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry) {
         JobResultsPersister jobResultsPersister = new JobResultsPersister(settings, client);
-        JobProvider jobProvider = new JobProvider(client, 0, parseFieldMatcherSupplier.getParseFieldMatcher());
+        JobProvider jobProvider = new JobProvider(client, 0);
         JobRenormalizedResultsPersister jobRenormalizedResultsPersister = new JobRenormalizedResultsPersister(settings,
                 jobResultsPersister);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(settings, client);
@@ -202,7 +196,7 @@ public class MlPlugin extends Plugin implements ActionPlugin {
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(normalizerProcessFactory,
                 threadPool.executor(MlPlugin.THREAD_POOL_NAME));
-        AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings, parseFieldMatcherSupplier);
+        AutodetectResultsParser autodetectResultsParser = new AutodetectResultsParser(settings);
         DataProcessor dataProcessor = new AutodetectProcessManager(settings, client, threadPool, jobManager, jobProvider,
                 jobResultsPersister, jobRenormalizedResultsPersister, jobDataCountsPersister, autodetectResultsParser,
                 autodetectProcessFactory, normalizerFactory);

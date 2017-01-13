@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
@@ -35,8 +34,8 @@ public class CategoryDefinitionTests extends AbstractSerializingTestCase<Categor
     }
 
     @Override
-    protected CategoryDefinition parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return CategoryDefinition.PARSER.apply(parser, () -> matcher);
+    protected CategoryDefinition parseInstance(XContentParser parser) {
+        return CategoryDefinition.PARSER.apply(parser, null);
     }
 
     public void testEquals_GivenSameObject() {

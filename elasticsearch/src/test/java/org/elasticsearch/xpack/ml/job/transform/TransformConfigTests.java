@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job.transform;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -50,8 +49,8 @@ public class TransformConfigTests extends AbstractSerializingTestCase<TransformC
     }
 
     @Override
-    protected TransformConfig parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return TransformConfig.PARSER.apply(parser, () -> matcher);
+    protected TransformConfig parseInstance(XContentParser parser) {
+        return TransformConfig.PARSER.apply(parser, null);
     }
 
     public void testGetOutputs_GivenNoExplicitOutputsSpecified() {
@@ -186,7 +185,7 @@ public class TransformConfigTests extends AbstractSerializingTestCase<TransformC
         BytesArray json = new BytesArray("{ \"transform\":\"\" }");
         XContentParser parser = XContentFactory.xContent(json).createParser(NamedXContentRegistry.EMPTY, json);
         ParsingException ex = expectThrows(ParsingException.class,
-                () -> TransformConfig.PARSER.apply(parser, () -> ParseFieldMatcher.STRICT));
+                () -> TransformConfig.PARSER.apply(parser, null));
         assertThat(ex.getMessage(), containsString("[transform] failed to parse field [transform]"));
         Throwable cause = ex.getRootCause();
         assertNotNull(cause);

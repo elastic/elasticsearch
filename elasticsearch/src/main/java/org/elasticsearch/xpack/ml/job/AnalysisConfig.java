@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.job;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -70,7 +69,7 @@ public class AnalysisConfig extends ToXContentToBytes implements Writeable {
     public static final long DEFAULT_RESULT_FINALIZATION_WINDOW = 2L;
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<AnalysisConfig.Builder, ParseFieldMatcherSupplier> PARSER =
+    public static final ConstructingObjectParser<AnalysisConfig.Builder, Void> PARSER =
             new ConstructingObjectParser<>(ANALYSIS_CONFIG.getPreferredName(), a -> new AnalysisConfig.Builder((List<Detector>) a[0]));
 
     static {

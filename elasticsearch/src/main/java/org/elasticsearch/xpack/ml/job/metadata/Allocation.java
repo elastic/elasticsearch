@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.ml.job.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -28,7 +27,7 @@ public class Allocation extends AbstractDiffable<Allocation> implements ToXConte
     public static final ParseField STATUS = new ParseField("status");
     public static final ParseField STATUS_REASON = new ParseField("status_reason");
 
-    static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("allocation", Builder::new);
+    static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("allocation", Builder::new);
 
     static {
         PARSER.declareString(Builder::setNodeId, NODE_ID_FIELD);

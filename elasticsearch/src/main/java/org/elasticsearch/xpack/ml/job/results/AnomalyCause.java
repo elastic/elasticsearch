@@ -7,12 +7,12 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
@@ -45,7 +45,7 @@ public class AnomalyCause extends ToXContentToBytes implements Writeable {
      */
     public static final ParseField FIELD_NAME = new ParseField("field_name");
 
-    public static final ObjectParser<AnomalyCause, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>(ANOMALY_CAUSE.getPreferredName(),
+    public static final ObjectParser<AnomalyCause, Void> PARSER = new ObjectParser<>(ANOMALY_CAUSE.getPreferredName(),
             AnomalyCause::new);
     static {
         PARSER.declareDouble(AnomalyCause::setProbability, PROBABILITY);

@@ -5,10 +5,10 @@
  */
 package org.elasticsearch.xpack.ml.job.results;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.support.AbstractSerializingTestCase;
+
 import java.util.Date;
 
 public class ModelDebugOutputTests extends AbstractSerializingTestCase<ModelDebugOutput> {
@@ -59,8 +59,8 @@ public class ModelDebugOutputTests extends AbstractSerializingTestCase<ModelDebu
     }
 
     @Override
-    protected ModelDebugOutput parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return ModelDebugOutput.PARSER.apply(parser, () -> matcher);
+    protected ModelDebugOutput parseInstance(XContentParser parser) {
+        return ModelDebugOutput.PARSER.apply(parser, null);
     }
 
     public void testEquals_GivenSameObject() {

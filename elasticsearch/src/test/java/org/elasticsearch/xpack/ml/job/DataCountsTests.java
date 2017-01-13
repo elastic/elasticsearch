@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
@@ -32,8 +31,8 @@ public class DataCountsTests extends AbstractSerializingTestCase<DataCounts> {
     }
 
     @Override
-    protected DataCounts parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return DataCounts.PARSER.apply(parser, () -> matcher);
+    protected DataCounts parseInstance(XContentParser parser) {
+        return DataCounts.PARSER.apply(parser, null);
     }
 
     public void testCountsEquals_GivenEqualCounts() {

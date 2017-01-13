@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.job;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.ml.job.messages.Messages;
@@ -24,8 +23,8 @@ public class AnalysisLimitsTests extends AbstractSerializingTestCase<AnalysisLim
     }
 
     @Override
-    protected AnalysisLimits parseInstance(XContentParser parser, ParseFieldMatcher matcher) {
-        return AnalysisLimits.PARSER.apply(parser, () -> matcher);
+    protected AnalysisLimits parseInstance(XContentParser parser) {
+        return AnalysisLimits.PARSER.apply(parser, null);
     }
 
     public void testEquals_GivenEqual() {

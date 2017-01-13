@@ -44,7 +44,7 @@ public class RestGetInfluencersAction extends BaseRestHandler {
         final GetInfluencersAction.Request request;
         if (restRequest.hasContent()) {
             XContentParser parser = restRequest.contentParser();
-            request = GetInfluencersAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
+            request = GetInfluencersAction.Request.parseRequest(jobId, parser);
         } else {
             request = new GetInfluencersAction.Request(jobId);
             request.setStart(start);

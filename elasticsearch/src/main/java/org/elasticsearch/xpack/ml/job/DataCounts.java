@@ -7,13 +7,12 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.ml.utils.time.TimeUtils;
 
@@ -61,7 +60,7 @@ public class DataCounts extends ToXContentToBytes implements Writeable {
 
     public static final ParseField TYPE = new ParseField("data_counts");
 
-    public static final ConstructingObjectParser<DataCounts, ParseFieldMatcherSupplier> PARSER =
+    public static final ConstructingObjectParser<DataCounts, Void> PARSER =
             new ConstructingObjectParser<>("data_counts", a -> new DataCounts((String) a[0], (long) a[1], (long) a[2], (long) a[3],
                     (long) a[4], (long) a[5], (long) a[6], (long) a[7], (Date) a[8], (Date) a[9]));
 

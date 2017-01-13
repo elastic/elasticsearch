@@ -43,7 +43,7 @@ public class RestFlushJobAction extends BaseRestHandler {
         final FlushJobAction.Request request;
         if (restRequest.hasContentOrSourceParam()) {
             XContentParser parser = restRequest.contentOrSourceParamParser();
-            request = FlushJobAction.Request.parseRequest(jobId, parser, () -> parseFieldMatcher);
+            request = FlushJobAction.Request.parseRequest(jobId, parser);
         } else {
             request = new FlushJobAction.Request(restRequest.param(Job.ID.getPreferredName()));
             request.setCalcInterim(restRequest.paramAsBoolean(FlushJobAction.Request.CALC_INTERIM.getPreferredName(),

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.support;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -48,22 +47,21 @@ public abstract class AbstractStreamableXContentTestCase<T extends ToXContent & 
         }
     }
 
-    private void assertParsedInstance(BytesReference queryAsBytes, T expectedInstance)
-            throws IOException {
+    private void assertParsedInstance(BytesReference queryAsBytes, T expectedInstance) throws IOException {
         XContentParser parser = XContentFactory.xContent(queryAsBytes).createParser(NAMED_X_CONTENT_REGISTRY, queryAsBytes);
-        T newInstance = parseQuery(parser, ParseFieldMatcher.STRICT);
+        T newInstance = parseQuery(parser);
         assertNotSame(newInstance, expectedInstance);
         assertEquals(expectedInstance, newInstance);
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
     }
 
-    private T parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
-        T parsedInstance = parseInstance(parser, matcher);
+    private T parseQuery(XContentParser parser) throws IOException {
+        T parsedInstance = parseInstance(parser);
         assertNull(parser.nextToken());
         return parsedInstance;
     }
 
-    protected abstract T parseInstance(XContentParser parser, ParseFieldMatcher matcher);
+    protected abstract T parseInstance(XContentParser parser);
 
     /**
      * Subclasses can override this method and return an array of fieldnames

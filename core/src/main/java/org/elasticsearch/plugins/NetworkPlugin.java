@@ -45,7 +45,7 @@ public interface NetworkPlugin {
      * transport (inter-node) requests. This must not return <code>null</code>
      *
      * @param namedWriteableRegistry registry of all named writeables registered
-     * @param threadContext a {@link ThreadContext} of the current nodes or clients threadpool this can be used to set additional
+     * @param threadContext a {@link ThreadContext} of the current nodes or clients {@link ThreadPool} that can be used to set additional
      *                      headers in the interceptors
      */
     default List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {

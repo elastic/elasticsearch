@@ -19,6 +19,7 @@
 package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -98,10 +99,10 @@ class SimulateProcessorResult implements Writeable, ToXContent {
 
         if (failure != null && ingestDocument != null) {
             builder.startObject("ignored_error");
-            ElasticsearchException.generateFailureXContent(builder, params, failure);
+            ElasticsearchException.toXContentError(builder, params, failure);
             builder.endObject();
         } else if (failure != null) {
-            ElasticsearchException.generateFailureXContent(builder, params, failure);
+            ElasticsearchException.toXContentError(builder, params, failure);
         }
 
         if (ingestDocument != null) {

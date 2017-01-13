@@ -113,8 +113,8 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                 fail("takes way too long to get the cluster state");
             }
 
-            assertThat(client.connectedNodes().size(), is(1));
-            assertThat(client.connectedNodes().get(0).getAddress(), is(transportService.boundAddress().publishAddress()));
+            assertEquals(1, client.connectedNodes().size());
+            assertEquals(client.connectedNodes().get(0).getAddress(), transportService.boundAddress().publishAddress());
         }
     }
 
@@ -165,7 +165,8 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                         ClusterName cluster1 = new ClusterName("cluster1");
                         ClusterState.Builder builder = ClusterState.builder(cluster1);
                         //the sniffer detects only data nodes
-                        builder.nodes(DiscoveryNodes.builder().add(new DiscoveryNode("node_id", address, Collections.emptyMap(),
+                        builder.nodes(DiscoveryNodes.builder().add(new DiscoveryNode("node_id", "someId", "some_ephemeralId_id",
+                            address.getHost(), address.getAddress(), address, Collections.emptyMap(),
                                 Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT)));
                         ((TransportResponseHandler<ClusterStateResponse>) handler)
                                 .handleResponse(new ClusterStateResponse(cluster1, builder.build()));

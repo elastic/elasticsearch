@@ -179,9 +179,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
 
             final MockTransportService masterTransport = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
             masterTransport.start();
-            DiscoveryNode masterNode = new DiscoveryNode("master",  masterTransport.boundAddress().publishAddress(), Version.CURRENT);
+            DiscoveryNode masterNode = masterTransport.getLocalNode();
             toClose.addFirst(masterTransport);
-            masterTransport.setLocalNode(masterNode);
             ClusterState state = ClusterStateCreationUtils.state(masterNode, masterNode, masterNode);
             // build the zen discovery and cluster service
             ClusterService masterClusterService = createClusterService(threadPool, masterNode);
@@ -196,8 +195,7 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
             final MockTransportService otherTransport = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
             otherTransport.start();
             toClose.addFirst(otherTransport);
-            DiscoveryNode otherNode = new DiscoveryNode("other", otherTransport.boundAddress().publishAddress(), Version.CURRENT);
-            otherTransport.setLocalNode(otherNode);
+            DiscoveryNode otherNode = otherTransport.getLocalNode();
             final ClusterState otherState = ClusterState.builder(masterClusterService.getClusterName())
                 .nodes(DiscoveryNodes.builder().add(otherNode).localNodeId(otherNode.getId())).build();
             ClusterService otherClusterService = createClusterService(threadPool, masterNode);
@@ -248,9 +246,8 @@ public class ZenDiscoveryUnitTests extends ESTestCase {
         try {
             final MockTransportService masterTransport = MockTransportService.createNewService(settings, Version.CURRENT, threadPool, null);
             masterTransport.start();
-            DiscoveryNode masterNode = new DiscoveryNode("master",  masterTransport.boundAddress().publishAddress(), Version.CURRENT);
+            DiscoveryNode masterNode = masterTransport.getLocalNode();
             toClose.addFirst(masterTransport);
-            masterTransport.setLocalNode(masterNode);
             ClusterState state = ClusterStateCreationUtils.state(masterNode, null, masterNode);
             // build the zen discovery and cluster service
             ClusterService masterClusterService = createClusterService(threadPool, masterNode);

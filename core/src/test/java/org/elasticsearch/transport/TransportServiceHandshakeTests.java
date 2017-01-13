@@ -67,20 +67,17 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                         new NamedWriteableRegistry(Collections.emptyList()),
                         new NetworkService(settings, Collections.emptyList()));
         TransportService transportService = new MockTransportService(settings, transport, threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR, (boundAddress) -> new DiscoveryNode(
+            nodeNameAndId,
+            nodeNameAndId,
+            boundAddress.publishAddress(),
+            emptyMap(),
+            emptySet(),
+            version), null);
         transportService.start();
         transportService.acceptIncomingRequests();
-        DiscoveryNode node =
-                new DiscoveryNode(
-                        nodeNameAndId,
-                        nodeNameAndId,
-                        transportService.boundAddress().publishAddress(),
-                        emptyMap(),
-                        emptySet(),
-                        version);
-        transportService.setLocalNode(node);
         transportServices.add(transportService);
-        return new NetworkHandle(transportService, node);
+        return new NetworkHandle(transportService, transportService.getLocalNode());
     }
 
     @After

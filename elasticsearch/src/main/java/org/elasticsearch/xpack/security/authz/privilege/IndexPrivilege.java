@@ -39,10 +39,11 @@ public final class IndexPrivilege extends Privilege {
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*");
     private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
-    private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", PutMappingAction.NAME);
+    private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*",
+            PutMappingAction.NAME);
     private static final Automaton INDEX_AUTOMATON =
-            patterns("indices:data/write/index*", "indices:data/write/update*", PutMappingAction.NAME);
-    private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*");
+            patterns("indices:data/write/index*", "indices:data/write/bulk*", "indices:data/write/update*", PutMappingAction.NAME);
+    private static final Automaton DELETE_AUTOMATON = patterns("indices:data/write/delete*", "indices:data/write/bulk*");
     private static final Automaton WRITE_AUTOMATON = patterns("indices:data/write/*", PutMappingAction.NAME);
     private static final Automaton MONITOR_AUTOMATON = patterns("indices:monitor/*");
     private static final Automaton MANAGE_AUTOMATON =

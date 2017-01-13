@@ -13,7 +13,9 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchScrollAction;
@@ -73,6 +75,11 @@ public class AuthorizationService extends AbstractComponent {
 
     private static final Predicate<String> MONITOR_INDEX_PREDICATE = IndexPrivilege.MONITOR.predicate();
     private static final Predicate<String> SAME_USER_PRIVILEGE = Automatons.predicate(ChangePasswordAction.NAME, AuthenticateAction.NAME);
+
+    private static final String INDEX_SUB_REQUEST_PRIMARY = IndexAction.NAME + "[p]";
+    private static final String INDEX_SUB_REQUEST_REPLICA = IndexAction.NAME + "[r]";
+    private static final String DELETE_SUB_REQUEST_PRIMARY = DeleteAction.NAME + "[p]";
+    private static final String DELETE_SUB_REQUEST_REPLICA = DeleteAction.NAME + "[r]";
 
     private final ClusterService clusterService;
     private final CompositeRolesStore rolesStore;
@@ -171,6 +178,17 @@ public class AuthorizationService extends AbstractComponent {
                         + ", " + request.getClass().getSimpleName() + " doesn't");
             }
             //we check if the user can execute the action, without looking at indices, whici will be authorized at the shard level
+            if (permission.indices().check(action)) {
+                grant(authentication, action, request);
+                return;
+            }
+            throw denial(authentication, action, request);
+        } else if (isTranslatedToBulkAction(action)) {
+            if (request instanceof CompositeIndicesRequest == false) {
+                throw new IllegalStateException("Bulk translated actions must implement " + CompositeIndicesRequest.class.getSimpleName()
+                        + ", " + request.getClass().getSimpleName() + " doesn't");
+            }
+            // we check if the user can execute the action, without looking at indices, whici will be authorized at the shard level
             if (permission.indices().check(action)) {
                 grant(authentication, action, request);
                 return;
@@ -316,6 +334,15 @@ public class AuthorizationService extends AbstractComponent {
                 action.equals("indices:data/read/msearch/template") ||
                 action.equals("indices:data/read/search/template") ||
                 action.equals("indices:data/write/reindex");
+    }
+
+    private static boolean isTranslatedToBulkAction(String action) {
+        return action.equals(IndexAction.NAME) ||
+                action.equals(DeleteAction.NAME) ||
+                action.equals(INDEX_SUB_REQUEST_PRIMARY) ||
+                action.equals(INDEX_SUB_REQUEST_REPLICA) ||
+                action.equals(DELETE_SUB_REQUEST_PRIMARY) ||
+                action.equals(DELETE_SUB_REQUEST_REPLICA);
     }
 
     private static boolean isScrollRelatedAction(String action) {

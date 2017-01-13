@@ -9,9 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -47,12 +45,12 @@ public class WriteActionsTests extends SecurityIntegTestCase {
         client().prepareIndex("test1", "type", "id").setSource("field", "value").get();
 
         assertThrowsAuthorizationExceptionDefaultUsers(client().prepareIndex("index1", "type", "id").setSource("field", "value")::get,
-                IndexAction.NAME);
+                BulkAction.NAME + "[s]");
 
         client().prepareIndex("test4", "type", "id").setSource("field", "value").get();
         //the missing index gets automatically created (user has permissions for that), but indexing fails due to missing authorization
         assertThrowsAuthorizationExceptionDefaultUsers(client().prepareIndex("missing", "type", "id").setSource("field", "value")::get,
-                IndexAction.NAME);
+                BulkAction.NAME + "[s]");
     }
 
     public void testDelete() {
@@ -60,11 +58,11 @@ public class WriteActionsTests extends SecurityIntegTestCase {
         client().prepareIndex("test1", "type", "id").setSource("field", "value").get();
         assertEquals(RestStatus.OK, client().prepareDelete("test1", "type", "id").get().status());
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("index1", "type", "id")::get, DeleteAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("index1", "type", "id")::get, BulkAction.NAME + "[s]");
 
         assertEquals(RestStatus.NOT_FOUND, client().prepareDelete("test4", "type", "id").get().status());
 
-        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("missing", "type", "id")::get, DeleteAction.NAME);
+        assertThrowsAuthorizationExceptionDefaultUsers(client().prepareDelete("missing", "type", "id")::get, BulkAction.NAME + "[s]");
     }
 
     public void testUpdate() {

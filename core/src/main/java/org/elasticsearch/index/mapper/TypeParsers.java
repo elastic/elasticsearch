@@ -31,14 +31,11 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.isArray;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeFloatValue;
@@ -54,29 +51,34 @@ public class TypeParsers {
     public static final String INDEX_OPTIONS_OFFSETS = "offsets";
 
     private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(Loggers.getLogger(TypeParsers.class));
-    private static final Set<String> BOOLEAN_STRINGS = new HashSet<>(Arrays.asList("true", "false"));
 
     //TODO 22298: Remove this method and have all call-sites use <code>XContentMapValues.nodeBooleanValue(node)</code> directly.
-    public static boolean nodeBooleanValue(String fieldName, String propertyName, Object node, Mapper.TypeParser.ParserContext
-        parserContext) {
+    public static boolean nodeBooleanValue(String fieldName, String propertyName, Object node,
+                                           Mapper.TypeParser.ParserContext parserContext) {
         if (parserContext.indexVersionCreated().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
             return XContentMapValues.nodeBooleanValue(node);
         } else {
-            if (BOOLEAN_STRINGS.contains(node.toString()) == false) {
-                DEPRECATION_LOGGER.deprecated("Expected a boolean for property [{}] for field [{}] but got [{}]",
-                    propertyName, fieldName, node);
-            }
-            if (node instanceof Boolean) {
-                return (Boolean) node;
-            }
-            if (node instanceof Number) {
-                return ((Number) node).intValue() != 0;
-            }
-            @SuppressWarnings("deprecated")
-            boolean value = Booleans.parseBooleanLenient(node.toString(), false);
-            return value;
+            return nodeBooleanValueLenient(fieldName, propertyName, node);
         }
     }
+
+    //TODO 22298: Remove this method and have all call-sites use <code>XContentMapValues.nodeBooleanValue(node)</code> directly.
+    public static boolean nodeBooleanValueLenient(String fieldName, String propertyName, Object node) {
+        if (Booleans.isBoolean(node.toString()) == false) {
+            DEPRECATION_LOGGER.deprecated("Expected a boolean for property [{}] for field [{}] but got [{}]",
+                propertyName, fieldName, node);
+        }
+        if (node instanceof Boolean) {
+            return (Boolean) node;
+        }
+        if (node instanceof Number) {
+            return ((Number) node).intValue() != 0;
+        }
+        @SuppressWarnings("deprecated")
+        boolean value = Booleans.parseBooleanLenient(node.toString(), false);
+        return value;
+    }
+
 
     private static void parseAnalyzersAndTermVectors(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper
         .TypeParser.ParserContext parserContext) {
@@ -166,7 +168,7 @@ public class TypeParsers {
                     final String propName2 = entry2.getKey();
                     final Object propNode2 = entry2.getValue();
                     if (propName2.equals("enabled")) {
-                        builder.omitNorms(nodeBooleanValue(fieldName,"enabled", propNode2, parserContext) == false);
+                        builder.omitNorms(nodeBooleanValue(fieldName, "enabled", propNode2, parserContext) == false);
                         propsIterator.remove();
                     } else if (propName2.equals("loading")) {
                         // ignore for bw compat
@@ -193,8 +195,8 @@ public class TypeParsers {
      * Parse text field attributes. In addition to {@link #parseField common attributes}
      * this will parse analysis and term-vectors related settings.
      */
-    public static void parseTextField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser
-        .ParserContext parserContext) {
+    public static void parseTextField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
+                                      Mapper.TypeParser.ParserContext parserContext) {
         parseField(builder, name, fieldNode, parserContext);
         parseAnalyzersAndTermVectors(builder, name, fieldNode, parserContext);
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext(); ) {
@@ -210,8 +212,8 @@ public class TypeParsers {
     /**
      * Parse common field attributes such as {@code doc_values} or {@code store}.
      */
-    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode, Mapper.TypeParser
-        .ParserContext parserContext) {
+    public static void parseField(FieldMapper.Builder builder, String name, Map<String, Object> fieldNode,
+                                  Mapper.TypeParser.ParserContext parserContext) {
         for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
             Map.Entry<String, Object> entry = iterator.next();
             final String propName = entry.getKey();
@@ -254,8 +256,8 @@ public class TypeParsers {
                 builder.similarity(similarityProvider);
                 iterator.remove();
             } else if (propName.equals("fielddata")
-                && propNode instanceof Map
-                && parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
+                    && propNode instanceof Map
+                    && parserContext.indexVersionCreated().before(Version.V_5_0_0_alpha1)) {
                 // ignore for bw compat
                 iterator.remove();
             } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
@@ -272,8 +274,8 @@ public class TypeParsers {
         }
     }
 
-    public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext, String
-        propName, Object propNode) {
+    public static boolean parseMultiField(FieldMapper.Builder builder, String name, Mapper.TypeParser.ParserContext parserContext,
+                                          String propName, Object propNode) {
         parserContext = parserContext.createMultiFieldContext(parserContext);
         if (propName.equals("fields")) {
 

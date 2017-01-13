@@ -65,7 +65,7 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
 
         String language = settings.get("language", settings.get("name", "English"));
         CharArraySet defaultStopwords = DEFAULT_LANGUAGE_STOPWORDS.getOrDefault(language, CharArraySet.EMPTY_SET);
-        CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
+        CharArraySet stopWords = Analysis.parseStopWords(env, indexSettings.getIndexVersionCreated(), settings, defaultStopwords);
 
         analyzer = new SnowballAnalyzer(language, stopWords);
         analyzer.setVersion(version);

@@ -26,7 +26,6 @@ import org.apache.lucene.search.similarities.IndependenceSaturated;
 import org.apache.lucene.search.similarities.IndependenceStandardized;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 
 import java.util.HashMap;
@@ -57,10 +56,10 @@ public class DFISimilarityProvider extends AbstractSimilarityProvider {
 
     private final DFISimilarity similarity;
 
-    public DFISimilarityProvider(String name, Settings settings) {
+    public DFISimilarityProvider(String name, Settings settings, Settings indexSettings) {
         super(name);
-        Version indexVersion = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
-        boolean discountOverlaps = settings.getAsBooleanLenientForPreEs6Indices(indexVersion, "discount_overlaps", true);
+        boolean discountOverlaps = settings.getAsBooleanLenientForPreEs6Indices(
+            Version.indexCreated(indexSettings), "discount_overlaps", true);
         Independence measure = parseIndependence(settings);
         this.similarity = new DFISimilarity(measure);
         this.similarity.setDiscountOverlaps(discountOverlaps);

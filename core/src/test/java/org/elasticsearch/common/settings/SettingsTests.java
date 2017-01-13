@@ -150,6 +150,12 @@ public class SettingsTests extends ESTestCase {
 
     @SuppressWarnings("deprecation") //#getAsBooleanLenientForPreEs6Indices is the test subject
     public void testLenientBooleanForPreEs6Index() throws IOException {
+        // time to say goodbye?
+        assertTrue(
+            "It's time to implement #22298. Please delete this test and Settings#getAsBooleanLenientForPreEs6Indices().",
+            Version.CURRENT.minimumCompatibilityVersion().before(Version.V_6_0_0_alpha1_UNRELEASED));
+
+
         String falsy = randomFrom("false", "off", "no", "0");
         String truthy = randomFrom("true", "on", "yes", "1");
 

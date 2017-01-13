@@ -111,7 +111,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
             // the AllFieldMapper ctor in the builder since it is not valid. Here we validate
             // the doc values settings (old and new) are rejected
             Object docValues = node.get("doc_values");
-            if (docValues != null && TypeParsers.nodeBooleanValue(name, "doc_values", docValues, parserContext)) {
+            if (docValues != null && TypeParsers.nodeBooleanValueLenient(name, "doc_values", docValues)) {
                 throw new MapperParsingException("Field [" + name +
                     "] is always tokenized and cannot have doc values");
             }
@@ -132,7 +132,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
-                    boolean enabled = TypeParsers.nodeBooleanValue(name, "enabled", fieldNode, parserContext);
+                    boolean enabled = TypeParsers.nodeBooleanValueLenient(name, "enabled", fieldNode);
                     builder.enabled(enabled ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
                 }

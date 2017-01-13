@@ -94,7 +94,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    @SuppressWarnings("deprecated")
+    @Deprecated
     public boolean isBooleanValueLenient() throws IOException {
         switch (currentToken()) {
             case VALUE_BOOLEAN:
@@ -110,7 +110,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
-    @SuppressWarnings("deprecated")
+    @Deprecated
     public boolean booleanValueLenient() throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_NUMBER) {

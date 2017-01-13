@@ -54,7 +54,6 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.Lucene;
@@ -179,15 +178,14 @@ public class Analysis {
         return parseWords(env, settings, "common_words", defaultCommonWords, NAMED_STOP_WORDS, ignoreCase);
     }
 
-    public static CharArraySet parseArticles(Environment env, Settings settings) {
-        org.elasticsearch.Version version = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
-        boolean articlesCase = settings.getAsBooleanLenientForPreEs6Indices(version, "articles_case", false);
+    public static CharArraySet parseArticles(Environment env, org.elasticsearch.Version indexCreatedVersion, Settings settings) {
+        boolean articlesCase = settings.getAsBooleanLenientForPreEs6Indices(indexCreatedVersion, "articles_case", false);
         return parseWords(env, settings, "articles", null, null, articlesCase);
     }
 
-    public static CharArraySet parseStopWords(Environment env, Settings settings, CharArraySet defaultStopWords) {
-        org.elasticsearch.Version version = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
-        boolean stopwordsCase = settings.getAsBooleanLenientForPreEs6Indices(version, "stopwords_case", false);
+    public static CharArraySet parseStopWords(Environment env, org.elasticsearch.Version indexCreatedVersion, Settings settings,
+                                              CharArraySet defaultStopWords) {
+        boolean stopwordsCase = settings.getAsBooleanLenientForPreEs6Indices(indexCreatedVersion, "stopwords_case", false);
         return parseStopWords(env, settings, defaultStopWords, stopwordsCase);
     }
 
@@ -210,13 +208,13 @@ public class Analysis {
         return setWords;
     }
 
-    public static CharArraySet getWordSet(Environment env, Settings settings, String settingsPrefix) {
+    public static CharArraySet getWordSet(Environment env, org.elasticsearch.Version indexCreatedVersion, Settings settings,
+                                          String settingsPrefix) {
         List<String> wordList = getWordList(env, settings, settingsPrefix);
         if (wordList == null) {
             return null;
         }
-        org.elasticsearch.Version version = settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
-        boolean ignoreCase = settings.getAsBooleanLenientForPreEs6Indices(version, settingsPrefix + "_case", false);
+        boolean ignoreCase = settings.getAsBooleanLenientForPreEs6Indices(indexCreatedVersion, settingsPrefix + "_case", false);
         return new CharArraySet(wordList, ignoreCase);
     }
 

@@ -160,7 +160,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         final HashMap<String, String> params = new HashMap<>();
         params.put("format", randomAsciiOfLength(8));
         params.put("filter_path", randomAsciiOfLength(8));
-        params.put("pretty", "");
+        params.put("pretty", randomFrom("true", "false", "", null));
         params.put("human", null);
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
         RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);

@@ -56,7 +56,6 @@ public class ElasticsearchMappings {
     /**
      * String constants used in mappings
      */
-    static final String ALL = "_all";
     static final String ENABLED = "enabled";
     static final String ANALYZER = "analyzer";
     static final String WHITESPACE = "whitespace";
@@ -125,9 +124,6 @@ public class ElasticsearchMappings {
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                     .startObject(Result.TYPE.getPreferredName())
-                        .startObject(ALL)
-                            .field(ENABLED, false)
-                        .endObject()
                         .startObject(PROPERTIES)
                             .startObject(ALL_FIELD_VALUES)
                                 .field(TYPE, TEXT)
@@ -400,9 +396,6 @@ public class ElasticsearchMappings {
                 .startObject()
                     .startObject(DataCounts.TYPE.getPreferredName())
                         .field(ENABLED, false)
-                        .startObject(ALL)
-                            .field(ENABLED, false)
-                        .endObject()
                         .startObject(PROPERTIES)
                             .startObject(Job.ID.getPreferredName())
                                 .field(TYPE, KEYWORD)
@@ -455,9 +448,6 @@ public class ElasticsearchMappings {
                 .startObject()
                     .startObject(CategorizerState.TYPE)
                         .field(ENABLED, false)
-                        .startObject(ALL)
-                            .field(ENABLED, false)
-                        .endObject()
                     .endObject()
                 .endObject();
     }
@@ -474,9 +464,6 @@ public class ElasticsearchMappings {
                 .startObject()
                     .startObject(Quantiles.TYPE.getPreferredName())
                         .field(ENABLED, false)
-                        .startObject(ALL)
-                            .field(ENABLED, false)
-                        .endObject()
                     .endObject()
                 .endObject();
     }
@@ -492,9 +479,6 @@ public class ElasticsearchMappings {
         return jsonBuilder()
                 .startObject()
                     .startObject(CategoryDefinition.TYPE.getPreferredName())
-                        .startObject(ALL)
-                            .field(ENABLED, false)
-                        .endObject()
                         .startObject(PROPERTIES)
                             .startObject(CategoryDefinition.CATEGORY_ID.getPreferredName())
                                 .field(TYPE, LONG)
@@ -531,9 +515,6 @@ public class ElasticsearchMappings {
                 .startObject()
                     .startObject(ModelState.TYPE.getPreferredName())
                         .field(ENABLED, false)
-                        .startObject(ALL)
-                            .field(ENABLED, false)
-                        .endObject()
                     .endObject()
                 .endObject();
     }
@@ -546,9 +527,6 @@ public class ElasticsearchMappings {
         XContentBuilder builder = jsonBuilder()
                 .startObject()
                     .startObject(ModelSnapshot.TYPE.getPreferredName())
-                        .startObject(ALL)
-                            .field(ENABLED, false)
-                        .endObject()
                         .startObject(PROPERTIES)
                             .startObject(Job.ID.getPreferredName())
                                 .field(TYPE, KEYWORD)
@@ -647,9 +625,6 @@ public class ElasticsearchMappings {
         return jsonBuilder()
                 .startObject()
                     .startObject(Usage.TYPE)
-                        .startObject(ALL)
-                            .field(ENABLED, false)
-                        .endObject()
                         .startObject(PROPERTIES)
                             .startObject(Usage.TIMESTAMP)
                                 .field(TYPE, DATE)
@@ -672,9 +647,6 @@ public class ElasticsearchMappings {
         return jsonBuilder()
                 .startObject()
                     .startObject(AuditMessage.TYPE.getPreferredName())
-                    .startObject(ALL)
-                        .field(ENABLED, false)
-                    .endObject()
                         .startObject(PROPERTIES)
                             .startObject(AuditMessage.TIMESTAMP.getPreferredName())
                                 .field(TYPE, DATE)
@@ -688,9 +660,6 @@ public class ElasticsearchMappings {
         return jsonBuilder()
                 .startObject()
                     .startObject(AuditActivity.TYPE.getPreferredName())
-                    .startObject(ALL)
-                        .field(ENABLED, false)
-                    .endObject()
                         .startObject(PROPERTIES)
                             .startObject(AuditActivity.TIMESTAMP.getPreferredName())
                                 .field(TYPE, DATE)

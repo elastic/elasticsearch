@@ -553,17 +553,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.IndexResult index(Engine engine, Engine.Index index) {
         active.set(true);
         final Engine.IndexResult result;
-        index = indexingOperationListeners.preIndex(index);
+        index = indexingOperationListeners.preIndex(shardId, index);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
             }
             result = engine.index(index);
         } catch (Exception e) {
-            indexingOperationListeners.postIndex(index, e);
+            indexingOperationListeners.postIndex(shardId, index, e);
             throw e;
         }
-        indexingOperationListeners.postIndex(index, result);
+        indexingOperationListeners.postIndex(shardId, index, result);
         return result;
     }
 
@@ -602,17 +602,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) {
         active.set(true);
         final Engine.DeleteResult result;
-        delete = indexingOperationListeners.preDelete(delete);
+        delete = indexingOperationListeners.preDelete(shardId, delete);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("delete [{}]", delete.uid().text());
             }
             result = engine.delete(delete);
         } catch (Exception e) {
-            indexingOperationListeners.postDelete(delete, e);
+            indexingOperationListeners.postDelete(shardId, delete, e);
             throw e;
         }
-        indexingOperationListeners.postDelete(delete, result);
+        indexingOperationListeners.postDelete(shardId, delete, result);
         return result;
     }
 

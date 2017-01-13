@@ -99,7 +99,6 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     channel.sendResponse(new ClusterStateResponse(ClusterName.DEFAULT, build));
                 });
             newService.start();
-            newService.setLocalNode(new DiscoveryNode(id, newService.boundAddress().publishAddress(), version));
             newService.acceptIncomingRequests();
             success = true;
             return newService;
@@ -305,11 +304,16 @@ public class RemoteClusterConnectionTests extends ESTestCase {
             try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
                 service.start();
                 service.acceptIncomingRequests();
-                AtomicReference<Exception> exceptionAtomicReference = new AtomicReference<>();
+                CountDownLatch listenerCalled = new CountDownLatch(1);
+                AtomicReference<Exception> exceptionReference = new AtomicReference<>();
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(Settings.EMPTY, "test-cluster",
                     Arrays.asList(seedNode), service, Integer.MAX_VALUE, n -> true)) {
-                    ActionListener<Void> listener = ActionListener.wrap(x -> {}, x -> {
-                        exceptionAtomicReference.set(x);
+                    ActionListener<Void> listener = ActionListener.wrap(x -> {
+                        listenerCalled.countDown();
+                        fail("expected exception");
+                    }, x -> {
+                        exceptionReference.set(x);
+                        listenerCalled.countDown();
                     });
                     connection.updateSeedNodes(Arrays.asList(seedNode), listener);
                     acceptedLatch.await();
@@ -317,7 +321,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                     assertTrue(connection.assertNoRunningConnections());
                 }
                 closeRemote.countDown();
-                expectThrows(CancellableThreads.ExecutionCancelledException.class, () -> {throw exceptionAtomicReference.get();});
+                listenerCalled.await();
+                assertNotNull(exceptionReference.get());
+                expectThrows(CancellableThreads.ExecutionCancelledException.class, () -> {throw exceptionReference.get();});
 
             }
         }

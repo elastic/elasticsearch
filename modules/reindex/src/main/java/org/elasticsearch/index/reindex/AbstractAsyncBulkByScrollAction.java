@@ -163,7 +163,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             total = min(total, mainRequest.getSize());
         }
         task.setTotal(total);
-        AbstractRunnable prepareBulkRequestRunnable = new AbstractRunnable() {
+        final AbstractRunnable prepareBulkRequestRunnable = new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
                 /*
@@ -178,7 +178,6 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 finishHim(e);
             }
         };
-        prepareBulkRequestRunnable = (AbstractRunnable) threadPool.getThreadContext().preserveContext(prepareBulkRequestRunnable);
         task.delayPrepareBulkRequest(threadPool, lastBatchStartTime, lastBatchSize, prepareBulkRequestRunnable);
     }
 

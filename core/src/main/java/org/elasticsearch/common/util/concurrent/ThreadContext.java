@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -220,7 +221,7 @@ public final class ThreadContext implements Closeable, Writeable {
      * Saves the current thread context and wraps command in a Runnable that restores that context before running command. If
      * <code>command</code> has already been passed through this method then it is returned unaltered rather than wrapped twice.
      */
-    public Runnable preserveContext(Runnable command) {
+    Runnable preserveContext(Runnable command) {
         if (command instanceof ContextPreservingAbstractRunnable) {
             return command;
         }
@@ -236,7 +237,7 @@ public final class ThreadContext implements Closeable, Writeable {
     /**
      * Unwraps a command that was previously wrapped by {@link #preserveContext(Runnable)}.
      */
-    public Runnable unwrap(Runnable command) {
+    Runnable unwrap(Runnable command) {
         if (command instanceof ContextPreservingAbstractRunnable) {
             return ((ContextPreservingAbstractRunnable) command).unwrap();
         }
@@ -244,6 +245,17 @@ public final class ThreadContext implements Closeable, Writeable {
             return ((ContextPreservingRunnable) command).unwrap();
         }
         return command;
+    }
+
+    /**
+     * Saves the current thread context and wraps command in a Callable that restores that context before running command. If
+     * <code>command</code> has already been passed through this method then it is returned unaltered rather than wrapped twice.
+     */
+    <V> Callable<V> preserveContext(Callable<V> command) {
+        if (command instanceof ContextPreservingCallable) {
+            return command;
+        }
+        return new ContextPreservingCallable<>(command);
     }
 
     /**
@@ -543,6 +555,25 @@ public final class ThreadContext implements Closeable, Writeable {
 
         public AbstractRunnable unwrap() {
             return in;
+        }
+    }
+
+    private class ContextPreservingCallable<V> implements Callable<V> {
+
+        private final Callable<V> callable;
+        private final StoredContext storedContext;
+
+        ContextPreservingCallable(Callable<V> callable) {
+            this.callable = callable;
+            this.storedContext = newStoredContext();
+        }
+
+        @Override
+        public V call() throws Exception {
+            try (StoredContext ctx = stashContext()) {
+                storedContext.restore();
+                return callable.call();
+            }
         }
     }
 }

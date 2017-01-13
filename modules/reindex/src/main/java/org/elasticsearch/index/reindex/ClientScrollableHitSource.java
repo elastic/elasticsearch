@@ -131,10 +131,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
          */
         class RetryHelper extends AbstractRunnable implements ActionListener<SearchResponse> {
             private final Iterator<TimeValue> retries = backoffPolicy.iterator();
-            /**
-             * The runnable to run that retries in the same context as the original call.
-             */
-            private Runnable retryWithContext;
+
             private volatile int retryCount = 0;
 
             @Override
@@ -155,7 +152,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
                         TimeValue delay = retries.next();
                         logger.trace((Supplier<?>) () -> new ParameterizedMessage("retrying rejected search after [{}]", delay), e);
                         countSearchRetry.run();
-                        threadPool.schedule(delay, ThreadPool.Names.SAME, retryWithContext);
+                        threadPool.schedule(delay, ThreadPool.Names.SAME, this);
                     } else {
                         logger.warn(
                             (Supplier<?>) () -> new ParameterizedMessage(
@@ -168,10 +165,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
                 }
             }
         }
-        RetryHelper helper = new RetryHelper();
-        // Wrap the helper in a runnable that preserves the current context so we keep it on retry.
-        helper.retryWithContext = threadPool.getThreadContext().preserveContext(helper);
-        helper.run();
+        new RetryHelper().run();
     }
 
     private void consume(SearchResponse response, Consumer<? super Response> onResponse) {

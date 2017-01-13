@@ -62,7 +62,7 @@ public abstract class AbstractBulkByQueryRestHandler<
              * the generated parser probably is a noop but we should do the accounting just in case. It doesn't hurt to close twice but it
              * really hurts not to close if by some miracle we have to. */
             try {
-                RestSearchAction.parseSearchRequest(searchRequest, restRequest, parseFieldMatcher, searchRequestParser);
+                RestSearchAction.parseSearchRequest(searchRequest, restRequest, searchRequestParser);
             } finally {
                 IOUtils.close(searchRequestParser);
             }

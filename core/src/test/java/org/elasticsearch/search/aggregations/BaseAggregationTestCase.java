@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -64,8 +63,6 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
 
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry xContentRegistry;
-    protected ParseFieldMatcher parseFieldMatcher;
-
     protected abstract AB createTestAggregatorBuilder();
 
     /**
@@ -91,7 +88,6 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
             String type = randomAsciiOfLengthBetween(1, 10);
             currentTypes[i] = type;
         }
-        parseFieldMatcher = ParseFieldMatcher.STRICT;
     }
 
     @Override
@@ -121,7 +117,7 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     }
 
     protected AggregationBuilder parse(XContentParser parser) throws IOException {
-        QueryParseContext parseContext = new QueryParseContext(parser, parseFieldMatcher);
+        QueryParseContext parseContext = new QueryParseContext(parser);
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parseContext);
         assertThat(parsed.getAggregatorFactories(), hasSize(1));

@@ -22,7 +22,6 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
@@ -66,7 +65,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
         Map<String, Consumer<Object>> consumers = new HashMap<>();
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
-        consumers.put("script", o -> internal.setScript(parseScript((Map<String, Object>)o, parseFieldMatcher)));
+        consumers.put("script", o -> internal.setScript(parseScript((Map<String, Object>)o)));
 
         parseInternalRequest(internal, request, consumers);
 
@@ -75,7 +74,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     }
 
     @SuppressWarnings("unchecked")
-    static Script parseScript(Map<String, Object> config, ParseFieldMatcher parseFieldMatcher) {
+    private static Script parseScript(Map<String, Object> config) {
         String script = null;
         ScriptType type = null;
         String lang = DEFAULT_SCRIPT_LANG;

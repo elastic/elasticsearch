@@ -114,6 +114,26 @@ class org.elasticsearch.index.fielddata.ScriptDocValues.Booleans -> org.elastics
   List getValues()
 }
 
+class org.elasticsearch.index.fielddata.ScriptDocValues.BytesRefs -> org.elasticsearch.index.fielddata.ScriptDocValues$BytesRefs extends List,Collection,Iterable,Object {
+  BytesRef get(int)
+  BytesRef getValue()
+  List getValues()
+}
+
+class BytesRef -> org.apache.lucene.util.BytesRef extends Object {
+  byte[] bytes
+  int offset
+  int length
+  boolean bytesEquals(BytesRef)
+  String utf8ToString()
+}
+
+class org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.IpScriptDocValues -> org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues extends List,Collection,Iterable,Object {
+  String get(int)
+  String getValue()
+  List getValues()
+}
+
 # for testing.
 # currently FeatureTest exposes overloaded constructor, field load store, and overloaded static methods
 class org.elasticsearch.painless.FeatureTest -> org.elasticsearch.painless.FeatureTest extends Object {

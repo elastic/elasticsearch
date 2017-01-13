@@ -229,16 +229,9 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                     .field("enabled", false)
                 .endObject().endObject().bytes());
 
-        indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
-                MergeReason.MAPPING_UPDATE, random().nextBoolean());
-        assertFalse(indexService.mapperService().allEnabled()); // _default_ does not count
-
-        indexService.mapperService().merge("some_type", enabledAll,
-                MergeReason.MAPPING_UPDATE, random().nextBoolean());
-        assertTrue(indexService.mapperService().allEnabled());
-
-        indexService.mapperService().merge("other_type", disabledAll,
-                MergeReason.MAPPING_UPDATE, random().nextBoolean());
-        assertTrue(indexService.mapperService().allEnabled()); // this returns true if any of the types has _all enabled
+        Exception e = expectThrows(MapperParsingException.class,
+                () -> indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, enabledAll,
+                        MergeReason.MAPPING_UPDATE, random().nextBoolean()));
+        assertThat(e.getMessage(), containsString("[_all] is disabled in 6.0"));
     }
 }

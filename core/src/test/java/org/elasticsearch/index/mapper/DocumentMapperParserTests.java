@@ -32,13 +32,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class DocumentMapperParserTests extends ESSingleNodeTestCase {
     public void testTypeLevel() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_all").field("enabled", false).endObject()
                 .endObject().endObject().string();
 
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping));
         assertThat(mapper.type(), equalTo("type"));
-        assertThat(mapper.allFieldMapper().enabled(), equalTo(false));
     }
 
     public void testFieldNameWithDots() throws Exception {

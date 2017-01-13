@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -51,7 +50,7 @@ public class HistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, HistogramAggregationBuilder> {
     public static final String NAME = "histogram";
 
-    private static final ObjectParser<double[], ParseFieldMatcherSupplier> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
+    private static final ObjectParser<double[], Void> EXTENDED_BOUNDS_PARSER = new ObjectParser<>(
             Histogram.EXTENDED_BOUNDS_FIELD.getPreferredName(),
             () -> new double[]{ Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY });
     static {
@@ -74,7 +73,7 @@ public class HistogramAggregationBuilder
 
         PARSER.declareField((histogram, extendedBounds) -> {
             histogram.extendedBounds(extendedBounds[0], extendedBounds[1]);
-        }, EXTENDED_BOUNDS_PARSER::apply, ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+        }, parser -> EXTENDED_BOUNDS_PARSER.apply(parser, null), ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
 
         PARSER.declareField(HistogramAggregationBuilder::order, HistogramAggregationBuilder::parseOrder,
                 Histogram.ORDER_FIELD, ObjectParser.ValueType.OBJECT);

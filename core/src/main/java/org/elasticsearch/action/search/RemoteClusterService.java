@@ -363,7 +363,7 @@ public final class RemoteClusterService extends AbstractComponent implements Clo
             }
             return new InetSocketAddress(hostAddress, port);
         } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("port must be a number");
+            throw new IllegalArgumentException("port must be a number", e);
         }
 
     }

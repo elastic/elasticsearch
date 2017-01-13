@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
@@ -136,7 +135,7 @@ public class BytesRestResponse extends RestResponse {
         }
 
         XContentBuilder builder = channel.newErrorBuilder().startObject();
-        ElasticsearchException.toXContentError(builder, params, e, channel.detailedErrorsEnabled());
+        ElasticsearchException.generateFailureXContent(builder, params, e, channel.detailedErrorsEnabled());
         builder.field("status", status.getStatus());
         builder.endObject();
         return builder;

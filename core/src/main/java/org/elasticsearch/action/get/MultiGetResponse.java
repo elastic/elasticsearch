@@ -137,7 +137,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                 builder.field(Fields._INDEX, failure.getIndex());
                 builder.field(Fields._TYPE, failure.getType());
                 builder.field(Fields._ID, failure.getId());
-                ElasticsearchException.toXContentError(builder, params, failure.getFailure());
+                ElasticsearchException.generateFailureXContent(builder, params, failure.getFailure());
                 builder.endObject();
             } else {
                 GetResponse getResponse = response.getResponse();

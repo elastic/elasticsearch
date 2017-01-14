@@ -477,10 +477,7 @@ public class InternalEngine extends Engine {
         }
 
         if (op.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
-            if (op.origin().isRecovery()) {
-                // version conflict, but okay
-                result = onSuccess.get();
-            } else {
+            if (op.origin() == Operation.Origin.PRIMARY) {
                 // fatal version conflict
                 final VersionConflictEngineException e =
                     new VersionConflictEngineException(
@@ -489,8 +486,9 @@ public class InternalEngine extends Engine {
                         op.id(),
                         op.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
                 result = onFailure.apply(e);
+            } else {
+                result = onSuccess.get();
             }
-
             return Optional.of(result);
         } else {
             return Optional.empty();
@@ -690,7 +688,7 @@ public class InternalEngine extends Engine {
                     seqNo = seqNoService().generateSeqNo();
                 }
 
-                /**
+                /*
                  * Update the document's sequence number and primary term; the sequence number here is derived here from either the sequence
                  * number service if this is on the primary, or the existing document's sequence number if this is on the replica. The
                  * primary term here has already been set, see IndexShard#prepareIndex where the Engine$Index operation is created.
@@ -707,10 +705,12 @@ public class InternalEngine extends Engine {
                     update(index.uid(), index.docs(), indexWriter);
                 }
                 indexResult = new IndexResult(updatedVersion, seqNo, deleted);
+                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion));
+            }
+            if (!indexResult.hasFailure()) {
                 location = index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
                     ? translog.add(new Translog.Index(index, indexResult))
                     : null;
-                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion));
                 indexResult.setTranslogLocation(location);
             }
             indexResult.setTook(System.nanoTime() - index.startTime());
@@ -804,7 +804,7 @@ public class InternalEngine extends Engine {
 
             final long expectedVersion = delete.version();
 
-            final Optional<DeleteResult> result =
+            final Optional<DeleteResult> checkVersionConflictResult =
                 checkVersionConflict(
                     delete,
                     currentVersion,
@@ -812,10 +812,9 @@ public class InternalEngine extends Engine {
                     deleted,
                     () -> new DeleteResult(expectedVersion, delete.seqNo(), true),
                     e -> new DeleteResult(e, expectedVersion, delete.seqNo()));
-
             final DeleteResult deleteResult;
-            if (result.isPresent()) {
-                deleteResult = result.get();
+            if (checkVersionConflictResult.isPresent()) {
+                deleteResult = checkVersionConflictResult.get();
             } else {
                 if (delete.origin() == Operation.Origin.PRIMARY) {
                     seqNo = seqNoService().generateSeqNo();
@@ -824,11 +823,14 @@ public class InternalEngine extends Engine {
                 updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
                 found = deleteIfFound(delete.uid(), currentVersion, deleted, versionValue);
                 deleteResult = new DeleteResult(updatedVersion, seqNo, found);
+
+                versionMap.putUnderLock(delete.uid().bytes(),
+                    new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
+            }
+            if (!deleteResult.hasFailure()) {
                 location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
                     ? translog.add(new Translog.Delete(delete, deleteResult))
                     : null;
-                versionMap.putUnderLock(delete.uid().bytes(),
-                    new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
                 deleteResult.setTranslogLocation(location);
             }
             deleteResult.setTook(System.nanoTime() - delete.startTime());

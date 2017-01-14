@@ -58,13 +58,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
 
     /**
-     * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params, Throwable)}
+     * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
      * to control if the {@code caused_by} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
      * internal only and not available as a URL parameter.
      */
     public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
     /**
-     * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params, Throwable)}
+     * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
      * to control if the {@code stack_trace} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
      * internal only and not available as a URL parameter. Use the {@code error_trace} parameter instead.
      */
@@ -382,7 +382,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             builder.startArray(ROOT_CAUSE);
             for (ElasticsearchException rootCause : rootCauses) {
                 builder.startObject();
-                rootCause.toXContent(builder, new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_CAUSE, "true"), params));
+                rootCause.toXContent(builder, new DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_CAUSE, "true"), params));
                 builder.endObject();
             }
             builder.endArray();

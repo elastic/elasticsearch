@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerAdapter;
@@ -38,6 +39,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
@@ -48,9 +50,23 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 public class NetworkModuleTests extends ModuleTestCase {
+    private ThreadPool threadPool;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool(NetworkModuleTests.class.getName());
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+    }
 
     static class FakeTransport extends AssertingLocalTransport {
         public FakeTransport() {
@@ -240,7 +256,8 @@ public class NetworkModuleTests extends ModuleTestCase {
         };
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
                 @Override
-                public List<TransportInterceptor> getTransportInterceptors() {
+                public List<TransportInterceptor> getTransportInterceptors(ThreadContext threadContext) {
+                    assertNotNull(threadContext);
                     return Collections.singletonList(interceptor);
                 }
             });
@@ -253,7 +270,8 @@ public class NetworkModuleTests extends ModuleTestCase {
         NullPointerException nullPointerException = expectThrows(NullPointerException.class, () -> {
             newNetworkModule(settings, false, new NetworkPlugin() {
                 @Override
-                public List<TransportInterceptor> getTransportInterceptors() {
+                public List<TransportInterceptor> getTransportInterceptors(ThreadContext threadContext) {
+                    assertNotNull(threadContext);
                     return Collections.singletonList(null);
                 }
             });
@@ -263,6 +281,6 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {
-        return new NetworkModule(settings, transportClient, Arrays.asList(plugins), null, null, null, null, xContentRegistry(), null);
+        return new NetworkModule(settings, transportClient, Arrays.asList(plugins), threadPool, null, null, null, xContentRegistry(), null);
     }
 }

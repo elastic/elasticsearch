@@ -544,6 +544,10 @@ public class InternalEngine extends Engine {
             // and set the error in operation.setFailure. In case of environment related errors, the failure
             // is bubbled up
             isDocumentFailure = maybeFailEngine(operation.operationType().getLowercase(), failure) == false;
+            if (failure instanceof EngineClosedException) {
+                // ensureOpen throws EngineClosedException which is not a document level issue
+                isDocumentFailure = false;
+            }
         } catch (Exception inner) {
             // we failed checking whether the failure can fail the engine, treat it as a persistent engine failure
             isDocumentFailure = false;

@@ -234,7 +234,8 @@ public class NetworkModuleTests extends ModuleTestCase {
         };
         NetworkModule module = newNetworkModule(settings, false, new NetworkPlugin() {
                 @Override
-                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
+                public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                           ThreadContext threadContext) {
                     return Collections.singletonList(interceptor);
                 }
             });

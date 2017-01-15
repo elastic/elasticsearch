@@ -670,20 +670,13 @@ public class InternalEngine extends Engine {
             final IndexResult indexResult;
             if (checkVersionConflictResult.isPresent()) {
                 indexResult = checkVersionConflictResult.get();
-                // norelease: this is not correct as this does not force an fsync, and we need to handle failures including replication
-                if (indexResult.hasFailure() || seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                    location = null;
-                } else {
-                    final Translog.NoOp operation = new Translog.NoOp(seqNo, index.primaryTerm(), "version conflict during recovery");
-                    location = index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY ? translog.add(operation) : null;
-                }
             } else {
                 // no version conflict
                 if (index.origin() == Operation.Origin.PRIMARY) {
                     seqNo = seqNoService().generateSeqNo();
                 }
 
-                /*
+                /**
                  * Update the document's sequence number and primary term; the sequence number here is derived here from either the sequence
                  * number service if this is on the primary, or the existing document's sequence number if this is on the replica. The
                  * primary term here has already been set, see IndexShard#prepareIndex where the Engine$Index operation is created.
@@ -700,11 +693,12 @@ public class InternalEngine extends Engine {
                     update(index.uid(), index.docs(), indexWriter);
                 }
                 indexResult = new IndexResult(updatedVersion, seqNo, deleted);
+                location = index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
+                    ? translog.add(new Translog.Index(index, indexResult))
+                    : null;
                 versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion));
-                final Translog.Index operation = new Translog.Index(index, indexResult);
-                location = index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY ? translog.add(operation) : null;
+                indexResult.setTranslogLocation(location);
             }
-            indexResult.setTranslogLocation(location);
             indexResult.setTook(System.nanoTime() - index.startTime());
             indexResult.freeze();
             return indexResult;
@@ -808,13 +802,6 @@ public class InternalEngine extends Engine {
             final DeleteResult deleteResult;
             if (result.isPresent()) {
                 deleteResult = result.get();
-                // norelease: this is not correct as this does not force an fsync, and we need to handle failures including replication
-                if (deleteResult.hasFailure() || seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                    location = null;
-                } else {
-                    final Translog.NoOp operation = new Translog.NoOp(seqNo, delete.primaryTerm(), "version conflict during recovery");
-                    location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY ? translog.add(operation) : null;
-                }
             } else {
                 if (delete.origin() == Operation.Origin.PRIMARY) {
                     seqNo = seqNoService().generateSeqNo();
@@ -822,12 +809,13 @@ public class InternalEngine extends Engine {
                 updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
                 found = deleteIfFound(delete.uid(), currentVersion, deleted, versionValue);
                 deleteResult = new DeleteResult(updatedVersion, seqNo, found);
+                location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
+                    ? translog.add(new Translog.Delete(delete, deleteResult))
+                    : null;
                 versionMap.putUnderLock(delete.uid().bytes(),
                     new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
-                final Translog.Delete operation = new Translog.Delete(delete, deleteResult);
-                location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY ? translog.add(operation) : null;
+                deleteResult.setTranslogLocation(location);
             }
-            deleteResult.setTranslogLocation(location);
             deleteResult.setTook(System.nanoTime() - delete.startTime());
             deleteResult.freeze();
             return deleteResult;

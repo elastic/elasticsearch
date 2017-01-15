@@ -41,6 +41,12 @@ public class DeprecationLoggerTests extends ESTestCase {
 
     private final DeprecationLogger logger = new DeprecationLogger(Loggers.getLogger(getClass()));
 
+    @Override
+    protected boolean enableWarningsCheck() {
+        //this is a low level test for the deprecation logger, setup and checks are done manually
+        return false;
+    }
+
     public void testAddsHeaderWithThreadContext() throws IOException {
         String msg = "A simple message [{}]";
         String param = randomAsciiOfLengthBetween(1, 5);
@@ -54,7 +60,7 @@ public class DeprecationLoggerTests extends ESTestCase {
             Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
 
             assertEquals(1, responseHeaders.size());
-            assertEquals(formatted, responseHeaders.get(DeprecationLogger.DEPRECATION_HEADER).get(0));
+            assertEquals(formatted, responseHeaders.get(DeprecationLogger.WARNING_HEADER).get(0));
         }
     }
 
@@ -74,7 +80,7 @@ public class DeprecationLoggerTests extends ESTestCase {
 
             assertEquals(1, responseHeaders.size());
 
-            List<String> responses = responseHeaders.get(DeprecationLogger.DEPRECATION_HEADER);
+            List<String> responses = responseHeaders.get(DeprecationLogger.WARNING_HEADER);
 
             assertEquals(2, responses.size());
             assertEquals(formatted, responses.get(0));
@@ -93,7 +99,7 @@ public class DeprecationLoggerTests extends ESTestCase {
             logger.deprecated(expected);
 
             Map<String, List<String>> responseHeaders = threadContext.getResponseHeaders();
-            List<String> responses = responseHeaders.get(DeprecationLogger.DEPRECATION_HEADER);
+            List<String> responses = responseHeaders.get(DeprecationLogger.WARNING_HEADER);
 
             // ensure it works (note: concurrent tests may be adding to it, but in different threads, so it should have no impact)
             assertThat(responses, hasSize(atLeast(1)));
@@ -104,7 +110,7 @@ public class DeprecationLoggerTests extends ESTestCase {
             logger.deprecated(unexpected);
 
             responseHeaders = threadContext.getResponseHeaders();
-            responses = responseHeaders.get(DeprecationLogger.DEPRECATION_HEADER);
+            responses = responseHeaders.get(DeprecationLogger.WARNING_HEADER);
 
             assertThat(responses, hasSize(atLeast(1)));
             assertThat(responses, hasItem(expected));

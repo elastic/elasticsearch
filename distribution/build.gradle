@@ -79,7 +79,7 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each
   restTestExpansions['expected.modules.count'] += 1
 }
 
-// Integ tests work over the rest http layer, so we need a transport included with the integ test zip. 
+// Integ tests work over the rest http layer, so we need a transport included with the integ test zip.
 // All transport modules are included so that they may be randomized for testing
 task buildTransportModules(type: Sync) {
   into 'build/transport-modules'
@@ -104,6 +104,7 @@ subprojects {
   /*****************************************************************************
    *                            Rest test config                               *
    *****************************************************************************/
+  apply plugin: 'elasticsearch.standalone-rest-test'
   apply plugin: 'elasticsearch.rest-test'
   project.integTest {
     dependsOn project.assemble
@@ -116,7 +117,7 @@ subprojects {
       mustRunAfter ':distribution:integ-test-zip:integTest#stop'
     }
   }
-  
+
   processTestResources {
     inputs.properties(project(':distribution').restTestExpansions)
     MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)

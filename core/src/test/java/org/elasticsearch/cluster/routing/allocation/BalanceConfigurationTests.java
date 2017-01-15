@@ -45,9 +45,7 @@ import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -257,10 +255,6 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         AllocationService strategy = new AllocationService(settings.build(), randomAllocationDeciders(settings.build(),
                 new ClusterSettings(Settings.Builder.EMPTY_SETTINGS, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), random()),
                 new TestGatewayAllocator(), new ShardsAllocator() {
-
-                    public Map<DiscoveryNode, Float> weighShard(RoutingAllocation allocation, ShardRouting shard) {
-                        return new HashMap<DiscoveryNode, Float>();
-                    }
             /*
              *  // this allocator tries to rebuild this scenario where a rebalance is
              *  // triggered solely by the primary overload on node [1] where a shard
@@ -326,6 +320,11 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                     }
 
                 }
+            }
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new UnsupportedOperationException("explain not supported");
             }
         }, EmptyClusterInfoService.INSTANCE);
         MetaData.Builder metaDataBuilder = MetaData.builder();

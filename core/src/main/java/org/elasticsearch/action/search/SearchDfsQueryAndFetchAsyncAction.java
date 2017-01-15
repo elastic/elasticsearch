@@ -47,10 +47,11 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
     private final SearchPhaseController searchPhaseController;
     SearchDfsQueryAndFetchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                       Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
-                                      Map<String, AliasFilter> aliasFilter, SearchPhaseController searchPhaseController,
-                                      Executor executor, SearchRequest request, ActionListener<SearchResponse> listener,
-                                      GroupShardsIterator shardsIts, long startTime, long clusterStateVersion, SearchTask task) {
-        super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, executor,
+                                      Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
+                                      SearchPhaseController searchPhaseController, Executor executor, SearchRequest request,
+                                      ActionListener<SearchResponse> listener,  GroupShardsIterator shardsIts,
+                                      long startTime, long clusterStateVersion, SearchTask task) {
+        super(logger, searchTransportService, nodeIdToDiscoveryNode, aliasFilter, concreteIndexBoosts, executor,
                 request, listener, shardsIts, startTime, clusterStateVersion, task);
         this.searchPhaseController = searchPhaseController;
         queryFetchResults = new AtomicArray<>(firstResults.length());
@@ -74,7 +75,7 @@ class SearchDfsQueryAndFetchAsyncAction extends AbstractSearchAsyncAction<DfsSea
 
         for (final AtomicArray.Entry<DfsSearchResult> entry : firstResults.asList()) {
             DfsSearchResult dfsResult = entry.value;
-            DiscoveryNode node = nodeIdToDiscoveryNode.apply(dfsResult.shardTarget().nodeId());
+            DiscoveryNode node = nodeIdToDiscoveryNode.apply(dfsResult.shardTarget().getNodeId());
             QuerySearchRequest querySearchRequest = new QuerySearchRequest(request, dfsResult.id(), dfs);
             executeSecondPhase(entry.index, dfsResult, counter, node, querySearchRequest);
         }

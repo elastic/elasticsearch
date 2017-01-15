@@ -33,8 +33,6 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.oio.OioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
@@ -61,6 +59,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerAdapter;
@@ -78,6 +78,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty4.Netty4OpenChannelsHandler;
 import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.transport.netty4.channel.PrivilegedNioServerSocketChannel;
+import org.elasticsearch.transport.netty4.channel.PrivilegedOioServerSocketChannel;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -193,6 +195,10 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
     protected final boolean detailedErrorsEnabled;
     protected final ThreadPool threadPool;
+    /**
+     * The registry used to construct parsers so they support {@link XContentParser#namedObject(Class, String, Object)}.
+     */
+    protected final NamedXContentRegistry xContentRegistry;
 
     protected final boolean tcpNoDelay;
     protected final boolean tcpKeepAlive;
@@ -218,11 +224,13 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
     private final Netty4CorsConfig corsConfig;
 
-    public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool) {
+    public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
+            NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
+        this.xContentRegistry = xContentRegistry;
 
         ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
@@ -293,11 +301,11 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             if (blockingServer) {
                 serverBootstrap.group(new OioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                     HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-                serverBootstrap.channel(OioServerSocketChannel.class);
+                serverBootstrap.channel(PrivilegedOioServerSocketChannel.class);
             } else {
                 serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                     HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-                serverBootstrap.channel(NioServerSocketChannel.class);
+                serverBootstrap.channel(PrivilegedNioServerSocketChannel.class);
             }
 
             serverBootstrap.childHandler(configureServerChannelHandler());
@@ -543,9 +551,9 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         private final Netty4HttpRequestHandler requestHandler;
 
         protected HttpChannelHandler(
-            final Netty4HttpServerTransport transport,
-            final boolean detailedErrorsEnabled,
-            final ThreadContext threadContext) {
+                final Netty4HttpServerTransport transport,
+                final boolean detailedErrorsEnabled,
+                final ThreadContext threadContext) {
             this.transport = transport;
             this.requestHandler = new Netty4HttpRequestHandler(transport, detailedErrorsEnabled, threadContext);
         }

@@ -15,6 +15,7 @@ a number of clients that have been contributed by the community for various lang
 * <<java>>
 * <<javascript>>
 * <<kotlin>>
+* <<lua>>
 * <<dotnet>>
 * <<ocaml>>
 * <<perl>>
@@ -117,6 +118,12 @@ The following project appears to be abandoned:
 
 * https://github.com/mbuhot/eskotlin[ES Kotlin]:
   Elasticsearch Query DSL for kotlin based on the {client}/java-api/current/index.html[official Elasticsearch Java client].
+
+[[lua]]
+== Lua
+
+* https://github.com/DhavalKapil/elasticsearch-lua[elasticsearch-lua]:
+  Lua client for elasticsearch
 
 [[dotnet]]
 == .NET

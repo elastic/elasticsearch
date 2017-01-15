@@ -29,7 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -58,7 +57,7 @@ public class RestMultiTermVectorsAction extends BaseRestHandler {
         template.type(request.param("type"));
         RestTermVectorsAction.readURIParameters(template, request);
         multiTermVectorsRequest.ids(Strings.commaDelimitedListToStringArray(request.param("ids")));
-        multiTermVectorsRequest.add(template, RestActions.getRestContent(request));
+        request.withContentOrSourceParamParserOrNull(p -> multiTermVectorsRequest.add(template, p));
 
         return channel -> client.multiTermVectors(multiTermVectorsRequest, new RestToXContentListener<MultiTermVectorsResponse>(channel));
     }

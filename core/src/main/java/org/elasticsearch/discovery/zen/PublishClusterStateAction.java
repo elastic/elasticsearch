@@ -29,12 +29,13 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.ClusterStateStatus;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -80,6 +81,7 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     private final TransportService transportService;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private final Supplier<ClusterState> clusterStateSupplier;
     private final NewPendingClusterStateListener newPendingClusterStatelistener;
     private final DiscoverySettings discoverySettings;
@@ -89,12 +91,14 @@ public class PublishClusterStateAction extends AbstractComponent {
     public PublishClusterStateAction(
             Settings settings,
             TransportService transportService,
+            NamedWriteableRegistry namedWriteableRegistry,
             Supplier<ClusterState> clusterStateSupplier,
             NewPendingClusterStateListener listener,
             DiscoverySettings discoverySettings,
             ClusterName clusterName) {
         super(settings);
         this.transportService = transportService;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.clusterStateSupplier = clusterStateSupplier;
         this.newPendingClusterStatelistener = listener;
         this.discoverySettings = discoverySettings;
@@ -377,15 +381,16 @@ public class PublishClusterStateAction extends AbstractComponent {
         } else {
             in = request.bytes().streamInput();
         }
+        in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
         in.setVersion(request.version());
         synchronized (lastSeenClusterStateMutex) {
             final ClusterState incomingState;
             // If true we received full cluster state - otherwise diffs
             if (in.readBoolean()) {
-                incomingState = ClusterState.Builder.readFrom(in, clusterStateSupplier.get().nodes().getLocalNode());
+                incomingState = ClusterState.readFrom(in, clusterStateSupplier.get().nodes().getLocalNode());
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
             } else if (lastSeenClusterState != null) {
-                Diff<ClusterState> diff = lastSeenClusterState.readDiffFrom(in);
+                Diff<ClusterState> diff = ClusterState.readDiffFrom(in, lastSeenClusterState.nodes().getLocalNode());
                 incomingState = diff.apply(lastSeenClusterState);
                 logger.debug("received diff cluster state version [{}] with uuid [{}], diff size [{}]",
                     incomingState.version(), incomingState.stateUUID(), request.bytes().length());

@@ -20,6 +20,7 @@
 package org.elasticsearch.action.fieldstats;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 
@@ -34,11 +35,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class FieldStatsRequestTests extends ESTestCase {
 
     public void testFieldsParsing() throws Exception {
-        byte[] data =
+        BytesArray data = new BytesArray(
             StreamsUtils.copyToBytesFromClasspath("/org/elasticsearch/action/fieldstats/" +
-                "fieldstats-index-constraints-request.json");
+                "fieldstats-index-constraints-request.json"));
         FieldStatsRequest request = new FieldStatsRequest();
-        request.source(new BytesArray(data));
+        request.source(createParser(JsonXContent.jsonXContent, data));
 
         assertThat(request.getFields().length, equalTo(5));
         assertThat(request.getFields()[0], equalTo("field1"));
@@ -66,7 +67,7 @@ public class FieldStatsRequestTests extends ESTestCase {
         assertThat(request.getIndexConstraints()[3].getComparison(), equalTo(LTE));
         assertThat(request.getIndexConstraints()[4].getField(), equalTo("field5"));
         assertThat(request.getIndexConstraints()[4].getValue(), equalTo("2"));
-        assertThat(request.getIndexConstraints()[4].getProperty(), equalTo(MAX));
+        assertThat(request.getIndexConstraints()[4].getProperty(), equalTo(MIN));
         assertThat(request.getIndexConstraints()[4].getComparison(), equalTo(GT));
         assertThat(request.getIndexConstraints()[5].getField(), equalTo("field5"));
         assertThat(request.getIndexConstraints()[5].getValue(), equalTo("9"));

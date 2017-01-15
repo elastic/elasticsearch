@@ -70,7 +70,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         clusterService = mock(ClusterService.class);
         allocationService = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         delayedAllocationService = new TestDelayAllocationService(Settings.EMPTY, threadPool, clusterService, allocationService);
-        verify(clusterService).addFirst(delayedAllocationService);
+        verify(clusterService).addListener(delayedAllocationService);
     }
 
     @After

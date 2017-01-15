@@ -33,10 +33,6 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.oio.OioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.channel.socket.oio.OioServerSocketChannel;
-import io.netty.channel.socket.oio.OioSocketChannel;
 import io.netty.util.concurrent.Future;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
@@ -46,7 +42,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.NetworkService;
@@ -68,6 +63,10 @@ import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportServiceAdapter;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.transport.netty4.channel.PrivilegedNioServerSocketChannel;
+import org.elasticsearch.transport.netty4.channel.PrivilegedNioSocketChannel;
+import org.elasticsearch.transport.netty4.channel.PrivilegedOioServerSocketChannel;
+import org.elasticsearch.transport.netty4.channel.PrivilegedOioSocketChannel;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -143,7 +142,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
     protected volatile Bootstrap bootstrap;
     protected final Map<String, ServerBootstrap> serverBootstraps = newConcurrentMap();
 
-    @Inject
     public Netty4Transport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays,
                           NamedWriteableRegistry namedWriteableRegistry, CircuitBreakerService circuitBreakerService) {
         super("netty", settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, networkService);
@@ -197,10 +195,10 @@ public class Netty4Transport extends TcpTransport<Channel> {
         final Bootstrap bootstrap = new Bootstrap();
         if (TCP_BLOCKING_CLIENT.get(settings)) {
             bootstrap.group(new OioEventLoopGroup(1, daemonThreadFactory(settings, TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX)));
-            bootstrap.channel(OioSocketChannel.class);
+            bootstrap.channel(PrivilegedOioSocketChannel.class);
         } else {
             bootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)));
-            bootstrap.channel(NioSocketChannel.class);
+            bootstrap.channel(PrivilegedNioSocketChannel.class);
         }
 
         bootstrap.handler(getClientChannelInitializer());
@@ -286,10 +284,10 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         if (TCP_BLOCKING_SERVER.get(settings)) {
             serverBootstrap.group(new OioEventLoopGroup(workerCount, workerFactory));
-            serverBootstrap.channel(OioServerSocketChannel.class);
+            serverBootstrap.channel(PrivilegedOioServerSocketChannel.class);
         } else {
             serverBootstrap.group(new NioEventLoopGroup(workerCount, workerFactory));
-            serverBootstrap.channel(NioServerSocketChannel.class);
+            serverBootstrap.channel(PrivilegedNioServerSocketChannel.class);
         }
 
         serverBootstrap.childHandler(getServerChannelInitializer(name, settings));
@@ -342,7 +340,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
     @Override
     protected NodeChannels connectToChannels(DiscoveryNode node, ConnectionProfile profile) {
         final Channel[] channels = new Channel[profile.getNumConnections()];
-        final NodeChannels nodeChannels = new NodeChannels(channels, profile);
+        final NodeChannels nodeChannels = new NodeChannels(node, channels, profile);
         boolean success = false;
         try {
             final TimeValue connectTimeout;
@@ -387,7 +385,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
                 }
                 throw e;
             }
-            onAfterChannelsConnected(nodeChannels);
             success = true;
         } finally {
             if (success == false) {
@@ -401,14 +398,6 @@ public class Netty4Transport extends TcpTransport<Channel> {
         return nodeChannels;
     }
 
-    /**
-     * Allows for logic to be executed after a connection has been made on all channels. While this method is being executed, the node is
-     * not listed as being connected to.
-     * @param nodeChannels the {@link NodeChannels} that have been connected
-     */
-    protected void onAfterChannelsConnected(NodeChannels nodeChannels) {
-    }
-
     private class ChannelCloseListener implements ChannelFutureListener {
 
         private final DiscoveryNode node;
@@ -419,6 +408,7 @@ public class Netty4Transport extends TcpTransport<Channel> {
 
         @Override
         public void operationComplete(final ChannelFuture future) throws Exception {
+            onChannelClosed(future.channel());
             NodeChannels nodeChannels = connectedNodes.get(node);
             if (nodeChannels != null && nodeChannels.hasChannel(future.channel())) {
                 threadPool.generic().execute(() -> disconnectFromNode(node, future.channel(), "channel closed event"));

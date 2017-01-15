@@ -50,6 +50,7 @@ import java.util.function.Function;
 
 
 abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> extends AbstractAsyncAction {
+    private static final float DEFAULT_INDEX_BOOST = 1.0f;
 
     protected final Logger logger;
     protected final SearchTransportService searchTransportService;
@@ -66,6 +67,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     private final AtomicInteger totalOps = new AtomicInteger();
     protected final AtomicArray<FirstResult> firstResults;
     private final Map<String, AliasFilter> aliasFilter;
+    private final Map<String, Float> concreteIndexBoosts;
     private final long clusterStateVersion;
     private volatile AtomicArray<ShardSearchFailure> shardFailures;
     private final Object shardFailuresMutex = new Object();
@@ -73,9 +75,9 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
 
     protected AbstractSearchAsyncAction(Logger logger, SearchTransportService searchTransportService,
                                         Function<String, DiscoveryNode> nodeIdToDiscoveryNode,
-                                        Map<String, AliasFilter> aliasFilter, Executor executor, SearchRequest request,
-                                        ActionListener<SearchResponse> listener, GroupShardsIterator shardsIts, long startTime,
-                                        long clusterStateVersion, SearchTask task) {
+                                        Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
+                                        Executor executor, SearchRequest request, ActionListener<SearchResponse> listener,
+                                        GroupShardsIterator shardsIts, long startTime, long clusterStateVersion, SearchTask task) {
         super(startTime);
         this.logger = logger;
         this.searchTransportService = searchTransportService;
@@ -91,6 +93,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
         expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
         firstResults = new AtomicArray<>(shardsIts.size());
         this.aliasFilter = aliasFilter;
+        this.concreteIndexBoosts = concreteIndexBoosts;
     }
 
     public void start() {
@@ -125,8 +128,10 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
             } else {
                 AliasFilter filter = this.aliasFilter.get(shard.index().getUUID());
                 assert filter != null;
+
+                float indexBoost = concreteIndexBoosts.getOrDefault(shard.index().getUUID(), DEFAULT_INDEX_BOOST);
                 ShardSearchTransportRequest transportRequest = new ShardSearchTransportRequest(request, shardIt.shardId(), shardsIts.size(),
-                    filter, startTime());
+                    filter, indexBoost, startTime());
                 sendExecuteFirstPhase(node, transportRequest , new ActionListener<FirstResult>() {
                         @Override
                         public void onResponse(FirstResult result) {
@@ -287,7 +292,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     private void raiseEarlyFailure(Exception e) {
         for (AtomicArray.Entry<FirstResult> entry : firstResults.asList()) {
             try {
-                DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.shardTarget().nodeId());
+                DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.shardTarget().getNodeId());
                 sendReleaseSearchContext(entry.value.id(), node);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
@@ -312,7 +317,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 if (queryResult.hasHits()
                     && docIdsToLoad.get(entry.index) == null) { // but none of them made it to the global top docs
                     try {
-                        DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.queryResult().shardTarget().nodeId());
+                        DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.queryResult().shardTarget().getNodeId());
                         sendReleaseSearchContext(entry.value.queryResult().id(), node);
                     } catch (Exception e) {
                         logger.trace("failed to release context", e);

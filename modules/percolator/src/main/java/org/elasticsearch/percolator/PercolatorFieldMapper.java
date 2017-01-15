@@ -345,8 +345,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     private static QueryBuilder parseQueryBuilder(QueryParseContext context, XContentLocation location) {
         try {
-            return context.parseInnerQueryBuilder()
-                    .orElseThrow(() -> new ParsingException(location, "Failed to parse inner query, was empty"));
+            return context.parseInnerQueryBuilder();
         } catch (IOException e) {
             throw new ParsingException(location, "Failed to parse", e);
         }
@@ -378,10 +377,16 @@ public class PercolatorFieldMapper extends FieldMapper {
             RangeQueryBuilder rangeQueryBuilder = (RangeQueryBuilder) queryBuilder;
             if (rangeQueryBuilder.from() instanceof String) {
                 String from = (String) rangeQueryBuilder.from();
-                String to = (String) rangeQueryBuilder.to();
-                if (from.contains("now") || to.contains("now")) {
+                if (from.contains("now")) {
                     throw new IllegalArgumentException("percolator queries containing time range queries based on the " +
                             "current time is unsupported");
+                }
+            }
+            if (rangeQueryBuilder.to() instanceof String) {
+                String to = (String) rangeQueryBuilder.to();
+                if (to.contains("now")) {
+                    throw new IllegalArgumentException("percolator queries containing time range queries based on the " +
+                        "current time is unsupported");
                 }
             }
         } else if (queryBuilder instanceof HasChildQueryBuilder) {

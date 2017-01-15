@@ -303,7 +303,9 @@ public class TasksIT extends ESIntegTestCase {
         client().prepareBulk().add(client().prepareIndex("test", "doc", "test_id").setSource("{\"foo\": \"bar\"}")).get();
 
         // the bulk operation should produce one main task
-        assertEquals(1, numberOfEvents(BulkAction.NAME, Tuple::v1));
+        List<TaskInfo> topTask = findEvents(BulkAction.NAME, Tuple::v1);
+        assertEquals(1, topTask.size());
+        assertEquals("requests[1], indices[test]", topTask.get(0).getDescription());
 
         // we should also get 1 or 2 [s] operation with main operation as a parent
         // in case the primary is located on the coordinating node we will have 1 operation, otherwise - 2
@@ -317,17 +319,20 @@ public class TasksIT extends ESIntegTestCase {
             shardTask = shardTasks.get(0);
             // and it should have the main task as a parent
             assertParentTask(shardTask, findEvents(BulkAction.NAME, Tuple::v1).get(0));
+            assertEquals("requests[1], index[test]", shardTask.getDescription());
         } else {
             if (shardTasks.get(0).getParentTaskId().equals(shardTasks.get(1).getTaskId())) {
                 // task 1 is the parent of task 0, that means that task 0 will control [s][p] and [s][r] tasks
                  shardTask = shardTasks.get(0);
                 // in turn the parent of the task 1 should be the main task
                 assertParentTask(shardTasks.get(1), findEvents(BulkAction.NAME, Tuple::v1).get(0));
+                assertEquals("requests[1], index[test]", shardTask.getDescription());
             } else {
                 // otherwise task 1 will control [s][p] and [s][r] tasks
                 shardTask = shardTasks.get(1);
                 // in turn the parent of the task 0 should be the main task
                 assertParentTask(shardTasks.get(0), findEvents(BulkAction.NAME, Tuple::v1).get(0));
+                assertEquals("requests[1], index[test]", shardTask.getDescription());
             }
         }
 

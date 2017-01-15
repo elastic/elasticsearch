@@ -217,7 +217,7 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testReindexResponse() throws IOException {
-        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(timeValueMillis(randomPositiveLong()), randomStatus(),
+        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(timeValueMillis(randomNonNegativeLong()), randomStatus(),
                 randomIndexingFailures(), randomSearchFailures(), randomBoolean());
         BulkIndexByScrollResponse tripped = new BulkIndexByScrollResponse();
         roundTrip(response, tripped);
@@ -225,7 +225,7 @@ public class RoundTripTests extends ESTestCase {
     }
 
     public void testBulkIndexByScrollResponse() throws IOException {
-        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(timeValueMillis(randomPositiveLong()), randomStatus(),
+        BulkIndexByScrollResponse response = new BulkIndexByScrollResponse(timeValueMillis(randomNonNegativeLong()), randomStatus(),
                 randomIndexingFailures(), randomSearchFailures(), randomBoolean());
         BulkIndexByScrollResponse tripped = new BulkIndexByScrollResponse();
         roundTrip(response, tripped);

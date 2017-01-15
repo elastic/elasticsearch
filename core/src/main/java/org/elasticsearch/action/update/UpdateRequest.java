@@ -27,9 +27,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -689,18 +686,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return upsertRequest;
     }
 
-    public UpdateRequest fromXContent(XContentBuilder source) throws Exception {
-        return fromXContent(source.bytes());
-    }
-
-    public UpdateRequest fromXContent(byte[] source) throws Exception {
-        return fromXContent(source, 0, source.length);
-    }
-
-    public UpdateRequest fromXContent(byte[] source, int offset, int length) throws Exception {
-        return fromXContent(new BytesArray(source, offset, length));
-    }
-
     /**
      * Should this update attempt to detect if it is a noop? Defaults to true.
      * @return this for chaining
@@ -717,52 +702,48 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         return detectNoop;
     }
 
-    public UpdateRequest fromXContent(BytesReference source) throws IOException {
+    public UpdateRequest fromXContent(XContentParser parser) throws IOException {
         Script script = null;
-        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-            XContentParser.Token token = parser.nextToken();
-            if (token == null) {
-                return this;
-            }
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if ("script".equals(currentFieldName)) {
-                    script = Script.parse(parser, ParseFieldMatcher.EMPTY);
-                } else if ("scripted_upsert".equals(currentFieldName)) {
-                    scriptedUpsert = parser.booleanValue();
-                } else if ("upsert".equals(currentFieldName)) {
-                    XContentType xContentType = XContentFactory.xContentType(source);
-                    XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
-                    builder.copyCurrentStructure(parser);
-                    safeUpsertRequest().source(builder);
-                } else if ("doc".equals(currentFieldName)) {
-                    XContentType xContentType = XContentFactory.xContentType(source);
-                    XContentBuilder docBuilder = XContentFactory.contentBuilder(xContentType);
-                    docBuilder.copyCurrentStructure(parser);
-                    safeDoc().source(docBuilder);
-                } else if ("doc_as_upsert".equals(currentFieldName)) {
-                    docAsUpsert(parser.booleanValue());
-                } else if ("detect_noop".equals(currentFieldName)) {
-                    detectNoop(parser.booleanValue());
-                } else if ("fields".equals(currentFieldName)) {
-                    List<Object> fields = null;
-                    if (token == XContentParser.Token.START_ARRAY) {
-                        fields = (List) parser.list();
-                    } else if (token.isValue()) {
-                        fields = Collections.singletonList(parser.text());
-                    }
-                    if (fields != null) {
-                        fields(fields.toArray(new String[fields.size()]));
-                    }
-                } else if ("_source".equals(currentFieldName)) {
-                    fetchSourceContext = FetchSourceContext.parse(parser);
+        XContentParser.Token token = parser.nextToken();
+        if (token == null) {
+            return this;
+        }
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if ("script".equals(currentFieldName)) {
+                script = Script.parse(parser);
+            } else if ("scripted_upsert".equals(currentFieldName)) {
+                scriptedUpsert = parser.booleanValue();
+            } else if ("upsert".equals(currentFieldName)) {
+                XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
+                builder.copyCurrentStructure(parser);
+                safeUpsertRequest().source(builder);
+            } else if ("doc".equals(currentFieldName)) {
+                XContentBuilder docBuilder = XContentFactory.contentBuilder(parser.contentType());
+                docBuilder.copyCurrentStructure(parser);
+                safeDoc().source(docBuilder);
+            } else if ("doc_as_upsert".equals(currentFieldName)) {
+                docAsUpsert(parser.booleanValue());
+            } else if ("detect_noop".equals(currentFieldName)) {
+                detectNoop(parser.booleanValue());
+            } else if ("fields".equals(currentFieldName)) {
+                List<Object> fields = null;
+                if (token == XContentParser.Token.START_ARRAY) {
+                    fields = (List) parser.list();
+                } else if (token.isValue()) {
+                    fields = Collections.singletonList(parser.text());
                 }
+                if (fields != null) {
+                    fields(fields.toArray(new String[fields.size()]));
+                }
+            } else if ("_source".equals(currentFieldName)) {
+                fetchSourceContext = FetchSourceContext.fromXContent(parser);
             }
-            if (script != null) {
-                this.script = script;
-            }
+        }
+        if (script != null) {
+            this.script = script;
         }
         return this;
     }

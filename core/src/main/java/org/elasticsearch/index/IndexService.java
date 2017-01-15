@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -67,7 +68,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -102,6 +102,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexSearcherWrapper searcherWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
+    private final NamedXContentRegistry xContentRegistry;
     private final SimilarityService similarityService;
     private final EngineFactory engineFactory;
     private final IndexWarmer warmer;
@@ -118,11 +119,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final BigArrays bigArrays;
     private final AsyncGlobalCheckpointTask globalCheckpointTask;
     private final ScriptService scriptService;
-    private final IndicesQueriesRegistry queryRegistry;
     private final ClusterService clusterService;
     private final Client client;
 
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
+                        NamedXContentRegistry xContentRegistry,
                         SimilarityService similarityService,
                         ShardStoreDeleter shardStoreDeleter,
                         AnalysisRegistry registry,
@@ -131,7 +132,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         BigArrays bigArrays,
                         ThreadPool threadPool,
                         ScriptService scriptService,
-                        IndicesQueriesRegistry queryRegistry,
                         ClusterService clusterService,
                         Client client,
                         QueryCache queryCache,
@@ -146,8 +146,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.globalCheckpointSyncer = globalCheckpointSyncer;
+        this.xContentRegistry = xContentRegistry;
         this.similarityService = similarityService;
-        this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), similarityService, mapperRegistry,
+        this.mapperService = new MapperService(indexSettings, registry.build(indexSettings), xContentRegistry, similarityService,
+            mapperRegistry,
             // we parse all percolator queries as they would be parsed on shard 0
             () -> newQueryShardContext(0, null, () -> {
                 throw new IllegalArgumentException("Percolator queries are not allowed to use the current timestamp");
@@ -157,7 +159,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
-        this.queryRegistry = queryRegistry;
         this.clusterService = clusterService;
         this.client = client;
         this.eventListener = eventListener;
@@ -234,6 +235,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public MapperService mapperService() {
         return mapperService;
+    }
+
+    public NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 
     public SimilarityService similarityService() {
@@ -469,9 +474,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     public QueryShardContext newQueryShardContext(int shardId, IndexReader indexReader, LongSupplier nowInMillis) {
         return new QueryShardContext(
             shardId, indexSettings, indexCache.bitsetFilterCache(), indexFieldData, mapperService(),
-                similarityService(), scriptService, queryRegistry,
+                similarityService(), scriptService, xContentRegistry,
                 client, indexReader,
-                clusterService.state(),
             nowInMillis);
     }
 

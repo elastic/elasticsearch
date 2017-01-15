@@ -35,15 +35,24 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.Diff;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -62,6 +71,7 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCustomMetaData;
 import org.elasticsearch.test.rest.FakeRestRequest;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -88,9 +98,51 @@ import static org.hamcrest.Matchers.nullValue;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
 
+    public static class TestCustomMetaDataPlugin extends Plugin {
+
+        private final List<NamedWriteableRegistry.Entry> namedWritables = new ArrayList<>();
+        private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
+
+        public TestCustomMetaDataPlugin() {
+            registerBuiltinWritables();
+        }
+
+        private <T extends MetaData.Custom> void registerMetaDataCustom(String name, Writeable.Reader<T> reader,
+                                                                        Writeable.Reader<NamedDiff> diffReader,
+                                                                        NamedXContentRegistry.FromXContent<T> parser) {
+            namedWritables.add(new NamedWriteableRegistry.Entry(MetaData.Custom.class, name, reader));
+            namedWritables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, name, diffReader));
+            namedXContents.add(new NamedXContentRegistry.Entry(MetaData.Custom.class, new ParseField(name), parser));
+        }
+
+        private void registerBuiltinWritables() {
+            registerMetaDataCustom(SnapshottableMetadata.TYPE, SnapshottableMetadata::readFrom,
+                SnapshottableMetadata::readDiffFrom, SnapshottableMetadata::fromXContent);
+            registerMetaDataCustom(NonSnapshottableMetadata.TYPE, NonSnapshottableMetadata::readFrom,
+                NonSnapshottableMetadata::readDiffFrom, NonSnapshottableMetadata::fromXContent);
+            registerMetaDataCustom(SnapshottableGatewayMetadata.TYPE, SnapshottableGatewayMetadata::readFrom,
+                SnapshottableGatewayMetadata::readDiffFrom, SnapshottableGatewayMetadata::fromXContent);
+            registerMetaDataCustom(NonSnapshottableGatewayMetadata.TYPE, NonSnapshottableGatewayMetadata::readFrom,
+                NonSnapshottableGatewayMetadata::readDiffFrom, NonSnapshottableGatewayMetadata::fromXContent);
+            registerMetaDataCustom(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata::readFrom,
+                NonSnapshottableGatewayMetadata::readDiffFrom, SnapshotableGatewayNoApiMetadata::fromXContent);
+
+        }
+
+        @Override
+        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+            return namedWritables;
+        }
+
+        @Override
+        public List<NamedXContentRegistry.Entry> getNamedXContent() {
+            return namedXContents;
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockRepository.Plugin.class);
+        return Arrays.asList(MockRepository.Plugin.class, TestCustomMetaDataPlugin.class);
     }
 
     public void testRestorePersistentSettings() throws Exception {
@@ -714,7 +766,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
         BlockingClusterStateListener snapshotListener = new BlockingClusterStateListener(clusterService, "update_snapshot [", "update snapshot state", Priority.HIGH);
         try {
-            clusterService.addFirst(snapshotListener);
+            clusterService.addListener(snapshotListener);
             logger.info("--> snapshot");
             dataNodeClient().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(false).setIndices("test-idx").get();
 
@@ -728,7 +780,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             snapshotListener.unblock();
 
         } finally {
-            clusterService.remove(snapshotListener);
+            clusterService.removeListener(snapshotListener);
         }
 
         logger.info("--> wait until the snapshot is done");
@@ -780,32 +832,30 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     }
 
-    static {
-        MetaData.registerPrototype(SnapshottableMetadata.TYPE, SnapshottableMetadata.PROTO);
-        MetaData.registerPrototype(NonSnapshottableMetadata.TYPE, NonSnapshottableMetadata.PROTO);
-        MetaData.registerPrototype(SnapshottableGatewayMetadata.TYPE, SnapshottableGatewayMetadata.PROTO);
-        MetaData.registerPrototype(NonSnapshottableGatewayMetadata.TYPE, NonSnapshottableGatewayMetadata.PROTO);
-        MetaData.registerPrototype(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata.PROTO);
-    }
-
     public static class SnapshottableMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_snapshottable";
-
-        public static final SnapshottableMetadata PROTO = new SnapshottableMetadata("");
 
         public SnapshottableMetadata(String data) {
             super(data);
         }
 
         @Override
-        public String type() {
+        public String getWriteableName() {
             return TYPE;
         }
 
-        @Override
-        protected TestCustomMetaData newTestCustomMetaData(String data) {
-            return new SnapshottableMetadata(data);
+        public static SnapshottableMetadata readFrom(StreamInput in) throws IOException {
+            return readFrom(SnapshottableMetadata::new, in);
         }
+
+        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(TYPE, in);
+        }
+
+        public static SnapshottableMetadata fromXContent(XContentParser parser) throws IOException {
+            return fromXContent(SnapshottableMetadata::new, parser);
+        }
+
 
         @Override
         public EnumSet<MetaData.XContentContext> context() {
@@ -816,20 +866,25 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public static class NonSnapshottableMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_non_snapshottable";
 
-        public static final NonSnapshottableMetadata PROTO = new NonSnapshottableMetadata("");
-
         public NonSnapshottableMetadata(String data) {
             super(data);
         }
 
         @Override
-        public String type() {
+        public String getWriteableName() {
             return TYPE;
         }
 
-        @Override
-        protected NonSnapshottableMetadata newTestCustomMetaData(String data) {
-            return new NonSnapshottableMetadata(data);
+        public static NonSnapshottableMetadata readFrom(StreamInput in) throws IOException {
+            return readFrom(NonSnapshottableMetadata::new, in);
+        }
+
+        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(TYPE, in);
+        }
+
+        public static NonSnapshottableMetadata fromXContent(XContentParser parser) throws IOException {
+            return fromXContent(NonSnapshottableMetadata::new, parser);
         }
 
         @Override
@@ -841,20 +896,25 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public static class SnapshottableGatewayMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_snapshottable_gateway";
 
-        public static final SnapshottableGatewayMetadata PROTO = new SnapshottableGatewayMetadata("");
-
         public SnapshottableGatewayMetadata(String data) {
             super(data);
         }
 
         @Override
-        public String type() {
+        public String getWriteableName() {
             return TYPE;
         }
 
-        @Override
-        protected TestCustomMetaData newTestCustomMetaData(String data) {
-            return new SnapshottableGatewayMetadata(data);
+        public static SnapshottableGatewayMetadata readFrom(StreamInput in) throws IOException {
+            return readFrom(SnapshottableGatewayMetadata::new, in);
+        }
+
+        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(TYPE, in);
+        }
+
+        public static SnapshottableGatewayMetadata fromXContent(XContentParser parser) throws IOException {
+            return fromXContent(SnapshottableGatewayMetadata::new, parser);
         }
 
         @Override
@@ -866,20 +926,25 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public static class NonSnapshottableGatewayMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_non_snapshottable_gateway";
 
-        public static final NonSnapshottableGatewayMetadata PROTO = new NonSnapshottableGatewayMetadata("");
-
         public NonSnapshottableGatewayMetadata(String data) {
             super(data);
         }
 
         @Override
-        public String type() {
+        public String getWriteableName() {
             return TYPE;
         }
 
-        @Override
-        protected NonSnapshottableGatewayMetadata newTestCustomMetaData(String data) {
-            return new NonSnapshottableGatewayMetadata(data);
+        public static NonSnapshottableGatewayMetadata readFrom(StreamInput in) throws IOException {
+            return readFrom(NonSnapshottableGatewayMetadata::new, in);
+        }
+
+        public static NamedDiff<MetaData.Custom> readDiffFrom(StreamInput in) throws IOException {
+            return readDiffFrom(TYPE, in);
+        }
+
+        public static NonSnapshottableGatewayMetadata fromXContent(XContentParser parser) throws IOException {
+            return fromXContent(NonSnapshottableGatewayMetadata::new, parser);
         }
 
         @Override
@@ -892,20 +957,21 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public static class SnapshotableGatewayNoApiMetadata extends TestCustomMetaData {
         public static final String TYPE = "test_snapshottable_gateway_no_api";
 
-        public static final SnapshotableGatewayNoApiMetadata PROTO = new SnapshotableGatewayNoApiMetadata("");
-
         public SnapshotableGatewayNoApiMetadata(String data) {
             super(data);
         }
 
         @Override
-        public String type() {
+        public String getWriteableName() {
             return TYPE;
         }
 
-        @Override
-        protected SnapshotableGatewayNoApiMetadata newTestCustomMetaData(String data) {
-            return new SnapshotableGatewayNoApiMetadata(data);
+        public static SnapshotableGatewayNoApiMetadata readFrom(StreamInput in) throws IOException {
+            return readFrom(SnapshotableGatewayNoApiMetadata::new, in);
+        }
+
+        public static SnapshotableGatewayNoApiMetadata fromXContent(XContentParser parser) throws IOException {
+            return fromXContent(SnapshotableGatewayNoApiMetadata::new, parser);
         }
 
         @Override

@@ -120,9 +120,11 @@ The available values are:
 * `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
 * `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
 * `eu-west` (`eu-west-1`) for EU (Ireland)
+* `eu-west-2` (`eu-west-2`) for EU (London)
 * `eu-central` (`eu-central-1`) for EU (Frankfurt)
 * `sa-east` (`sa-east-1`) for South America (São Paulo)
 * `cn-north` (`cn-north-1`) for China (Beijing)
+* `ca-central` (`ca-central-1`) for Canada (Central)
 
 [[discovery-ec2-usage-signer]]
 ===== EC2 Signer API
@@ -130,6 +132,17 @@ The available values are:
 If you are using a compatible EC2 service, they might be using an older API to sign the requests.
 You can set your compatible signer API using `cloud.aws.signer` (or `cloud.aws.ec2.signer`)
 with the right signer to use.
+
+===== Read timeout
+
+Read timeout determines the amount of time to wait for data to be transferred over an established,
+open connection before the connection is timed out. Defaults to AWS SDK default value (`50 s`).
+It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.ec2.read_timeout`) setting:
+
+[source, yaml]
+----
+cloud.aws.read_timeout: 30s
+----
 
 [[discovery-ec2-discovery]]
 ==== EC2 Discovery
@@ -178,7 +191,6 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
 
     How long the list of hosts is cached to prevent further requests to the AWS API.
     Defaults to `10s`.
-
 
 [IMPORTANT]
 .Binding the network host

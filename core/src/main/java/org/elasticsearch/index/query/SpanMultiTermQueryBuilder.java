@@ -33,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Query that allows wraping a {@link MultiTermQueryBuilder} (one of wildcard, fuzzy, prefix, term, range or regexp query)
@@ -82,7 +81,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
         builder.endObject();
     }
 
-    public static Optional<SpanMultiTermQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static SpanMultiTermQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         String currentFieldName = null;
         MultiTermQueryBuilder subQuery = null;
@@ -93,20 +92,20 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, MATCH_FIELD)) {
-                    Optional<QueryBuilder> query = parseContext.parseInnerQueryBuilder();
-                    if (query.isPresent() == false || query.get() instanceof MultiTermQueryBuilder == false) {
+                if (MATCH_FIELD.match(currentFieldName)) {
+                    QueryBuilder query = parseContext.parseInnerQueryBuilder();
+                    if (query instanceof MultiTermQueryBuilder == false) {
                         throw new ParsingException(parser.getTokenLocation(),
                                 "[span_multi] [" + MATCH_FIELD.getPreferredName() + "] must be of type multi term query");
                     }
-                    subQuery = (MultiTermQueryBuilder) query.get();
+                    subQuery = (MultiTermQueryBuilder) query;
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_multi] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
+                if (AbstractQueryBuilder.NAME_FIELD.match(currentFieldName)) {
                     queryName = parser.text();
-                } else if (parseContext.getParseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
+                } else if (AbstractQueryBuilder.BOOST_FIELD.match(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_multi] query does not support [" + currentFieldName + "]");
@@ -119,7 +118,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
                     "[span_multi] must have [" + MATCH_FIELD.getPreferredName() + "] multi term query clause");
         }
 
-        return Optional.of(new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost));
+        return new SpanMultiTermQueryBuilder(subQuery).queryName(queryName).boost(boost);
     }
 
     @Override

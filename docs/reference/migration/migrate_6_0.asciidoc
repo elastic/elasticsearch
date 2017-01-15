@@ -28,12 +28,15 @@ way to reindex old indices is to use the `reindex` API.
 * <<breaking_60_stats_changes>>
 * <<breaking_60_rest_changes>>
 * <<breaking_60_search_changes>>
+* <<breaking_60_mappings_changes>>
 * <<breaking_60_docs_changes>>
 * <<breaking_60_cluster_changes>>
 * <<breaking_60_settings_changes>>
 * <<breaking_60_plugins_changes>>
 * <<breaking_60_indices_changes>>
 * <<breaking_60_scripting_changes>>
+* <<breaking_60_ingest_changes>>
+* <<breaking_60_percolator_changes>>
 
 include::migrate_6_0/cat.asciidoc[]
 
@@ -42,6 +45,8 @@ include::migrate_6_0/stats.asciidoc[]
 include::migrate_6_0/rest.asciidoc[]
 
 include::migrate_6_0/search.asciidoc[]
+
+include::migrate_6_0/mappings.asciidoc[]
 
 include::migrate_6_0/docs.asciidoc[]
 
@@ -54,3 +59,7 @@ include::migrate_6_0/plugins.asciidoc[]
 include::migrate_6_0/indices.asciidoc[]
 
 include::migrate_6_0/scripting.asciidoc[]
+
+include::migrate_6_0/ingest.asciidoc[]
+
+include::migrate_6_0/percolator.asciidoc[]

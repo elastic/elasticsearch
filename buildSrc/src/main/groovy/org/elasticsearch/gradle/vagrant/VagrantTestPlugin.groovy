@@ -404,10 +404,6 @@ class VagrantTestPlugin implements Plugin<Project> {
                 args 'halt', box
             }
             stop.dependsOn(halt)
-            if (project.extensions.esvagrant.boxes.contains(box) == false) {
-                // we only need a halt task if this box was not specified
-                continue;
-            }
 
             Task update = project.tasks.create("vagrant${boxTask}#update", VagrantCommandTask) {
                 boxName box
@@ -433,6 +429,11 @@ class VagrantTestPlugin implements Plugin<Project> {
                 /* It'd be possible to check if the box is already up here and output
                   SKIPPED but that would require running vagrant status which is slow! */
                 dependsOn update
+            }
+
+            if (project.extensions.esvagrant.boxes.contains(box) == false) {
+                // we d'ont need tests tasks if this box was not specified
+                continue;
             }
 
             Task smoke = project.tasks.create("vagrant${boxTask}#smoketest", Exec) {

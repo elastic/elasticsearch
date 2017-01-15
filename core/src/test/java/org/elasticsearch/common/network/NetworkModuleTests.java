@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
@@ -137,6 +138,7 @@ public class NetworkModuleTests extends ModuleTestCase {
                                                                                 BigArrays bigArrays,
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedWriteableRegistry namedWriteableRegistry,
+                                                                                NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService) {
                 return Collections.singletonMap("custom", custom);
             }
@@ -176,6 +178,7 @@ public class NetworkModuleTests extends ModuleTestCase {
                                                                                 BigArrays bigArrays,
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedWriteableRegistry namedWriteableRegistry,
+                                                                                NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
@@ -208,6 +211,7 @@ public class NetworkModuleTests extends ModuleTestCase {
                                                                                 BigArrays bigArrays,
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedWriteableRegistry namedWriteableRegistry,
+                                                                                NamedXContentRegistry xContentRegistry,
                                                                                 NetworkService networkService) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
@@ -252,6 +256,6 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {
-        return new NetworkModule(settings, transportClient, Arrays.asList(plugins), null, null, null, null, null);
+        return new NetworkModule(settings, transportClient, Arrays.asList(plugins), null, null, null, null, xContentRegistry(), null);
     }
 }

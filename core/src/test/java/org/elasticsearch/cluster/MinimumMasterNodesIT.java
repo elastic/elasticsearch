@@ -268,7 +268,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
     public void testDynamicUpdateMinimumMasterNodes() throws Exception {
         Settings settings = Settings.builder()
                 .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), "400ms")
-                .put("discovery.initial_state_timeout", "500ms")
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), "1")
                 .build();
 
         logger.info("--> start first node and wait for it to be a master");
@@ -375,7 +375,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         otherNodes.remove(master);
         NetworkDisruption partition = new NetworkDisruption(
             new TwoPartitions(Collections.singleton(master), otherNodes),
-            new NetworkDelay(TimeValue.timeValueMinutes(1)));
+            new NetworkDisruption.NetworkDisconnect());
         internalCluster().setDisruptionScheme(partition);
 
         final CountDownLatch latch = new CountDownLatch(1);

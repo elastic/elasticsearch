@@ -23,25 +23,19 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 
@@ -50,7 +44,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchTemplateAction extends BaseRestHandler {
 
-    private static ObjectParser<SearchTemplateRequest, ParseFieldMatcherSupplier> PARSER;
+    private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
     static {
         PARSER = new ObjectParser<>("search_template");
         PARSER.declareField((parser, request, s) ->
@@ -80,12 +74,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         }, new ParseField("inline", "template"), ObjectParser.ValueType.OBJECT_OR_STRING);
     }
 
-    private final SearchRequestParsers searchRequestParsers;
-
     @Inject
-    public RestSearchTemplateAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
+    public RestSearchTemplateAction(Settings settings, RestController controller) {
         super(settings);
-        this.searchRequestParsers = searchRequestParsers;
 
         controller.registerHandler(GET, "/_search/template", this);
         controller.registerHandler(POST, "/_search/template", this);
@@ -97,24 +88,25 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        if (RestActions.hasBodyContent(request) == false) {
+        if (request.hasContentOrSourceParam() == false) {
             throw new ElasticsearchException("request body is required");
         }
 
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, null);
+        RestSearchAction.parseSearchRequest(searchRequest, request, null);
 
         // Creates the search template request
-        SearchTemplateRequest searchTemplateRequest = parse(RestActions.getRestContent(request));
+        SearchTemplateRequest searchTemplateRequest;
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
+            searchTemplateRequest = PARSER.parse(parser, new SearchTemplateRequest(), null);
+        }
         searchTemplateRequest.setRequest(searchRequest);
 
         return channel -> client.execute(SearchTemplateAction.INSTANCE, searchTemplateRequest, new RestStatusToXContentListener<>(channel));
     }
 
-    public static SearchTemplateRequest parse(BytesReference bytes) throws IOException {
-        try (XContentParser parser = XContentHelper.createParser(bytes)) {
-            return PARSER.parse(parser, new SearchTemplateRequest(), () -> ParseFieldMatcher.STRICT);
-        }
+    public static SearchTemplateRequest parse(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, new SearchTemplateRequest(), null);
     }
 }

@@ -25,7 +25,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.bucket.BestBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
@@ -45,7 +45,7 @@ public abstract class AggregatorBase extends Aggregator {
 
     protected final String name;
     protected final Aggregator parent;
-    protected final AggregationContext context;
+    protected final SearchContext context;
     private final Map<String, Object> metaData;
 
     protected final Aggregator[] subAggregators;
@@ -66,7 +66,7 @@ public abstract class AggregatorBase extends Aggregator {
      * @param parent                The parent aggregator (may be {@code null} for top level aggregators)
      * @param metaData              The metaData associated with this aggregator
      */
-    protected AggregatorBase(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
+    protected AggregatorBase(String name, AggregatorFactories factories, SearchContext context, Aggregator parent,
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         this.name = name;
         this.pipelineAggregators = pipelineAggregators;
@@ -76,11 +76,11 @@ public abstract class AggregatorBase extends Aggregator {
         this.breakerService = context.bigArrays().breakerService();
         assert factories != null : "sub-factories provided to BucketAggregator must not be null, use AggragatorFactories.EMPTY instead";
         this.subAggregators = factories.createSubAggregators(this);
-        context.searchContext().addReleasable(this, Lifetime.PHASE);
+        context.addReleasable(this, Lifetime.PHASE);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
             void badState(){
-                throw new QueryPhaseExecutionException(AggregatorBase.this.context.searchContext(),
+                throw new QueryPhaseExecutionException(AggregatorBase.this.context,
                         "preCollection not called on new Aggregator before use", null);
             }
             @Override
@@ -245,7 +245,7 @@ public abstract class AggregatorBase extends Aggregator {
      * @return  The current aggregation context.
      */
     @Override
-    public AggregationContext context() {
+    public SearchContext context() {
         return context;
     }
 

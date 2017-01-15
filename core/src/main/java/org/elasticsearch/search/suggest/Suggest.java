@@ -150,18 +150,10 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        toInnerXContent(builder, params);
-        builder.endObject();
-        return builder;
-    }
-
-    /**
-     * use to write suggestion entries without <code>NAME</code> object
-     */
-    public XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException {
         for (Suggestion<?> suggestion : suggestions) {
             suggestion.toXContent(builder, params);
         }
+        builder.endObject();
         return builder;
     }
 

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.index.seqno;
 
 import org.apache.lucene.util.FixedBitSet;
@@ -27,105 +28,123 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.LinkedList;
 
 /**
- * This class generates sequences numbers and keeps track of the so called local checkpoint - the highest number for which
- * all previous seqNo have been processed (including)
+ * This class generates sequences numbers and keeps track of the so called local checkpoint - the highest number for which all previous
+ * sequence numbers have been processed (inclusive).
  */
 public class LocalCheckpointService extends AbstractIndexShardComponent {
 
     /**
-     * we keep a bit for each seq No that is still pending. to optimize allocation, we do so in multiple arrays
-     * allocating them on demand and cleaning up while completed. This setting controls the size of the arrays
+     * We keep a bit for each sequence number that is still pending. To optimize allocation, we do so in multiple arrays allocating them on
+     * demand and cleaning up while completed. This setting controls the size of the arrays.
      */
-    public static Setting<Integer> SETTINGS_BIT_ARRAYS_SIZE = Setting.intSetting("index.seq_no.checkpoint.bit_arrays_size", 1024,
-        4, Setting.Property.IndexScope);
+    public static Setting<Integer> SETTINGS_BIT_ARRAYS_SIZE =
+        Setting.intSetting("index.seq_no.checkpoint.bit_arrays_size", 1024, 4, Setting.Property.IndexScope);
 
     /**
-     * an ordered list of bit arrays representing pending seq nos. The list is "anchored" in {@link #firstProcessedSeqNo}
-     * which marks the seqNo the fist bit in the first array corresponds to.
+     * An ordered list of bit arrays representing pending sequence numbers. The list is "anchored" in {@link #firstProcessedSeqNo} which
+     * marks the sequence number the fist bit in the first array corresponds to.
      */
-    final LinkedList<FixedBitSet> processedSeqNo;
+    final LinkedList<FixedBitSet> processedSeqNo = new LinkedList<>();
+
+    /**
+     * The size of each bit set representing processed sequence numbers.
+     */
     private final int bitArraysSize;
+
+    /**
+     * The sequence number that the first bit in the first array corresponds to.
+     */
     long firstProcessedSeqNo;
 
-    /** the current local checkpoint, i.e., all seqNo lower (&lt;=) than this number have been completed */
+    /**
+     * The current local checkpoint, i.e., all sequence numbers no more than this number have been completed.
+     */
     volatile long checkpoint;
 
-    /** the next available seqNo - used for seqNo generation */
+    /**
+     * The next available sequence number.
+     */
     private volatile long nextSeqNo;
 
     /**
-     * Initialize the local checkpoint service. The {@code maxSeqNo} should be
-     * set to the last sequence number assigned by this shard, or
-     * {@link SequenceNumbersService#NO_OPS_PERFORMED} and
-     * {@code localCheckpoint} should be set to the last known local checkpoint
-     * for this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}.
+     * Initialize the local checkpoint service. The {@code maxSeqNo} should be set to the last sequence number assigned by this shard, or
+     * {@link SequenceNumbersService#NO_OPS_PERFORMED} and {@code localCheckpoint} should be set to the last known local checkpoint for this
+     * shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}.
      *
-     * @param shardId         the shard this service is providing tracking
-     *                        local checkpoints for
+     * @param shardId         the shard this service is providing tracking local checkpoints for
      * @param indexSettings   the index settings
-     * @param maxSeqNo        the last sequence number assigned by this shard, or
-     *                        {@link SequenceNumbersService#NO_OPS_PERFORMED}
-     * @param localCheckpoint the last known local checkpoint for this shard, or
-     *                        {@link SequenceNumbersService#NO_OPS_PERFORMED}
+     * @param maxSeqNo        the last sequence number assigned by this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
+     * @param localCheckpoint the last known local checkpoint for this shard, or {@link SequenceNumbersService#NO_OPS_PERFORMED}
      */
     LocalCheckpointService(final ShardId shardId, final IndexSettings indexSettings, final long maxSeqNo, final long localCheckpoint) {
         super(shardId, indexSettings);
         if (localCheckpoint < 0 && localCheckpoint != SequenceNumbersService.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
                 "local checkpoint must be non-negative or [" + SequenceNumbersService.NO_OPS_PERFORMED + "] "
-                    + "but was [" +  localCheckpoint + "]");
+                    + "but was [" + localCheckpoint + "]");
         }
         if (maxSeqNo < 0 && maxSeqNo != SequenceNumbersService.NO_OPS_PERFORMED) {
             throw new IllegalArgumentException(
                 "max seq. no. must be non-negative or [" + SequenceNumbersService.NO_OPS_PERFORMED + "] but was [" + maxSeqNo + "]");
         }
         bitArraysSize = SETTINGS_BIT_ARRAYS_SIZE.get(indexSettings.getSettings());
-        processedSeqNo = new LinkedList<>();
         firstProcessedSeqNo = localCheckpoint == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : localCheckpoint + 1;
-        this.nextSeqNo = maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
-        this.checkpoint = localCheckpoint;
+        nextSeqNo = maxSeqNo == SequenceNumbersService.NO_OPS_PERFORMED ? 0 : maxSeqNo + 1;
+        checkpoint = localCheckpoint;
     }
 
     /**
-     * issue the next sequence number
-     **/
+     * Issue the next sequence number.
+     *
+     * @return the next assigned sequence number
+     */
     synchronized long generateSeqNo() {
         return nextSeqNo++;
     }
 
     /**
-     * marks the processing of the given seqNo have been completed
-     **/
-    synchronized void markSeqNoAsCompleted(long seqNo) {
-        // make sure we track highest seen seqNo
+     * Marks the processing of the provided sequence number as completed as updates the checkpoint if possible.
+     *
+     * @param seqNo the sequence number to mark as completed
+     */
+    synchronized void markSeqNoAsCompleted(final long seqNo) {
+        // make sure we track highest seen sequence number
         if (seqNo >= nextSeqNo) {
             nextSeqNo = seqNo + 1;
         }
         if (seqNo <= checkpoint) {
-            // this is possible during recovery where we might replay an op that was also replicated
+            // this is possible during recovery where we might replay an operation that was also replicated
             return;
         }
-        FixedBitSet bitSet = getBitSetForSeqNo(seqNo);
-        int offset = seqNoToBitSetOffset(seqNo);
+        final FixedBitSet bitSet = getBitSetForSeqNo(seqNo);
+        final int offset = seqNoToBitSetOffset(seqNo);
         bitSet.set(offset);
         if (seqNo == checkpoint + 1) {
             updateCheckpoint();
         }
     }
 
-    /** gets the current check point */
+    /**
+     * The current checkpoint which can be advanced by {@link #markSeqNoAsCompleted(long)}.
+     *
+     * @return the current checkpoint
+     */
     public long getCheckpoint() {
         return checkpoint;
     }
 
-    /** gets the maximum seqno seen so far */
+    /**
+     * The maximum sequence number issued so far.
+     *
+     * @return the maximum sequence number
+     */
     long getMaxSeqNo() {
         return nextSeqNo - 1;
     }
 
     /**
-     * moves the checkpoint to the last consecutively processed seqNo
-     * Note: this method assumes that the seqNo following the current checkpoint is processed.
+     * Moves the checkpoint to the last consecutively processed sequence number. This method assumes that the sequence number following the
+     * current checkpoint is processed.
      */
     private void updateCheckpoint() {
         assert Thread.holdsLock(this);
@@ -135,7 +154,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
             "checkpoint + 1 doesn't point to the first bit set (o.w. current bit set is completed and shouldn't be there)";
         assert getBitSetForSeqNo(checkpoint + 1).get(seqNoToBitSetOffset(checkpoint + 1)) :
             "updateCheckpoint is called but the bit following the checkpoint is not set";
-        // keep it simple for now, get the checkpoint one by one. in the future we can optimize and read words
+        // keep it simple for now, get the checkpoint one by one; in the future we can optimize and read words
         FixedBitSet current = processedSeqNo.getFirst();
         do {
             checkpoint++;
@@ -151,23 +170,33 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     }
 
     /**
-     * gets the bit array for the given seqNo, allocating new ones if needed.
+     * Return the bit array for the provided sequence number, possibly allocating a new array if needed.
+     *
+     * @param seqNo the sequence number to obtain the bit array for
+     * @return the bit array corresponding to the provided sequence number
      */
-    private FixedBitSet getBitSetForSeqNo(long seqNo) {
+    private FixedBitSet getBitSetForSeqNo(final long seqNo) {
         assert Thread.holdsLock(this);
         assert seqNo >= firstProcessedSeqNo : "seqNo: " + seqNo + " firstProcessedSeqNo: " + firstProcessedSeqNo;
         final long bitSetOffset = (seqNo - firstProcessedSeqNo) / bitArraysSize;
         if (bitSetOffset > Integer.MAX_VALUE) {
-            throw new IndexOutOfBoundsException("seqNo too high. got [" + seqNo + "], firstProcessedSeqNo [" + firstProcessedSeqNo + "]");
+            throw new IndexOutOfBoundsException(
+                "sequence number too high; got [" + seqNo + "], firstProcessedSeqNo [" + firstProcessedSeqNo + "]");
         }
         while (bitSetOffset >= processedSeqNo.size()) {
             processedSeqNo.add(new FixedBitSet(bitArraysSize));
         }
-        return processedSeqNo.get((int)bitSetOffset);
+        return processedSeqNo.get((int) bitSetOffset);
     }
 
-    /** maps the given seqNo to a position in the bit set returned by {@link #getBitSetForSeqNo} */
-    private int seqNoToBitSetOffset(long seqNo) {
+    /**
+     * Obtain the position in the bit array corresponding to the provided sequence number. The bit array corresponding to the sequence
+     * number can be obtained via {@link #getBitSetForSeqNo(long)}.
+     *
+     * @param seqNo the sequence number to obtain the position for
+     * @return the position in the bit array corresponding to the provided sequence number
+     */
+    private int seqNoToBitSetOffset(final long seqNo) {
         assert Thread.holdsLock(this);
         assert seqNo >= firstProcessedSeqNo;
         return ((int) (seqNo - firstProcessedSeqNo)) % bitArraysSize;

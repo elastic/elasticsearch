@@ -216,7 +216,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             a -> new ScriptSortBuilder((Script) a[0], (ScriptSortType) a[1]));
 
     static {
-        PARSER.declareField(constructorArg(), Script::parse, Script.SCRIPT_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
+        PARSER.declareField(constructorArg(), (parser, context) -> Script.parse(parser, context.getDefaultScriptLanguage()),
+                Script.SCRIPT_PARSE_FIELD, ValueType.OBJECT_OR_STRING);
         PARSER.declareField(constructorArg(), p -> ScriptSortType.fromString(p.text()), TYPE_FIELD, ValueType.STRING);
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);

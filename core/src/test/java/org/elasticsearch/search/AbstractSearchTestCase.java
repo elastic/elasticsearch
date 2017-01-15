@@ -25,10 +25,11 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.AbstractObjectParser.NoContextParser;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -52,9 +53,8 @@ import java.util.function.Supplier;
 public abstract class AbstractSearchTestCase extends ESTestCase {
 
     protected NamedWriteableRegistry namedWriteableRegistry;
-    protected SearchRequestParsers searchRequestParsers;
     private TestSearchExtPlugin searchExtPlugin;
-    protected IndicesQueriesRegistry queriesRegistry;
+    private NamedXContentRegistry xContentRegistry;
 
     public void setUp() throws Exception {
         super.setUp();
@@ -65,8 +65,12 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         entries.addAll(indicesModule.getNamedWriteables());
         entries.addAll(searchModule.getNamedWriteables());
         namedWriteableRegistry = new NamedWriteableRegistry(entries);
-        searchRequestParsers = searchModule.getSearchRequestParsers();
-        queriesRegistry = searchModule.getQueryParserRegistry();
+        xContentRegistry = new NamedXContentRegistry(searchModule.getNamedXContents());
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return xContentRegistry;
     }
 
     protected SearchSourceBuilder createSearchSourceBuilder() {
@@ -137,7 +141,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         }
     }
 
-    private static class TestSearchExtParser<T extends SearchExtBuilder> implements SearchExtParser<T> {
+    private static class TestSearchExtParser<T extends SearchExtBuilder> implements NoContextParser<T> {
         private final Function<String, T> searchExtBuilderFunction;
 
         TestSearchExtParser(Function<String, T> searchExtBuilderFunction) {
@@ -145,7 +149,7 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         }
 
         @Override
-        public T fromXContent(XContentParser parser) throws IOException {
+        public T parse(XContentParser parser) throws IOException {
             return searchExtBuilderFunction.apply(parseField(parser));
         }
 

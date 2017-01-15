@@ -11,6 +11,7 @@ API, unless otherwise specified.
 * <<multi-index>>
 * <<date-math-index-names>>
 * <<common-options>>
+* <<url-access-control>>
 
 --
 
@@ -117,6 +118,7 @@ The special characters used for date rounding must be URI encoded as follows:
 `|`:: `%7C`
 `+`:: `%2B`
 `:`:: `%3A`
+`,`:: `%2C`
 ======================================================
 
 The following example shows different forms of date math index names and the final index names
@@ -599,7 +601,8 @@ invalid `size` parameter to the `_search` API:
 POST /twitter/_search?size=surprise_me
 ----------------------------------------------------------------------
 // CONSOLE
-// TEST[catch:request]
+// TEST[s/surprise_me/surprise_me&error_trace=false/ catch:request]
+// Since the test system sends error_trace=true by default we have to override
 
 The response looks like:
 

@@ -51,8 +51,8 @@ Each of these settings takes one of these values:
 
 
 [horizontal]
-`false`::   Scripting is enabled.
-`true`::    Scripting is disabled.
+`false`::   Scripting is disabled.
+`true`::    Scripting is enabled.
 
 The default values are the following:
 

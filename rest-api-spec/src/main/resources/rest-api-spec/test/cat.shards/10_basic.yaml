@@ -1,5 +1,9 @@
 ---
 "Help":
+  - skip:
+      version: " - 5.99.99"
+      reason: seq no stats were added in 6.0.0
+
   - do:
       cat.shards:
         help: true
@@ -51,6 +55,7 @@
                     merges.total_time                .+   \n
                     refresh.total                    .+   \n
                     refresh.time                     .+   \n
+                    refresh.listeners                .+   \n
                     search.fetch_current             .+   \n
                     search.fetch_time                .+   \n
                     search.fetch_total               .+   \n

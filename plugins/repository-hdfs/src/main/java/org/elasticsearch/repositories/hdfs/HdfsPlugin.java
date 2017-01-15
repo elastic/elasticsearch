@@ -28,6 +28,7 @@ import java.util.Map;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
@@ -88,7 +89,7 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env) {
-        return Collections.singletonMap("hdfs", (metadata) -> new HdfsRepository(metadata, env));
+    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry) {
+        return Collections.singletonMap("hdfs", (metadata) -> new HdfsRepository(metadata, env, namedXContentRegistry));
     }
 }

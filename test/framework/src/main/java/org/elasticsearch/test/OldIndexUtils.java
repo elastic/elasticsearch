@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.IndexFolderUpgrader;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.Segment;
@@ -131,7 +132,8 @@ public class OldIndexUtils {
                 }
             }
             assertThat(indexFolders.toString(), indexFolders.size(), equalTo(1));
-            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, indexFolders.get(0));
+            final IndexMetaData indexMetaData = IndexMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
+                indexFolders.get(0));
             assertNotNull(indexMetaData);
             assertThat(indexFolders.get(0).getFileName().toString(), equalTo(indexMetaData.getIndexUUID()));
             assertThat(indexMetaData.getCreationVersion(), equalTo(version));

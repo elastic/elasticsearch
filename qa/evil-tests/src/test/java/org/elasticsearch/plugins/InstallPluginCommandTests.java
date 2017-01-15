@@ -60,19 +60,17 @@ import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 @LuceneTestCase.SuppressFileSystems("*")
@@ -207,8 +205,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     }
 
     static MockTerminal installPlugin(String pluginUrl, Path home, boolean jarHellCheck) throws Exception {
-        Map<String, String> settings = new HashMap<>();
-        settings.put("path.home", home.toString());
+        Environment env = new Environment(Settings.builder().put("path.home", home).build());
         MockTerminal terminal = new MockTerminal();
         new InstallPluginCommand() {
             @Override
@@ -217,7 +214,7 @@ public class InstallPluginCommandTests extends ESTestCase {
                     super.jarHellCheck(candidate, pluginsDir);
                 }
             }
-        }.execute(terminal, pluginUrl, true, settings);
+        }.execute(terminal, pluginUrl, true, env);
         return terminal;
     }
 
@@ -603,7 +600,12 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     public void testOfficialPluginsHelpSorted() throws Exception {
         MockTerminal terminal = new MockTerminal();
-        new InstallPluginCommand().main(new String[] { "--help" }, terminal);
+        new InstallPluginCommand() {
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        }.main(new String[] { "--help" }, terminal);
         try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
             String line = reader.readLine();
 
@@ -625,7 +627,12 @@ public class InstallPluginCommandTests extends ESTestCase {
 
     public void testOfficialPluginsIncludesXpack() throws Exception {
         MockTerminal terminal = new MockTerminal();
-        new InstallPluginCommand().main(new String[] { "--help" }, terminal);
+        new InstallPluginCommand() {
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        }.main(new String[] { "--help" }, terminal);
         assertTrue(terminal.getOutput(), terminal.getOutput().contains("x-pack"));
     }
 
@@ -664,19 +671,29 @@ public class InstallPluginCommandTests extends ESTestCase {
         assertThat(terminal.getOutput(), not(containsString("100%")));
     }
 
+    public void testPluginAlreadyInstalled() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        String pluginZip = createPlugin("fake", pluginDir);
+        installPlugin(pluginZip, env.v1());
+        final UserException e = expectThrows(UserException.class, () -> installPlugin(pluginZip, env.v1(), randomBoolean()));
+        assertThat(
+            e.getMessage(),
+            equalTo("plugin directory [" + env.v2().pluginsFile().resolve("fake") + "] already exists; " +
+                "if you need to update the plugin, uninstall it first using command 'remove fake'"));
+    }
+
     private void installPlugin(MockTerminal terminal, boolean isBatch) throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         // if batch is enabled, we also want to add a security policy
         String pluginZip = createPlugin("fake", pluginDir, isBatch);
 
-        Map<String, String> settings = new HashMap<>();
-        settings.put("path.home", env.v1().toString());
         new InstallPluginCommand() {
             @Override
             void jarHellCheck(Path candidate, Path pluginsDir) throws Exception {
             }
-        }.execute(terminal, pluginZip, isBatch, settings);
+        }.execute(terminal, pluginZip, isBatch, env.v2());
     }
 
     // TODO: test checksum (need maven/official below)

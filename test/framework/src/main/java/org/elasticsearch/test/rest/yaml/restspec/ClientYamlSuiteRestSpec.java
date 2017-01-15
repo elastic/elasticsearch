@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.yaml.FileUtils;
@@ -65,7 +66,7 @@ public class ClientYamlSuiteRestSpec {
         for (String path : paths) {
             for (Path jsonFile : FileUtils.findJsonSpec(fileSystem, optionalPathPrefix, path)) {
                 try (InputStream stream = Files.newInputStream(jsonFile)) {
-                    try (XContentParser parser = JsonXContent.jsonXContent.createParser(stream)) {
+                    try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY, stream)) {
                         ClientYamlSuiteRestApi restApi = restApiParser.parse(jsonFile.toString(), parser);
                         String filename = jsonFile.getFileName().toString();
                         String expectedApiName = filename.substring(0, filename.lastIndexOf('.'));

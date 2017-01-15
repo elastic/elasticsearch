@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -121,22 +122,23 @@ public class ClusterServiceTests extends ESTestCase {
     TimedClusterService createTimedClusterService(boolean makeMaster) throws InterruptedException {
         TimedClusterService timedClusterService = new TimedClusterService(Settings.builder().put("cluster.name",
             "ClusterServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool);
-        timedClusterService.setLocalNode(new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
+            threadPool, () -> new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
             emptySet(), Version.CURRENT));
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(List<DiscoveryNode> addedNodes) {
+            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
                 // skip
             }
 
             @Override
-            public void disconnectFromNodes(List<DiscoveryNode> removedNodes) {
+            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
                 // skip
             }
         });
         timedClusterService.setClusterStatePublisher((event, ackListener) -> {
         });
+        timedClusterService.setDiscoverySettings(new DiscoverySettings(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         timedClusterService.start();
         ClusterState state = timedClusterService.state();
         final DiscoveryNodes nodes = state.nodes();
@@ -284,17 +286,12 @@ public class ClusterServiceTests extends ESTestCase {
 
         taskFailed[0] = true;
         final CountDownLatch latch2 = new CountDownLatch(1);
-        nonMaster.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+        nonMaster.submitStateUpdateTask("test", new LocalClusterUpdateTask() {
             @Override
-            public boolean runOnlyOnMaster() {
-                return false;
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) throws Exception {
+            public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) throws Exception {
                 taskFailed[0] = false;
                 latch2.countDown();
-                return currentState;
+                return unchanged();
             }
 
             @Override
@@ -324,14 +321,9 @@ public class ClusterServiceTests extends ESTestCase {
             ClusterStateTaskConfig.build(Priority.NORMAL),
             new ClusterStateTaskExecutor<Object>() {
                 @Override
-                public boolean runOnlyOnMaster() {
-                    return false;
-                }
-
-                @Override
-                public BatchResult<Object> execute(ClusterState currentState, List<Object> tasks) throws Exception {
+                public ClusterTasksResult<Object> execute(ClusterState currentState, List<Object> tasks) throws Exception {
                     ClusterState newClusterState = ClusterState.builder(currentState).build();
-                    return BatchResult.builder().successes(tasks).build(newClusterState);
+                    return ClusterTasksResult.builder().successes(tasks).build(newClusterState);
                 }
 
                 @Override
@@ -367,19 +359,9 @@ public class ClusterServiceTests extends ESTestCase {
             ClusterStateTaskConfig.build(Priority.NORMAL),
             new ClusterStateTaskExecutor<Object>() {
                 @Override
-                public boolean runOnlyOnMaster() {
-                    return false;
-                }
-
-                @Override
-                public BatchResult<Object> execute(ClusterState currentState, List<Object> tasks) throws Exception {
+                public ClusterTasksResult<Object> execute(ClusterState currentState, List<Object> tasks) throws Exception {
                     ClusterState newClusterState = ClusterState.builder(currentState).build();
-                    return BatchResult.builder().successes(tasks).build(newClusterState);
-                }
-
-                @Override
-                public void clusterStatePublished(ClusterChangedEvent clusterChangedEvent) {
-                    assertNotNull(assertionRef.get());
+                    return ClusterTasksResult.builder().successes(tasks).build(newClusterState);
                 }
             },
             new ClusterStateTaskListener() {
@@ -419,16 +401,11 @@ public class ClusterServiceTests extends ESTestCase {
         class TaskExecutor implements ClusterStateTaskExecutor<String> {
 
             @Override
-            public BatchResult<String> execute(ClusterState currentState, List<String> tasks) throws Exception {
+            public ClusterTasksResult<String> execute(ClusterState currentState, List<String> tasks) throws Exception {
                 executionOrder.addAll(tasks); // do this first, so startedProcessing can be used as a notification that this is done.
                 startedProcessing.release(tasks.size());
                 allowProcessing.acquire(tasks.size());
-                return BatchResult.<String>builder().successes(tasks).build(ClusterState.builder(currentState).build());
-            }
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                return false;
+                return ClusterTasksResult.<String>builder().successes(tasks).build(ClusterState.builder(currentState).build());
             }
         }
 
@@ -478,14 +455,9 @@ public class ClusterServiceTests extends ESTestCase {
             List<Integer> tasks = new ArrayList<>();
 
             @Override
-            public BatchResult<Integer> execute(ClusterState currentState, List<Integer> tasks) throws Exception {
+            public ClusterTasksResult<Integer> execute(ClusterState currentState, List<Integer> tasks) throws Exception {
                 this.tasks.addAll(tasks);
-                return BatchResult.<Integer>builder().successes(tasks).build(ClusterState.builder(currentState).build());
-            }
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                return false;
+                return ClusterTasksResult.<Integer>builder().successes(tasks).build(ClusterState.builder(currentState).build());
             }
         }
 
@@ -573,7 +545,7 @@ public class ClusterServiceTests extends ESTestCase {
             (currentState, taskList) -> {
                 assertThat(taskList.size(), equalTo(tasks.size()));
                 assertThat(taskList.stream().collect(Collectors.toSet()), equalTo(tasks.keySet()));
-                return ClusterStateTaskExecutor.BatchResult.<Integer>builder().successes(taskList).build(currentState);
+                return ClusterStateTaskExecutor.ClusterTasksResult.<Integer>builder().successes(taskList).build(currentState);
             });
 
         latch.await();
@@ -637,7 +609,7 @@ public class ClusterServiceTests extends ESTestCase {
             }
 
             @Override
-            public BatchResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
+            public ClusterTasksResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
                 for (Set<Task> expectedSet : taskGroups) {
                     long count = tasks.stream().filter(expectedSet::contains).count();
                     assertThat("batched set should be executed together or not at all. Expected " + expectedSet + "s. Executing " + tasks,
@@ -651,12 +623,7 @@ public class ClusterServiceTests extends ESTestCase {
                     batches.incrementAndGet();
                     semaphore.acquire();
                 }
-                return BatchResult.<Task>builder().successes(tasks).build(maybeUpdatedClusterState);
-            }
-
-            @Override
-            public boolean runOnlyOnMaster() {
-                return false;
+                return ClusterTasksResult.<Task>builder().successes(tasks).build(maybeUpdatedClusterState);
             }
 
             @Override
@@ -812,7 +779,7 @@ public class ClusterServiceTests extends ESTestCase {
             clusterService.submitStateUpdateTask("blocking", blockingTask);
 
             ClusterStateTaskExecutor<SimpleTask> executor = (currentState, tasks) ->
-                ClusterStateTaskExecutor.BatchResult.<SimpleTask>builder().successes(tasks).build(currentState);
+                ClusterStateTaskExecutor.ClusterTasksResult.<SimpleTask>builder().successes(tasks).build(currentState);
 
             SimpleTask task = new SimpleTask(1);
             ClusterStateTaskListener listener = new ClusterStateTaskListener() {
@@ -1087,20 +1054,20 @@ public class ClusterServiceTests extends ESTestCase {
     public void testDisconnectFromNewlyAddedNodesIfClusterStatePublishingFails() throws InterruptedException {
         TimedClusterService timedClusterService = new TimedClusterService(Settings.builder().put("cluster.name",
             "ClusterServiceTests").build(), new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool);
-        timedClusterService.setLocalNode(new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
+            threadPool, () -> new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(),
             emptySet(), Version.CURRENT));
-        Set<DiscoveryNode> currentNodes = Collections.synchronizedSet(new HashSet<>());
-        currentNodes.add(timedClusterService.localNode());
+        Set<DiscoveryNode> currentNodes = new HashSet<>();
         timedClusterService.setNodeConnectionsService(new NodeConnectionsService(Settings.EMPTY, null, null) {
             @Override
-            public void connectToNodes(List<DiscoveryNode> addedNodes) {
-                currentNodes.addAll(addedNodes);
+            public void connectToNodes(Iterable<DiscoveryNode> discoveryNodes) {
+                discoveryNodes.forEach(currentNodes::add);
             }
 
             @Override
-            public void disconnectFromNodes(List<DiscoveryNode> removedNodes) {
-                currentNodes.removeAll(removedNodes);
+            public void disconnectFromNodesExcept(Iterable<DiscoveryNode> nodesToKeep) {
+                Set<DiscoveryNode> nodeSet = new HashSet<>();
+                nodesToKeep.iterator().forEachRemaining(nodeSet::add);
+                currentNodes.removeIf(node -> nodeSet.contains(node) == false);
             }
         });
         AtomicBoolean failToCommit = new AtomicBoolean();
@@ -1109,6 +1076,8 @@ public class ClusterServiceTests extends ESTestCase {
                 throw new Discovery.FailedToCommitClusterStateException("just to test this");
             }
         });
+        timedClusterService.setDiscoverySettings(new DiscoverySettings(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         timedClusterService.start();
         ClusterState state = timedClusterService.state();
         final DiscoveryNodes nodes = state.nodes();
@@ -1152,7 +1121,7 @@ public class ClusterServiceTests extends ESTestCase {
         TimedClusterService timedClusterService = createTimedClusterService(false);
 
         AtomicBoolean isMaster = new AtomicBoolean();
-        timedClusterService.add(new LocalNodeMasterListener() {
+        timedClusterService.addLocalNodeMasterListener(new LocalNodeMasterListener() {
             @Override
             public void onMaster() {
                 isMaster.set(true);
@@ -1188,6 +1157,44 @@ public class ClusterServiceTests extends ESTestCase {
         assertThat(isMaster.get(), is(true));
 
         timedClusterService.close();
+    }
+
+    public void testClusterStateApplierCantSampleClusterState() throws InterruptedException {
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        AtomicBoolean applierCalled = new AtomicBoolean();
+        clusterService.addStateApplier(event -> {
+            try {
+                applierCalled.set(true);
+                clusterService.state();
+                error.set(new AssertionError("successfully sampled state"));
+            } catch (AssertionError e) {
+                if (e.getMessage().contains("should not be called by a cluster state applier") == false) {
+                    error.set(e);
+                }
+            }
+        });
+
+        CountDownLatch latch = new CountDownLatch(1);
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return ClusterState.builder(currentState).build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                error.compareAndSet(null, e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                latch.countDown();
+            }
+        });
+
+        latch.await();
+        assertNull(error.get());
+        assertTrue(applierCalled.get());
     }
 
     private static class SimpleTask {
@@ -1264,8 +1271,9 @@ public class ClusterServiceTests extends ESTestCase {
 
         public volatile Long currentTimeOverride = null;
 
-        public TimedClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
-            super(settings, clusterSettings, threadPool);
+        public TimedClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool,
+                                   Supplier<DiscoveryNode> localNodeSupplier) {
+            super(settings, clusterSettings, threadPool, localNodeSupplier);
         }
 
         @Override

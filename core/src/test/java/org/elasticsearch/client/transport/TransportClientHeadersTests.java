@@ -41,6 +41,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.MockTransportClient;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
@@ -112,8 +113,8 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                 fail("takes way too long to get the cluster state");
             }
 
-            assertThat(client.connectedNodes().size(), is(1));
-            assertThat(client.connectedNodes().get(0).getAddress(), is(transportService.boundAddress().publishAddress()));
+            assertEquals(1, client.connectedNodes().size());
+            assertEquals(client.connectedNodes().get(0).getAddress(), transportService.boundAddress().publishAddress());
         }
     }
 
@@ -149,12 +150,14 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
         public AsyncSender interceptSender(AsyncSender sender) {
             return new AsyncSender() {
                 @Override
-                public <T extends TransportResponse> void sendRequest(DiscoveryNode node, String action, TransportRequest request,
-                                                                  TransportRequestOptions options, TransportResponseHandler<T> handler) {
+                public <T extends TransportResponse> void sendRequest(Transport.Connection connection, String action,
+                                                                      TransportRequest request,
+                                                                      TransportRequestOptions options,
+                                                                      TransportResponseHandler<T> handler) {
                     if (TransportLivenessAction.NAME.equals(action)) {
                         assertHeaders(threadPool);
                         ((TransportResponseHandler<LivenessResponse>) handler).handleResponse(
-                            new LivenessResponse(new ClusterName("cluster1"), node));
+                            new LivenessResponse(new ClusterName("cluster1"), connection.getNode()));
                         return;
                     }
                     if (ClusterStateAction.NAME.equals(action)) {
@@ -162,7 +165,8 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                         ClusterName cluster1 = new ClusterName("cluster1");
                         ClusterState.Builder builder = ClusterState.builder(cluster1);
                         //the sniffer detects only data nodes
-                        builder.nodes(DiscoveryNodes.builder().add(new DiscoveryNode("node_id", address, Collections.emptyMap(),
+                        builder.nodes(DiscoveryNodes.builder().add(new DiscoveryNode("node_id", "someId", "some_ephemeralId_id",
+                            address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
                                 Collections.singleton(DiscoveryNode.Role.DATA), Version.CURRENT)));
                         ((TransportResponseHandler<ClusterStateResponse>) handler)
                                 .handleResponse(new ClusterStateResponse(cluster1, builder.build()));

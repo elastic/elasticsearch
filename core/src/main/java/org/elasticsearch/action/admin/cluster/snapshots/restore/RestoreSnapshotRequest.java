@@ -24,13 +24,11 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -39,10 +37,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.Strings.hasLength;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.lenientNodeBooleanValue;
 
 /**
@@ -472,22 +469,8 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * @param source restore definition
      * @return this request
      */
-    public RestoreSnapshotRequest source(XContentBuilder source) {
-        try {
-            return source(source.bytes());
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to build json for repository request", e);
-        }
-    }
-
-    /**
-     * Parses restore definition
-     *
-     * @param source restore definition
-     * @return this request
-     */
-    public RestoreSnapshotRequest source(Map source) {
-        for (Map.Entry<String, Object> entry : ((Map<String, Object>) source).entrySet()) {
+    public RestoreSnapshotRequest source(Map<String, Object> source) {
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
@@ -541,74 +524,6 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         indicesOptions(IndicesOptions.fromMap((Map<String, Object>) source, IndicesOptions.lenientExpandOpen()));
         return this;
-    }
-
-    /**
-     * Parses restore definition
-     * <p>
-     * JSON, YAML and properties formats are supported
-     *
-     * @param source restore definition
-     * @return this request
-     */
-    public RestoreSnapshotRequest source(String source) {
-        if (hasLength(source)) {
-            try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-                return source(parser.mapOrdered());
-            } catch (Exception e) {
-                throw new IllegalArgumentException("failed to parse repository source [" + source + "]", e);
-            }
-        }
-        return this;
-    }
-
-    /**
-     * Parses restore definition
-     * <p>
-     * JSON, YAML and properties formats are supported
-     *
-     * @param source restore definition
-     * @return this request
-     */
-    public RestoreSnapshotRequest source(byte[] source) {
-        return source(source, 0, source.length);
-    }
-
-    /**
-     * Parses restore definition
-     * <p>
-     * JSON, YAML and properties formats are supported
-     *
-     * @param source restore definition
-     * @param offset offset
-     * @param length length
-     * @return this request
-     */
-    public RestoreSnapshotRequest source(byte[] source, int offset, int length) {
-        if (length > 0) {
-            try (XContentParser parser = XContentFactory.xContent(source, offset, length).createParser(source, offset, length)) {
-                return source(parser.mapOrdered());
-            } catch (IOException e) {
-                throw new IllegalArgumentException("failed to parse repository source", e);
-            }
-        }
-        return this;
-    }
-
-    /**
-     * Parses restore definition
-     * <p>
-     * JSON, YAML and properties formats are supported
-     *
-     * @param source restore definition
-     * @return this request
-     */
-    public RestoreSnapshotRequest source(BytesReference source) {
-        try (XContentParser parser = XContentFactory.xContent(source).createParser(source)) {
-            return source(parser.mapOrdered());
-        } catch (IOException e) {
-            throw new IllegalArgumentException("failed to parse template source", e);
-        }
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -296,11 +297,12 @@ public class RandomSearchRequestGenerator {
                 }
                 jsonBuilder.endArray();
                 jsonBuilder.endObject();
-                XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(jsonBuilder.bytes());
+                XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
+                        jsonBuilder.bytes());
                 parser.nextToken();
                 parser.nextToken();
                 parser.nextToken();
-                builder.searchAfter(SearchAfterBuilder.fromXContent(parser, null).getSortValues());
+                builder.searchAfter(SearchAfterBuilder.fromXContent(parser).getSortValues());
             } catch (IOException e) {
                 throw new RuntimeException("Error building search_from", e);
             }

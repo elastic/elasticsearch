@@ -125,7 +125,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
     private Decision underCapacity(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation, boolean moveToNode) {
         if (awarenessAttributes.length == 0) {
             return allocation.decision(Decision.YES, NAME,
-                "allocation awareness is not enabled, set [%s] to enable it",
+                "allocation awareness is not enabled, set cluster setting [%s] to enable it",
                 CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey());
         }
 
@@ -135,7 +135,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             // the node the shard exists on must be associated with an awareness attribute
             if (!node.node().getAttributes().containsKey(awarenessAttribute)) {
                 return allocation.decision(Decision.NO, NAME,
-                    "node does not contain the awareness attribute [%s]; required attributes [%s=%s]",
+                    "node does not contain the awareness attribute [%s]; required attributes cluster setting [%s=%s]",
                     awarenessAttribute, CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(),
                     allocation.debugDecision() ? Strings.arrayToCommaDelimitedString(awarenessAttributes) : null);
             }

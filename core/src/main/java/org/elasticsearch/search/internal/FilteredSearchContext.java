@@ -25,7 +25,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -37,7 +36,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -64,8 +62,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     private final SearchContext in;
 
     public FilteredSearchContext(SearchContext in) {
-        //inner_hits in percolator ends up with null inner search context
-        super(in == null ? ParseFieldMatcher.EMPTY : in.parseFieldMatcher());
         this.in = in;
     }
 
@@ -142,11 +138,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public float queryBoost() {
         return in.queryBoost();
-    }
-
-    @Override
-    public SearchContext queryBoost(float queryBoost) {
-        return in.queryBoost(queryBoost);
     }
 
     @Override

@@ -19,7 +19,6 @@
 package org.elasticsearch.script.mustache;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +41,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * Facilitates creating template query requests.
@@ -120,10 +118,10 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         BytesReference querySource = queryRewriteContext.getTemplateBytes(template);
-        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
+        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(queryRewriteContext.getXContentRegistry(),
+                querySource)) {
             final QueryParseContext queryParseContext = queryRewriteContext.newParseContext(qSourceParser);
-            final QueryBuilder queryBuilder = queryParseContext.parseInnerQueryBuilder().orElseThrow(
-                    () -> new ParsingException(qSourceParser.getTokenLocation(), "inner query in [" + NAME + "] cannot be empty"));
+            final QueryBuilder queryBuilder = queryParseContext.parseInnerQueryBuilder();
             if (boost() != DEFAULT_BOOST || queryName() != null) {
                 final BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                 boolQueryBuilder.must(queryBuilder);
@@ -137,9 +135,9 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
      * In the simplest case, parse template string and variables from the request,
      * compile the template and execute the template against the given variables.
      */
-    public static Optional<TemplateQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static TemplateQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
-        Script template = Script.parse(parser, parseContext.getParseFieldMatcher(), "mustache");
-        return Optional.of(new TemplateQueryBuilder(template));
+        Script template = Script.parse(parser, Script.DEFAULT_TEMPLATE_LANG);
+        return new TemplateQueryBuilder(template);
     }
 }

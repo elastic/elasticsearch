@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -28,10 +27,10 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -39,6 +38,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -46,6 +46,9 @@ import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.AbstractList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -230,10 +233,50 @@ public class IpFieldMapper extends FieldMapper {
                 InetAddressPoint.decode(min), InetAddressPoint.decode(max));
         }
 
+        public static final class IpScriptDocValues extends AbstractList<String> implements ScriptDocValues<String> {
+
+            private final RandomAccessOrds values;
+
+            IpScriptDocValues(RandomAccessOrds values) {
+                this.values = values;
+            }
+
+            @Override
+            public void setNextDocId(int docId) {
+                values.setDocument(docId);
+            }
+
+            public String getValue() {
+                if (isEmpty()) {
+                    return null;
+                } else {
+                    return get(0);
+                }
+            }
+
+            @Override
+            public List<String> getValues() {
+                return Collections.unmodifiableList(this);
+            }
+
+            @Override
+            public String get(int index) {
+                BytesRef encoded = values.lookupOrd(values.ordAt(0));
+                InetAddress address = InetAddressPoint.decode(
+                        Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length));
+                return InetAddresses.toAddrString(address);
+            }
+
+            @Override
+            public int size() {
+                return values.cardinality();
+            }
+        }
+
         @Override
         public IndexFieldData.Builder fielddataBuilder() {
             failIfNoDocValues();
-            return new DocValuesIndexFieldData.Builder();
+            return new DocValuesIndexFieldData.Builder().scriptFunction(IpScriptDocValues::new);
         }
 
         @Override

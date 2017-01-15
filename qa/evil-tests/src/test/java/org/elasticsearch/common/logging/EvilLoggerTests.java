@@ -96,6 +96,7 @@ public class EvilLoggerTests extends ESTestCase {
             Level.WARN,
             "org.elasticsearch.common.logging.DeprecationLogger.deprecated",
             "This is a deprecation message");
+        assertWarnings("This is a deprecation message");
     }
 
     public void testFindAppender() throws IOException, UserException {
@@ -137,46 +138,6 @@ public class EvilLoggerTests extends ESTestCase {
             } else {
                 assertThat(events.get(i), startsWith("[" + prefix + "] test"));
             }
-        }
-    }
-
-
-    public void testLog4jShutdownHack() {
-        final AtomicBoolean denied = new AtomicBoolean();
-        final SecurityManager sm = System.getSecurityManager();
-        try {
-            System.setSecurityManager(new SecurityManager() {
-                @Override
-                public void checkPermission(Permission perm) {
-                    // just grant all permissions to Log4j, except we deny MBeanServerPermission
-                    // "createMBeanServer" as this will trigger the Log4j bug
-                    if (perm instanceof MBeanServerPermission && "createMBeanServer".equals(perm.getName())) {
-                        // without the hack in place, Log4j will try to get an MBean server which we will deny
-                        // with the hack in place, this permission should never be requested by Log4j
-                        denied.set(true);
-                        throw new AccessControlException("denied");
-                    }
-                }
-
-                @Override
-                public void checkPropertyAccess(String key) {
-                    /*
-                     * grant access to all properties; this is so that Log4j can check if its usage
-                     * of JMX is disabled or not by reading log4j2.disable.jmx but there are other
-                     * properties that Log4j will try to read as well and its simpler to just grant
-                     * them all
-                     */
-                }
-            });
-
-            // this will trigger the bug without the hack
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
-
-            // Log4j should have never requested permissions to create an MBean server
-            assertFalse(denied.get());
-        } finally {
-            System.setSecurityManager(sm);
         }
     }
 

@@ -20,9 +20,8 @@ package org.elasticsearch.common.unit;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -31,7 +30,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.sameInstance;
-import static org.hamcrest.number.IsCloseTo.closeTo;
 
 public class FuzzinessTests extends ESTestCase {
     public void testNumerics() {
@@ -43,12 +41,11 @@ public class FuzzinessTests extends ESTestCase {
         final int iters = randomIntBetween(10, 50);
         for (int i = 0; i < iters; i++) {
             {
-                XContent xcontent = XContentType.JSON.xContent();
                 float floatValue = randomFloat();
-                String json = jsonBuilder().startObject()
+                XContentBuilder json = jsonBuilder().startObject()
                         .field(Fuzziness.X_FIELD_NAME, floatValue)
-                        .endObject().string();
-                XContentParser parser = xcontent.createParser(json);
+                        .endObject();
+                XContentParser parser = createParser(json);
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_NUMBER));
@@ -57,17 +54,16 @@ public class FuzzinessTests extends ESTestCase {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
             }
             {
-                XContent xcontent = XContentType.JSON.xContent();
                 Integer intValue = frequently() ? randomIntBetween(0, 2) : randomIntBetween(0, 100);
                 Float floatRep = randomFloat();
                 Number value = intValue;
                 if (randomBoolean()) {
                     value = new Float(floatRep += intValue);
                 }
-                String json = jsonBuilder().startObject()
+                XContentBuilder json = jsonBuilder().startObject()
                         .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? value.toString() : value)
-                        .endObject().string();
-                XContentParser parser = xcontent.createParser(json);
+                        .endObject();
+                XContentParser parser = createParser(json);
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING)));
@@ -93,14 +89,15 @@ public class FuzzinessTests extends ESTestCase {
                 }
             }
             {
-                XContent xcontent = XContentType.JSON.xContent();
-                String json = jsonBuilder().startObject()
-                        .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? "AUTO" : "auto")
-                        .endObject().string();
+                XContentBuilder json;
                 if (randomBoolean()) {
-                    json = Fuzziness.AUTO.toXContent(jsonBuilder().startObject(), null).endObject().string();
+                    json = Fuzziness.AUTO.toXContent(jsonBuilder().startObject(), null).endObject();
+                } else {
+                    json = jsonBuilder().startObject()
+                            .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? "AUTO" : "auto")
+                            .endObject();
                 }
-                XContentParser parser = xcontent.createParser(json);
+                XContentParser parser = createParser(json);
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));

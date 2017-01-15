@@ -20,6 +20,7 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.HttpHost;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.Version;
@@ -31,8 +32,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestParseException;
-import org.elasticsearch.test.rest.yaml.parser.ClientYamlTestSuiteParser;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
@@ -113,11 +112,6 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         if (restTestExecutionContext == null) {
             assert adminExecutionContext == null;
             assert blacklistPathMatchers == null;
-            String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
-            blacklistPathMatchers = new ArrayList<>();
-            for (String entry : blacklist) {
-                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
-            }
             String[] specPaths = resolvePathsProperty(REST_TESTS_SPEC, DEFAULT_SPEC_PATH);
             ClientYamlSuiteRestSpec restSpec = null;
             FileSystem fileSystem = getFileSystem();
@@ -150,6 +144,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             ClientYamlTestClient clientYamlTestClient = new ClientYamlTestClient(restSpec, restClient, hosts, esVersion);
             restTestExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
             adminExecutionContext = new ClientYamlTestExecutionContext(clientYamlTestClient);
+            String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
+            blacklistPathMatchers = new ArrayList<>();
+            for (String entry : blacklist) {
+                blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
+            }
         }
         assert restTestExecutionContext != null;
         assert adminExecutionContext != null;
@@ -180,11 +179,13 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     @Override
     protected void afterIfFailed(List<Throwable> errors) {
-        logger.info("Stash dump on failure [{}]", XContentHelper.toString(restTestExecutionContext.stash()));
+        // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
+        logger.info("Stash dump on failure [{}]",
+                XContentHelper.toString(restTestExecutionContext.stash()).replace("\\n", "\n").replace("\\r", "\r").replace("\\t", "\t"));
         super.afterIfFailed(errors);
     }
 
-    public static Iterable<Object[]> createParameters() throws IOException, ClientYamlTestParseException {
+    public static Iterable<Object[]> createParameters() throws IOException {
         List<ClientYamlTestCandidate> restTestCandidates = collectTestCandidates();
         List<Object[]> objects = new ArrayList<>();
         for (ClientYamlTestCandidate restTestCandidate : restTestCandidates) {
@@ -193,7 +194,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         return objects;
     }
 
-    private static List<ClientYamlTestCandidate> collectTestCandidates() throws ClientYamlTestParseException, IOException {
+    private static List<ClientYamlTestCandidate> collectTestCandidates() throws IOException {
         List<ClientYamlTestCandidate> testCandidates = new ArrayList<>();
         FileSystem fileSystem = getFileSystem();
         // don't make a try-with, getFileSystem returns null
@@ -201,12 +202,11 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         try {
             String[] paths = resolvePathsProperty(REST_TESTS_SUITE, DEFAULT_TESTS_PATH);
             Map<String, Set<Path>> yamlSuites = FileUtils.findYamlSuites(fileSystem, DEFAULT_TESTS_PATH, paths);
-            ClientYamlTestSuiteParser restTestSuiteParser = new ClientYamlTestSuiteParser();
             //yaml suites are grouped by directory (effectively by api)
             for (String api : yamlSuites.keySet()) {
                 List<Path> yamlFiles = new ArrayList<>(yamlSuites.get(api));
                 for (Path yamlFile : yamlFiles) {
-                    ClientYamlTestSuite restTestSuite = restTestSuiteParser.parse(api, yamlFile);
+                    ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(api, yamlFile);
                     for (ClientYamlTestSection testSection : restTestSuite.getTestSections()) {
                         testCandidates.add(new ClientYamlTestCandidate(restTestSuite, testSection));
                     }

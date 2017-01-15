@@ -72,8 +72,10 @@ public class RestGetMappingAction extends BaseRestHandler {
                     if (indices.length != 0 && types.length != 0) {
                         return new BytesRestResponse(OK, builder.startObject().endObject());
                     } else if (indices.length != 0) {
+                        builder.close();
                         return new BytesRestResponse(channel, new IndexNotFoundException(indices[0]));
                     } else if (types.length != 0) {
+                        builder.close();
                         return new BytesRestResponse(channel, new TypeMissingException("_all", types[0]));
                     } else {
                         return new BytesRestResponse(OK, builder.startObject().endObject());

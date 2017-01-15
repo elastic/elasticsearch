@@ -40,6 +40,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 public class RestUpdateSettingsAction extends BaseRestHandler {
     private static final Set<String> VALUES_TO_EXCLUDE = unmodifiableSet(newHashSet(
+            "error_trace",
             "pretty",
             "timeout",
             "master_timeout",

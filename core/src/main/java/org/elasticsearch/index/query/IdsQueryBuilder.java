@@ -39,7 +39,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
@@ -146,9 +145,9 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         declareStandardFields(PARSER);
     }
 
-    public static Optional<IdsQueryBuilder> fromXContent(QueryParseContext context) {
+    public static IdsQueryBuilder fromXContent(QueryParseContext context) {
         try {
-            return Optional.of(PARSER.apply(context.parser(), context));
+            return PARSER.apply(context.parser(), context);
         } catch (IllegalArgumentException e) {
             throw new ParsingException(context.parser().getTokenLocation(), e.getMessage(), e);
         }

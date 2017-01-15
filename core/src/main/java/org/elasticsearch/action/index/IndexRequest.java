@@ -22,6 +22,7 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
@@ -66,7 +67,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Requests#indexRequest(String)
  * @see org.elasticsearch.client.Client#index(IndexRequest)
  */
-public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest> {
+public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implements DocWriteRequest<IndexRequest>, CompositeIndicesRequest {
 
     private String type;
     private String id;
@@ -140,9 +141,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             validationException = addValidationError("source is missing", validationException);
         }
 
+        final long resolvedVersion = resolveVersionDefaults();
         if (opType() == OpType.CREATE) {
-            if (versionType != VersionType.INTERNAL || version != Versions.MATCH_DELETED) {
-                validationException = addValidationError("create operations do not support versioning. use index instead", validationException);
+            if (versionType != VersionType.INTERNAL) {
+                validationException = addValidationError("create operations only support internal versioning. use index instead", validationException);
+                return validationException;
+            }
+
+            if (resolvedVersion != Versions.MATCH_DELETED) {
+                validationException = addValidationError("create operations do not support explicit versions. use index instead", validationException);
                 return validationException;
             }
         }
@@ -151,8 +158,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             addValidationError("an id is required for a " + opType() + " operation", validationException);
         }
 
-        if (!versionType.validateVersionForWrites(version)) {
-            validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+        if (!versionType.validateVersionForWrites(resolvedVersion)) {
+            validationException = addValidationError("illegal version value [" + resolvedVersion + "] for version type [" + versionType.name() + "]", validationException);
         }
 
         if (versionType == VersionType.FORCE) {
@@ -164,7 +171,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                             id.getBytes(StandardCharsets.UTF_8).length, validationException);
         }
 
-        if (id == null && (versionType == VersionType.INTERNAL && version == Versions.MATCH_ANY) == false) {
+        if (id == null && (versionType == VersionType.INTERNAL && resolvedVersion == Versions.MATCH_ANY) == false) {
             validationException = addValidationError("an id must be provided if version type or value are set", validationException);
         }
 
@@ -323,46 +330,14 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
-    public IndexRequest source(String field1, Object value1) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
-    public IndexRequest source(String field1, Object value1, String field2, Object value2) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).field(field2, value2).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
-    public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
-    public IndexRequest source(String field1, Object value1, String field2, Object value2, String field3, Object value3, String field4, Object value4) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-            builder.startObject().field(field1, value1).field(field2, value2).field(field3, value3).field(field4, value4).endObject();
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate", e);
-        }
-    }
-
+    /**
+     * Sets the content source to index.
+     * <p>
+     * <b>Note: the number of objects passed to this method must be an even
+     * number. Also the first argument in each pair (the field name) must have a
+     * valid String representation.</b>
+     * </p>
+     */
     public IndexRequest source(Object... source) {
         if (source.length % 2 != 0) {
             throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
@@ -419,10 +394,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             throw new IllegalArgumentException("opType must be 'create' or 'index', found: [" + opType + "]");
         }
         this.opType = opType;
-        if (opType == OpType.CREATE) {
-            version(Versions.MATCH_DELETED);
-            versionType(VersionType.INTERNAL);
-        }
         return this;
     }
 
@@ -465,9 +436,24 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
+    /**
+     * Returns stored version. If currently stored version is {@link Versions#MATCH_ANY} and
+     * opType is {@link OpType#CREATE}, returns {@link Versions#MATCH_DELETED}.
+     */
     @Override
     public long version() {
-        return this.version;
+        return resolveVersionDefaults();
+    }
+
+    /**
+     * Resolves the version based on operation type {@link #opType()}.
+     */
+    private long resolveVersionDefaults() {
+        if (opType == OpType.CREATE && version == Versions.MATCH_ANY) {
+            return Versions.MATCH_DELETED;
+        } else {
+            return version;
+        }
     }
 
     @Override
@@ -539,12 +525,20 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
         if (out.getVersion().before(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            out.writeOptionalString(null);
+            // Serialize a fake timestamp. 5.x expect this value to be set by the #process method so we can't use null.
+            // On the other hand, indices created on 5.x do not index the timestamp field.  Therefore passing a 0 (or any value) for
+            // the transport layer OK as it will be ignored.
+            out.writeOptionalString("0");
             out.writeOptionalWriteable(null);
         }
         out.writeBytesReference(source);
         out.writeByte(opType.getId());
-        out.writeLong(version);
+        // ES versions below 5.1.2 don't know about resolveVersionDefaults but resolve the version eagerly (which messes with validation).
+        if (out.getVersion().before(Version.V_5_1_2_UNRELEASED)) {
+            out.writeLong(resolveVersionDefaults());
+        } else {
+            out.writeLong(version);
+        }
         out.writeByte(versionType.getValue());
         out.writeOptionalString(pipeline);
         out.writeBoolean(isRetry);

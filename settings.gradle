@@ -1,4 +1,5 @@
-rootProject.name = 'elasticsearch'
+String dirName = rootProject.projectDir.name
+rootProject.name = dirName
 
 List projects = [
   'build-tools',
@@ -6,6 +7,7 @@ List projects = [
   'core',
   'docs',
   'client:rest',
+  'client:rest-high-level',
   'client:sniffer',
   'client:transport',
   'client:test',
@@ -86,7 +88,7 @@ if (isEclipse) {
 /**
   * Iterates over sub directories, looking for build.gradle, and adds a project if found
   * for that dir with the given path prefix. Note that this requires each level
-  * of the dir hiearchy to have a build.gradle. Otherwise we would have to iterate
+  * of the dir hierarchy to have a build.gradle. Otherwise we would have to iterate
   * all files/directories in the source tree to find all projects.
   */
 void addSubProjects(String path, File dir) {
@@ -96,17 +98,18 @@ void addSubProjects(String path, File dir) {
 
   String projectName = "${path}:${dir.name}"
   include projectName
+  if (path.isEmpty()) {
+    project(projectName).projectDir = dir
+  }
   for (File subdir : dir.listFiles()) {
     addSubProjects(projectName, subdir)
   }
 }
 
 // look for extra plugins for elasticsearch
-File xplugins = new File(rootProject.projectDir.parentFile, 'x-plugins')
-if (xplugins.exists()) {
-  include ':x-plugins'
-  project(':x-plugins').projectDir = xplugins
-  for (File extraPluginDir : xplugins.listFiles()) {
-    addSubProjects(':x-plugins', extraPluginDir)
+File extraProjects = new File(rootProject.projectDir.parentFile, "${dirName}-extra")
+if (extraProjects.exists()) {
+  for (File extraProjectDir : extraProjects.listFiles()) {
+    addSubProjects('', extraProjectDir)
   }
 }

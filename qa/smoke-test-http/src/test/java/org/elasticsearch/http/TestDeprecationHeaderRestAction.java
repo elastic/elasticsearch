@@ -23,7 +23,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -83,7 +82,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final List<String> settings;
 
-        try (XContentParser parser = XContentFactory.xContent(request.content()).createParser(request.content())) {
+        try (XContentParser parser = request.contentParser()) {
             final Map<String, Object> source = parser.map();
 
             if (source.containsKey("deprecated_settings")) {

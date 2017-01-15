@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +79,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
 
     public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?,?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -93,8 +94,14 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
-            return new RoutingFieldMapper(indexSettings, fieldType);
+        public MetadataFieldMapper getDefault(MappedFieldType fieldType, ParserContext context) {
+            final Settings indexSettings = context.mapperService().getIndexSettings().getSettings();
+            if (fieldType != null) {
+                return new RoutingFieldMapper(indexSettings, fieldType);
+            } else {
+                return parse(NAME, Collections.emptyMap(), context)
+                        .build(new BuilderContext(indexSettings, new ContentPath(1)));
+            }
         }
     }
 
@@ -121,7 +128,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     private boolean required;
 
     private RoutingFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), Defaults.REQUIRED, indexSettings);
+        this(existing.clone(), Defaults.REQUIRED, indexSettings);
     }
 
     private RoutingFieldMapper(MappedFieldType fieldType, boolean required, Settings indexSettings) {

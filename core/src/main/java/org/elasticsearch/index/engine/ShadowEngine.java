@@ -117,6 +117,11 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
+    public NoOpResult noOp(NoOp noOp) {
+        throw new UnsupportedOperationException(shardId + " no-op operation not allowed on shadow engine");
+    }
+
+    @Override
     public SyncedFlushResult syncFlush(String syncId, CommitId expectedCommitId) {
         throw new UnsupportedOperationException(shardId + " sync commit operation not allowed on shadow engine");
     }

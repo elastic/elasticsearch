@@ -42,7 +42,6 @@ public class RestShrinkIndexAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_shrink/{target}", this);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.param("target") == null) {
@@ -52,9 +51,7 @@ public class RestShrinkIndexAction extends BaseRestHandler {
             throw new IllegalArgumentException("no source index");
         }
         ShrinkRequest shrinkIndexRequest = new ShrinkRequest(request.param("target"), request.param("index"));
-        if (request.hasContent()) {
-            shrinkIndexRequest.source(request.content());
-        }
+        request.applyContentParser(parser -> ShrinkRequest.PARSER.parse(parser, shrinkIndexRequest, null));
         shrinkIndexRequest.timeout(request.paramAsTime("timeout", shrinkIndexRequest.timeout()));
         shrinkIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", shrinkIndexRequest.masterNodeTimeout()));
         shrinkIndexRequest.setWaitForActiveShards(ActiveShardCount.parseString(request.param("wait_for_active_shards")));

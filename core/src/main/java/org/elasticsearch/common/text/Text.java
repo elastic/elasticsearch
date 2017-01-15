@@ -100,7 +100,10 @@ public final class Text implements Comparable<Text> {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
         return bytes().equals(((Text) obj).bytes());

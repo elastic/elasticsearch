@@ -208,8 +208,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
             client().admin().cluster().prepareRestoreSnapshot(repo, snapshot).setRestoreGlobalState(true).setWaitForCompletion(true).get();
             fail("should have failed to restore - " + repo);
         } catch (SnapshotRestoreException ex) {
-            assertThat(ex.getMessage(), containsString("cannot restore index"));
-            assertThat(ex.getMessage(), containsString("because it cannot be upgraded"));
+            assertThat(ex.getMessage(), containsString("snapshot does not exist"));
         }
     }
 }

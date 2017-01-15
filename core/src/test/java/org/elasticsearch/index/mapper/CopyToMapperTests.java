@@ -76,15 +76,15 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         stringFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
         Map<String, Object> serializedMap;
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes())) {
             serializedMap = parser.map();
         }
         Map<String, Object> copyTestMap = (Map<String, Object>) serializedMap.get("copy_test");
         assertThat(copyTestMap.get("type").toString(), is("text"));
         List<String> copyToList = (List<String>) copyTestMap.get("copy_to");
         assertThat(copyToList.size(), equalTo(2));
-        assertThat(copyToList.get(0).toString(), equalTo("another_field"));
-        assertThat(copyToList.get(1).toString(), equalTo("cyclic_test"));
+        assertThat(copyToList.get(0), equalTo("another_field"));
+        assertThat(copyToList.get(1), equalTo("cyclic_test"));
 
         // Check data parsing
         BytesReference json = jsonBuilder().startObject()
@@ -312,44 +312,43 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
     public void testCopyToNestedField() throws Exception {
         IndexService indexService = createIndex("test");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        for (boolean mapped : new boolean[] {true, false}) {
-            XContentBuilder mapping = jsonBuilder().startObject()
-                    .startObject("type")
-                        .startObject("properties")
-                            .startObject("target")
-                                .field("type", "long")
-                                .field("doc_values", false)
-                            .endObject()
-                            .startObject("n1")
-                                .field("type", "nested")
-                                .startObject("properties")
-                                    .startObject("target")
-                                        .field("type", "long")
-                                        .field("doc_values", false)
+        XContentBuilder mapping = jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("target")
+                            .field("type", "long")
+                            .field("doc_values", false)
+                        .endObject()
+                        .startObject("n1")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("target")
+                                    .field("type", "long")
+                                    .field("doc_values", false)
+                                .endObject()
+                                .startObject("n2")
+                                    .field("type", "nested")
+                                    .startObject("properties")
+                                        .startObject("target")
+                                            .field("type", "long")
+                                            .field("doc_values", false)
+                                        .endObject()
+                                        .startObject("source")
+                                            .field("type", "long")
+                                            .field("doc_values", false)
+                                            .startArray("copy_to")
+                                                .value("target") // should go to the root doc
+                                                .value("n1.target") // should go to the parent doc
+                                                .value("n1.n2.target") // should go to the current doc
+                                            .endArray()
+                                        .endObject()
                                     .endObject()
-                                    .startObject("n2")
-                                        .field("type", "nested")
-                                        .startObject("properties")
-                                            .startObject("target")
-                                                .field("type", "long")
-                                                .field("doc_values", false)
-                                            .endObject()
-                                            .startObject("source")
-                                                .field("type", "long")
-                                                .field("doc_values", false)
-                                                .startArray("copy_to")
-                                                    .value("target") // should go to the root doc
-                                                    .value("n1.target") // should go to the parent doc
-                                                    .value("n1.n2.target") // should go to the current doc
-                                                .endArray()
-                                            .endObject();
-            for (int i = 0; i < 3; ++i) {
-                if (mapped) {
-                    mapping = mapping.startObject("target").field("type", "long").field("doc_values", false).endObject();
-                }
-                mapping = mapping.endObject().endObject();
-            }
-            mapping = mapping.endObject();
+                                .endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
 
             DocumentMapper mapper = parser.parse("type", new CompressedXContent(mapping.string()));
 
@@ -376,39 +375,38 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
                         .endArray()
                     .endObject();
 
-            ParsedDocument doc = mapper.parse("test", "type", "1", jsonDoc.bytes());
-            assertEquals(6, doc.docs().size());
+        ParsedDocument doc = mapper.parse("test", "type", "1", jsonDoc.bytes());
+        assertEquals(6, doc.docs().size());
 
-            Document nested = doc.docs().get(0);
-            assertFieldValue(nested, "n1.n2.target", 7L);
-            assertFieldValue(nested, "n1.target");
-            assertFieldValue(nested, "target");
+        Document nested = doc.docs().get(0);
+        assertFieldValue(nested, "n1.n2.target", 7L);
+        assertFieldValue(nested, "n1.target");
+        assertFieldValue(nested, "target");
 
-            nested = doc.docs().get(2);
-            assertFieldValue(nested, "n1.n2.target", 5L);
-            assertFieldValue(nested, "n1.target");
-            assertFieldValue(nested, "target");
+        nested = doc.docs().get(2);
+        assertFieldValue(nested, "n1.n2.target", 5L);
+        assertFieldValue(nested, "n1.target");
+        assertFieldValue(nested, "target");
 
-            nested = doc.docs().get(3);
-            assertFieldValue(nested, "n1.n2.target", 3L);
-            assertFieldValue(nested, "n1.target");
-            assertFieldValue(nested, "target");
+        nested = doc.docs().get(3);
+        assertFieldValue(nested, "n1.n2.target", 3L);
+        assertFieldValue(nested, "n1.target");
+        assertFieldValue(nested, "target");
 
-            Document parent = doc.docs().get(1);
-            assertFieldValue(parent, "target");
-            assertFieldValue(parent, "n1.target", 7L);
-            assertFieldValue(parent, "n1.n2.target");
+        Document parent = doc.docs().get(1);
+        assertFieldValue(parent, "target");
+        assertFieldValue(parent, "n1.target", 7L);
+        assertFieldValue(parent, "n1.n2.target");
 
-            parent = doc.docs().get(4);
-            assertFieldValue(parent, "target");
-            assertFieldValue(parent, "n1.target", 3L, 5L);
-            assertFieldValue(parent, "n1.n2.target");
+        parent = doc.docs().get(4);
+        assertFieldValue(parent, "target");
+        assertFieldValue(parent, "n1.target", 3L, 5L);
+        assertFieldValue(parent, "n1.n2.target");
 
-            Document root = doc.docs().get(5);
-            assertFieldValue(root, "target", 3L, 5L, 7L);
-            assertFieldValue(root, "n1.target");
-            assertFieldValue(root, "n1.n2.target");
-        }
+        Document root = doc.docs().get(5);
+        assertFieldValue(root, "target", 3L, 5L, 7L);
+        assertFieldValue(root, "n1.target");
+        assertFieldValue(root, "n1.n2.target");
     }
 
     public void testCopyToDynamicNestedObjectParsing() throws Exception {

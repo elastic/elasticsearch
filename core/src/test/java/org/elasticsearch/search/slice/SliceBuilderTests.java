@@ -30,24 +30,17 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.UidFieldMapper;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,22 +60,6 @@ import static org.mockito.Mockito.when;
 
 public class SliceBuilderTests extends ESTestCase {
     private static final int MAX_SLICE = 20;
-    private static IndicesQueriesRegistry indicesQueriesRegistry;
-
-    /**
-     * setup for the whole base test class
-     */
-    @BeforeClass
-    public static void init() {
-        indicesQueriesRegistry = new IndicesQueriesRegistry();
-        QueryParser<MatchAllQueryBuilder> parser = MatchAllQueryBuilder::fromXContent;
-        indicesQueriesRegistry.register(parser, MatchAllQueryBuilder.NAME);
-    }
-
-    @AfterClass
-    public static void afterClass() throws Exception {
-        indicesQueriesRegistry = null;
-    }
 
     private static SliceBuilder randomSliceBuilder() throws IOException {
         int max = randomIntBetween(2, MAX_SLICE);
@@ -125,9 +102,8 @@ public class SliceBuilderTests extends ESTestCase {
         builder.startObject();
         sliceBuilder.innerToXContent(builder);
         builder.endObject();
-        XContentParser parser = XContentHelper.createParser(shuffleXContent(builder).bytes());
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, parser,
-            ParseFieldMatcher.STRICT);
+        XContentParser parser = createParser(shuffleXContent(builder));
+        QueryParseContext context = new QueryParseContext(parser);
         SliceBuilder secondSliceBuilder = SliceBuilder.fromXContent(context);
         assertNotSame(sliceBuilder, secondSliceBuilder);
         assertEquals(sliceBuilder, secondSliceBuilder);

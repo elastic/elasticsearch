@@ -74,7 +74,8 @@ public class DocumentMapper implements ToXContent {
                 final MetadataFieldMapper metadataMapper;
                 if (existingMetadataMapper == null) {
                     final TypeParser parser = entry.getValue();
-                    metadataMapper = parser.getDefault(indexSettings, mapperService.fullName(name), builder.name());
+                    metadataMapper = parser.getDefault(mapperService.fullName(name),
+                            mapperService.documentMapperParser().parserContext(builder.name()));
                 } else {
                     metadataMapper = existingMetadataMapper;
                 }
@@ -327,6 +328,11 @@ public class DocumentMapper implements ToXContent {
      */
     public DocumentMapper updateFieldType(Map<String, MappedFieldType> fullNameToFieldType) {
         Mapping updated = this.mapping.updateFieldType(fullNameToFieldType);
+        if (updated == this.mapping) {
+            // no change
+            return this;
+        }
+        assert updated == updated.updateFieldType(fullNameToFieldType) : "updateFieldType operation is not idempotent";
         return new DocumentMapper(mapperService, updated);
     }
 

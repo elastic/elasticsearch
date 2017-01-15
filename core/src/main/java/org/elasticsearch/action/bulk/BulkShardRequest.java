@@ -101,6 +101,11 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> {
     }
 
     @Override
+    public String getDescription() {
+        return "requests[" + items.length + "], index[" + index + "]";
+    }
+
+    @Override
     public void onRetry() {
         for (BulkItemRequest item : items) {
             if (item.request() instanceof ReplicationRequest) {

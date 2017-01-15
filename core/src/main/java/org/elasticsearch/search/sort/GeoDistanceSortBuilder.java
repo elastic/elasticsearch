@@ -29,7 +29,6 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
@@ -62,7 +61,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * A geo distance based sorting on a geo point like field.
@@ -75,10 +73,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     private static final ParseField UNIT_FIELD = new ParseField("unit");
     private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
-    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed")
-            .withAllDeprecated("use validation_method instead");
-    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize")
-            .withAllDeprecated("use validation_method instead");
+    private static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed").withAllDeprecated("validation_method");
+    private static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize").withAllDeprecated("validation_method");
     private static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
 
     private final String fieldName;
@@ -401,14 +397,13 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
      */
     public static GeoDistanceSortBuilder fromXContent(QueryParseContext context, String elementName) throws IOException {
         XContentParser parser = context.parser();
-        ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
         String fieldName = null;
         List<GeoPoint> geoPoints = new ArrayList<>();
         DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         SortOrder order = SortOrder.ASC;
         SortMode sortMode = null;
-        Optional<QueryBuilder> nestedFilter = Optional.empty();
+        QueryBuilder nestedFilter = null;
         String nestedPath = null;
 
         boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
@@ -425,7 +420,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
 
                 fieldName = currentName;
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (parseFieldMatcher.match(currentName, NESTED_FILTER_FIELD)) {
+                if (NESTED_FILTER_FIELD.match(currentName)) {
                     nestedFilter = context.parseInnerQueryBuilder();
                 } else {
                     // the json in the format of -> field : { lat : 30, lon : 12 }
@@ -442,27 +437,27 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                     geoPoints.add(point);
                 }
             } else if (token.isValue()) {
-                if (parseFieldMatcher.match(currentName, ORDER_FIELD)) {
+                if (ORDER_FIELD.match(currentName)) {
                     order = SortOrder.fromString(parser.text());
-                } else if (parseFieldMatcher.match(currentName, UNIT_FIELD)) {
+                } else if (UNIT_FIELD.match(currentName)) {
                     unit = DistanceUnit.fromString(parser.text());
-                } else if (parseFieldMatcher.match(currentName, DISTANCE_TYPE_FIELD)) {
+                } else if (DISTANCE_TYPE_FIELD.match(currentName)) {
                     geoDistance = GeoDistance.fromString(parser.text());
-                } else if (parseFieldMatcher.match(currentName, COERCE_FIELD)) {
+                } else if (COERCE_FIELD.match(currentName)) {
                     coerce = parser.booleanValue();
                     if (coerce) {
                         ignoreMalformed = true;
                     }
-                } else if (parseFieldMatcher.match(currentName, IGNORE_MALFORMED_FIELD)) {
+                } else if (IGNORE_MALFORMED_FIELD.match(currentName)) {
                     boolean ignore_malformed_value = parser.booleanValue();
                     if (coerce == false) {
                         ignoreMalformed = ignore_malformed_value;
                     }
-                } else if (parseFieldMatcher.match(currentName, VALIDATION_METHOD_FIELD)) {
+                } else if (VALIDATION_METHOD_FIELD.match(currentName)) {
                     validation = GeoValidationMethod.fromString(parser.text());
-                } else if (parseFieldMatcher.match(currentName, SORTMODE_FIELD)) {
+                } else if (SORTMODE_FIELD.match(currentName)) {
                     sortMode = SortMode.fromString(parser.text());
-                } else if (parseFieldMatcher.match(currentName, NESTED_PATH_FIELD)) {
+                } else if (NESTED_PATH_FIELD.match(currentName)) {
                     nestedPath = parser.text();
                 } else if (token == Token.VALUE_STRING){
                     if (fieldName != null && fieldName.equals(currentName) == false) {
@@ -493,7 +488,9 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         if (sortMode != null) {
             result.sortMode(sortMode);
         }
-        nestedFilter.ifPresent(result::setNestedFilter);
+        if (nestedFilter != null) {
+            result.setNestedFilter(nestedFilter);
+        }
         result.setNestedPath(nestedPath);
         if (validation == null) {
             // looks like either validation was left unset or we are parsing old validation json

@@ -156,8 +156,8 @@ String _type = response.getType();
 String _id = response.getId();
 // Version (if it's the first time you index this document, you will get: 1)
 long _version = response.getVersion();
-// isCreated() is true if the document is a new one, false if it has been updated
-boolean created = response.isCreated();
+// status has stored current instance statement.
+RestStatus status = response.status();
 --------------------------------------------------
 
 For more information on the index operation, check out the REST

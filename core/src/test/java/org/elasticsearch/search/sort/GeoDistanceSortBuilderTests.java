@@ -23,22 +23,19 @@ package org.elasticsearch.search.sort;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.LatLonPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -206,10 +203,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  } ],\n" +
                 "  \"reverse\" : true\n" +
                 "}";
-        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(itemParser);
 
         try {
           GeoDistanceSortBuilder.fromXContent(context, "");
@@ -227,10 +224,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  } ],\n" +
                 "  \"reverse\" : \"true\"\n" +
                 "}";
-        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(itemParser);
 
         try {
           GeoDistanceSortBuilder.fromXContent(context, "");
@@ -244,10 +241,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         String json = "{\n" +
                 "  \"reverse\" : \"false\"\n" +
                 "}";
-        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(itemParser);
 
         try {
           GeoDistanceSortBuilder item = GeoDistanceSortBuilder.fromXContent(context, "");
@@ -268,17 +265,15 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
                 "  \"distance_type\" : \"sloppy_arc\",\n" +
-                "  \"mode\" : \"SUM\",\n" +
+                "  \"mode\" : \"MAX\",\n" +
                 "  \"coerce\" : true\n" +
                 "}";
-        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortBuilder.fromXContent(context, ""));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
-        
+        QueryParseContext context = new QueryParseContext(itemParser);
+        GeoDistanceSortBuilder.fromXContent(context, "");
+        assertWarnings("Deprecated field [coerce] used, replaced by [validation_method]");
     }
 
     public void testIgnoreMalformedIsDeprecated() throws IOException {
@@ -289,17 +284,15 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
                 "  \"distance_type\" : \"sloppy_arc\",\n" +
-                "  \"mode\" : \"SUM\",\n" +
+                "  \"mode\" : \"MAX\",\n" +
                 "  \"ignore_malformed\" : true\n" +
                 "}";
-        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
-
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortBuilder.fromXContent(context, ""));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
-        
+        QueryParseContext context = new QueryParseContext(itemParser);
+        GeoDistanceSortBuilder.fromXContent(context, "");
+        assertWarnings("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     public void testSortModeSumIsRejectedInJSON() throws IOException {
@@ -312,10 +305,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "  \"distance_type\" : \"sloppy_arc\",\n" +
                 "  \"mode\" : \"SUM\"\n" +
                 "}";
-        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(itemParser);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> GeoDistanceSortBuilder.fromXContent(context, ""));
         assertEquals("sort_mode [sum] isn't supported for sorting by geo distance", e.getMessage());
@@ -337,10 +330,10 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    },\n" +
                 "    \"validation_method\" : \"STRICT\"\n" +
                 "  }";
-        XContentParser itemParser = XContentHelper.createParser(new BytesArray(json));
+        XContentParser itemParser = createParser(JsonXContent.jsonXContent, json);
         itemParser.nextToken();
 
-        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry, itemParser, ParseFieldMatcher.STRICT);
+        QueryParseContext context = new QueryParseContext(itemParser);
 
         GeoDistanceSortBuilder result = GeoDistanceSortBuilder.fromXContent(context, json);
         assertEquals("[-19.700583312660456, -2.8225036337971687, "
@@ -456,13 +449,13 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         sortBuilder.field("unit", "km");
         sortBuilder.field("sort_mode", "max");
         sortBuilder.endObject();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> parse(sortBuilder));
-        assertEquals("Deprecated field [sort_mode] used, expected [mode] instead", ex.getMessage());
+        parse(sortBuilder);
+        assertWarnings("Deprecated field [sort_mode] used, expected [mode] instead");
     }
 
-    private static GeoDistanceSortBuilder parse(XContentBuilder sortBuilder) throws Exception {
-        XContentParser parser = XContentHelper.createParser(sortBuilder.bytes());
-        QueryParseContext parseContext = new QueryParseContext(new IndicesQueriesRegistry(), parser, ParseFieldMatcher.STRICT);
+    private GeoDistanceSortBuilder parse(XContentBuilder sortBuilder) throws Exception {
+        XContentParser parser = createParser(sortBuilder);
+        QueryParseContext parseContext = new QueryParseContext(parser);
         parser.nextToken();
         return GeoDistanceSortBuilder.fromXContent(parseContext, null);
     }

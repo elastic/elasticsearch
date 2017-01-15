@@ -19,7 +19,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.suggest.document.Completion50PostingsFormat;
@@ -125,22 +124,22 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 if (fieldName.equals("type")) {
                     continue;
                 }
-                if (parserContext.parseFieldMatcher().match(fieldName, Fields.ANALYZER)) {
+                if (Fields.ANALYZER.match(fieldName)) {
                     indexAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
                     iterator.remove();
-                } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.SEARCH_ANALYZER)) {
+                } else if (Fields.SEARCH_ANALYZER.match(fieldName)) {
                     searchAnalyzer = getNamedAnalyzer(parserContext, fieldNode.toString());
                     iterator.remove();
-                } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.PRESERVE_SEPARATORS)) {
+                } else if (Fields.PRESERVE_SEPARATORS.match(fieldName)) {
                     builder.preserveSeparators(Boolean.parseBoolean(fieldNode.toString()));
                     iterator.remove();
-                } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.PRESERVE_POSITION_INCREMENTS)) {
+                } else if (Fields.PRESERVE_POSITION_INCREMENTS.match(fieldName)) {
                     builder.preservePositionIncrements(Boolean.parseBoolean(fieldNode.toString()));
                     iterator.remove();
-                } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.MAX_INPUT_LENGTH)) {
+                } else if (Fields.MAX_INPUT_LENGTH.match(fieldName)) {
                     builder.maxInputLength(Integer.parseInt(fieldNode.toString()));
                     iterator.remove();
-                } else if (parserContext.parseFieldMatcher().match(fieldName, Fields.CONTEXTS)) {
+                } else if (Fields.CONTEXTS.match(fieldName)) {
                     builder.contextMappings(ContextMappings.load(fieldNode, parserContext.indexVersionCreated()));
                     iterator.remove();
                 } else if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {

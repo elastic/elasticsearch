@@ -47,6 +47,7 @@ import org.elasticsearch.index.engine.InternalEngineTests.TranslogHandler;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
@@ -115,9 +116,10 @@ public class RefreshListenersTests extends ESTestCase {
                 // we don't need to notify anybody in this test
             }
         };
+        TranslogHandler translogHandler = new TranslogHandler(xContentRegistry(), shardId.getIndexName(), logger);
         EngineConfig config = new EngineConfig(EngineConfig.OpenMode.CREATE_INDEX_AND_TRANSLOG, shardId, threadPool, indexSettings, null,
                 store, new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy()), newMergePolicy(), iwc.getAnalyzer(),
-                iwc.getSimilarity(), new CodecService(null, logger), eventListener, new TranslogHandler(shardId.getIndexName(), logger),
+                iwc.getSimilarity(), new CodecService(null, logger), eventListener, translogHandler,
                 IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig,
                 TimeValue.timeValueMinutes(5), listeners, IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP);
         engine = new InternalEngine(config);
@@ -130,7 +132,38 @@ public class RefreshListenersTests extends ESTestCase {
         terminate(threadPool);
     }
 
+    public void testBeforeRefresh() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+        Engine.IndexResult index = index("1");
+        DummyRefreshListener listener = new DummyRefreshListener();
+        assertFalse(listeners.addOrNotify(index.getTranslogLocation(), listener));
+        assertNull(listener.forcedRefresh.get());
+        assertEquals(1, listeners.pendingCount());
+        engine.refresh("I said so");
+        assertFalse(listener.forcedRefresh.get());
+        listener.assertNoError();
+        assertEquals(0, listeners.pendingCount());
+    }
+
+    public void testAfterRefresh() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+        Engine.IndexResult index = index("1");
+        engine.refresh("I said so");
+        if (randomBoolean()) {
+            index(randomFrom("1" /* same document */, "2" /* different document */));
+            if (randomBoolean()) {
+                engine.refresh("I said so");
+            }
+        }
+        DummyRefreshListener listener = new DummyRefreshListener();
+        assertTrue(listeners.addOrNotify(index.getTranslogLocation(), listener));
+        assertFalse(listener.forcedRefresh.get());
+        listener.assertNoError();
+        assertEquals(0, listeners.pendingCount());
+    }
+
     public void testTooMany() throws Exception {
+        assertEquals(0, listeners.pendingCount());
         assertFalse(listeners.refreshNeeded());
         Engine.IndexResult index = index("1");
 
@@ -147,6 +180,7 @@ public class RefreshListenersTests extends ESTestCase {
         for (DummyRefreshListener listener : nonForcedListeners) {
             assertNull("Called listener too early!", listener.forcedRefresh.get());
         }
+        assertEquals(maxListeners, listeners.pendingCount());
 
         // Add one more listener which should cause a refresh.
         DummyRefreshListener forcingListener = new DummyRefreshListener();
@@ -160,22 +194,45 @@ public class RefreshListenersTests extends ESTestCase {
             listener.assertNoError();
         }
         assertFalse(listeners.refreshNeeded());
+        assertEquals(0, listeners.pendingCount());
     }
 
-    public void testAfterRefresh() throws Exception {
-        Engine.IndexResult index = index("1");
+    public void testClose() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+        Engine.IndexResult refreshedOperation = index("1");
         engine.refresh("I said so");
-        if (randomBoolean()) {
-            index(randomFrom("1" /* same document */, "2" /* different document */));
-            if (randomBoolean()) {
-                engine.refresh("I said so");
-            }
+        Engine.IndexResult unrefreshedOperation = index("1");
+        {
+            /* Closing flushed pending listeners as though they were refreshed. Since this can only happen when the index is closed and no
+             * longer useful there doesn't seem much point in sending the listener some kind of "I'm closed now, go away" enum value. */
+            DummyRefreshListener listener = new DummyRefreshListener();
+            assertFalse(listeners.addOrNotify(unrefreshedOperation.getTranslogLocation(), listener));
+            assertNull(listener.forcedRefresh.get());
+            listeners.close();
+            assertFalse(listener.forcedRefresh.get());
+            listener.assertNoError();
+            assertFalse(listeners.refreshNeeded());
+            assertEquals(0, listeners.pendingCount());
         }
-
-        DummyRefreshListener listener = new DummyRefreshListener();
-        assertTrue(listeners.addOrNotify(index.getTranslogLocation(), listener));
-        assertFalse(listener.forcedRefresh.get());
-        listener.assertNoError();
+        {
+            // If you add a listener for an already refreshed location then it'll just fire even if closed
+            DummyRefreshListener listener = new DummyRefreshListener();
+            assertTrue(listeners.addOrNotify(refreshedOperation.getTranslogLocation(), listener));
+            assertFalse(listener.forcedRefresh.get());
+            listener.assertNoError();
+            assertFalse(listeners.refreshNeeded());
+            assertEquals(0, listeners.pendingCount());
+        }
+        {
+            // But adding a listener to a non-refreshed location will fail
+            DummyRefreshListener listener = new DummyRefreshListener();
+            Exception e = expectThrows(IllegalStateException.class, () ->
+                listeners.addOrNotify(unrefreshedOperation.getTranslogLocation(), listener));
+            assertEquals("can't wait for refresh on a closed index", e.getMessage());
+            assertNull(listener.forcedRefresh.get());
+            assertFalse(listeners.refreshNeeded());
+            assertEquals(0, listeners.pendingCount());
+        }
     }
 
     /**
@@ -273,11 +330,14 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(new TextField("test", testFieldValue, Field.Store.YES));
         Field uidField = new Field("_uid", type + ":" + id, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
-        Field seqNoField = new NumericDocValuesField("_seq_no", 0);
+        SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();
         document.add(uidField);
         document.add(versionField);
+        document.add(seqID.seqNo);
+        document.add(seqID.seqNoDocValue);
+        document.add(seqID.primaryTerm);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, seqNoField, id, type, null, Arrays.asList(document), source, null);
+        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, type, null, Arrays.asList(document), source, null);
         Engine.Index index = new Engine.Index(new Term("_uid", uid), doc);
         return engine.index(index);
     }
@@ -286,13 +346,12 @@ public class RefreshListenersTests extends ESTestCase {
         /**
          * When the listener is called this captures it's only argument.
          */
-        AtomicReference<Boolean> forcedRefresh = new AtomicReference<>();
+        final AtomicReference<Boolean> forcedRefresh = new AtomicReference<>();
         private volatile Exception error;
 
         @Override
         public void accept(Boolean forcedRefresh) {
             try {
-                assertNotNull(forcedRefresh);
                 Boolean oldValue = this.forcedRefresh.getAndSet(forcedRefresh);
                 assertNull("Listener called twice", oldValue);
             } catch (Exception e) {

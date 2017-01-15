@@ -19,7 +19,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -36,10 +35,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -53,6 +54,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
+
 /**
  * Service responsible for submitting index templates updates
  */
@@ -63,18 +66,20 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     private final IndicesService indicesService;
     private final MetaDataCreateIndexService metaDataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
+    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public MetaDataIndexTemplateService(Settings settings, ClusterService clusterService,
                                         MetaDataCreateIndexService metaDataCreateIndexService,
                                         AliasValidator aliasValidator, IndicesService indicesService,
-                                        IndexScopedSettings indexScopedSettings) {
+                                        IndexScopedSettings indexScopedSettings, NamedXContentRegistry xContentRegistry) {
         super(settings);
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
         this.indicesService = indicesService;
         this.metaDataCreateIndexService = metaDataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
+        this.xContentRegistry = xContentRegistry;
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -163,7 +168,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                     throw new IllegalArgumentException("index_template [" + request.name + "] already exists");
                 }
 
-                validateAndAddTemplate(request, templateBuilder, indicesService);
+                validateAndAddTemplate(request, templateBuilder, indicesService, xContentRegistry);
 
                 for (Alias alias : request.aliases) {
                     AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
@@ -188,7 +193,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     private static void validateAndAddTemplate(final PutRequest request, IndexTemplateMetaData.Builder templateBuilder,
-            IndicesService indicesService) throws Exception {
+            IndicesService indicesService, NamedXContentRegistry xContentRegistry) throws Exception {
         Index createdIndex = null;
         final String temporaryIndexName = UUIDs.randomBase64UUID();
         try {
@@ -218,14 +223,14 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
                 } catch (Exception e) {
                     throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
                 }
-                mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(entry.getValue()));
+                mappingsForValidation.put(entry.getKey(), MapperService.parseMapping(xContentRegistry, entry.getValue()));
             }
 
-            dummyIndexService.mapperService().merge(mappingsForValidation, false);
+            dummyIndexService.mapperService().merge(mappingsForValidation, MergeReason.MAPPING_UPDATE, false);
 
         } finally {
             if (createdIndex != null) {
-                indicesService.removeIndex(createdIndex, " created for parsing template mapping");
+                indicesService.removeIndex(createdIndex, NO_LONGER_ASSIGNED, " created for parsing template mapping");
             }
         }
     }

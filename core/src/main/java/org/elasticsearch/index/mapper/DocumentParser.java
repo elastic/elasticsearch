@@ -22,7 +22,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -58,7 +57,7 @@ final class DocumentParser {
 
         final Mapping mapping = docMapper.mapping();
         final ParseContext.InternalParseContext context;
-        try (XContentParser parser = XContentHelper.createParser(source.source())) {
+        try (XContentParser parser = XContentHelper.createParser(docMapperParser.getXContentRegistry(), source.source())) {
             context = new ParseContext.InternalParseContext(indexSettings.getSettings(),
                     docMapperParser, docMapper, source, parser);
             validateStart(parser);
@@ -148,7 +147,7 @@ final class DocumentParser {
     private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
         return new ParsedDocument(
             context.version(),
-            context.seqNo(),
+            context.seqID(),
             context.sourceToParse().id(),
             context.sourceToParse().type(),
             source.routing(),
@@ -650,47 +649,61 @@ final class DocumentParser {
 
     private static Mapper.Builder<?,?> createBuilderFromDynamicValue(final ParseContext context, XContentParser.Token token, String currentFieldName) throws IOException {
         if (token == XContentParser.Token.VALUE_STRING) {
-            if (context.root().dateDetection()) {
-                String text = context.parser().text();
-                // a safe check since "1" gets parsed as well
-                if (Strings.countOccurrencesOf(text, ":") > 1 || Strings.countOccurrencesOf(text, "-") > 1 || Strings.countOccurrencesOf(text, "/") > 1) {
-                    for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
-                        try {
-                            dateTimeFormatter.parser().parseMillis(text);
-                            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
-                            if (builder == null) {
-                                builder = newDateBuilder(currentFieldName, dateTimeFormatter, Version.indexCreated(context.indexSettings()));
-                            }
-                            return builder;
-                        } catch (Exception e) {
-                            // failure to parse this, continue
+            String text = context.parser().text();
+
+            boolean parseableAsLong = false;
+            try {
+                Long.parseLong(text);
+                parseableAsLong = true;
+            } catch (NumberFormatException e) {
+                // not a long number
+            }
+
+            boolean parseableAsDouble = false;
+            try {
+                Double.parseDouble(text);
+                parseableAsDouble = true;
+            } catch (NumberFormatException e) {
+                // not a double number
+            }
+
+            if (parseableAsLong && context.root().numericDetection()) {
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
+                if (builder == null) {
+                    builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
+                }
+                return builder;
+            } else if (parseableAsDouble && context.root().numericDetection()) {
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
+                if (builder == null) {
+                    builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
+                }
+                return builder;
+            } else if (parseableAsLong == false && parseableAsDouble == false && context.root().dateDetection()) {
+                // We refuse to match pure numbers, which are too likely to be
+                // false positives with date formats that include eg.
+                // `epoch_millis` or `YYYY`
+                for (FormatDateTimeFormatter dateTimeFormatter : context.root().dynamicDateTimeFormatters()) {
+                    try {
+                        dateTimeFormatter.parser().parseMillis(text);
+                    } catch (IllegalArgumentException e) {
+                        // failure to parse this, continue
+                        continue;
+                    }
+                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DATE);
+                    if (builder == null) {
+                        builder = newDateBuilder(currentFieldName, dateTimeFormatter, Version.indexCreated(context.indexSettings()));
+                    }
+                    if (builder instanceof DateFieldMapper.Builder) {
+                        DateFieldMapper.Builder dateBuilder = (DateFieldMapper.Builder) builder;
+                        if (dateBuilder.isDateTimeFormatterSet() == false) {
+                            dateBuilder.dateTimeFormatter(dateTimeFormatter);
                         }
                     }
+                    return builder;
                 }
             }
-            if (context.root().numericDetection()) {
-                String text = context.parser().text();
-                try {
-                    Long.parseLong(text);
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.LONG);
-                    if (builder == null) {
-                        builder = newLongBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
-                    }
-                    return builder;
-                } catch (NumberFormatException e) {
-                    // not a long number
-                }
-                try {
-                    Double.parseDouble(text);
-                    Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.DOUBLE);
-                    if (builder == null) {
-                        builder = newFloatBuilder(currentFieldName, Version.indexCreated(context.indexSettings()));
-                    }
-                    return builder;
-                } catch (NumberFormatException e) {
-                    // not a long number
-                }
-            }
+
             Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, XContentFieldType.STRING);
             if (builder == null) {
                 builder = new TextFieldMapper.Builder(currentFieldName)

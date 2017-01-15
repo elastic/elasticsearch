@@ -34,10 +34,9 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.SearchContext;
+
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
@@ -45,9 +44,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder<ScriptedMetricAggregationBuilder> {
-
     public static final String NAME = "scripted_metric";
-    private static final Type TYPE = new Type(NAME);
 
     private static final ParseField INIT_SCRIPT_FIELD = new ParseField("init_script");
     private static final ParseField MAP_SCRIPT_FIELD = new ParseField("map_script");
@@ -62,14 +59,14 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     private Map<String, Object> params;
 
     public ScriptedMetricAggregationBuilder(String name) {
-        super(name, TYPE);
+        super(name);
     }
 
     /**
      * Read from a stream.
      */
     public ScriptedMetricAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE);
+        super(in);
         initScript = in.readOptionalWriteable(Script::new);
         mapScript = in.readOptionalWriteable(Script::new);
         combineScript = in.readOptionalWriteable(Script::new);
@@ -185,10 +182,10 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    protected ScriptedMetricAggregatorFactory doBuild(AggregationContext context, AggregatorFactory<?> parent,
+    protected ScriptedMetricAggregatorFactory doBuild(SearchContext context, AggregatorFactory<?> parent,
             Builder subfactoriesBuilder) throws IOException {
 
-        QueryShardContext queryShardContext = context.searchContext().getQueryShardContext();
+        QueryShardContext queryShardContext = context.getQueryShardContext();
         Function<Map<String, Object>, ExecutableScript> executableInitScript;
         if (initScript != null) {
             executableInitScript = queryShardContext.getLazyExecutableScript(initScript, ScriptContext.Standard.AGGS);
@@ -203,7 +200,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         } else {
             executableCombineScript = (p) -> null;
         }
-        return new ScriptedMetricAggregatorFactory(name, type, searchMapScript, executableInitScript, executableCombineScript, reduceScript,
+        return new ScriptedMetricAggregatorFactory(name, searchMapScript, executableInitScript, executableCombineScript, reduceScript,
                 params, context, parent, subfactoriesBuilder, metaData);
     }
 
@@ -253,16 +250,16 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.VALUE_STRING) {
-                if (context.getParseFieldMatcher().match(currentFieldName, INIT_SCRIPT_FIELD)) {
-                    initScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, MAP_SCRIPT_FIELD)) {
-                    mapScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, COMBINE_SCRIPT_FIELD)) {
-                    combineScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
-                } else if (context.getParseFieldMatcher().match(currentFieldName, REDUCE_SCRIPT_FIELD)) {
-                    reduceScript = Script.parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+                if (INIT_SCRIPT_FIELD.match(currentFieldName)) {
+                    initScript = Script.parse(parser, context.getDefaultScriptLanguage());
+                } else if (MAP_SCRIPT_FIELD.match(currentFieldName)) {
+                    mapScript = Script.parse(parser, context.getDefaultScriptLanguage());
+                } else if (COMBINE_SCRIPT_FIELD.match(currentFieldName)) {
+                    combineScript = Script.parse(parser, context.getDefaultScriptLanguage());
+                } else if (REDUCE_SCRIPT_FIELD.match(currentFieldName)) {
+                    reduceScript = Script.parse(parser, context.getDefaultScriptLanguage());
                 } else if (token == XContentParser.Token.START_OBJECT &&
-                        context.getParseFieldMatcher().match(currentFieldName, PARAMS_FIELD)) {
+                        PARAMS_FIELD.match(currentFieldName)) {
                     params = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(),
@@ -297,7 +294,7 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 

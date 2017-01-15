@@ -152,12 +152,14 @@ documents once deleted are never shown. This request:
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "prefix" : "nir",
-        "completion" : {
-            "field" : "suggest"
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nir",
+            "completion" : {
+                "field" : "suggest"
+            }
         }
     }
 }
@@ -175,24 +177,30 @@ returns this response:
     "successful" : 5,
     "failed" : 0
   },
-  "song-suggest" : [ {
-    "text" : "nir",
-    "offset" : 0,
-    "length" : 3,
-    "options" : [ {
-      "text" : "Nirvana",
-      "_index": "music",
-      "_type": "song",
-      "_id": "1",
-      "_score": 1.0,
-      "_source": {
-        "suggest": ["Nevermind", "Nirvana"]
-      }
+  "hits": ...
+  "took": 2,
+  "timed_out": false,
+  "suggest": {
+    "song-suggest" : [ {
+      "text" : "nir",
+      "offset" : 0,
+      "length" : 3,
+      "options" : [ {
+        "text" : "Nirvana",
+        "_index": "music",
+        "_type": "song",
+        "_id": "1",
+        "_score": 1.0,
+        "_source": {
+          "suggest": ["Nevermind", "Nirvana"]
+        }
+      } ]
     } ]
-  } ]
+  }
 }
 --------------------------------------------------
-// TESTRESPONSE
+// TESTRESPONSE[s/"hits": .../"hits": "$body.hits",/]
+// TESTRESPONSE[s/"took": 2,/"took": "$body.took",/]
 
 
 IMPORTANT: `_source` meta-field must be enabled, which is the default
@@ -289,14 +297,16 @@ you can have a typo in your search and still get results back.
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "prefix" : "nor",
-        "completion" : {
-            "field" : "suggest",
-            "fuzzy" : {
-                "fuzziness" : 2
+    "suggest": {
+        "song-suggest" : {
+            "prefix" : "nor",
+            "completion" : {
+                "field" : "suggest",
+                "fuzzy" : {
+                    "fuzziness" : 2
+                }
             }
         }
     }
@@ -346,12 +356,14 @@ you can express a prefix as a regular expression
 
 [source,js]
 --------------------------------------------------
-POST music/_suggest?pretty
+POST music/_search?pretty
 {
-    "song-suggest" : {
-        "regex" : "n[ever|i]r",
-        "completion" : {
-            "field" : "suggest"
+    "suggest": {
+        "song-suggest" : {
+            "regex" : "n[ever|i]r",
+            "completion" : {
+                "field" : "suggest"
+            }
         }
     }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +53,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -86,19 +88,19 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         ClusterState current = clusterStateFromNodes(Collections.emptyList());
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
 
-        service.connectToNodes(event.nodesDelta().addedNodes());
-        assertConnected(event.nodesDelta().addedNodes());
+        service.connectToNodes(event.state().nodes());
+        assertConnected(event.state().nodes());
 
-        service.disconnectFromNodes(event.nodesDelta().removedNodes());
+        service.disconnectFromNodesExcept(event.state().nodes());
         assertConnectedExactlyToNodes(event.state());
 
         current = event.state();
         event = new ClusterChangedEvent("test", clusterStateFromNodes(randomSubsetOf(nodes)), current);
 
-        service.connectToNodes(event.nodesDelta().addedNodes());
-        assertConnected(event.nodesDelta().addedNodes());
+        service.connectToNodes(event.state().nodes());
+        assertConnected(event.state().nodes());
 
-        service.disconnectFromNodes(event.nodesDelta().removedNodes());
+        service.disconnectFromNodesExcept(event.state().nodes());
         assertConnectedExactlyToNodes(event.state());
     }
 
@@ -150,7 +152,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         this.transport = new MockTransport();
-        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+        transportService = new TransportService(Settings.EMPTY, transport, THREAD_POOL, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), UUIDs.randomBase64UUID()), null);
         transportService.start();
         transportService.acceptIncomingRequests();
     }
@@ -170,7 +173,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
 
 
     final class MockTransport implements Transport {
-
+        private final AtomicLong requestId = new AtomicLong();
         Set<DiscoveryNode> connectedNodes = ConcurrentCollections.newConcurrentSet();
         volatile boolean randomConnectionExceptions = false;
 
@@ -214,9 +217,29 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                TransportRequestOptions options) throws IOException, TransportException {
+        public Connection getConnection(DiscoveryNode node) {
+            return new Connection() {
+                @Override
+                public DiscoveryNode getNode() {
+                    return node;
+                }
 
+                @Override
+                public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                    throws IOException, TransportException {
+
+                }
+
+                @Override
+                public void close() throws IOException {
+
+                }
+            };
+        }
+
+        @Override
+        public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+            return getConnection(node);
         }
 
         @Override
@@ -227,6 +250,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         @Override
         public List<String> getLocalAddresses() {
             return null;
+        }
+
+        @Override
+        public long newRequestId() {
+            return requestId.incrementAndGet();
         }
 
         @Override

@@ -56,7 +56,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Future;
@@ -70,7 +69,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -131,9 +129,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
                     }
                 });
 
-
-        int numHeaders = randomIntBetween(0, 3);
-        defaultHeaders = generateHeaders("Header-default", "Header-array", numHeaders);
+        defaultHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header-default");
         httpHost = new HttpHost("localhost", 9200);
         failureListener = new HostsTrackingFailureListener();
         restClient = new RestClient(httpClient, 10000, defaultHeaders, new HttpHost[]{httpHost}, null, failureListener);
@@ -339,33 +335,16 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      */
     public void testHeaders() throws IOException {
         for (String method : getHttpMethods()) {
-            final int numHeaders = randomIntBetween(1, 5);
-            final Header[] headers = generateHeaders("Header", null, numHeaders);
-            final Map<String, List<String>> expectedHeaders = new HashMap<>();
-
-            addHeaders(expectedHeaders, defaultHeaders, headers);
-
+            final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             final int statusCode = randomStatusCode(getRandom());
             Response esResponse;
             try {
-                esResponse = restClient.performRequest(method, "/" + statusCode, headers);
+                esResponse = restClient.performRequest(method, "/" + statusCode, requestHeaders);
             } catch(ResponseException e) {
                 esResponse = e.getResponse();
             }
             assertThat(esResponse.getStatusLine().getStatusCode(), equalTo(statusCode));
-            for (Header responseHeader : esResponse.getHeaders()) {
-                final String name = responseHeader.getName();
-                final String value = responseHeader.getValue();
-                final List<String> values = expectedHeaders.get(name);
-                assertNotNull("found response header [" + name + "] that wasn't originally sent: " + value, values);
-                assertTrue("found incorrect response header [" + name + "]: " + value, values.remove(value));
-
-                // we've collected them all
-                if (values.isEmpty()) {
-                    expectedHeaders.remove(name);
-                }
-            }
-            assertTrue("some headers that were sent weren't returned " + expectedHeaders, expectedHeaders.isEmpty());
+            assertHeaders(defaultHeaders, requestHeaders, esResponse.getHeaders(), Collections.<String>emptySet());
         }
     }
 
@@ -424,10 +403,9 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         }
 
         Header[] headers = new Header[0];
-        final int numHeaders = randomIntBetween(1, 5);
-        final Set<String> uniqueNames = new HashSet<>(numHeaders);
+        final Set<String> uniqueNames = new HashSet<>();
         if (randomBoolean()) {
-            headers = generateHeaders("Header", "Header-array", numHeaders);
+            headers = RestClientTestUtil.randomHeaders(getRandom(), "Header");
             for (Header header : headers) {
                 request.addHeader(header);
                 uniqueNames.add(header.getName());

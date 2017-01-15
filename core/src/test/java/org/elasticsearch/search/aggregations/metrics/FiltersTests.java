@@ -19,12 +19,19 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
-import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
+
+import java.io.IOException;
 
 public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuilder> {
 
@@ -73,4 +80,41 @@ public class FiltersTests extends BaseAggregationTestCase<FiltersAggregationBuil
         assertEquals("aaa", original[1].key());
     }
 
+    public void testOtherBucket() throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        builder.startObject();
+        builder.startArray("filters").endArray();
+        builder.endObject();
+        XContentParser parser = createParser(shuffleXContent(builder));
+        parser.nextToken();
+        QueryParseContext context = new QueryParseContext(parser);
+        FiltersAggregationBuilder filters = FiltersAggregationBuilder.parse("agg_name", context);
+        // The other bucket is disabled by default
+        assertFalse(filters.otherBucket());
+
+        builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        builder.startObject();
+        builder.startArray("filters").endArray();
+        builder.field("other_bucket_key", "some_key");
+        builder.endObject();
+        parser = createParser(shuffleXContent(builder));
+        parser.nextToken();
+        context = new QueryParseContext(parser);
+        filters = FiltersAggregationBuilder.parse("agg_name", context);
+        // but setting a key enables it automatically
+        assertTrue(filters.otherBucket());
+
+        builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        builder.startObject();
+        builder.startArray("filters").endArray();
+        builder.field("other_bucket", false);
+        builder.field("other_bucket_key", "some_key");
+        builder.endObject();
+        parser = createParser(shuffleXContent(builder));
+        parser.nextToken();
+        context = new QueryParseContext(parser);
+        filters = FiltersAggregationBuilder.parse("agg_name", context);
+        // unless the other bucket is explicitly disabled
+        assertFalse(filters.otherBucket());
+    }
 }

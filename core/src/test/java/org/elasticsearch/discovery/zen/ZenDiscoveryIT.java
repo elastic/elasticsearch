@@ -133,7 +133,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, master);
         final ArrayList<ClusterState> statesFound = new ArrayList<>();
         final CountDownLatch nodesStopped = new CountDownLatch(1);
-        clusterService.add(event -> {
+        clusterService.addStateApplier(event -> {
             statesFound.add(event.state());
             try {
                 // block until both nodes have stopped to accumulate node failures
@@ -236,12 +236,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         }
 
         @Override
-        protected TestCustomMetaData newTestCustomMetaData(String data) {
-            return new CustomMetaData(data);
-        }
-
-        @Override
-        public String type() {
+        public String getWriteableName() {
             return TYPE;
         }
 

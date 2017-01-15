@@ -39,6 +39,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -99,14 +100,13 @@ public class ExceptionRetryIT extends ESIntegTestCase {
                 dataNode.getNode().getName()));
             mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, unluckyNode.getNode().getName()),
                 new MockTransportService.DelegateTransport(mockTransportService.original()) {
-
                 @Override
-                public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
-                                        TransportRequestOptions options) throws IOException, TransportException {
-                    super.sendRequest(node, requestId, action, request, options);
+                protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request,
+                                           TransportRequestOptions options) throws IOException {
+                    super.sendRequest(connection, requestId, action, request, options);
                     if (action.equals(TransportShardBulkAction.ACTION_NAME) && exceptionThrown.compareAndSet(false, true)) {
                         logger.debug("Throw ConnectTransportException");
-                        throw new ConnectTransportException(node, action);
+                        throw new ConnectTransportException(connection.getNode(), action);
                     }
                 }
             });

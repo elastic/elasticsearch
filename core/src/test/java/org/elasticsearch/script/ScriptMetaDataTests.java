@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -79,9 +78,9 @@ public class ScriptMetaDataTests extends ESTestCase {
         xContentBuilder.endObject();
         xContentBuilder = shuffleXContent(xContentBuilder);
 
-        XContentParser parser = XContentHelper.createParser(xContentBuilder.bytes());
+        XContentParser parser = createParser(xContentBuilder);
         parser.nextToken();
-        ScriptMetaData result = ScriptMetaData.PROTO.fromXContent(parser);
+        ScriptMetaData result = ScriptMetaData.fromXContent(parser);
         assertEquals(expected, result);
         assertEquals(expected.hashCode(), result.hashCode());
     }
@@ -91,7 +90,7 @@ public class ScriptMetaDataTests extends ESTestCase {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         expected.writeTo(new OutputStreamStreamOutput(out));
 
-        ScriptMetaData result = ScriptMetaData.PROTO.readFrom(new InputStreamStreamInput(new ByteArrayInputStream(out.toByteArray())));
+        ScriptMetaData result = new ScriptMetaData(new InputStreamStreamInput(new ByteArrayInputStream(out.toByteArray())));
         assertEquals(expected, result);
         assertEquals(expected.hashCode(), result.hashCode());
     }

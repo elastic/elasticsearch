@@ -26,7 +26,6 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -39,7 +38,6 @@ import org.elasticsearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.chrono.ISOChronology;
-import org.locationtech.spatial4j.shape.SpatialRelation;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -388,14 +386,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 "  }\n" +
                 "}";
 
-        // non strict parsing should accept "_name" on top level
-        assertNotNull(parseQuery(json, ParseFieldMatcher.EMPTY));
-
-        // with strict parsing, ParseField will throw exception
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> parseQuery(deprecatedJson, ParseFieldMatcher.STRICT));
-        assertEquals("Deprecated field [_name] used, replaced by [query name is not supported in short version of range query]",
-                e.getMessage());
+        assertNotNull(parseQuery(deprecatedJson));
+        assertWarnings("Deprecated field [_name] used, replaced by [query name is not supported in short version of range query]");
     }
 
     public void testRewriteDateToMatchAll() throws IOException {

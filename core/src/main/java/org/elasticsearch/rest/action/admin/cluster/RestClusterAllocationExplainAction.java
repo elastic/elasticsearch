@@ -24,12 +24,10 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -37,7 +35,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
@@ -57,12 +54,11 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ClusterAllocationExplainRequest req;
-        if (RestActions.hasBodyContent(request) == false) {
+        if (request.hasContentOrSourceParam() == false) {
             // Empty request signals "explain the first unassigned shard you find"
             req = new ClusterAllocationExplainRequest();
         } else {
-            BytesReference content = RestActions.getRestContent(request);
-            try (XContentParser parser = XContentFactory.xContent(content).createParser(content)) {
+            try (XContentParser parser = request.contentOrSourceParamParser()) {
                 req = ClusterAllocationExplainRequest.parse(parser);
             } catch (IOException e) {
                 logger.debug("failed to parse allocation explain request", e);
@@ -74,10 +70,12 @@ public class RestClusterAllocationExplainAction extends BaseRestHandler {
         try {
             req.includeYesDecisions(request.paramAsBoolean("include_yes_decisions", false));
             req.includeDiskInfo(request.paramAsBoolean("include_disk_info", false));
+            final boolean humanReadable = request.paramAsBoolean("human", false);
             return channel ->
                     client.admin().cluster().allocationExplain(req, new RestBuilderListener<ClusterAllocationExplainResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(ClusterAllocationExplainResponse response, XContentBuilder builder) throws Exception {
+                    builder.humanReadable(humanReadable);
                     response.getExplanation().toXContent(builder, ToXContent.EMPTY_PARAMS);
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }

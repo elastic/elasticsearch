@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.plugin.DummyQueryParserPlugin.DummyQuery;
 
 import java.io.IOException;
-import java.util.Optional;
 
 public class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
     public static final String NAME = "dummy";
@@ -52,10 +51,10 @@ public class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
         builder.startObject(NAME).endObject();
     }
 
-    public static Optional<DummyQueryBuilder> fromXContent(QueryParseContext parseContext) throws IOException {
+    public static DummyQueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser.Token token = parseContext.parser().nextToken();
         assert token == XContentParser.Token.END_OBJECT;
-        return Optional.of(new DummyQueryBuilder());
+        return new DummyQueryBuilder();
     }
 
     @Override

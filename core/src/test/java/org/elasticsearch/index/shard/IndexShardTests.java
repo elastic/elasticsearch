@@ -33,6 +33,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -57,11 +58,14 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.fielddata.FieldDataStats;
@@ -70,8 +74,10 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.UidFieldMapper;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -111,13 +117,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
-import static org.elasticsearch.common.lucene.Lucene.readScoreDoc;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
+import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -132,7 +141,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class IndexShardTests extends IndexShardTestCase {
 
     public static ShardStateMetaData load(Logger logger, Path... shardPaths) throws IOException {
-        return ShardStateMetaData.FORMAT.loadLatestState(logger, shardPaths);
+        return ShardStateMetaData.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPaths);
     }
 
     public static void write(ShardStateMetaData shardStateMetaData,
@@ -542,10 +551,13 @@ public class IndexShardTests extends IndexShardTestCase {
                                               ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
-        Field seqNoField = new NumericDocValuesField("_seq_no", 0);
+        SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(versionField, seqNoField, id, type, routing, Arrays.asList(document), source, mappingUpdate);
+        document.add(seqID.seqNo);
+        document.add(seqID.seqNoDocValue);
+        document.add(seqID.primaryTerm);
+        return new ParsedDocument(versionField, seqID, id, type, routing, Arrays.asList(document), source, mappingUpdate);
     }
 
     public void testIndexingOperationsListeners() throws IOException {
@@ -1353,6 +1365,95 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(sourceShard, targetShard);
     }
 
+    public void testDocStats() throws IOException {
+        IndexShard indexShard = null;
+        try {
+            indexShard = newStartedShard();
+            final long numDocs = randomIntBetween(2, 32); // at least two documents so we have docs to delete
+            // Delete at least numDocs/10 documents otherwise the number of deleted docs will be below 10%
+            // and forceMerge will refuse to expunge deletes
+            final long numDocsToDelete = randomIntBetween((int) Math.ceil(Math.nextUp(numDocs / 10.0)), Math.toIntExact(numDocs));
+            for (int i = 0; i < numDocs; i++) {
+                final String id = Integer.toString(i);
+                final ParsedDocument doc =
+                    testParsedDocument(id, id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
+                final Engine.Index index =
+                    new Engine.Index(
+                        new Term("_uid", id),
+                        doc,
+                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        0,
+                        Versions.MATCH_ANY,
+                        VersionType.INTERNAL,
+                        PRIMARY,
+                        System.nanoTime(),
+                        -1,
+                        false);
+                final Engine.IndexResult result = indexShard.index(index);
+                assertThat(result.getVersion(), equalTo(1L));
+            }
+
+            indexShard.refresh("test");
+            {
+                final DocsStats docsStats = indexShard.docStats();
+                assertThat(docsStats.getCount(), equalTo(numDocs));
+                assertThat(docsStats.getDeleted(), equalTo(0L));
+            }
+
+            final List<Integer> ids = randomSubsetOf(
+                Math.toIntExact(numDocsToDelete),
+                IntStream.range(0, Math.toIntExact(numDocs)).boxed().collect(Collectors.toList()));
+            for (final Integer i : ids) {
+                final String id = Integer.toString(i);
+                final ParsedDocument doc =
+                    testParsedDocument(id, id, "test", null, new ParseContext.Document(), new BytesArray("{}"), null);
+                final Engine.Index index =
+                    new Engine.Index(
+                        new Term("_uid", id),
+                        doc,
+                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        0,
+                        Versions.MATCH_ANY,
+                        VersionType.INTERNAL,
+                        PRIMARY,
+                        System.nanoTime(),
+                        -1,
+                        false);
+                final Engine.IndexResult result = indexShard.index(index);
+                assertThat(result.getVersion(), equalTo(2L));
+            }
+
+            // flush the buffered deletes
+            final FlushRequest flushRequest = new FlushRequest();
+            flushRequest.force(false);
+            flushRequest.waitIfOngoing(false);
+            indexShard.flush(flushRequest);
+
+            indexShard.refresh("test");
+            {
+                final DocsStats docStats = indexShard.docStats();
+                assertThat(docStats.getCount(), equalTo(numDocs));
+                // Lucene will delete a segment if all docs are deleted from it; this means that we lose the deletes when deleting all docs
+                assertThat(docStats.getDeleted(), equalTo(numDocsToDelete == numDocs ? 0 : numDocsToDelete));
+            }
+
+            // merge them away
+            final ForceMergeRequest forceMergeRequest = new ForceMergeRequest();
+            forceMergeRequest.onlyExpungeDeletes(randomBoolean());
+            forceMergeRequest.maxNumSegments(1);
+            indexShard.forceMerge(forceMergeRequest);
+
+            indexShard.refresh("test");
+            {
+                final DocsStats docStats = indexShard.docStats();
+                assertThat(docStats.getCount(), equalTo(numDocs));
+                assertThat(docStats.getDeleted(), equalTo(0L));
+            }
+        } finally {
+            closeShards(indexShard);
+        }
+    }
+
     /** A dummy repository for testing which just needs restore overridden */
     private abstract static class RestoreOnlyRepository extends AbstractLifecycleComponent implements Repository {
         private final String indexName;
@@ -1393,7 +1494,7 @@ public class IndexShardTests extends IndexShardTestCase {
         public RepositoryData getRepositoryData() {
             Map<IndexId, Set<SnapshotId>> map = new HashMap<>();
             map.put(new IndexId(indexName, "blah"), emptySet());
-            return new RepositoryData(Collections.emptyList(), map);
+            return new RepositoryData(EMPTY_REPO_GEN, Collections.emptyList(), map, Collections.emptyList());
         }
 
         @Override
@@ -1401,12 +1502,13 @@ public class IndexShardTests extends IndexShardTestCase {
         }
 
         @Override
-        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards, List<SnapshotShardFailure> shardFailures) {
+        public SnapshotInfo finalizeSnapshot(SnapshotId snapshotId, List<IndexId> indices, long startTime, String failure, int totalShards,
+                                             List<SnapshotShardFailure> shardFailures, long repositoryStateId) {
             return null;
         }
 
         @Override
-        public void deleteSnapshot(SnapshotId snapshotId) {
+        public void deleteSnapshot(SnapshotId snapshotId, long repositoryStateId) {
         }
 
         @Override

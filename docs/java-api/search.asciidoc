@@ -216,7 +216,7 @@ To execute a stored templates, use `ScriptService.ScriptType.STORED`:
 --------------------------------------------------
 SearchResponse sr = new SearchTemplateRequestBuilder(client)
         .setScript("template_gender")                       <1>
-        .setScriptType(ScriptService.ScriptType.STORED)     <2>
+        .setScriptType(ScriptType.STORED)     <2>
         .setScriptParams(template_params)                   <3>
         .setRequest(new SearchRequest())                    <4>
         .get()                                              <5>
@@ -241,7 +241,7 @@ sr = new SearchTemplateRequestBuilder(client)
                 "            }\n" +
                 "        }\n" +
                 "}")
-        .setScriptType(ScriptService.ScriptType.INLINE)    <2>
+        .setScriptType(ScriptType.INLINE)    <2>
         .setScriptParams(template_params)                  <3>
         .setRequest(new SearchRequest())                   <4>
         .get()                                             <5>

@@ -101,6 +101,21 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
 
     private final TransportClient.HostFailureListener hostFailureListener;
 
+    // TODO: migrate this to use low level connections and single type channels
+    /** {@link ConnectionProfile} to use when to connecting to the listed nodes and doing a liveness check */
+    private static final ConnectionProfile LISTED_NODES_PROFILE;
+
+    static {
+        ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
+        builder.addConnections(1,
+            TransportRequestOptions.Type.BULK,
+            TransportRequestOptions.Type.PING,
+            TransportRequestOptions.Type.RECOVERY,
+            TransportRequestOptions.Type.REG,
+            TransportRequestOptions.Type.STATE);
+        LISTED_NODES_PROFILE = builder.build();
+    }
+
     TransportClientNodesService(Settings settings, TransportService transportService,
                                        ThreadPool threadPool, TransportClient.HostFailureListener hostFailureListener) {
         super(settings);
@@ -389,8 +404,8 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                 if (!transportService.nodeConnected(listedNode)) {
                     try {
                         // its a listed node, light connect to it...
-                        logger.trace("connecting to listed node (light) [{}]", listedNode);
-                        transportService.connectToNode(listedNode, ConnectionProfile.LIGHT_PROFILE);
+                        logger.trace("connecting to listed node [{}]", listedNode);
+                        transportService.connectToNode(listedNode, LISTED_NODES_PROFILE);
                     } catch (Exception e) {
                         logger.info(
                             (Supplier<?>)
@@ -470,7 +485,7 @@ final class TransportClientNodesService extends AbstractComponent implements Clo
                                     } else {
                                         // its a listed node, light connect to it...
                                         logger.trace("connecting to listed node (light) [{}]", listedNode);
-                                        transportService.connectToNode(listedNode, ConnectionProfile.LIGHT_PROFILE);
+                                        transportService.connectToNode(listedNode, LISTED_NODES_PROFILE);
                                     }
                                 } catch (Exception e) {
                                     logger.debug(

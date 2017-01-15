@@ -38,6 +38,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -55,6 +56,8 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -240,9 +243,9 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         assertRealtimeGetWorks(indexName);
         assertNewReplicasWork(indexName);
         assertUpgradeWorks(client(), indexName, version);
-        assertDeleteByQueryWorked(indexName, version);
         assertPositionIncrementGapDefaults(indexName, version);
         assertAliasWithBadName(indexName, version);
+        assertStoredBinaryFields(indexName, version);
         unloadIndex(indexName);
     }
 
@@ -409,17 +412,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         // TODO: do something with the replicas! query? index?
     }
 
-    // #10067: create-bwc-index.py deleted any doc with long_sort:[10-20]
-    void assertDeleteByQueryWorked(String indexName, Version version) throws Exception {
-        if (version.onOrAfter(Version.V_2_0_0_beta1)) {
-            // TODO: remove this once #10262 is fixed
-            return;
-        }
-        // these documents are supposed to be deleted by a delete by query operation in the translog
-        SearchRequestBuilder searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.queryStringQuery("long_sort:[10 TO 20]"));
-        assertEquals(0, searchReq.get().getHits().getTotalHits());
-    }
-
     void assertPositionIncrementGapDefaults(String indexName, Version version) throws Exception {
         client().prepareIndex(indexName, "doc", "position_gap_test").setSource("string", Arrays.asList("one", "two three"))
             .setRefreshPolicy(RefreshPolicy.IMMEDIATE).get();
@@ -471,6 +463,25 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         // We can remove the alias.
         assertAcked(client().admin().indices().prepareAliases().removeAlias(indexName, aliasName).get());
         assertFalse(client().admin().indices().prepareAliasesExist(aliasName).get().exists());
+    }
+
+    /**
+     * Make sure we can load stored binary fields.
+     */
+    void assertStoredBinaryFields(String indexName, Version version) throws Exception {
+        SearchRequestBuilder builder = client().prepareSearch(indexName);
+        builder.setQuery(QueryBuilders.matchAllQuery());
+        builder.setSize(100);
+        builder.addStoredField("binary");
+        SearchHits hits = builder.get().getHits();
+        assertEquals(100, hits.hits().length);
+        for(SearchHit hit : hits) {
+            SearchHitField field = hit.field("binary");
+            assertNotNull(field);
+            Object value = field.value();
+            assertTrue(value instanceof BytesArray);
+            assertEquals(16, ((BytesArray) value).length());
+        }
     }
 
     private Path getNodeDir(String indexFile) throws IOException {
@@ -533,7 +544,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
             Path nodeDir = getNodeDir(indexFile);
             logger.info("Parsing cluster state files from index [{}]", indexName);
-            final MetaData metaData = globalFormat.loadLatestState(logger, nodeDir);
+            final MetaData metaData = globalFormat.loadLatestState(logger, xContentRegistry(), nodeDir);
             assertNotNull(metaData);
 
             final Version version = Version.fromString(indexName.substring("index-".length()));
@@ -544,7 +555,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
                 dataDir = nodeDir.getParent();
             }
             final Path indexDir = getIndexDir(logger, indexName, indexFile, dataDir);
-            assertNotNull(indexFormat.loadLatestState(logger, indexDir));
+            assertNotNull(indexFormat.loadLatestState(logger, xContentRegistry(), indexDir));
         }
     }
 

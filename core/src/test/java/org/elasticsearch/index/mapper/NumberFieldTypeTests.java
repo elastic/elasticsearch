@@ -20,26 +20,26 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FloatPoint;
 import org.apache.lucene.document.HalfFloatPoint;
+import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class NumberFieldTypeTests extends FieldTypeTestCase {
 
@@ -62,6 +62,52 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(), randomBoolean(), null, null, null));
     }
 
+    public void testIntegerTermsQueryWithDecimalPart() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.INTEGER);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
+        assertEquals(IntPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
+    }
+
+    public void testLongTermsQueryWithDecimalPart() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1, 2.1), null));
+        assertEquals(LongPoint.newSetQuery("field", 1), ft.termsQuery(Arrays.asList(1.0, 2.1), null));
+        assertTrue(ft.termsQuery(Arrays.asList(1.1, 2.1), null) instanceof MatchNoDocsQuery);
+    }
+
+    public void testByteTermQueryWithDecimalPart() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.BYTE);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+    }
+
+    public void testShortTermQueryWithDecimalPart() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.SHORT);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+    }
+
+    public void testIntegerTermQueryWithDecimalPart() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.INTEGER);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+    }
+
+    public void testLongTermQueryWithDecimalPart() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertTrue(ft.termQuery(42.1, null) instanceof MatchNoDocsQuery);
+    }
+
     public void testTermQuery() {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberFieldMapper.NumberType.LONG);
         ft.setName("field");
@@ -72,6 +118,82 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> ft.termQuery("42", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+    }
+
+    public void testRangeQueryWithNegativeBounds() {
+        MappedFieldType ftInt = new NumberFieldMapper.NumberFieldType(NumberType.INTEGER);
+        ftInt.setName("field");
+        ftInt.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(IntPoint.newRangeQuery("field", -3, -3), ftInt.rangeQuery(-3.5, -2.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", -3, -3), ftInt.rangeQuery(-3.5, -2.5, false, false, null));
+        assertEquals(IntPoint.newRangeQuery("field", 0, 0), ftInt.rangeQuery(-0.5, 0.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 0, 0), ftInt.rangeQuery(-0.5, 0.5, false, false, null));
+        assertEquals(IntPoint.newRangeQuery("field", 1, 2), ftInt.rangeQuery(0.5, 2.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 1, 2), ftInt.rangeQuery(0.5, 2.5, false, false, null));
+        assertEquals(IntPoint.newRangeQuery("field", 0, 2), ftInt.rangeQuery(-0.5, 2.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 0, 2), ftInt.rangeQuery(-0.5, 2.5, false, false, null));
+
+        assertEquals(IntPoint.newRangeQuery("field", -2, 0), ftInt.rangeQuery(-2.5, 0.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", -2, 0), ftInt.rangeQuery(-2.5, 0.5, false, false, null));
+        assertEquals(IntPoint.newRangeQuery("field", -2, -1), ftInt.rangeQuery(-2.5, -0.5, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", -2, -1), ftInt.rangeQuery(-2.5, -0.5, false, false, null));
+
+        MappedFieldType ftLong = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
+        ftLong.setName("field");
+        ftLong.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(LongPoint.newRangeQuery("field", -3, -3), ftLong.rangeQuery(-3.5, -2.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", -3, -3), ftLong.rangeQuery(-3.5, -2.5, false, false, null));
+        assertEquals(LongPoint.newRangeQuery("field", 0, 0), ftLong.rangeQuery(-0.5, 0.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", 0, 0), ftLong.rangeQuery(-0.5, 0.5, false, false, null));
+        assertEquals(LongPoint.newRangeQuery("field", 1, 2), ftLong.rangeQuery(0.5, 2.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", 1, 2), ftLong.rangeQuery(0.5, 2.5, false, false, null));
+        assertEquals(LongPoint.newRangeQuery("field", 0, 2), ftLong.rangeQuery(-0.5, 2.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", 0, 2), ftLong.rangeQuery(-0.5, 2.5, false, false, null));
+
+        assertEquals(LongPoint.newRangeQuery("field", -2, 0), ftLong.rangeQuery(-2.5, 0.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", -2, 0), ftLong.rangeQuery(-2.5, 0.5, false, false, null));
+        assertEquals(LongPoint.newRangeQuery("field", -2, -1), ftLong.rangeQuery(-2.5, -0.5, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", -2, -1), ftLong.rangeQuery(-2.5, -0.5, false, false, null));
+    }
+
+    public void testByteRangeQueryWithDecimalParts() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.BYTE);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(IntPoint.newRangeQuery("field", 2, 10), ft.rangeQuery(1.1, 10, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 2, 10), ft.rangeQuery(1.1, 10, false, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 1, 10), ft.rangeQuery(1, 10.1, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 1, 10), ft.rangeQuery(1, 10.1, true, false, null));
+    }
+
+    public void testShortRangeQueryWithDecimalParts() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.SHORT);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(IntPoint.newRangeQuery("field", 2, 10), ft.rangeQuery(1.1, 10, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 2, 10), ft.rangeQuery(1.1, 10, false, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 1, 10), ft.rangeQuery(1, 10.1, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 1, 10), ft.rangeQuery(1, 10.1, true, false, null));
+    }
+
+    public void testIntegerRangeQueryWithDecimalParts() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.INTEGER);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(IntPoint.newRangeQuery("field", 2, 10), ft.rangeQuery(1.1, 10, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 2, 10), ft.rangeQuery(1.1, 10, false, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 1, 10), ft.rangeQuery(1, 10.1, true, true, null));
+        assertEquals(IntPoint.newRangeQuery("field", 1, 10), ft.rangeQuery(1, 10.1, true, false, null));
+    }
+
+    public void testLongRangeQueryWithDecimalParts() {
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(NumberType.LONG);
+        ft.setName("field");
+        ft.setIndexOptions(IndexOptions.DOCS);
+        assertEquals(LongPoint.newRangeQuery("field", 2, 10), ft.rangeQuery(1.1, 10, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", 2, 10), ft.rangeQuery(1.1, 10, false, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", 1, 10), ft.rangeQuery(1, 10.1, true, true, null));
+        assertEquals(LongPoint.newRangeQuery("field", 1, 10), ft.rangeQuery(1, 10.1, true, false, null));
     }
 
     public void testRangeQuery() {
@@ -87,36 +209,33 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testConversions() {
-        assertEquals((byte) 3, NumberType.BYTE.parse(3d));
-        assertEquals((short) 3, NumberType.SHORT.parse(3d));
-        assertEquals(3, NumberType.INTEGER.parse(3d));
-        assertEquals(3L, NumberType.LONG.parse(3d));
-        assertEquals(3f, NumberType.HALF_FLOAT.parse(3d));
-        assertEquals(3f, NumberType.FLOAT.parse(3d));
-        assertEquals(3d, NumberType.DOUBLE.parse(3d));
+        assertEquals((byte) 3, NumberType.BYTE.parse(3d, true));
+        assertEquals((short) 3, NumberType.SHORT.parse(3d, true));
+        assertEquals(3, NumberType.INTEGER.parse(3d, true));
+        assertEquals(3L, NumberType.LONG.parse(3d, true));
+        assertEquals(3f, NumberType.HALF_FLOAT.parse(3d, true));
+        assertEquals(3f, NumberType.FLOAT.parse(3d, true));
+        assertEquals(3d, NumberType.DOUBLE.parse(3d, true));
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> NumberType.BYTE.parse(3.5));
-        assertEquals("Value [3.5] has a decimal part", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> NumberType.SHORT.parse(3.5));
-        assertEquals("Value [3.5] has a decimal part", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> NumberType.INTEGER.parse(3.5));
-        assertEquals("Value [3.5] has a decimal part", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> NumberType.LONG.parse(3.5));
-        assertEquals("Value [3.5] has a decimal part", e.getMessage());
-        assertEquals(3.5f, NumberType.FLOAT.parse(3.5));
-        assertEquals(3.5d, NumberType.DOUBLE.parse(3.5));
+        assertEquals((byte) 3, NumberType.BYTE.parse(3.5, true));
+        assertEquals((short) 3, NumberType.SHORT.parse(3.5, true));
+        assertEquals(3, NumberType.INTEGER.parse(3.5, true));
+        assertEquals(3L, NumberType.LONG.parse(3.5, true));
 
-        e = expectThrows(IllegalArgumentException.class, () -> NumberType.BYTE.parse(128));
+        assertEquals(3.5f, NumberType.FLOAT.parse(3.5, true));
+        assertEquals(3.5d, NumberType.DOUBLE.parse(3.5, true));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> NumberType.BYTE.parse(128, true));
         assertEquals("Value [128] is out of range for a byte", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> NumberType.SHORT.parse(65536));
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.SHORT.parse(65536, true));
         assertEquals("Value [65536] is out of range for a short", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> NumberType.INTEGER.parse(2147483648L));
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.INTEGER.parse(2147483648L, true));
         assertEquals("Value [2147483648] is out of range for an integer", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class, () -> NumberType.LONG.parse(10000000000000000000d));
+        e = expectThrows(IllegalArgumentException.class, () -> NumberType.LONG.parse(10000000000000000000d, true));
         assertEquals("Value [1.0E19] is out of range for a long", e.getMessage());
-        assertEquals(1.1f, NumberType.HALF_FLOAT.parse(1.1));
-        assertEquals(1.1f, NumberType.FLOAT.parse(1.1));
-        assertEquals(1.1d, NumberType.DOUBLE.parse(1.1));
+        assertEquals(1.1f, NumberType.HALF_FLOAT.parse(1.1, true));
+        assertEquals(1.1f, NumberType.FLOAT.parse(1.1, true));
+        assertEquals(1.1d, NumberType.DOUBLE.parse(1.1, true));
     }
 
     public void testHalfFloatRange() throws IOException {
@@ -148,5 +267,21 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             assertEquals(searcher.count(floatQ), searcher.count(halfFloatQ));
         }
         IOUtils.close(reader, dir);
+    }
+
+    public void testNegativeZero() {
+        assertEquals(
+                NumberType.DOUBLE.rangeQuery("field", null, -0d, true, true),
+                NumberType.DOUBLE.rangeQuery("field", null, +0d, true, false));
+        assertEquals(
+                NumberType.FLOAT.rangeQuery("field", null, -0f, true, true),
+                NumberType.FLOAT.rangeQuery("field", null, +0f, true, false));
+        assertEquals(
+                NumberType.HALF_FLOAT.rangeQuery("field", null, -0f, true, true),
+                NumberType.HALF_FLOAT.rangeQuery("field", null, +0f, true, false));
+
+        assertFalse(NumberType.DOUBLE.termQuery("field", -0d).equals(NumberType.DOUBLE.termQuery("field", +0d)));
+        assertFalse(NumberType.FLOAT.termQuery("field", -0f).equals(NumberType.FLOAT.termQuery("field", +0f)));
+        assertFalse(NumberType.HALF_FLOAT.termQuery("field", -0f).equals(NumberType.HALF_FLOAT.termQuery("field", +0f)));
     }
 }

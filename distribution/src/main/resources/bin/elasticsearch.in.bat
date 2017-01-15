@@ -1,7 +1,7 @@
 @echo off
 
 IF DEFINED JAVA_HOME (
-  set JAVA="%JAVA_HOME%"\bin\java.exe
+  set JAVA="%JAVA_HOME%\bin\java.exe"
 ) ELSE (
   FOR %%I IN (java.exe) DO set JAVA=%%~$PATH:I
 )

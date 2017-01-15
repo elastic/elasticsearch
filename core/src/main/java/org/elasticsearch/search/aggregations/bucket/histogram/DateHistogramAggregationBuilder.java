@@ -19,22 +19,28 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParserHelper;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -48,7 +54,7 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class DateHistogramAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Numeric, DateHistogramAggregationBuilder> {
-    public static final String NAME = InternalDateHistogram.TYPE.name();
+    public static final String NAME = "date_histogram";
 
     public static final Map<String, DateTimeUnit> DATE_FIELD_UNITS;
 
@@ -73,6 +79,48 @@ public class DateHistogramAggregationBuilder
         DATE_FIELD_UNITS = unmodifiableMap(dateFieldUnits);
     }
 
+    private static final ObjectParser<DateHistogramAggregationBuilder, QueryParseContext> PARSER;
+    static {
+        PARSER = new ObjectParser<>(DateHistogramAggregationBuilder.NAME);
+        ValuesSourceParserHelper.declareNumericFields(PARSER, true, true, true);
+
+        PARSER.declareField((histogram, interval) -> {
+            if (interval instanceof Long) {
+                histogram.interval((long) interval);
+            } else {
+                histogram.dateHistogramInterval((DateHistogramInterval) interval);
+            }
+        }, p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return p.longValue();
+            } else {
+                return new DateHistogramInterval(p.text());
+            }
+        }, Histogram.INTERVAL_FIELD, ObjectParser.ValueType.LONG);
+
+        PARSER.declareField(DateHistogramAggregationBuilder::offset, p -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
+                return p.longValue();
+            } else {
+                return DateHistogramAggregationBuilder.parseStringOffset(p.text());
+            }
+        }, Histogram.OFFSET_FIELD, ObjectParser.ValueType.LONG);
+
+        PARSER.declareBoolean(DateHistogramAggregationBuilder::keyed, Histogram.KEYED_FIELD);
+
+        PARSER.declareLong(DateHistogramAggregationBuilder::minDocCount, Histogram.MIN_DOC_COUNT_FIELD);
+
+        PARSER.declareField(DateHistogramAggregationBuilder::extendedBounds, parser -> ExtendedBounds.PARSER.apply(parser, null),
+                ExtendedBounds.EXTENDED_BOUNDS_FIELD, ObjectParser.ValueType.OBJECT);
+
+        PARSER.declareField(DateHistogramAggregationBuilder::order, DateHistogramAggregationBuilder::parseOrder,
+                Histogram.ORDER_FIELD, ObjectParser.ValueType.OBJECT);
+    }
+
+    public static DateHistogramAggregationBuilder parse(String aggregationName, QueryParseContext context) throws IOException {
+        return PARSER.parse(context.parser(), new DateHistogramAggregationBuilder(aggregationName), context);
+    }
+
     private long interval;
     private DateHistogramInterval dateHistogramInterval;
     private long offset = 0;
@@ -83,12 +131,12 @@ public class DateHistogramAggregationBuilder
 
     /** Create a new builder with the given name. */
     public DateHistogramAggregationBuilder(String name) {
-        super(name, InternalDateHistogram.TYPE, ValuesSourceType.NUMERIC, ValueType.DATE);
+        super(name, ValuesSourceType.NUMERIC, ValueType.DATE);
     }
 
     /** Read from a stream, for internal use only. */
     public DateHistogramAggregationBuilder(StreamInput in) throws IOException {
-        super(in, InternalDateHistogram.TYPE, ValuesSourceType.NUMERIC, ValueType.DATE);
+        super(in, ValuesSourceType.NUMERIC, ValueType.DATE);
         if (in.readBoolean()) {
             order = InternalOrder.Streams.readOrder(in);
         }
@@ -267,20 +315,20 @@ public class DateHistogramAggregationBuilder
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(AggregationContext context, ValuesSourceConfig<Numeric> config,
+    protected ValuesSourceAggregatorFactory<Numeric, ?> innerBuild(SearchContext context, ValuesSourceConfig<Numeric> config,
             AggregatorFactory<?> parent, Builder subFactoriesBuilder) throws IOException {
         Rounding rounding = createRounding();
         ExtendedBounds roundedBounds = null;
         if (this.extendedBounds != null) {
             // parse any string bounds to longs and round
-            roundedBounds = this.extendedBounds.parseAndValidate(name, context.searchContext(), config.format()).round(rounding);
+            roundedBounds = this.extendedBounds.parseAndValidate(name, context, config.format()).round(rounding);
         }
-        return new DateHistogramAggregatorFactory(name, type, config, interval, dateHistogramInterval, offset, order, keyed, minDocCount,
+        return new DateHistogramAggregatorFactory(name, config, interval, dateHistogramInterval, offset, order, keyed, minDocCount,
                 rounding, roundedBounds, context, parent, subFactoriesBuilder, metaData);
     }
 
@@ -321,5 +369,36 @@ public class DateHistogramAggregationBuilder
                 && Objects.equals(dateHistogramInterval, other.dateHistogramInterval)
                 && Objects.equals(offset, other.offset)
                 && Objects.equals(extendedBounds, other.extendedBounds);
+    }
+
+    // similar to the parsing oh histogram orders, but also accepts _time as an alias for _key
+    private static InternalOrder parseOrder(XContentParser parser, QueryParseContext context) throws IOException {
+        InternalOrder order = null;
+        Token token;
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.VALUE_STRING) {
+                String dir = parser.text();
+                boolean asc = "asc".equals(dir);
+                if (!asc && !"desc".equals(dir)) {
+                    throw new ParsingException(parser.getTokenLocation(), "Unknown order direction: [" + dir
+                            + "]. Should be either [asc] or [desc]");
+                }
+                order = resolveOrder(currentFieldName, asc);
+            }
+        }
+        return order;
+    }
+
+    static InternalOrder resolveOrder(String key, boolean asc) {
+        if ("_key".equals(key) || "_time".equals(key)) {
+            return (InternalOrder) (asc ? InternalOrder.KEY_ASC : InternalOrder.KEY_DESC);
+        }
+        if ("_count".equals(key)) {
+            return (InternalOrder) (asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC);
+        }
+        return new InternalOrder.Aggregation(key, asc);
     }
 }

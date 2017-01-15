@@ -65,8 +65,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.action.index.TransportIndexAction.executeIndexRequestOnPrimary;
-import static org.elasticsearch.action.index.TransportIndexAction.executeIndexRequestOnReplica;
+import static org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequestOnPrimary;
+import static org.elasticsearch.action.bulk.TransportShardBulkAction.executeIndexRequestOnReplica;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -433,7 +433,7 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
                 final long version = indexResult.getVersion();
                 request.version(version);
                 request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-                request.seqNo(indexResult.getSeqNo());
+                request.setSeqNo(indexResult.getSeqNo());
                 assert request.versionType().validateVersionForWrites(request.version());
             }
             request.primaryTerm(primary.getPrimaryTerm());

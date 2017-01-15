@@ -19,7 +19,7 @@
 
 package org.elasticsearch.client;
 
-import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpHost;
@@ -29,10 +29,11 @@ import org.apache.http.client.methods.HttpOptions;
 import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.apache.http.client.methods.HttpRequestBase;
 import org.apache.http.client.methods.HttpTrace;
+import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.message.BasicHeader;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NByteArrayEntity;
@@ -43,16 +44,16 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 public class RequestLoggerTests extends RestClientTestCase {
-
     public void testTraceRequest() throws IOException, URISyntaxException {
-        HttpHost host = new HttpHost("localhost", 9200, getRandom().nextBoolean() ? "http" : "https");
-
+        HttpHost host = new HttpHost("localhost", 9200, randomBoolean() ? "http" : "https");
         String expectedEndpoint = "/index/type/_api";
         URI uri;
         if (randomBoolean()) {
@@ -60,46 +61,15 @@ public class RequestLoggerTests extends RestClientTestCase {
         } else {
             uri = new URI("index/type/_api");
         }
-
-        HttpRequestBase request;
-        int requestType = RandomNumbers.randomIntBetween(getRandom(), 0, 7);
-        switch(requestType) {
-            case 0:
-                request = new HttpGetWithEntity(uri);
-                break;
-            case 1:
-                request = new HttpPost(uri);
-                break;
-            case 2:
-                request = new HttpPut(uri);
-                break;
-            case 3:
-                request = new HttpDeleteWithEntity(uri);
-                break;
-            case 4:
-                request = new HttpHead(uri);
-                break;
-            case 5:
-                request = new HttpTrace(uri);
-                break;
-            case 6:
-                request = new HttpOptions(uri);
-                break;
-            case 7:
-                request = new HttpPatch(uri);
-                break;
-            default:
-                throw new UnsupportedOperationException();
-        }
-
+        HttpUriRequest request = randomHttpRequest(uri);
         String expected = "curl -iX " + request.getMethod() + " '" + host + expectedEndpoint + "'";
-        boolean hasBody = request instanceof HttpEntityEnclosingRequest && getRandom().nextBoolean();
+        boolean hasBody = request instanceof HttpEntityEnclosingRequest && randomBoolean();
         String requestBody = "{ \"field\": \"value\" }";
         if (hasBody) {
             expected += " -d '" + requestBody + "'";
             HttpEntityEnclosingRequest enclosingRequest = (HttpEntityEnclosingRequest) request;
             HttpEntity entity;
-            switch(RandomNumbers.randomIntBetween(getRandom(), 0, 3)) {
+            switch(randomIntBetween(0, 4)) {
                 case 0:
                     entity = new StringEntity(requestBody, StandardCharsets.UTF_8);
                     break;
@@ -111,6 +81,10 @@ public class RequestLoggerTests extends RestClientTestCase {
                     break;
                 case 3:
                     entity = new NByteArrayEntity(requestBody.getBytes(StandardCharsets.UTF_8));
+                    break;
+                case 4:
+                    // Evil entity without a charset
+                    entity = new StringEntity(requestBody, (Charset) null);
                     break;
                 default:
                     throw new UnsupportedOperationException();
@@ -128,12 +102,12 @@ public class RequestLoggerTests extends RestClientTestCase {
 
     public void testTraceResponse() throws IOException {
         ProtocolVersion protocolVersion = new ProtocolVersion("HTTP", 1, 1);
-        int statusCode = RandomNumbers.randomIntBetween(getRandom(), 200, 599);
+        int statusCode = randomIntBetween(200, 599);
         String reasonPhrase = "REASON";
         BasicStatusLine statusLine = new BasicStatusLine(protocolVersion, statusCode, reasonPhrase);
         String expected = "# " + statusLine.toString();
         BasicHttpResponse httpResponse = new BasicHttpResponse(statusLine);
-        int numHeaders = RandomNumbers.randomIntBetween(getRandom(), 0, 3);
+        int numHeaders = randomIntBetween(0, 3);
         for (int i = 0; i < numHeaders; i++) {
             httpResponse.setHeader("header" + i, "value");
             expected += "\n# header" + i + ": value";
@@ -146,11 +120,20 @@ public class RequestLoggerTests extends RestClientTestCase {
             expected += "\n#   \"field\": \"value\"";
             expected += "\n# }";
             HttpEntity entity;
-            if (getRandom().nextBoolean()) {
+            switch(randomIntBetween(0, 2)) {
+            case 0:
                 entity = new StringEntity(responseBody, StandardCharsets.UTF_8);
-            } else {
+                break;
+            case 1:
                 //test a non repeatable entity
                 entity = new InputStreamEntity(new ByteArrayInputStream(responseBody.getBytes(StandardCharsets.UTF_8)));
+                break;
+            case 2:
+                // Evil entity without a charset
+                entity = new StringEntity(responseBody, (Charset) null);
+                break;
+            default:
+                throw new UnsupportedOperationException();
             }
             httpResponse.setEntity(entity);
         }
@@ -160,6 +143,48 @@ public class RequestLoggerTests extends RestClientTestCase {
             //check that the body is still readable as most entities are not repeatable
             String body = EntityUtils.toString(httpResponse.getEntity(), StandardCharsets.UTF_8);
             assertThat(body, equalTo(responseBody));
+        }
+    }
+
+    public void testResponseWarnings() throws Exception {
+        HttpHost host = new HttpHost("localhost", 9200);
+        HttpUriRequest request = randomHttpRequest(new URI("/index/type/_api"));
+        int numWarnings = randomIntBetween(1, 5);
+        StringBuilder expected = new StringBuilder("request [").append(request.getMethod()).append(" ").append(host)
+                .append("/index/type/_api] returned ").append(numWarnings).append(" warnings: ");
+        Header[] warnings = new Header[numWarnings];
+        for (int i = 0; i < numWarnings; i++) {
+            String warning = "this is warning number " + i;
+            warnings[i] = new BasicHeader("Warning", warning);
+            if (i > 0) {
+                expected.append(",");
+            }
+            expected.append("[").append(warning).append("]");
+        }
+        assertEquals(expected.toString(), RequestLogger.buildWarningMessage(request, host, warnings));
+    }
+
+    private static HttpUriRequest randomHttpRequest(URI uri) {
+        int requestType = randomIntBetween(0, 7);
+        switch(requestType) {
+            case 0:
+                return new HttpGetWithEntity(uri);
+            case 1:
+                return new HttpPost(uri);
+            case 2:
+                return new HttpPut(uri);
+            case 3:
+                return new HttpDeleteWithEntity(uri);
+            case 4:
+                return new HttpHead(uri);
+            case 5:
+                return new HttpTrace(uri);
+            case 6:
+                return new HttpOptions(uri);
+            case 7:
+                return new HttpPatch(uri);
+            default:
+                throw new UnsupportedOperationException();
         }
     }
 }

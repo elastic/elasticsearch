@@ -244,7 +244,7 @@ public class ClusterChangedEventTests extends ESTestCase {
         event = new ClusterChangedEvent("_na_", originalState, nextState);
         Set<String> changedCustomMetaDataTypeSet = event.changedCustomMetaDataSet();
         assertTrue(changedCustomMetaDataTypeSet.size() == 1);
-        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData1.type()));
+        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData1.getWriteableName()));
 
         // next state has same custom metadata
         nextState = nextState(originalState, Collections.singletonList(customMetaData1));
@@ -263,14 +263,14 @@ public class ClusterChangedEventTests extends ESTestCase {
         event = new ClusterChangedEvent("_na_", stateWithCustomMetaData, nextState);
         changedCustomMetaDataTypeSet = event.changedCustomMetaDataSet();
         assertTrue(changedCustomMetaDataTypeSet.size() == 1);
-        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData1.type()));
+        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData1.getWriteableName()));
 
         // next state updates custom metadata
         nextState = nextState(stateWithCustomMetaData, Collections.singletonList(new CustomMetaData1("data1")));
         event = new ClusterChangedEvent("_na_", stateWithCustomMetaData, nextState);
         changedCustomMetaDataTypeSet = event.changedCustomMetaDataSet();
         assertTrue(changedCustomMetaDataTypeSet.size() == 1);
-        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData1.type()));
+        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData1.getWriteableName()));
 
         // next state adds new custom metadata type
         CustomMetaData2 customMetaData2 = new CustomMetaData2("data2");
@@ -278,15 +278,15 @@ public class ClusterChangedEventTests extends ESTestCase {
         event = new ClusterChangedEvent("_na_", stateWithCustomMetaData, nextState);
         changedCustomMetaDataTypeSet = event.changedCustomMetaDataSet();
         assertTrue(changedCustomMetaDataTypeSet.size() == 1);
-        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData2.type()));
+        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData2.getWriteableName()));
 
         // next state adds two custom metadata type
         nextState = nextState(originalState, Arrays.asList(customMetaData1, customMetaData2));
         event = new ClusterChangedEvent("_na_", originalState, nextState);
         changedCustomMetaDataTypeSet = event.changedCustomMetaDataSet();
         assertTrue(changedCustomMetaDataTypeSet.size() == 2);
-        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData2.type()));
-        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData1.type()));
+        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData2.getWriteableName()));
+        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData1.getWriteableName()));
 
         // next state removes two custom metadata type
         nextState = originalState;
@@ -294,25 +294,17 @@ public class ClusterChangedEventTests extends ESTestCase {
                 nextState(originalState, Arrays.asList(customMetaData1, customMetaData2)), nextState);
         changedCustomMetaDataTypeSet = event.changedCustomMetaDataSet();
         assertTrue(changedCustomMetaDataTypeSet.size() == 2);
-        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData2.type()));
-        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData1.type()));
+        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData2.getWriteableName()));
+        assertTrue(changedCustomMetaDataTypeSet.contains(customMetaData1.getWriteableName()));
     }
 
     private static class CustomMetaData2 extends TestCustomMetaData {
-        static {
-            MetaData.registerPrototype("2", new CustomMetaData2(""));
-        }
         protected CustomMetaData2(String data) {
             super(data);
         }
 
         @Override
-        protected TestCustomMetaData newTestCustomMetaData(String data) {
-            return new CustomMetaData2(data);
-        }
-
-        @Override
-        public String type() {
+        public String getWriteableName() {
             return "2";
         }
 
@@ -323,20 +315,12 @@ public class ClusterChangedEventTests extends ESTestCase {
     }
 
     private static class CustomMetaData1 extends TestCustomMetaData {
-        static {
-            MetaData.registerPrototype("1", new CustomMetaData1(""));
-        }
         protected CustomMetaData1(String data) {
             super(data);
         }
 
         @Override
-        protected TestCustomMetaData newTestCustomMetaData(String data) {
-            return new CustomMetaData1(data);
-        }
-
-        @Override
-        public String type() {
+        public String getWriteableName() {
             return "1";
         }
 
@@ -378,7 +362,7 @@ public class ClusterChangedEventTests extends ESTestCase {
             }
         }
         for (TestCustomMetaData testCustomMetaData : customMetaDataList) {
-            metaDataBuilder.putCustom(testCustomMetaData.type(), testCustomMetaData);
+            metaDataBuilder.putCustom(testCustomMetaData.getWriteableName(), testCustomMetaData);
         }
         builder.metaData(metaDataBuilder);
         return builder.build();

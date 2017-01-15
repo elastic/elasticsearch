@@ -24,12 +24,11 @@ import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -59,7 +58,6 @@ public class NodeJoinController extends AbstractComponent {
     private final ClusterService clusterService;
     private final AllocationService allocationService;
     private final ElectMasterService electMaster;
-    private final DiscoverySettings discoverySettings;
     private final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor();
 
     // this is set while trying to become a master
@@ -68,12 +66,11 @@ public class NodeJoinController extends AbstractComponent {
 
 
     public NodeJoinController(ClusterService clusterService, AllocationService allocationService, ElectMasterService electMaster,
-                              DiscoverySettings discoverySettings, Settings settings) {
+                              Settings settings) {
         super(settings);
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.electMaster = electMaster;
-        this.discoverySettings = discoverySettings;
     }
 
     /**
@@ -408,8 +405,9 @@ public class NodeJoinController extends AbstractComponent {
     class JoinTaskExecutor implements ClusterStateTaskExecutor<DiscoveryNode> {
 
         @Override
-        public BatchResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
-            final BatchResult.Builder<DiscoveryNode> results = BatchResult.builder();
+        public ClusterTasksResult<DiscoveryNode> execute(ClusterState currentState, List<DiscoveryNode> joiningNodes) throws Exception {
+            final ClusterTasksResult.Builder<DiscoveryNode> results = ClusterTasksResult.builder();
+
             final DiscoveryNodes currentNodes = currentState.nodes();
             boolean nodesChanged = false;
             ClusterState.Builder newState;
@@ -468,21 +466,27 @@ public class NodeJoinController extends AbstractComponent {
 
         private ClusterState.Builder becomeMasterAndTrimConflictingNodes(ClusterState currentState, List<DiscoveryNode> joiningNodes) {
             assert currentState.nodes().getMasterNodeId() == null : currentState;
-            DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentState.nodes());
+            DiscoveryNodes currentNodes = currentState.nodes();
+            DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
             nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
-            ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(currentState.blocks())
-                .removeGlobalBlock(discoverySettings.getNoMasterBlock()).build();
             for (final DiscoveryNode joiningNode : joiningNodes) {
-                final DiscoveryNode existingNode = nodesBuilder.get(joiningNode.getId());
-                if (existingNode != null && existingNode.equals(joiningNode) == false) {
-                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", existingNode, joiningNode);
-                    nodesBuilder.remove(existingNode.getId());
+                final DiscoveryNode nodeWithSameId = nodesBuilder.get(joiningNode.getId());
+                if (nodeWithSameId != null && nodeWithSameId.equals(joiningNode) == false) {
+                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameId, joiningNode);
+                    nodesBuilder.remove(nodeWithSameId.getId());
+                }
+                final DiscoveryNode nodeWithSameAddress = currentNodes.findByAddress(joiningNode.getAddress());
+                if (nodeWithSameAddress != null && nodeWithSameAddress.equals(joiningNode) == false) {
+                    logger.debug("removing existing node [{}], which conflicts with incoming join from [{}]", nodeWithSameAddress,
+                        joiningNode);
+                    nodesBuilder.remove(nodeWithSameAddress.getId());
                 }
             }
 
+
             // now trim any left over dead nodes - either left there when the previous master stepped down
             // or removed by us above
-            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).blocks(clusterBlocks).build();
+            ClusterState tmpState = ClusterState.builder(currentState).nodes(nodesBuilder).build();
             return ClusterState.builder(allocationService.deassociateDeadNodes(tmpState, false,
                 "removed dead nodes on election"));
         }

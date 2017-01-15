@@ -139,8 +139,8 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         builder.field("normalize", true); // deprecated
         builder.endObject();
         builder.endObject();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(builder.string()));
-        assertEquals("Deprecated field [normalize] used, replaced by [use validation_method instead]", e.getMessage());
+        parseQuery(builder.string());
+        assertWarnings("Deprecated field [normalize] used, replaced by [validation_method]");
     }
 
     public void testParsingAndToQueryParsingExceptions() throws IOException {
@@ -265,9 +265,8 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
-
+        parseQuery(json);
+        assertWarnings("Deprecated field [ignore_malformed] used, replaced by [validation_method]");
     }
 
     public void testFromJsonCoerceDeprecated() throws IOException {
@@ -282,8 +281,8 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
-        assertTrue(e.getMessage().startsWith("Deprecated field "));
+        parseQuery(json);
+        assertWarnings("Deprecated field [coerce] used, replaced by [validation_method]");
     }
 
     @Override

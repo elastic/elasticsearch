@@ -42,7 +42,7 @@ can be customised when a mapping type is created.
 
 <<mapping-all-field,`_all`>>::
 
-    A _catch-all_  field that indexes the values of all other fields.
+    A _catch-all_  field that indexes the values of all other fields. Disabled by default.
 
 <<mapping-field-names-field,`_field_names`>>::
 

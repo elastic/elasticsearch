@@ -48,6 +48,19 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         assertThat(jsonProcessor.getTargetField(), equalTo(randomTargetField));
     }
 
+    public void testCreateWithAddToRoot() throws Exception {
+        String processorTag = randomAsciiOfLength(10);
+        String randomField = randomAsciiOfLength(10);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", randomField);
+        config.put("add_to_root", true);
+        JsonProcessor jsonProcessor = FACTORY.create(null, processorTag, config);
+        assertThat(jsonProcessor.getTag(), equalTo(processorTag));
+        assertThat(jsonProcessor.getField(), equalTo(randomField));
+        assertThat(jsonProcessor.getTargetField(), equalTo(randomField));
+        assertTrue(jsonProcessor.isAddToRoot());
+    }
+
     public void testCreateWithDefaultTarget() throws Exception {
         String processorTag = randomAsciiOfLength(10);
         String randomField = randomAsciiOfLength(10);
@@ -65,5 +78,17 @@ public class JsonProcessorFactoryTests extends ESTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
             () -> FACTORY.create(null, processorTag, config));
         assertThat(exception.getMessage(), equalTo("[field] required property is missing"));
+    }
+
+    public void testCreateWithBothTargetFieldAndAddToRoot() throws Exception {
+        String randomField = randomAsciiOfLength(10);
+        String randomTargetField = randomAsciiOfLength(5);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", randomField);
+        config.put("target_field", randomTargetField);
+        config.put("add_to_root", true);
+        ElasticsearchException exception = expectThrows(ElasticsearchParseException.class,
+            () -> FACTORY.create(null, randomAsciiOfLength(10), config));
+        assertThat(exception.getMessage(), equalTo("[target_field] Cannot set a target field while also setting `add_to_root` to true"));
     }
 }

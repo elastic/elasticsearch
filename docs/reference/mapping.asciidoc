@@ -155,23 +155,21 @@ PUT my_index <1>
 {
   "mappings": {
     "user": { <2>
-      "_all":       { "enabled": false  }, <3>
-      "properties": { <4>
-        "title":    { "type": "text"  }, <5>
-        "name":     { "type": "text"  }, <5>
-        "age":      { "type": "integer" }  <5>
+      "properties": { <3>
+        "title":    { "type": "text"  }, <4>
+        "name":     { "type": "text"  }, <4>
+        "age":      { "type": "integer" }  <4>
       }
     },
     "blogpost": { <2>
-      "_all":       { "enabled": false  }, <3>
-      "properties": { <4>
-        "title":    { "type": "text"  }, <5>
-        "body":     { "type": "text"  }, <5>
+      "properties": { <3>
+        "title":    { "type": "text"  }, <4>
+        "body":     { "type": "text"  }, <4>
         "user_id":  {
-          "type":   "keyword" <5>
+          "type":   "keyword" <4>
         },
         "created":  {
-          "type":   "date", <5>
+          "type":   "date", <4>
           "format": "strict_date_optional_time||epoch_millis"
         }
       }
@@ -182,9 +180,8 @@ PUT my_index <1>
 // CONSOLE
 <1> Create an index called `my_index`.
 <2> Add mapping types called `user` and `blogpost`.
-<3> Disable the `_all` <<mapping-fields,meta field>> for the `user` mapping type.
-<4> Specify fields or _properties_ in each mapping type.
-<5> Specify the data `type` and mapping for each field.
+<3> Specify fields or _properties_ in each mapping type.
+<4> Specify the data `type` and mapping for each field.
 
 
 --

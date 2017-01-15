@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -40,6 +41,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -53,7 +55,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .endObject();
 
         Map<String, Object> source;
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             source = parser.map();
         }
         Map<String, Object> filter = XContentMapValues.filter(source, new String[]{"test1"}, Strings.EMPTY_ARRAY);
@@ -81,7 +83,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .field("test1", "value1")
                 .endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             source = parser.map();
         }
         filter = XContentMapValues.filter(source, new String[]{"path1"}, Strings.EMPTY_ARRAY);
@@ -107,7 +109,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .endObject();
 
         Map<String, Object> map;
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractValue("test", map).toString(), equalTo("value"));
@@ -118,7 +120,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .startObject("path1").startObject("path2").field("test", "value").endObject().endObject()
                 .endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractValue("path1.path2.test", map).toString(), equalTo("value"));
@@ -140,15 +142,15 @@ public class XContentMapValuesTests extends ESTestCase {
                 .startObject("path1").array("test", "value1", "value2").endObject()
                 .endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             map = parser.map();
         }
 
         extValue = XContentMapValues.extractValue("path1.test", map);
         assertThat(extValue, instanceOf(List.class));
 
-        List extListValue = (List) extValue;
-        assertThat(extListValue.size(), equalTo(2));
+        List<?> extListValue = (List) extValue;
+        assertThat(extListValue, hasSize(2));
 
         builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("path1")
@@ -159,7 +161,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .endObject()
                 .endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             map = parser.map();
         }
 
@@ -167,7 +169,7 @@ public class XContentMapValuesTests extends ESTestCase {
         assertThat(extValue, instanceOf(List.class));
 
         extListValue = (List) extValue;
-        assertThat(extListValue.size(), equalTo(2));
+        assertThat(extListValue, hasSize(2));
         assertThat(extListValue.get(0).toString(), equalTo("value1"));
         assertThat(extListValue.get(1).toString(), equalTo("value2"));
 
@@ -175,7 +177,7 @@ public class XContentMapValuesTests extends ESTestCase {
         builder = XContentFactory.jsonBuilder().startObject()
                 .field("xxx.yyy", "value")
                 .endObject();
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractValue("xxx.yyy", map).toString(), equalTo("value"));
@@ -184,7 +186,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .startObject("path1.xxx").startObject("path2.yyy").field("test", "value").endObject().endObject()
                 .endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
@@ -196,7 +198,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .endObject();
 
         Map<String, Object> map;
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("test", map).get(0).toString(), equalTo("value"));
@@ -205,7 +207,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .field("test.me", "value")
                 .endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("test.me", map).get(0).toString(), equalTo("value"));
@@ -214,7 +216,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .startObject("path1").startObject("path2").field("test", "value").endObject().endObject()
                 .endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("path1.path2.test", map).get(0).toString(), equalTo("value"));
@@ -223,7 +225,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .startObject("path1.xxx").startObject("path2.yyy").field("test", "value").endObject().endObject()
                 .endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             map = parser.map();
         }
         assertThat(XContentMapValues.extractRawValues("path1.xxx.path2.yyy.test", map).get(0).toString(), equalTo("value"));
@@ -233,9 +235,9 @@ public class XContentMapValuesTests extends ESTestCase {
         Map<String, Object> map = new HashMap<>();
         map.put("obj", "value");
         map.put("obj_name", "value_name");
-        Map<String, Object> filterdMap = XContentMapValues.filter(map, new String[]{"obj_name"}, Strings.EMPTY_ARRAY);
-        assertThat(filterdMap.size(), equalTo(1));
-        assertThat((String) filterdMap.get("obj_name"), equalTo("value_name"));
+        Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[]{"obj_name"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat((String) filteredMap.get("obj_name"), equalTo("value_name"));
     }
 
 
@@ -250,19 +252,17 @@ public class XContentMapValuesTests extends ESTestCase {
                             put("nested", 2);
                             put("nested_2", 3);
                         }}));
-        Map<String, Object> falteredMap = XContentMapValues.filter(map, new String[]{"array.nested"}, Strings.EMPTY_ARRAY);
-        assertThat(falteredMap.size(), equalTo(1));
+        Map<String, Object> filteredMap = XContentMapValues.filter(map, new String[]{"array.nested"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
 
-        // Selecting members of objects within arrays (ex. [ 1, { nested: "value"} ])  always returns all values in the array (1 in the ex)
-        // this is expected behavior as this types of objects are not supported in ES
-        assertThat((Integer) ((List) falteredMap.get("array")).get(0), equalTo(1));
-        assertThat(((Map<String, Object>) ((List) falteredMap.get("array")).get(1)).size(), equalTo(1));
-        assertThat((Integer) ((Map<String, Object>) ((List) falteredMap.get("array")).get(1)).get("nested"), equalTo(2));
+        assertThat(((List<?>) filteredMap.get("array")), hasSize(1));
+        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(0)).size(), equalTo(1));
+        assertThat((Integer) ((Map<String, Object>) ((List) filteredMap.get("array")).get(0)).get("nested"), equalTo(2));
 
-        falteredMap = XContentMapValues.filter(map, new String[]{"array.*"}, Strings.EMPTY_ARRAY);
-        assertThat(falteredMap.size(), equalTo(1));
-        assertThat((Integer) ((List) falteredMap.get("array")).get(0), equalTo(1));
-        assertThat(((Map<String, Object>) ((List) falteredMap.get("array")).get(1)).size(), equalTo(2));
+        filteredMap = XContentMapValues.filter(map, new String[]{"array.*"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((List<?>) filteredMap.get("array")), hasSize(1));
+        assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(0)).size(), equalTo(2));
 
         map.clear();
         map.put("field", "value");
@@ -271,16 +271,16 @@ public class XContentMapValuesTests extends ESTestCase {
                     put("field", "value");
                     put("field2", "value2");
                 }});
-        falteredMap = XContentMapValues.filter(map, new String[]{"obj.field"}, Strings.EMPTY_ARRAY);
-        assertThat(falteredMap.size(), equalTo(1));
-        assertThat(((Map<String, Object>) falteredMap.get("obj")).size(), equalTo(1));
-        assertThat((String) ((Map<String, Object>) falteredMap.get("obj")).get("field"), equalTo("value"));
+        filteredMap = XContentMapValues.filter(map, new String[]{"obj.field"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(1));
+        assertThat((String) ((Map<String, Object>) filteredMap.get("obj")).get("field"), equalTo("value"));
 
-        falteredMap = XContentMapValues.filter(map, new String[]{"obj.*"}, Strings.EMPTY_ARRAY);
-        assertThat(falteredMap.size(), equalTo(1));
-        assertThat(((Map<String, Object>) falteredMap.get("obj")).size(), equalTo(2));
-        assertThat((String) ((Map<String, Object>) falteredMap.get("obj")).get("field"), equalTo("value"));
-        assertThat((String) ((Map<String, Object>) falteredMap.get("obj")).get("field2"), equalTo("value2"));
+        filteredMap = XContentMapValues.filter(map, new String[]{"obj.*"}, Strings.EMPTY_ARRAY);
+        assertThat(filteredMap.size(), equalTo(1));
+        assertThat(((Map<String, Object>) filteredMap.get("obj")).size(), equalTo(2));
+        assertThat((String) ((Map<String, Object>) filteredMap.get("obj")).get("field"), equalTo("value"));
+        assertThat((String) ((Map<String, Object>) filteredMap.get("obj")).get("field2"), equalTo("value2"));
 
     }
 
@@ -322,7 +322,7 @@ public class XContentMapValuesTests extends ESTestCase {
 
         filteredMap = XContentMapValues.filter(map, new String[]{"array"}, new String[]{"*.field2"});
         assertThat(filteredMap.size(), equalTo(1));
-        assertThat(((List) filteredMap.get("array")).size(), equalTo(2));
+        assertThat(((List<?>) filteredMap.get("array")), hasSize(2));
         assertThat((Integer) ((List) filteredMap.get("array")).get(0), equalTo(1));
         assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(1)).size(), equalTo(1));
         assertThat(((Map<String, Object>) ((List) filteredMap.get("array")).get(1)).get("field").toString(), equalTo("value"));
@@ -435,20 +435,20 @@ public class XContentMapValuesTests extends ESTestCase {
 
         assertThat(filteredSource.size(), equalTo(1));
         assertThat(filteredSource, hasKey("obj1"));
-        assertThat(((Map) filteredSource.get("obj1")).size(), Matchers.equalTo(0));
+        assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(0));
 
         // explicit include
         filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"obj1"}, new String[]{"*.obj2"});
         assertThat(filteredSource.size(), equalTo(1));
         assertThat(filteredSource, hasKey("obj1"));
-        assertThat(((Map) filteredSource.get("obj1")).size(), Matchers.equalTo(0));
+        assertThat(((Map) filteredSource.get("obj1")).size(), equalTo(0));
 
         // wild card include
         filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[]{"*.obj2"}, new String[]{"*.obj3"});
         assertThat(filteredSource.size(), equalTo(1));
         assertThat(filteredSource, hasKey("obj1"));
         assertThat(((Map<String, Object>) filteredSource.get("obj1")), hasKey("obj2"));
-        assertThat(((Map) ((Map) filteredSource.get("obj1")).get("obj2")).size(), Matchers.equalTo(0));
+        assertThat(((Map) ((Map) filteredSource.get("obj1")).get("obj2")).size(), equalTo(0));
     }
 
     @SuppressWarnings({"unchecked"})
@@ -475,7 +475,7 @@ public class XContentMapValuesTests extends ESTestCase {
                 .startArray("some_array")
                 .endArray().endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -495,7 +495,7 @@ public class XContentMapValuesTests extends ESTestCase {
                     .value(0)
                 .endArray().endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -515,7 +515,7 @@ public class XContentMapValuesTests extends ESTestCase {
                     .startArray().value(2).endArray()
                 .endArray().endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -536,7 +536,7 @@ public class XContentMapValuesTests extends ESTestCase {
                     .startObject().endObject()
                 .endArray().endObject();
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string())) {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, builder.string())) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             assertEquals("some_array", parser.currentName());
@@ -587,5 +587,16 @@ public class XContentMapValuesTests extends ESTestCase {
 
         assertEquals(Collections.singletonMap("foobar", 2), XContentMapValues.filter(map, new String[] {"foobar"}, new String[0]));
         assertEquals(Collections.singletonMap("foobaz", 3), XContentMapValues.filter(map, new String[0], new String[] {"foobar"}));
+    }
+
+    public void testPrefix() {
+        Map<String, Object> map = new HashMap<>();
+        map.put("photos", Arrays.asList(new String[] {"foo", "bar"}));
+        map.put("photosCount", 2);
+
+        Map<String, Object> filtered = XContentMapValues.filter(map, new String[] {"photosCount"}, new String[0]);
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("photosCount", 2);
+        assertEquals(expected, filtered);
     }
 }

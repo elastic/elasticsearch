@@ -31,6 +31,7 @@ import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentGenerator;
@@ -43,7 +44,6 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
@@ -71,10 +71,6 @@ public class JsonXContentGenerator implements XContentGenerator {
     private static final SerializedString LF = new SerializedString("\n");
     private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
     private boolean prettyPrint = false;
-
-    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os) {
-        this(jsonGenerator, os, Collections.emptySet(), Collections.emptySet());
-    }
 
     public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
         Objects.requireNonNull(includes, "Including filters must not be null");
@@ -312,7 +308,8 @@ public class JsonXContentGenerator implements XContentGenerator {
             throw new IllegalArgumentException("Can't write raw bytes whose xcontent-type can't be guessed");
         }
         if (mayWriteRawData(contentType) == false) {
-            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(content)) {
+            // EMPTY is safe here because we never call namedObject when writing raw data
+            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(NamedXContentRegistry.EMPTY, content)) {
                 parser.nextToken();
                 writeFieldName(name);
                 copyCurrentStructure(parser);
@@ -378,8 +375,9 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     protected void copyRawValue(BytesReference content, XContent xContent) throws IOException {
+        // EMPTY is safe here because we never call namedObject
         try (StreamInput input = content.streamInput();
-             XContentParser parser = xContent.createParser(input)) {
+             XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, input)) {
             copyCurrentStructure(parser);
         }
     }

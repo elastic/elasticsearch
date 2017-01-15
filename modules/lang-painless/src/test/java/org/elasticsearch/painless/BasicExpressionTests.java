@@ -42,6 +42,7 @@ public class BasicExpressionTests extends ScriptTestCase {
         assertEquals((byte)255, exec("return (byte)255"));
         assertEquals((short)5, exec("return (short)5"));
         assertEquals("string", exec("return \"string\""));
+        assertEquals("string", exec("return 'string'"));
         assertEquals(true, exec("return true"));
         assertEquals(false, exec("return false"));
         assertNull(exec("return null"));
@@ -53,6 +54,37 @@ public class BasicExpressionTests extends ScriptTestCase {
 
     public void testConstantCharTruncation() {
         assertEquals('蚠', exec("return (char)100000;"));
+    }
+
+    public void testStringEscapes() {
+        // The readability of this test suffers from having to escape `\` and `"` in java strings. Please be careful. Sorry!
+        // `\\` is a `\`
+        assertEquals("\\string", exec("\"\\\\string\""));
+        assertEquals("\\string", exec("'\\\\string'"));
+        // `\"` is a `"` if surrounded by `"`s
+        assertEquals("\"string", exec("\"\\\"string\""));
+        Exception e = expectScriptThrows(IllegalArgumentException.class, () -> exec("'\\\"string'", false));
+        assertEquals("unexpected character ['\\\"]. The only valid escape sequences in strings starting with ['] are [\\\\] and [\\'].",
+                e.getMessage());
+        // `\'` is a `'` if surrounded by `'`s
+        e = expectScriptThrows(IllegalArgumentException.class, () -> exec("\"\\'string\"", false));
+        assertEquals("unexpected character [\"\\']. The only valid escape sequences in strings starting with [\"] are [\\\\] and [\\\"].",
+                e.getMessage());
+        assertEquals("'string", exec("'\\'string'"));
+        // We don't break native escapes like new line
+        assertEquals("\nstring", exec("\"\nstring\""));
+        assertEquals("\nstring", exec("'\nstring'"));
+
+        // And we're ok with strings with multiple escape sequences
+        assertEquals("\\str\"in\\g", exec("\"\\\\str\\\"in\\\\g\""));
+        assertEquals("st\\r'i\\ng", exec("'st\\\\r\\'i\\\\ng'"));
+    }
+
+    public void testStringTermination() {
+        // `'` inside of a string delimited with `"` should be ok
+        assertEquals("test'", exec("\"test'\""));
+        // `"` inside of a string delimited with `'` should be ok
+        assertEquals("test\"", exec("'test\"'"));
     }
 
     /** declaring variables for primitive types */

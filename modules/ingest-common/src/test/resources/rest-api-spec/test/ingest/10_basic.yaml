@@ -20,12 +20,13 @@
     - match:  { nodes.$master.ingest.processors.8.type: gsub }
     - match:  { nodes.$master.ingest.processors.9.type: join }
     - match:  { nodes.$master.ingest.processors.10.type: json }
-    - match:  { nodes.$master.ingest.processors.11.type: lowercase }
-    - match:  { nodes.$master.ingest.processors.12.type: remove }
-    - match:  { nodes.$master.ingest.processors.13.type: rename }
-    - match:  { nodes.$master.ingest.processors.14.type: script }
-    - match:  { nodes.$master.ingest.processors.15.type: set }
-    - match:  { nodes.$master.ingest.processors.16.type: sort }
-    - match:  { nodes.$master.ingest.processors.17.type: split }
-    - match:  { nodes.$master.ingest.processors.18.type: trim }
-    - match:  { nodes.$master.ingest.processors.19.type: uppercase }
+    - match:  { nodes.$master.ingest.processors.11.type: kv }
+    - match:  { nodes.$master.ingest.processors.12.type: lowercase }
+    - match:  { nodes.$master.ingest.processors.13.type: remove }
+    - match:  { nodes.$master.ingest.processors.14.type: rename }
+    - match:  { nodes.$master.ingest.processors.15.type: script }
+    - match:  { nodes.$master.ingest.processors.16.type: set }
+    - match:  { nodes.$master.ingest.processors.17.type: sort }
+    - match:  { nodes.$master.ingest.processors.18.type: split }
+    - match:  { nodes.$master.ingest.processors.19.type: trim }
+    - match:  { nodes.$master.ingest.processors.20.type: uppercase }

@@ -125,9 +125,11 @@ The available values are:
 * `ap-northeast` (`ap-northeast-1`) for Asia Pacific (Tokyo)
 * `ap-northeast-2` (`ap-northeast-2`) for Asia Pacific (Seoul)
 * `eu-west` (`eu-west-1`) for EU (Ireland)
+* `eu-west-2` (`eu-west-2`) for EU (London)
 * `eu-central` (`eu-central-1`) for EU (Frankfurt)
 * `sa-east` (`sa-east-1`) for South America (São Paulo)
 * `cn-north` (`cn-north-1`) for China (Beijing)
+* `ca-central` (`ca-central-1`) for Canada (Central)
 
 [[repository-s3-usage-signer]]
 ===== S3 Signer API
@@ -138,6 +140,17 @@ signer to use.
 
 If you are using a compatible S3 service which do not support Version 4 signing process, you may need to
 use `S3SignerType`, which is Signature Version 2.
+
+===== Read timeout
+
+Read timeout determines the amount of time to wait for data to be transferred over an established,
+open connection before the connection is timed out. Defaults to AWS SDK default value (`50s`).
+It can be configured with `cloud.aws.read_timeout` (or `cloud.aws.s3.read_timeout`) setting:
+
+[source, yaml]
+----
+cloud.aws.read_timeout: 30s
+----
 
 [[repository-s3-repository]]
 ==== S3 Repository
@@ -229,7 +242,7 @@ The following settings are supported:
 
     Set to `true` if you want to throttle retries. Defaults to AWS SDK default value (`false`).
 
-`read_only`::
+`readonly`::
 
     Makes repository read-only. Defaults to `false`.
 
@@ -251,7 +264,7 @@ The following settings are supported:
 
 `path_style_access`::
 
-    Activate path style access for [virtual hosting of buckets](http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html).
+    Activate path style access for http://docs.aws.amazon.com/AmazonS3/latest/dev/VirtualHosting.html[virtual hosting of buckets].
     The default behaviour is to detect which access style to use based on the configured endpoint (an IP will result
     in path-style access) and the bucket being accessed (some buckets are not valid DNS names).
 

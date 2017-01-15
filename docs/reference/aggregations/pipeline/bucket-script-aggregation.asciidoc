@@ -18,7 +18,7 @@ A `bucket_script` aggregation looks like this in isolation:
             "my_var1": "the_sum", <1>
             "my_var2": "the_value_count"
         },
-        "script": "my_var1 / my_var2"
+        "script": "params.my_var1 / params.my_var2"
     }
 }
 --------------------------------------------------

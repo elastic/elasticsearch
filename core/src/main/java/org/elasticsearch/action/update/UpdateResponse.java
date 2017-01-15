@@ -87,8 +87,8 @@ public class UpdateResponse extends DocWriteResponse {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        super.toXContent(builder, params);
+    public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
+        super.innerToXContent(builder, params);
         if (getGetResult() != null) {
             builder.startObject(Fields.GET);
             getGetResult().toXContentEmbedded(builder, params);

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
@@ -40,12 +39,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -68,6 +65,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.iterable.Iterables;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -103,7 +102,6 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.mapper.MapperRegistry;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.PluginsService;
@@ -133,7 +131,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -151,9 +148,9 @@ public class IndicesService extends AbstractLifecycleComponent
         Setting.positiveTimeSetting("indices.cache.cleanup_interval", TimeValue.timeValueMinutes(1), Property.NodeScope);
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
+    private final NamedXContentRegistry xContentRegistry;
     private final TimeValue shardsClosedTimeout;
     private final AnalysisRegistry analysisRegistry;
-    private final IndicesQueriesRegistry indicesQueriesRegistry;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexScopedSettings indexScopeSetting;
     private final IndicesFieldDataCache indicesFieldDataCache;
@@ -182,9 +179,9 @@ public class IndicesService extends AbstractLifecycleComponent
         threadPool.schedule(this.cleanInterval, ThreadPool.Names.SAME, this.cacheCleaner);
     }
 
-    public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
+    public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
                           ClusterSettings clusterSettings, AnalysisRegistry analysisRegistry,
-                          IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
+                          IndexNameExpressionResolver indexNameExpressionResolver,
                           MapperRegistry mapperRegistry, NamedWriteableRegistry namedWriteableRegistry,
                           ThreadPool threadPool, IndexScopedSettings indexScopedSettings, CircuitBreakerService circuitBreakerService,
                           BigArrays bigArrays, ScriptService scriptService, ClusterService clusterService, Client client,
@@ -193,9 +190,9 @@ public class IndicesService extends AbstractLifecycleComponent
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
+        this.xContentRegistry = xContentRegistry;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
-        this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesRequestCache = new IndicesRequestCache(settings);
         this.indicesQueryCache = new IndicesQueryCache(settings);
@@ -232,9 +229,7 @@ public class IndicesService extends AbstractLifecycleComponent
         for (final Index index : indices) {
             indicesStopExecutor.execute(() -> {
                 try {
-                    removeIndex(index, "shutdown", false);
-                } catch (Exception e) {
-                    logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to remove index on stop [{}]", index), e);
+                    removeIndex(index, IndexRemovalReason.NO_LONGER_ASSIGNED, "shutdown");
                 } finally {
                     latch.countDown();
                 }
@@ -443,12 +438,12 @@ public class IndicesService extends AbstractLifecycleComponent
         }
         return indexModule.newIndexService(
             nodeEnv,
+            xContentRegistry,
             this,
             circuitBreakerService,
             bigArrays,
             threadPool,
             scriptService,
-            indicesQueriesRegistry,
             clusterService,
             client,
             indicesQueryCache,
@@ -467,7 +462,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexScopeSetting);
         final IndexModule indexModule = new IndexModule(idxSettings, analysisRegistry);
         pluginsService.onIndexModule(indexModule);
-        return indexModule.newIndexMapperService(mapperRegistry);
+        return indexModule.newIndexMapperService(xContentRegistry, mapperRegistry);
     }
 
     /**
@@ -487,11 +482,7 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexService service =
                 createIndexService("metadata verification", metaData, indicesQueryCache, indicesFieldDataCache, emptyList(), s -> {});
             closeables.add(() -> service.close("metadata verification", false));
-            for (ObjectCursor<MappingMetaData> typeMapping : metaData.getMappings().values()) {
-                // don't apply the default mapping, it has been applied when the mapping was created
-                service.mapperService().merge(typeMapping.value.type(), typeMapping.value.source(),
-                    MapperService.MergeReason.MAPPING_RECOVERY, true);
-            }
+            service.mapperService().merge(metaData, MapperService.MergeReason.MAPPING_RECOVERY, true);
             if (metaData.equals(metaDataUpdate) == false) {
                 service.updateMetaData(metaDataUpdate);
             }
@@ -525,22 +516,8 @@ public class IndicesService extends AbstractLifecycleComponent
         return indexShard;
     }
 
-    /**
-     * Removes the given index from this service and releases all associated resources. Persistent parts of the index
-     * like the shards files, state and transaction logs are kept around in the case of a disaster recovery.
-     * @param index the index to remove
-     * @param reason  the high level reason causing this removal
-     */
     @Override
-    public void removeIndex(Index index, String reason) {
-        try {
-            removeIndex(index, reason, false);
-        } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to remove index ({})", reason), e);
-        }
-    }
-
-    private void removeIndex(Index index, String reason, boolean delete) {
+    public void removeIndex(final Index index, final IndexRemovalReason reason, final String extraInfo) {
         final String indexName = index.getName();
         try {
             final IndexService indexService;
@@ -558,22 +535,18 @@ public class IndicesService extends AbstractLifecycleComponent
                 listener = indexService.getIndexEventListener();
             }
 
-            listener.beforeIndexClosed(indexService);
-            if (delete) {
-                listener.beforeIndexDeleted(indexService);
-            }
-            logger.debug("{} closing index service (reason [{}])", index, reason);
-            indexService.close(reason, delete);
-            logger.debug("{} closed... (reason [{}])", index, reason);
-            listener.afterIndexClosed(indexService.index(), indexService.getIndexSettings().getSettings());
-            if (delete) {
-                final IndexSettings indexSettings = indexService.getIndexSettings();
-                listener.afterIndexDeleted(indexService.index(), indexSettings.getSettings());
+            listener.beforeIndexRemoved(indexService, reason);
+            logger.debug("{} closing index service (reason [{}][{}])", index, reason, extraInfo);
+            indexService.close(extraInfo, reason == IndexRemovalReason.DELETED);
+            logger.debug("{} closed... (reason [{}][{}])", index, reason, extraInfo);
+            final IndexSettings indexSettings = indexService.getIndexSettings();
+            listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
+            if (reason == IndexRemovalReason.DELETED) {
                 // now we are done - try to wipe data on disk if possible
-                deleteIndexStore(reason, indexService.index(), indexSettings);
+                deleteIndexStore(extraInfo, indexService.index(), indexSettings);
             }
-        } catch (IOException ex) {
-            throw new ElasticsearchException("failed to remove index " + index, ex);
+        } catch (Exception e) {
+            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to remove index {} ([{}][{}])", index, reason, extraInfo), e);
         }
     }
 
@@ -614,26 +587,8 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Deletes the given index. Persistent parts of the index
-     * like the shards files, state and transaction logs are removed once all resources are released.
-     *
-     * Equivalent to {@link #removeIndex(Index, String)} but fires
-     * different lifecycle events to ensure pending resources of this index are immediately removed.
-     * @param index the index to delete
-     * @param reason the high level reason causing this delete
-     */
-    @Override
-    public void deleteIndex(Index index, String reason) {
-        try {
-            removeIndex(index, reason, true);
-        } catch (Exception e) {
-            logger.warn((Supplier<?>) () -> new ParameterizedMessage("failed to delete index ({})", reason), e);
-        }
-    }
-
-    /**
      * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
-     * but does not deal with in-memory structures. For those call {@link #deleteIndex(Index, String)}
+     * but does not deal with in-memory structures. For those call {@link #removeIndex(Index, IndexRemovalReason, String)}
      */
     @Override
     public void deleteUnassignedIndex(String reason, IndexMetaData metaData, ClusterState clusterState) {
@@ -646,7 +601,7 @@ public class IndicesService extends AbstractLifecycleComponent
                                                     "the cluster state [" + index.getIndexUUID() + "] [" + metaData.getIndexUUID() + "]");
                 }
                 deleteIndexStore(reason, metaData, clusterState);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to delete unassigned index (reason [{}])", metaData.getIndex(), reason), e);
             }
         }
@@ -808,14 +763,14 @@ public class IndicesService extends AbstractLifecycleComponent
             final IndexMetaData metaData;
             try {
                 metaData = metaStateService.loadIndexState(index);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to load state file from a stale deleted index, folders will be left on disk", index), e);
                 return null;
             }
             final IndexSettings indexSettings = buildIndexSettings(metaData);
             try {
                 deleteIndexStoreIfDeletionAllowed("stale deleted index", index, indexSettings, ALWAYS_TRUE);
-            } catch (IOException e) {
+            } catch (Exception e) {
                 // we just warn about the exception here because if deleteIndexStoreIfDeletionAllowed
                 // throws an exception, it gets added to the list of pending deletes to be tried again
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("[{}] failed to delete index on disk", metaData.getIndex()), e);
@@ -1052,13 +1007,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public boolean hasUncompletedPendingDeletes() {
         return numUncompletedDeletes.get() > 0;
-    }
-
-    /**
-     * Returns this nodes {@link IndicesQueriesRegistry}
-     */
-    public IndicesQueriesRegistry getIndicesQueryRegistry() {
-        return indicesQueriesRegistry;
     }
 
     public AnalysisRegistry getAnalysis() {
@@ -1301,11 +1249,16 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
     public AliasFilter buildAliasFilter(ClusterState state, String index, String... expressions) {
-        Function<XContentParser, QueryParseContext> factory =
-            (parser) -> new QueryParseContext(indicesQueriesRegistry, parser, new ParseFieldMatcher(settings));
+        /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
+         * of dependencies we pass in a function that can perform the parsing. */
+        ShardSearchRequest.FilterParser filterParser = bytes -> {
+            try (XContentParser parser = XContentFactory.xContent(bytes).createParser(xContentRegistry, bytes)) {
+                return new QueryParseContext(parser).parseInnerQueryBuilder();
+            }
+        };
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, expressions);
         IndexMetaData indexMetaData = state.metaData().index(index);
-        return new AliasFilter(ShardSearchRequest.parseAliasFilter(factory, indexMetaData, aliases), aliases);
+        return new AliasFilter(ShardSearchRequest.parseAliasFilter(filterParser, indexMetaData, aliases), aliases);
     }
 
 }

@@ -112,13 +112,13 @@ public class NodeInfoStreamingTests extends ESTestCase {
         if (randomBoolean()) {
             int availableProcessors = randomIntBetween(1, 64);
             int allocatedProcessors = randomIntBetween(1, availableProcessors);
-            long refreshInterval = randomBoolean() ? -1 : randomPositiveLong();
+            long refreshInterval = randomBoolean() ? -1 : randomNonNegativeLong();
             String name = randomAsciiOfLengthBetween(3, 10);
             String arch = randomAsciiOfLengthBetween(3, 10);
             String version = randomAsciiOfLengthBetween(3, 10);
             osInfo = new OsInfo(refreshInterval, availableProcessors, allocatedProcessors, name, arch, version);
         }
-        ProcessInfo process = randomBoolean() ? null : new ProcessInfo(randomInt(), randomBoolean(), randomPositiveLong());
+        ProcessInfo process = randomBoolean() ? null : new ProcessInfo(randomInt(), randomBoolean(), randomNonNegativeLong());
         JvmInfo jvm = randomBoolean() ? null : JvmInfo.jvmInfo();
         ThreadPoolInfo threadPoolInfo = null;
         if (randomBoolean()) {

@@ -58,7 +58,8 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.1", "true");
         restHeaders.put("header.2", "true");
         restHeaders.put("header.3", "false");
-        restController.dispatchRequest(new FakeRestRequest.Builder().withHeaders(restHeaders).build(), null, null, threadContext);
+        restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build(), null, null,
+                threadContext);
         assertNull(threadContext.getHeader("header.1"));
         assertNull(threadContext.getHeader("header.2"));
         assertEquals("true", threadContext.getHeader("header.3"));
@@ -70,10 +71,10 @@ public class RestControllerTests extends ESTestCase {
         controller.registerHandler(RestRequest.Method.GET, "/trip", new FakeRestHandler(true));
         controller.registerHandler(RestRequest.Method.GET, "/do-not-trip", new FakeRestHandler(false));
 
-        assertTrue(controller.canTripCircuitBreaker(new FakeRestRequest.Builder().withPath("/trip").build()));
+        assertTrue(controller.canTripCircuitBreaker(new FakeRestRequest.Builder(xContentRegistry()).withPath("/trip").build()));
         // assume trip even on unknown paths
-        assertTrue(controller.canTripCircuitBreaker(new FakeRestRequest.Builder().withPath("/unknown-path").build()));
-        assertFalse(controller.canTripCircuitBreaker(new FakeRestRequest.Builder().withPath("/do-not-trip").build()));
+        assertTrue(controller.canTripCircuitBreaker(new FakeRestRequest.Builder(xContentRegistry()).withPath("/unknown-path").build()));
+        assertFalse(controller.canTripCircuitBreaker(new FakeRestRequest.Builder(xContentRegistry()).withPath("/do-not-trip").build()));
     }
 
     public void testRegisterAsDeprecatedHandler() {
@@ -128,7 +129,7 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), wrapper);
         restController.registerHandler(RestRequest.Method.GET, "/", handler);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        restController.dispatchRequest(new FakeRestRequest.Builder().build(), null, null, threadContext);
+        restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null, threadContext);
         assertTrue(wrapperCalled.get());
         assertFalse(handlerCalled.get());
     }

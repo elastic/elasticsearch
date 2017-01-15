@@ -364,7 +364,7 @@ existing index can be only restored if it's <<indices-open-close,closed>> and
 has the same number of shards as the index in the snapshot. The restore
 operation automatically opens restored indices if they were closed and creates
 new indices if they didn't exist in the cluster. If cluster state is restored
-with `include_cluster_state` (defaults to `false`), the restored templates that
+with `include_global_state` (defaults to `false`), the restored templates that
 don't currently exist in the cluster are added and existing templates with the
 same name are replaced by the restored templates. The restored persistent
 settings are added to the existing persistent settings.

@@ -280,6 +280,7 @@ public final class ConfigurationUtils {
 
     public static Processor readProcessor(Map<String, Processor.Factory> processorFactories,
                                            String type, Map<String, Object> config) throws Exception {
+        String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
         Processor.Factory factory = processorFactories.get(type);
         if (factory != null) {
             boolean ignoreFailure = ConfigurationUtils.readBooleanProperty(null, null, config, "ignore_failure", false);
@@ -287,7 +288,6 @@ public final class ConfigurationUtils {
                 ConfigurationUtils.readOptionalList(null, null, config, Pipeline.ON_FAILURE_KEY);
 
             List<Processor> onFailureProcessors = readProcessorConfigs(onFailureProcessorConfigs, processorFactories);
-            String tag = ConfigurationUtils.readOptionalStringProperty(null, null, config, TAG_KEY);
 
             if (onFailureProcessorConfigs != null && onFailureProcessors.isEmpty()) {
                 throw newConfigurationException(type, tag, Pipeline.ON_FAILURE_KEY,
@@ -309,6 +309,6 @@ public final class ConfigurationUtils {
                 throw newConfigurationException(type, tag, null, e);
             }
         }
-        throw new ElasticsearchParseException("No processor type exists with name [" + type + "]");
+        throw newConfigurationException(type, tag, null, "No processor type exists with name [" + type + "]");
     }
 }

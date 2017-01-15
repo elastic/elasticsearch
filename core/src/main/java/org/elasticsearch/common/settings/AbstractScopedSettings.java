@@ -195,6 +195,19 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
         addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
     }
 
+    /**
+     * Adds a settings consumer for affix settings. Affix settings have a namespace associated to it that needs to be available to the
+     * consumer in order to be processed correctly.
+     */
+    public synchronized <T> void addAffixUpdateConsumer(Setting.AffixSetting<T> setting,  BiConsumer<String, T> consumer,
+                                                        BiConsumer<String, T> validator) {
+        final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
+        if (setting != registeredSetting) {
+            throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
+        }
+        addSettingsUpdater(setting.newAffixUpdater(consumer, logger, validator));
+    }
+
     synchronized void addSettingsUpdater(SettingUpdater<?> updater) {
         this.settingUpdaters.add(updater);
     }
@@ -239,11 +252,9 @@ public abstract class AbstractScopedSettings extends AbstractComponent {
      */
     public final void validate(Settings settings) {
         List<RuntimeException> exceptions = new ArrayList<>();
-        // we want them sorted for deterministic error messages
-        SortedMap<String, String> sortedSettings = new TreeMap<>(settings.getAsMap());
-        for (Map.Entry<String, String> entry : sortedSettings.entrySet()) {
+        for (String key : settings.getAsMap().keySet()) { // settings iterate in deterministic fashion
             try {
-                validate(entry.getKey(), settings);
+                validate(key, settings);
             } catch (RuntimeException ex) {
                 exceptions.add(ex);
             }

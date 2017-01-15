@@ -22,7 +22,6 @@ package org.elasticsearch.search;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.Index;
@@ -35,21 +34,20 @@ import java.io.IOException;
  */
 public class SearchShardTarget implements Writeable, Comparable<SearchShardTarget> {
 
-    private Text nodeId;
-    private Text index;
-    private ShardId shardId;
+    private final Text nodeId;
+    private final ShardId shardId;
 
     public SearchShardTarget(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             nodeId = in.readText();
+        } else {
+            nodeId = null;
         }
         shardId = ShardId.readShardId(in);
-        index = new Text(shardId.getIndexName());
     }
 
     public SearchShardTarget(String nodeId, ShardId shardId) {
         this.nodeId = nodeId == null ? null : new Text(nodeId);
-        this.index = new Text(shardId.getIndexName());
         this.shardId = shardId;
     }
 
@@ -58,33 +56,16 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
     }
 
     @Nullable
-    public String nodeId() {
+    public String getNodeId() {
         return nodeId.string();
     }
 
-    @Nullable
-    public String getNodeId() {
-        return nodeId();
-    }
-
-    public Text nodeIdText() {
+    public Text getNodeIdText() {
         return this.nodeId;
     }
 
-    public String index() {
-        return index.string();
-    }
-
     public String getIndex() {
-        return index();
-    }
-
-    public Text indexText() {
-        return this.index;
-    }
-
-    public ShardId shardId() {
-        return shardId;
+        return shardId.getIndexName();
     }
 
     public ShardId getShardId() {
@@ -93,7 +74,7 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
 
     @Override
     public int compareTo(SearchShardTarget o) {
-        int i = index.string().compareTo(o.index());
+        int i = shardId.getIndexName().compareTo(o.getIndex());
         if (i == 0) {
             i = shardId.getId() - o.shardId.id();
         }
@@ -125,7 +106,7 @@ public class SearchShardTarget implements Writeable, Comparable<SearchShardTarge
     @Override
     public int hashCode() {
         int result = nodeId != null ? nodeId.hashCode() : 0;
-        result = 31 * result + (index != null ? index.hashCode() : 0);
+        result = 31 * result + (shardId.getIndexName() != null ? shardId.getIndexName().hashCode() : 0);
         result = 31 * result + shardId.hashCode();
         return result;
     }

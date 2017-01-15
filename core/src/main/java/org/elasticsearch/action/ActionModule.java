@@ -170,8 +170,6 @@ import org.elasticsearch.action.ingest.DeletePipelineAction;
 import org.elasticsearch.action.ingest.DeletePipelineTransportAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.GetPipelineTransportAction;
-import org.elasticsearch.action.ingest.IngestActionFilter;
-import org.elasticsearch.action.ingest.IngestProxyActionFilter;
 import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
@@ -312,7 +310,6 @@ import org.elasticsearch.rest.action.search.RestExplainAction;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchScrollAction;
-import org.elasticsearch.rest.action.search.RestSuggestAction;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import static java.util.Collections.unmodifiableList;
@@ -334,13 +331,13 @@ public class ActionModule extends AbstractModule {
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
 
-    public ActionModule(boolean ingestEnabled, boolean transportClient, Settings settings, IndexNameExpressionResolver resolver,
+    public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver resolver,
                         ClusterSettings clusterSettings, ThreadPool threadPool, List<ActionPlugin> actionPlugins) {
         this.transportClient = transportClient;
         this.settings = settings;
         this.actionPlugins = actionPlugins;
         actions = setupActions(actionPlugins);
-        actionFilters = setupActionFilters(actionPlugins, ingestEnabled);
+        actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, clusterSettings, resolver);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<String> headers = actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()).collect(Collectors.toSet());
@@ -477,20 +474,8 @@ public class ActionModule extends AbstractModule {
         return unmodifiableMap(actions.getRegistry());
     }
 
-    private List<Class<? extends ActionFilter>> setupActionFilters(List<ActionPlugin> actionPlugins, boolean ingestEnabled) {
-        List<Class<? extends ActionFilter>> filters = new ArrayList<>();
-        if (transportClient == false) {
-            if (ingestEnabled) {
-                filters.add(IngestActionFilter.class);
-            } else {
-                filters.add(IngestProxyActionFilter.class);
-            }
-        }
-
-        for (ActionPlugin plugin : actionPlugins) {
-            filters.addAll(plugin.getActionFilters());
-        }
-        return unmodifiableList(filters);
+    private List<Class<? extends ActionFilter>> setupActionFilters(List<ActionPlugin> actionPlugins) {
+        return unmodifiableList(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toList()));
     }
 
     static Set<Class<? extends RestHandler>> setupRestHandlers(List<ActionPlugin> actionPlugins) {
@@ -564,7 +549,6 @@ public class ActionModule extends AbstractModule {
         registerRestHandler(handlers, RestMultiGetAction.class);
         registerRestHandler(handlers, RestDeleteAction.class);
         registerRestHandler(handlers, org.elasticsearch.rest.action.document.RestCountAction.class);
-        registerRestHandler(handlers, RestSuggestAction.class);
         registerRestHandler(handlers, RestTermVectorsAction.class);
         registerRestHandler(handlers, RestMultiTermVectorsAction.class);
         registerRestHandler(handlers, RestBulkAction.class);

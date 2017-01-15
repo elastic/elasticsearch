@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 
@@ -74,7 +73,7 @@ import java.util.function.Function;
  * Note: if optional constructor arguments aren't specified then the number of allocations is always the worst case.
  * </p>
  */
-public final class ConstructingObjectParser<Value, Context extends ParseFieldMatcherSupplier> extends AbstractObjectParser<Value, Context> {
+public final class ConstructingObjectParser<Value, Context> extends AbstractObjectParser<Value, Context> {
     /**
      * Consumer that marks a field as a required constructor argument instead of a real object field.
      */
@@ -140,10 +139,15 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
     @Override
     public Value apply(XContentParser parser, Context context) {
         try {
-            return objectParser.parse(parser, new Target(parser), context).finish();
+            return parse(parser, context);
         } catch (IOException e) {
             throw new ParsingException(parser.getTokenLocation(), "[" + objectParser.getName()  + "] failed to parse object", e);
         }
+    }
+
+    @Override
+    public Value parse(XContentParser parser, Context context) throws IOException {
+        return objectParser.parse(parser, new Target(parser), context).finish();
     }
 
     /**
@@ -231,7 +235,7 @@ public final class ConstructingObjectParser<Value, Context extends ParseFieldMat
 
     /**
      * The target of the {@linkplain ConstructingObjectParser}. One of these is built every time you call
-     * {@linkplain ConstructingObjectParser#apply(XContentParser, ParseFieldMatcherSupplier)} Note that it is not static so it inherits
+     * {@linkplain ConstructingObjectParser#apply(XContentParser, Object)} Note that it is not static so it inherits
      * {@linkplain ConstructingObjectParser}'s type parameters.
      */
     private class Target {

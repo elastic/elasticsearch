@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,7 +58,7 @@ public class RerouteExplanation implements ToXContent {
 
     public static void writeTo(RerouteExplanation explanation, StreamOutput out) throws IOException {
         out.writeNamedWriteable(explanation.command);
-        Decision.writeTo(explanation.decisions, out);
+        explanation.decisions.writeTo(out);
     }
 
     @Override
@@ -67,15 +66,9 @@ public class RerouteExplanation implements ToXContent {
         builder.startObject();
         builder.field("command", command.name());
         builder.field("parameters", command);
-        // The Decision could be a Multi or Single decision, and they should
-        // both be encoded the same, so check and wrap in an array if necessary
-        if (decisions instanceof Decision.Multi) {
-            decisions.toXContent(builder, params);
-        } else {
-            builder.startArray("decisions");
-            decisions.toXContent(builder, params);
-            builder.endArray();
-        }
+        builder.startArray("decisions");
+        decisions.toXContent(builder, params);
+        builder.endArray();
         builder.endObject();
         return builder;
     }

@@ -40,13 +40,10 @@ public class RestRolloverIndexAction extends BaseRestHandler {
         controller.registerHandler(RestRequest.Method.POST, "/{index}/_rollover/{new_index}", this);
     }
 
-    @SuppressWarnings({"unchecked"})
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RolloverRequest rolloverIndexRequest = new RolloverRequest(request.param("index"), request.param("new_index"));
-        if (request.hasContent()) {
-            rolloverIndexRequest.source(request.content());
-        }
+        request.applyContentParser(parser -> RolloverRequest.PARSER.parse(parser, rolloverIndexRequest, null));
         rolloverIndexRequest.dryRun(request.paramAsBoolean("dry_run", false));
         rolloverIndexRequest.timeout(request.paramAsTime("timeout", rolloverIndexRequest.timeout()));
         rolloverIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", rolloverIndexRequest.masterNodeTimeout()));

@@ -48,7 +48,7 @@ public class RestIndicesStatsActionTests extends ESTestCase {
         final HashMap<String, String> params = new HashMap<>();
         final String metric = randomAsciiOfLength(64);
         params.put("metric", metric);
-        final RestRequest request = new FakeRestRequest.Builder().withPath("/_stats").withParams(params).build();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(request, mock(NodeClient.class)));
@@ -58,7 +58,7 @@ public class RestIndicesStatsActionTests extends ESTestCase {
     public void testUnrecognizedMetricDidYouMean() throws IOException {
         final HashMap<String, String> params = new HashMap<>();
         params.put("metric", "request_cache,fieldata,unrecognized");
-        final RestRequest request = new FakeRestRequest.Builder().withPath("/_stats").withParams(params).build();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(request, mock(NodeClient.class)));
@@ -73,7 +73,7 @@ public class RestIndicesStatsActionTests extends ESTestCase {
         final HashMap<String, String> params = new HashMap<>();
         final String metric = randomSubsetOf(1, RestIndicesStatsAction.METRICS.keySet()).get(0);
         params.put("metric", "_all," + metric);
-        final RestRequest request = new FakeRestRequest.Builder().withPath("/_stats").withParams(params).build();
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_stats").withParams(params).build();
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> action.prepareRequest(request, mock(NodeClient.class)));

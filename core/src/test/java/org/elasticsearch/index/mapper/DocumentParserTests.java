@@ -49,6 +49,7 @@ import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 // TODO: make this a real unit test
 public class DocumentParserTests extends ESSingleNodeTestCase {
@@ -1217,47 +1218,48 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("type.inner.inner_field"), equalTo("inner_value"));
     }
 
-    public void testIncludeInAllPropagation() throws IOException {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .field("dynamic", "strict")
-                    .startObject("properties")
-                        .startObject("a")
-                            .field("type", "keyword")
-                        .endObject()
-                        .startObject("o")
-                            .field("include_in_all", false)
-                            .startObject("properties")
-                                .startObject("a")
-                                    .field("type", "keyword")
-                                .endObject()
-                                .startObject("o")
-                                    .field("include_in_all", true)
-                                    .startObject("properties")
-                                        .startObject("a")
-                                            .field("type", "keyword")
-                                        .endObject()
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject().endObject().string();
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("a", "b")
-                    .startObject("o")
-                        .field("a", "c")
-                        .startObject("o")
-                            .field("a", "d")
-                        .endObject()
-                    .endObject()
-                .endObject().bytes());
-        Set<String> values = new HashSet<>();
-        for (IndexableField f : doc.rootDoc().getFields("_all")) {
-            values.add(f.stringValue());
-        }
-        assertEquals(new HashSet<>(Arrays.asList("b", "d")), values);
+    public void testDynamicDateDetectionDisabledOnNumbers() throws IOException {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_date_formats")
+                    .value("yyyy")
+                .endArray().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject()
+                .field("foo", "2016")
+            .endObject().bytes();
+
+        // Even though we matched the dynamic format, we do not match on numbers,
+        // which are too likely to be false positives
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update);
+        Mapper dateMapper = update.root().getMapper("foo");
+        assertNotNull(dateMapper);
+        assertThat(dateMapper, not(instanceOf(DateFieldMapper.class)));
+    }
+
+    public void testDynamicDateDetectionEnabledWithNoSpecialCharacters() throws IOException {
+        DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startArray("dynamic_date_formats")
+                    .value("yyyy MM")
+                .endArray().endObject().endObject().string();
+        DocumentMapper mapper = mapperParser.parse("type", new CompressedXContent(mapping));
+
+        BytesReference bytes = XContentFactory.jsonBuilder()
+            .startObject()
+                .field("foo", "2016 12")
+            .endObject().bytes();
+
+        // We should have generated a date field
+        ParsedDocument doc = mapper.parse("test", "type", "1", bytes);
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update);
+        Mapper dateMapper = update.root().getMapper("foo");
+        assertNotNull(dateMapper);
+        assertThat(dateMapper, instanceOf(DateFieldMapper.class));
     }
 }

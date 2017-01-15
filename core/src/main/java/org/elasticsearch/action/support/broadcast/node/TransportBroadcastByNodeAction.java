@@ -505,11 +505,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             indicesLevelRequest = readRequestFrom(in);
-            int size = in.readVInt();
-            shards = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                shards.add(new ShardRouting(in));
-            }
+            shards = in.readList(ShardRouting::new);
             nodeId = in.readString();
         }
 
@@ -517,11 +513,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             indicesLevelRequest.writeTo(out);
-            int size = shards.size();
-            out.writeVInt(size);
-            for (int i = 0; i < size; i++) {
-                shards.get(i).writeTo(out);
-            }
+            out.writeList(shards);
             out.writeString(nodeId);
         }
     }
@@ -566,18 +558,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             super.readFrom(in);
             nodeId = in.readString();
             totalShards = in.readVInt();
-            int resultsSize = in.readVInt();
-            results = new ArrayList<>(resultsSize);
-            for (; resultsSize > 0; resultsSize--) {
-                final ShardOperationResult result = in.readBoolean() ? readShardResult(in) : null;
-                results.add(result);
-            }
+            results = in.readList((stream) -> stream.readBoolean() ? readShardResult(stream) : null);
             if (in.readBoolean()) {
-                int failureShards = in.readVInt();
-                exceptions = new ArrayList<>(failureShards);
-                for (int i = 0; i < failureShards; i++) {
-                    exceptions.add(new BroadcastShardOperationFailedException(in));
-                }
+                exceptions = in.readList(BroadcastShardOperationFailedException::new);
             } else {
                 exceptions = null;
             }
@@ -594,11 +577,7 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
             }
             out.writeBoolean(exceptions != null);
             if (exceptions != null) {
-                int failureShards = exceptions.size();
-                out.writeVInt(failureShards);
-                for (int i = 0; i < failureShards; i++) {
-                    exceptions.get(i).writeTo(out);
-                }
+                out.writeList(exceptions);
             }
         }
     }

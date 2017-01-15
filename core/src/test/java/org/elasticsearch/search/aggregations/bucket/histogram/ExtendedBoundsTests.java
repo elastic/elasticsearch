@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -36,7 +35,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.bucket.histogram.ExtendedBounds;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTimeZone;
@@ -101,7 +99,7 @@ public class ExtendedBoundsTests extends ESTestCase {
         SearchContext context = mock(SearchContext.class);
         QueryShardContext qsc = new QueryShardContext(0,
                 new IndexSettings(IndexMetaData.builder("foo").settings(indexSettings).build(), indexSettings), null, null, null, null,
-                null, null, null, null, null, () -> now);
+                null, xContentRegistry(), null, null, () -> now);
         when(context.getQueryShardContext()).thenReturn(qsc);
         FormatDateTimeFormatter formatter = Joda.forPattern("dateOptionalTime");
         DocValueFormat format = new DocValueFormat.DateTime(formatter, DateTimeZone.UTC);
@@ -164,7 +162,7 @@ public class ExtendedBoundsTests extends ESTestCase {
             orig.toXContent(out, ToXContent.EMPTY_PARAMS);
             out.endObject();
 
-            try (XContentParser in = JsonXContent.jsonXContent.createParser(out.bytes())) {
+            try (XContentParser in = createParser(JsonXContent.jsonXContent, out.bytes())) {
                 XContentParser.Token token = in.currentToken();
                 assertNull(token);
 
@@ -175,7 +173,7 @@ public class ExtendedBoundsTests extends ESTestCase {
                 assertThat(token, equalTo(XContentParser.Token.FIELD_NAME));
                 assertThat(in.currentName(), equalTo(ExtendedBounds.EXTENDED_BOUNDS_FIELD.getPreferredName()));
 
-                ExtendedBounds read = ExtendedBounds.PARSER.apply(in, () -> ParseFieldMatcher.STRICT);
+                ExtendedBounds read = ExtendedBounds.PARSER.apply(in, null);
                 assertEquals(orig, read);
             } catch (Exception e) {
                 throw new Exception("Error parsing [" + out.bytes().utf8ToString() + "]", e);

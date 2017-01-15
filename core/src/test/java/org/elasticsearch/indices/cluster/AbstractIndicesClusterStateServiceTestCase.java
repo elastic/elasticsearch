@@ -197,23 +197,12 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public synchronized void deleteIndex(Index index, String reason) {
-            if (hasIndex(index) == false) {
-                return;
+        public synchronized void removeIndex(Index index, IndexRemovalReason reason, String extraInfo) {
+            if (hasIndex(index)) {
+                Map<String, MockIndexService> newIndices = new HashMap<>(indices);
+                newIndices.remove(index.getUUID());
+                indices = unmodifiableMap(newIndices);
             }
-            Map<String, MockIndexService> newIndices = new HashMap<>(indices);
-            newIndices.remove(index.getUUID());
-            indices = unmodifiableMap(newIndices);
-        }
-
-        @Override
-        public synchronized void removeIndex(Index index, String reason) {
-            if (hasIndex(index) == false) {
-                return;
-            }
-            Map<String, MockIndexService> newIndices = new HashMap<>(indices);
-            newIndices.remove(index.getUUID());
-            indices = unmodifiableMap(newIndices);
         }
 
         @Override

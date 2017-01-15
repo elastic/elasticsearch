@@ -25,15 +25,13 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -76,17 +74,10 @@ public class RestGetAction extends BaseRestHandler {
 
         getRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
-        return channel -> client.get(getRequest, new RestBuilderListener<GetResponse>(channel) {
+        return channel -> client.get(getRequest, new RestToXContentListener<GetResponse>(channel) {
             @Override
-            public RestResponse buildResponse(GetResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject();
-                response.toXContent(builder, request);
-                builder.endObject();
-                if (!response.isExists()) {
-                    return new BytesRestResponse(NOT_FOUND, builder);
-                } else {
-                    return new BytesRestResponse(OK, builder);
-                }
+            protected RestStatus getStatus(GetResponse response) {
+                return response.isExists() ? OK : NOT_FOUND;
             }
         });
     }

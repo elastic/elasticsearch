@@ -271,7 +271,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                     "}";
 
             ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
-            assertEquals("Fuziness not allowed for type [" + type +"]", e.getMessage());
+            assertEquals("Fuzziness not allowed for type [" + type +"]", e.getMessage());
         }
     }
 

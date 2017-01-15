@@ -23,14 +23,12 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.procedures.IntProcedure;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.util.English;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -64,7 +62,6 @@ import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -98,8 +95,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @TestLogging("_root:DEBUG,org.elasticsearch.indices.recovery:TRACE,org.elasticsearch.index.shard.service:TRACE")
-@LuceneTestCase.AwaitsFix(bugUrl = "primary relocation needs to transfer the global check point. otherwise the new primary sends a " +
-    "an unknown global checkpoint during sync, causing assertions to trigger")
 public class RelocationIT extends ESIntegTestCase {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
@@ -183,15 +178,13 @@ public class RelocationIT extends ESIntegTestCase {
 
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-        assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
         logger.info("--> verifying count again...");
         client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().totalHits(), equalTo(20L));
     }
 
-    @TestLogging("action.index:TRACE,action.bulk:TRACE,action.search:TRACE")
+    @TestLogging("org.elasticsearch.action.index:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
     public void testRelocationWhileIndexingRandom() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -210,12 +203,12 @@ public class RelocationIT extends ESIntegTestCase {
         ).get();
 
 
-        for (int i = 1; i < numberOfNodes; i++) {
-            logger.info("--> starting [node{}] ...", i + 1);
-            nodes[i] = internalCluster().startNode();
-            if (i != numberOfNodes - 1) {
+        for (int i = 2; i <= numberOfNodes; i++) {
+            logger.info("--> starting [node{}] ...", i);
+            nodes[i - 1] = internalCluster().startNode();
+            if (i != numberOfNodes) {
                 ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID)
-                        .setWaitForNodes(Integer.toString(i + 1)).setWaitForGreenStatus().execute().actionGet();
+                        .setWaitForNodes(Integer.toString(i)).setWaitForGreenStatus().execute().actionGet();
                 assertThat(healthResponse.isTimedOut(), equalTo(false));
             }
         }
@@ -246,8 +239,6 @@ public class RelocationIT extends ESIntegTestCase {
                 }
                 ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
                 assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
-                clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNoRelocatingShards(true).setTimeout(ACCEPTABLE_RELOCATION_TIME).execute().actionGet();
-                assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
                 indexer.pauseIndexing();
                 logger.info("--> DONE relocate the shard from {} to {}", fromNode, toNode);
             }
@@ -261,7 +252,6 @@ public class RelocationIT extends ESIntegTestCase {
             logger.info("--> searching the index");
             boolean ranOnce = false;
             for (int i = 0; i < 10; i++) {
-                try {
                     logger.info("--> START search test round {}", i + 1);
                     SearchHits hits = client().prepareSearch("test").setQuery(matchAllQuery()).setSize((int) indexer.totalIndexedDocs()).storedFields().execute().actionGet().getHits();
                     ranOnce = true;
@@ -283,10 +273,7 @@ public class RelocationIT extends ESIntegTestCase {
                     }
                     assertThat(hits.totalHits(), equalTo(indexer.totalIndexedDocs()));
                     logger.info("--> DONE search test round {}", i + 1);
-                } catch (SearchPhaseExecutionException ex) {
-                    // TODO: the first run fails with this failure, waiting for relocating nodes set to 0 is not enough?
-                    logger.warn("Got exception while searching.", ex);
-                }
+
             }
             if (!ranOnce) {
                 fail();
@@ -294,6 +281,7 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
+    @TestLogging("org.elasticsearch.action.index:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
     public void testRelocationWhileRefreshing() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -464,6 +452,7 @@ public class RelocationIT extends ESIntegTestCase {
         }
     }
 
+    @TestLogging("org.elasticsearch.action.index:TRACE,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.search:TRACE")
     public void testIndexAndRelocateConcurrently() throws ExecutionException, InterruptedException {
         int halfNodes = randomIntBetween(1, 3);
         Settings[] nodeSettings = Stream.concat(
@@ -533,20 +522,20 @@ public class RelocationIT extends ESIntegTestCase {
         }
 
         @Override
-        public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+        protected void sendRequest(Connection connection, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 RecoveryFileChunkRequest chunkRequest = (RecoveryFileChunkRequest) request;
                 if (chunkRequest.name().startsWith(IndexFileNames.SEGMENTS)) {
                     // corrupting the segments_N files in order to make sure future recovery re-send files
-                    logger.debug("corrupting [{}] to {}. file name: [{}]", action, node, chunkRequest.name());
+                    logger.debug("corrupting [{}] to {}. file name: [{}]", action, connection.getNode(), chunkRequest.name());
                     assert chunkRequest.content().toBytesRef().bytes == chunkRequest.content().toBytesRef().bytes : "no internal reference!!";
                     byte[] array = chunkRequest.content().toBytesRef().bytes;
                     array[0] = (byte) ~array[0]; // flip one byte in the content
                     corruptionCount.countDown();
                 }
-                transport.sendRequest(node, requestId, action, request, options);
+                super.sendRequest(connection, requestId, action, request, options);
             } else {
-                transport.sendRequest(node, requestId, action, request, options);
+                super.sendRequest(connection, requestId, action, request, options);
             }
         }
     }

@@ -175,7 +175,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     // see #11730
     public void testCommonTermsQuery4() throws IOException {
         boolean disableCoord = randomBoolean();
-        Query parsedQuery = parseQuery(commonTermsQuery("field", "text").disableCoord(disableCoord).buildAsBytes()).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(commonTermsQuery("field", "text").disableCoord(disableCoord)).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.isCoordDisabled(), equalTo(disableCoord));

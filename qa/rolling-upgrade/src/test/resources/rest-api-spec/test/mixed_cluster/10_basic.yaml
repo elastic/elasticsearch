@@ -27,6 +27,13 @@
           - '{"f1": "v5_mixed", "f2": 9}'
 
  - do:
+     index:
+       index: test_index
+       type: test_type
+       id: d10
+       body: {"f1": "v6_mixed", "f2": 10}
+
+ - do:
      indices.flush:
         index: test_index
 
@@ -34,4 +41,32 @@
      search:
         index: test_index
 
- - match: { hits.total: 10 } # 5 docs from old cluster, 5 docs from mixed cluster
+ - match: { hits.total: 11 } # 5 docs from old cluster, 6 docs from mixed cluster
+
+ - do:
+     delete:
+       index: test_index
+       type: test_type
+       id: d10
+
+ - do:
+     indices.flush:
+        index: test_index
+
+ - do:
+     search:
+        index: test_index
+
+ - match: { hits.total: 10 }
+
+---
+"Verify custom cluster metadata still exists during upgrade":
+  - do:
+      snapshot.get_repository:
+        repository: my_repo
+  - is_true: my_repo
+
+  - do:
+      ingest.get_pipeline:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }

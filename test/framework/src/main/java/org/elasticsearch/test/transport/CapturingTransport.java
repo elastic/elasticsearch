@@ -41,6 +41,7 @@ import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportServiceAdapter;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,6 +51,7 @@ import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.apache.lucene.util.LuceneTestCase.rarely;
 
@@ -74,6 +76,8 @@ public class CapturingTransport implements Transport {
 
     private ConcurrentMap<Long, Tuple<DiscoveryNode, String>> requests = new ConcurrentHashMap<>();
     private BlockingQueue<CapturedRequest> capturedRequests = ConcurrentCollections.newBlockingQueue();
+    private final AtomicLong requestId = new AtomicLong();
+
 
     /** returns all requests captured so far. Doesn't clear the captured request list. See {@link #clear()} */
     public CapturedRequest[] capturedRequests() {
@@ -187,12 +191,26 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options)
-        throws IOException, TransportException {
-        requests.put(requestId, Tuple.tuple(node, action));
-        capturedRequests.add(new CapturedRequest(node, requestId, action, request));
-    }
+    public Connection openConnection(DiscoveryNode node, ConnectionProfile profile) throws IOException {
+        return new Connection() {
+            @Override
+            public DiscoveryNode getNode() {
+                return node;
+            }
 
+            @Override
+            public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
+                throws IOException, TransportException {
+                requests.put(requestId, Tuple.tuple(node, action));
+                capturedRequests.add(new CapturedRequest(node, requestId, action, request));
+            }
+
+            @Override
+            public void close() throws IOException {
+
+            }
+        };
+    }
 
     @Override
     public void transportServiceAdapter(TransportServiceAdapter adapter) {
@@ -263,4 +281,16 @@ public class CapturingTransport implements Transport {
         return Collections.emptyList();
     }
 
+    @Override
+    public long newRequestId() {
+        return requestId.incrementAndGet();
+    }
+
+    public Connection getConnection(DiscoveryNode node) {
+        try {
+            return openConnection(node, null);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 }

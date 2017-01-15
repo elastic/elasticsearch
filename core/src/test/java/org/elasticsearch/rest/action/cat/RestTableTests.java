@@ -253,7 +253,7 @@ public class RestTableTests extends ESTestCase {
     }
 
     private RestResponse assertResponseContentType(Map<String, String> headers, String mediaType) throws Exception {
-        FakeRestRequest requestWithAcceptHeader = new FakeRestRequest.Builder().withHeaders(headers).build();
+        FakeRestRequest requestWithAcceptHeader = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(headers).build();
         table.startRow();
         table.addCell("foo");
         table.addCell("foo");

@@ -112,37 +112,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         return Math.min(2, cluster().numDataNodes() - 1);
     }
 
-    public void testOmitNormsOnAll() throws ExecutionException, InterruptedException, IOException {
-        assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1")
-                        .startObject("_all").field("norms", false).endObject()
-                        .endObject().endObject())
-                .setSettings(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)); // only one shard otherwise IDF might be different for comparing scores
-
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
-                client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
-                client().prepareIndex("test", "type1", "3").setSource("field1", "quick"));
-
-        assertHitCount(client().prepareSearch().setQuery(matchQuery("_all", "quick")).get(), 3L);
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("_all", "quick")).setExplain(true).get();
-        SearchHit[] hits = searchResponse.getHits().hits();
-        assertThat(hits.length, equalTo(3));
-        assertThat(hits[0].score(), allOf(equalTo(hits[1].getScore()), equalTo(hits[2].getScore())));
-        cluster().wipeIndices("test");
-
-        createIndex("test");
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
-                client().prepareIndex("test", "type1", "2").setSource("field1", "quick brown"),
-                client().prepareIndex("test", "type1", "3").setSource("field1", "quick"));
-
-        assertHitCount(client().prepareSearch().setQuery(matchQuery("_all", "quick")).get(), 3L);
-        searchResponse = client().prepareSearch().setQuery(matchQuery("_all", "quick")).get();
-        hits = searchResponse.getHits().hits();
-        assertThat(hits.length, equalTo(3));
-        assertThat(hits[0].score(), allOf(greaterThan(hits[1].getScore()), greaterThan(hits[2].getScore())));
-
-    }
-
     // see #3952
     public void testEmptyQueryString() throws ExecutionException, InterruptedException, IOException {
         createIndex("test");
@@ -282,20 +251,6 @@ public class SearchQueryIT extends ESIntegTestCase {
             assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(2.0, 0.1));
             assertThat((double)searchResponse.getHits().getAt(1).score(),closeTo(2.0, 0.1));
         }
-    }
-
-    public void testCommonTermsQueryOnAllField() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "message", "type=text", "comment", "type=text,boost=5.0")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
-        indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("message", "test message", "comment", "whatever"),
-                client().prepareIndex("test", "type1", "2").setSource("message", "hello world", "comment", "test comment"));
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(commonTermsQuery("_all", "test")).get();
-        assertHitCount(searchResponse, 2L);
-        assertFirstHit(searchResponse, hasId("2"));
-        assertSecondHit(searchResponse, hasId("1"));
-        assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
     }
 
     public void testCommonTermsQuery() throws Exception {
@@ -528,7 +483,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1L);
 
         SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch()
-                .setQuery(queryStringQuery("future:[now/D TO now+2M/d]")).get());
+                .setQuery(queryStringQuery("future:[now/D TO now+2M/d]").lenient(false)).get());
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.toString(), containsString("unit [D] not supported for date math"));
     }
@@ -941,7 +896,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             .should(boolQuery()
                 .should(termQuery("field1", "value1"))
                 .should(termQuery("field1", "value2"))
-                .minimumNumberShouldMatch(3));
+                .minimumShouldMatch(3));
         SearchResponse searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("1"));
@@ -951,9 +906,9 @@ public class SearchQueryIT extends ESIntegTestCase {
             .should(boolQuery()
                 .should(termQuery("field1", "value1"))
                 .should(termQuery("field1", "value2"))
-                .minimumNumberShouldMatch(1))
+                .minimumShouldMatch(1))
             // Only one should clause is defined, returns no docs.
-            .minimumNumberShouldMatch(2);
+            .minimumShouldMatch(2);
         searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 0L);
 
@@ -962,8 +917,8 @@ public class SearchQueryIT extends ESIntegTestCase {
             .should(boolQuery()
                 .should(termQuery("field1", "value1"))
                 .should(termQuery("field1", "value2"))
-                .minimumNumberShouldMatch(3))
-            .minimumNumberShouldMatch(1);
+                .minimumShouldMatch(3))
+            .minimumShouldMatch(1);
         searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("1"));
@@ -973,7 +928,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             .must(boolQuery()
                 .should(termQuery("field1", "value1"))
                 .should(termQuery("field1", "value2"))
-                .minimumNumberShouldMatch(3));
+                .minimumShouldMatch(3));
         searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 0L);
     }
@@ -1696,23 +1651,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("test")
                 .setQuery(multiMatchQuery("value2").field("field2", 2).lenient(true)).get();
         assertHitCount(searchResponse, 1L);
-    }
-
-    public void testAllFieldEmptyMapping() throws Exception {
-        client().prepareIndex("myindex", "mytype").setId("1").setSource("{}").setRefreshPolicy(IMMEDIATE).get();
-        SearchResponse response = client().prepareSearch("myindex").setQuery(matchQuery("_all", "foo")).get();
-        assertNoFailures(response);
-    }
-
-    public void testAllDisabledButQueried() throws Exception {
-        createIndex("myindex");
-        assertAcked(client().admin().indices().preparePutMapping("myindex").setType("mytype").setSource(
-                jsonBuilder().startObject().startObject("mytype").startObject("_all").field("enabled", false)
-                .endObject().endObject().endObject()));
-        client().prepareIndex("myindex", "mytype").setId("1").setSource("bar", "foo").setRefreshPolicy(IMMEDIATE).get();
-        SearchResponse response = client().prepareSearch("myindex").setQuery(matchQuery("_all", "foo")).get();
-        assertNoFailures(response);
-        assertHitCount(response, 0);
     }
 
     public void testMinScore() throws ExecutionException, InterruptedException {

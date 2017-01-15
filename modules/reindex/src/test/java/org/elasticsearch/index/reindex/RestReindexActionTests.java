@@ -21,22 +21,23 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.reindex.RestReindexAction.ReindexParseContext;
 import org.elasticsearch.index.reindex.remote.RemoteInfo;
-import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.search.SearchRequestParsers;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.mockito.Mockito.mock;
 
 public class RestReindexActionTests extends ESTestCase {
     public void testBuildRemoteInfoNoRemote() throws IOException {
@@ -118,13 +119,36 @@ public class RestReindexActionTests extends ESTestCase {
             b.endObject();
             request = b.bytes();
         }
-        try (XContentParser p = JsonXContent.jsonXContent.createParser(request)) {
+        try (XContentParser p = createParser(JsonXContent.jsonXContent, request)) {
             ReindexRequest r = new ReindexRequest(new SearchRequest(), new IndexRequest());
-            SearchRequestParsers searchParsers = new SearchRequestParsers(new IndicesQueriesRegistry(), null, null, null);
-            RestReindexAction.PARSER.parse(p, r, new ReindexParseContext(searchParsers, ParseFieldMatcher.STRICT));
+            RestReindexAction.PARSER.parse(p, r, null);
             assertEquals("localhost", r.getRemoteInfo().getHost());
             assertArrayEquals(new String[] {"source"}, r.getSearchRequest().indices());
         }
+    }
+
+    public void testPipelineQueryParameterIsError() throws IOException {
+        RestReindexAction action = new RestReindexAction(Settings.EMPTY, mock(RestController.class));
+
+        FakeRestRequest.Builder request = new FakeRestRequest.Builder(xContentRegistry());
+        try (XContentBuilder body = JsonXContent.contentBuilder().prettyPrint()) {
+            body.startObject(); {
+                body.startObject("source"); {
+                    body.field("index", "source");
+                }
+                body.endObject();
+                body.startObject("dest"); {
+                    body.field("index", "dest");
+                }
+                body.endObject();
+            }
+            body.endObject();
+            request.withContent(body.bytes());
+        }
+        request.withParams(singletonMap("pipeline", "doesn't matter"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> action.buildRequest(request.build()));
+
+        assertEquals("_reindex doesn't support [pipeline] as a query parmaeter. Specify it in the [dest] object instead.", e.getMessage());
     }
 
     private RemoteInfo buildRemoteInfoHostTestCase(String hostInRest) throws IOException {

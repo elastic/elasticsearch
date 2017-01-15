@@ -97,7 +97,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         final int previousGraveyardSize = graveyardBuilder.tombstones().size();
         for (final Index index : indices) {
             String indexName = index.getName();
-            logger.debug("[{}] deleting index", index);
+            logger.info("{} deleting index", index);
             routingTableBuilder.remove(indexName);
             clusterBlocksBuilder.removeIndexBlocks(indexName);
             metaDataBuilder.remove(indexName);

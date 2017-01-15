@@ -459,8 +459,8 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
     }
 
     @Override
-    public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
-        return security.getTransportInterceptors(namedWriteableRegistry);
+    public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry, ThreadContext threadContext) {
+        return security.getTransportInterceptors(namedWriteableRegistry, threadContext);
     }
 
     @Override

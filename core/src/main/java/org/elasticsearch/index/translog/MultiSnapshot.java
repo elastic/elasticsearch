@@ -57,5 +57,4 @@ final class MultiSnapshot implements Translog.Snapshot {
         }
         return null;
     }
-
 }

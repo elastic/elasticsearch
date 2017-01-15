@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -108,7 +109,6 @@ import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
-import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -145,6 +145,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -157,7 +158,6 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
-import static java.util.Collections.max;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.LOCAL_TRANSLOG_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PEER_RECOVERY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -2496,7 +2496,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     private static class ThrowingIndexWriter extends IndexWriter {
-        private boolean throwDocumentFailure;
+        private AtomicReference<Exception> failureToThrow = new AtomicReference<>();
 
         public ThrowingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);
@@ -2504,48 +2504,98 @@ public class InternalEngineTests extends ESTestCase {
 
         @Override
         public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
-            if (throwDocumentFailure) {
-                throw new IOException("simulated");
+            maybeThrowFailure();
+            return super.addDocument(doc);
+        }
+
+        private void maybeThrowFailure() throws IOException {
+            Exception failure = failureToThrow.get();
+            if (failure instanceof RuntimeException) {
+                throw (RuntimeException)failure;
+            } else if (failure instanceof IOException) {
+                throw (IOException)failure;
             } else {
-                return super.addDocument(doc);
+                assert failure == null : "unsupported failure class: " + failure.getClass().getCanonicalName();
             }
         }
 
         @Override
         public long deleteDocuments(Term... terms) throws IOException {
-            if (throwDocumentFailure) {
-                throw new IOException("simulated");
-            } else {
-                return super.deleteDocuments(terms);
-            }
+            maybeThrowFailure();
+            return super.deleteDocuments(terms);
         }
 
-        public void setThrowDocumentFailure(boolean throwDocumentFailure) {
-            this.throwDocumentFailure = throwDocumentFailure;
+        public void setThrowFailure(IOException documentFailure) {
+            Objects.requireNonNull(documentFailure);
+            failureToThrow.set(documentFailure);
+        }
+
+        public void setThrowFailure(RuntimeException runtimeFailure) {
+            Objects.requireNonNull(runtimeFailure);
+            failureToThrow.set(runtimeFailure);
+        }
+
+        public void clearFailure() {
+            failureToThrow.set(null);
         }
     }
 
+    @Seed("85E61A682CEE7B76")
     public void testHandleDocumentFailure() throws Exception {
         try (Store store = createStore()) {
-            ParsedDocument doc = testParsedDocument("1", "1", "test", null, testDocumentWithTextField(), B_1, null);
+            final ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, testDocumentWithTextField(), B_1, null);
+            final ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, testDocumentWithTextField(), B_1, null);
+            final ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, testDocumentWithTextField(), B_1, null);
             ThrowingIndexWriter throwingIndexWriter = new ThrowingIndexWriter(store.directory(), new IndexWriterConfig());
             try (Engine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, () -> throwingIndexWriter)) {
                 // test document failure while indexing
-                throwingIndexWriter.setThrowDocumentFailure(true);
-                Engine.IndexResult indexResult = engine.index(randomAppendOnly(1, doc, false));
+                if (randomBoolean()) {
+                    throwingIndexWriter.setThrowFailure(new IOException("simulated"));
+                } else {
+                    throwingIndexWriter.setThrowFailure(new IllegalArgumentException("simulated max token length"));
+                }
+                Engine.IndexResult indexResult = engine.index(randomAppendOnly(1, doc1, false));
                 assertNotNull(indexResult.getFailure());
 
-                throwingIndexWriter.setThrowDocumentFailure(false);
-                indexResult = engine.index(randomAppendOnly(1, doc, false));
+                throwingIndexWriter.clearFailure();
+                indexResult = engine.index(randomAppendOnly(1, doc1, false));
                 assertNull(indexResult.getFailure());
 
                 // test document failure while deleting
-                throwingIndexWriter.setThrowDocumentFailure(true);
-                Engine.DeleteResult deleteResult = engine.delete(new Engine.Delete("test", "", newUid("1")));
+                if (randomBoolean()) {
+                    throwingIndexWriter.setThrowFailure(new IOException("simulated"));
+                } else {
+                    throwingIndexWriter.setThrowFailure(new IllegalArgumentException("simulated max token length"));
+                }
+                Engine.DeleteResult deleteResult = engine.delete(new Engine.Delete("test", "1", newUid("1")));
                 assertNotNull(deleteResult.getFailure());
+
+                // test non document level failure is thrown
+                engine.index(randomAppendOnly(2, doc2, false));
+                throwingIndexWriter.setThrowFailure(new CorruptIndexException("simulated", "hello"));
+                try {
+                    if (randomBoolean()) {
+                        engine.index(randomAppendOnly(3, doc3, false));
+                    } else {
+                        engine.delete(new Engine.Delete("test", "2", newUid("2")));
+                    }
+                    fail("corruption should throw exceptions");
+                } catch (Exception e) {
+                    assertThat(e, instanceOf(CorruptIndexException.class));
+                }
+                // now the engine is closed check we respond correctly
+                try {
+                    if (randomBoolean()) {
+                        engine.index(randomAppendOnly(1, doc1, false));
+                    } else {
+                        engine.delete(new Engine.Delete("test", "", newUid("1")));
+                    }
+                    fail("engine should be closed");
+                } catch (Exception e) {
+                    assertThat(e, instanceOf(EngineClosedException.class));
+                }
             }
         }
-
     }
 
     public void testDoubleDelivery() throws IOException {

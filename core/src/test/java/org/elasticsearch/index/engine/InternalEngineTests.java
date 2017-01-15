@@ -261,18 +261,21 @@ public class InternalEngineTests extends ESTestCase {
     }
 
 
-    private Document testDocumentWithTextField() {
+    private static Document testDocumentWithTextField() {
         Document document = testDocument();
         document.add(new TextField("value", "test", Field.Store.YES));
         return document;
     }
 
-    private Document testDocument() {
+    private static Document testDocument() {
         return new Document();
     }
 
+    public static ParsedDocument createParsedDoc(String id, String type, String routing) {
+        return testParsedDocument(id, type, routing, testDocumentWithTextField(), new BytesArray("{ \"value\" : \"test\" }"), null);
+    }
 
-    private ParsedDocument testParsedDocument(String id, String type, String routing, Document document, BytesReference source, Mapping mappingUpdate) {
+    private static ParsedDocument testParsedDocument(String id, String type, String routing, Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", Uid.createUid(type, id), UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
         SeqNoFieldMapper.SequenceID seqID = SeqNoFieldMapper.SequenceID.emptySeqID();

@@ -189,7 +189,15 @@ public class RecoverySourceHandler {
         return response;
     }
 
-    boolean isTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView) {
+    /**
+     * Determines if the source translog is ready for a sequence-number-based peer recovery. The main condition here is that the source
+     * translog contains all operations between the local checkpoint on the target and the current maximum sequence number on the source.
+     *
+     * @param translogView a view of the translog on the source
+     * @return {@code true} if the source is ready for a sequence-number-based recovery
+     * @throws IOException if an I/O exception occurred reading the translog snapshot
+     */
+    boolean isTranslogReadyForSequenceNumberBasedRecovery(final Translog.View translogView) throws IOException {
         final long startingSeqNo = request.startingSeqNo();
         final long endingSeqNo = shard.seqNoStats().getMaxSeqNo();
         if (startingSeqNo <= endingSeqNo) {
@@ -205,7 +213,7 @@ public class RecoverySourceHandler {
             final LocalCheckpointTracker tracker = new LocalCheckpointTracker(shard.indexSettings(), startingSeqNo, startingSeqNo - 1);
             final Translog.Snapshot snapshot = translogView.snapshot();
             Translog.Operation operation;
-            while ((operation = getNextOperationFromSnapshot(snapshot)) != null) {
+            while ((operation = snapshot.next()) != null) {
                 tracker.markSeqNoAsCompleted(operation.seqNo());
             }
             return tracker.getCheckpoint() >= endingSeqNo;
@@ -398,7 +406,7 @@ public class RecoverySourceHandler {
      *
      * @param snapshot a snapshot of the translog
      */
-    void phase2(final Translog.Snapshot snapshot) {
+    void phase2(final Translog.Snapshot snapshot) throws IOException {
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -463,8 +471,9 @@ public class RecoverySourceHandler {
      *
      * @param snapshot the translog snapshot to replay operations from
      * @return the total number of translog operations that were sent
+     * @throws IOException if an I/O exception occurred reading the translog snapshot
      */
-    protected int sendSnapshot(final Translog.Snapshot snapshot) {
+    protected int sendSnapshot(final Translog.Snapshot snapshot) throws IOException {
         int ops = 0;
         long size = 0;
         int totalOperations = 0;
@@ -476,7 +485,7 @@ public class RecoverySourceHandler {
 
         // send operations in batches
         Translog.Operation operation;
-        while ((operation = getNextOperationFromSnapshot(snapshot)) != null) {
+        while ((operation = snapshot.next()) != null) {
             if (shard.state() == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(request.shardId());
             }
@@ -520,14 +529,6 @@ public class RecoverySourceHandler {
         }
 
         return totalOperations;
-    }
-
-    private Translog.Operation getNextOperationFromSnapshot(final Translog.Snapshot snapshot) {
-        try {
-            return snapshot.next();
-        } catch (final IOException ex) {
-            throw new ElasticsearchException("failed to get next operation from translog", ex);
-        }
     }
 
     /**

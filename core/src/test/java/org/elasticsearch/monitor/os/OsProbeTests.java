@@ -195,7 +195,7 @@ public class OsProbeTests extends ESTestCase {
             }
 
             @Override
-            protected boolean areCgroupStatsAvailable() {
+            boolean areCgroupStatsAvailable() {
                 return areCgroupStatsAvailable;
             }
 

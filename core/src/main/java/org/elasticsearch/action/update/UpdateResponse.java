@@ -118,13 +118,6 @@ public class UpdateResponse extends DocWriteResponse {
         return builder.append("]").toString();
     }
 
-
-    /**
-     * ConstructingObjectParser used to parse the {@link UpdateResponse}. We use a ObjectParser here
-     * because most fields are parsed by the parent abstract class {@link DocWriteResponse} and it's
-     * not easy to parse part of the fields in the parent class and other fields in the children class
-     * using the usual streamed parsing method.
-     */
     private static final ConstructingObjectParser<UpdateResponse, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(UpdateResponse.class.getName(),

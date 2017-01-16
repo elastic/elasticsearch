@@ -158,11 +158,12 @@ public class InternalEngine extends Engine {
                 switch (openMode) {
                     case OPEN_INDEX_AND_TRANSLOG:
                         writer = createWriter(false);
-                        seqNoStats = loadSeqNoStatsFromLuceneAndTranslog(engineConfig.getTranslogConfig(), writer);
+                        final long globalCheckpoint = Translog.readGlobalCheckpoint(engineConfig.getTranslogConfig().getTranslogPath());
+                        seqNoStats = store.loadSeqNoStats(globalCheckpoint);
                         break;
                     case OPEN_INDEX_CREATE_TRANSLOG:
                         writer = createWriter(false);
-                        seqNoStats = loadSeqNoStatsFromLucene(SequenceNumbersService.UNASSIGNED_SEQ_NO, writer);
+                        seqNoStats = store.loadSeqNoStats(SequenceNumbersService.UNASSIGNED_SEQ_NO);
                         break;
                     case CREATE_INDEX_AND_TRANSLOG:
                         writer = createWriter(true);
@@ -350,34 +351,6 @@ public class InternalEngine extends Engine {
             return new Translog.TranslogGeneration(translogUUID, translogGen);
         }
         return null;
-    }
-
-    /**
-     * Reads the sequence number stats from the Lucene commit point (maximum sequence number and local checkpoint) and the translog
-     * checkpoint (global checkpoint).
-     *
-     * @param translogConfig the translog config (for the global checkpoint)
-     * @param indexWriter    the index writer (for the Lucene commit point)
-     * @return the sequence number stats
-     * @throws IOException if an I/O exception occurred reading the Lucene commit point or the translog checkpoint
-     */
-    private static SeqNoStats loadSeqNoStatsFromLuceneAndTranslog(
-        final TranslogConfig translogConfig,
-        final IndexWriter indexWriter) throws IOException {
-        final long globalCheckpoint = Translog.readGlobalCheckpoint(translogConfig.getTranslogPath());
-        return loadSeqNoStatsFromLucene(globalCheckpoint, indexWriter);
-    }
-
-    /**
-     * Reads the sequence number stats from the Lucene commit point (maximum sequence number and local checkpoint) and uses the
-     * specified global checkpoint.
-     *
-     * @param globalCheckpoint the global checkpoint to use
-     * @param indexWriter      the index writer (for the Lucene commit point)
-     * @return the sequence number stats
-     */
-    private static SeqNoStats loadSeqNoStatsFromLucene(final long globalCheckpoint, final IndexWriter indexWriter) {
-        return SequenceNumbers.loadSeqNoStatsFromLuceneCommit(globalCheckpoint, indexWriter.getLiveCommitData());
     }
 
     private SearcherManager createSearcherManager() throws EngineException {

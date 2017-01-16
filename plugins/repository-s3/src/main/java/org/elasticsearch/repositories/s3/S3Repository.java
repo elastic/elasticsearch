@@ -28,6 +28,8 @@ import org.elasticsearch.cluster.metadata.RepositoryMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -67,14 +69,14 @@ public class S3Repository extends BlobStoreRepository {
          * repositories.s3.access_key: AWS Access key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.access_key.
          * @see CLOUD_S3#KEY_SETTING
          */
-        Setting<String> KEY_SETTING =
-            new Setting<>("repositories.s3.access_key", CLOUD_S3.KEY_SETTING, Function.identity(), Property.NodeScope, Property.Filtered);
+        SecureSetting<SecureString> KEY_SETTING = SecureSetting.secureString("repositories.s3.access_key", CLOUD_S3.KEY_SETTING, true);
+
         /**
          * repositories.s3.secret_key: AWS Secret key specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.secret_key.
          * @see CLOUD_S3#SECRET_SETTING
          */
-        Setting<String> SECRET_SETTING =
-            new Setting<>("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, Function.identity(), Property.NodeScope, Property.Filtered);
+        SecureSetting<SecureString> SECRET_SETTING = SecureSetting.secureString("repositories.s3.secret_key", CLOUD_S3.SECRET_SETTING, true);
+
         /**
          * repositories.s3.region: Region specific for all S3 Repositories API calls. Defaults to cloud.aws.s3.region.
          * @see CLOUD_S3#REGION_SETTING
@@ -179,12 +181,13 @@ public class S3Repository extends BlobStoreRepository {
          * access_key
          * @see  Repositories#KEY_SETTING
          */
-        Setting<String> KEY_SETTING = Setting.simpleString("access_key");
+        SecureSetting<SecureString> KEY_SETTING = SecureSetting.secureString("access_key", null, true);
+
         /**
          * secret_key
          * @see  Repositories#SECRET_SETTING
          */
-        Setting<String> SECRET_SETTING = Setting.simpleString("secret_key");
+        SecureSetting<SecureString> SECRET_SETTING = SecureSetting.secureString("secret_key", null, true);
         /**
          * bucket
          * @see  Repositories#BUCKET_SETTING

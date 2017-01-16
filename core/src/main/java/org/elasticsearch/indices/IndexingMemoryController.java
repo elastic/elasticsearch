@@ -34,6 +34,7 @@ import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -200,12 +201,12 @@ public class IndexingMemoryController extends AbstractComponent implements Index
     }
 
     @Override
-    public void postIndex(Engine.Index index, Engine.IndexResult result) {
+    public void postIndex(ShardId shardId, Engine.Index index, Engine.IndexResult result) {
         recordOperationBytes(index, result);
     }
 
     @Override
-    public void postDelete(Engine.Delete delete, Engine.DeleteResult result) {
+    public void postDelete(ShardId shardId, Engine.Delete delete, Engine.DeleteResult result) {
         recordOperationBytes(delete, result);
     }
 

@@ -35,11 +35,6 @@ There are several thread pools, but the important ones include:
     queue_size of `50`.  The maximum size for this pool
     is `1 + # of available processors`.
 
-`percolate`::
-    For percolate operations. Thread pool type is `fixed`
-    with a size of `# of available processors`,
-    queue_size of `1000`.
-
 `snapshot`::
     For snapshot/restore operations. Thread pool type is `scaling` with a
     keep-alive of `5m` and a max of `min(5, (# of available processors)/2)`.

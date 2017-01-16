@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.settings;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
@@ -42,6 +43,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.GeneralSecurityException;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
 import java.util.ArrayList;
@@ -76,10 +78,24 @@ public final class Settings implements ToXContent {
     public static final Settings EMPTY = new Builder().build();
     private static final Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
+    /** The raw settings from the full key to raw string value. */
     private Map<String, String> settings;
 
-    Settings(Map<String, String> settings) {
-        this.settings = Collections.unmodifiableMap(settings);
+    /** The secure settings storage associated with these settings. */
+    private SecureSettings secureSettings;
+
+    Settings(Map<String, String> settings, SecureSettings secureSettings) {
+        // we use a sorted map for consistent serialization when using getAsMap()
+        this.settings = Collections.unmodifiableSortedMap(new TreeMap<>(settings));
+        this.secureSettings = secureSettings;
+    }
+
+    /**
+     * Retrieve the secure settings in these settings.
+     */
+    SecureSettings getSecureSettings() {
+        // pkg private so it can only be accessed by local subclasses of SecureSetting
+        return secureSettings;
     }
 
     /**
@@ -187,14 +203,16 @@ public final class Settings implements ToXContent {
      * A settings that are filtered (and key is removed) with the specified prefix.
      */
     public Settings getByPrefix(String prefix) {
-        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix));
+        return new Settings(new FilteredMap(this.settings, (k) -> k.startsWith(prefix), prefix),
+            secureSettings == null ? null : new PrefixedSecureSettings(secureSettings, prefix));
     }
 
     /**
      * Returns a new settings object that contains all setting of the current one filtered by the given settings key predicate.
+     * Secure settings may not be accessed through a filter.
      */
     public Settings filter(Predicate<String> predicate) {
-        return new Settings(new FilteredMap(this.settings, predicate, null));
+        return new Settings(new FilteredMap(this.settings, predicate, null), null);
     }
 
     /**
@@ -456,7 +474,7 @@ public final class Settings implements ToXContent {
         }
         Map<String, Settings> retVal = new LinkedHashMap<>();
         for (Map.Entry<String, Map<String, String>> entry : map.entrySet()) {
-            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue())));
+            retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue()), secureSettings));
         }
         return Collections.unmodifiableMap(retVal);
     }
@@ -591,6 +609,8 @@ public final class Settings implements ToXContent {
         // we use a sorted map for consistent serialization when using getAsMap()
         private final Map<String, String> map = new TreeMap<>();
 
+        private SetOnce<SecureSettings> secureSettings = new SetOnce<>();
+
         private Builder() {
 
         }
@@ -611,6 +631,14 @@ public final class Settings implements ToXContent {
          */
         public String get(String key) {
             return map.get(key);
+        }
+
+        public Builder setSecureSettings(SecureSettings secureSettings) {
+            if (secureSettings.isLoaded() == false) {
+                throw new IllegalStateException("Secure settings must already be loaded");
+            }
+            this.secureSettings.set(secureSettings);
+            return this;
         }
 
         /**
@@ -1019,7 +1047,7 @@ public final class Settings implements ToXContent {
          * set on this builder.
          */
         public Settings build() {
-            return new Settings(map);
+            return new Settings(map, secureSettings.get());
         }
     }
 
@@ -1137,6 +1165,36 @@ public final class Settings implements ToXContent {
                 size = Math.toIntExact(delegate.keySet().stream().filter((e) -> filter.test(e)).count());
             }
             return size;
+        }
+    }
+
+    private static class PrefixedSecureSettings implements SecureSettings {
+        private SecureSettings delegate;
+        private String prefix;
+
+        PrefixedSecureSettings(SecureSettings delegate, String prefix) {
+            this.delegate = delegate;
+            this.prefix = prefix;
+        }
+
+        @Override
+        public boolean isLoaded() {
+            return delegate.isLoaded();
+        }
+
+        @Override
+        public boolean hasSetting(String setting) {
+            return delegate.hasSetting(prefix + setting);
+        }
+
+        @Override
+        public SecureString getString(String setting) throws GeneralSecurityException{
+            return delegate.getString(prefix + setting);
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
         }
     }
 }

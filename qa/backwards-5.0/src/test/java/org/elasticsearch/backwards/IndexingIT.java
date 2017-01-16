@@ -70,7 +70,7 @@ public class IndexingIT extends ESRestTestCase {
 
     private void createIndex(String name, Settings settings) throws IOException {
         assertOK(client().performRequest("PUT", name, Collections.emptyMap(),
-            new StringEntity("{ \"settings\": " + Strings.toString(settings, true) + " }")));
+            new StringEntity("{ \"settings\": " + Strings.toString(settings) + " }")));
     }
 
     private void updateIndexSetting(String name, Settings.Builder settings) throws IOException {
@@ -78,7 +78,7 @@ public class IndexingIT extends ESRestTestCase {
     }
     private void updateIndexSetting(String name, Settings settings) throws IOException {
         assertOK(client().performRequest("PUT", name + "/_settings", Collections.emptyMap(),
-            new StringEntity(Strings.toString(settings, true))));
+            new StringEntity(Strings.toString(settings))));
     }
 
     protected int indexDocs(String index, final int idStart, final int numDocs) throws IOException {

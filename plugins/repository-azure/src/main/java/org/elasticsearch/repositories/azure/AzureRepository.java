@@ -40,15 +40,14 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotCreationException;
 
-import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getEffectiveSetting;
+import static org.elasticsearch.cloud.azure.storage.AzureStorageService.MAX_CHUNK_SIZE;
+import static org.elasticsearch.cloud.azure.storage.AzureStorageService.MIN_CHUNK_SIZE;
 import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getValue;
 
 /**
@@ -64,8 +63,6 @@ import static org.elasticsearch.cloud.azure.storage.AzureStorageSettings.getValu
  */
 public class AzureRepository extends BlobStoreRepository {
 
-    private static final ByteSizeValue MAX_CHUNK_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
-
     public static final String TYPE = "azure";
 
     public static final class Repository {
@@ -75,7 +72,7 @@ public class AzureRepository extends BlobStoreRepository {
         public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);
         public static final Setting<String> LOCATION_MODE_SETTING = Setting.simpleString("location_mode", Property.NodeScope);
         public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-            Setting.byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, Property.NodeScope);
+            Setting.byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope);
         public static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false, Property.NodeScope);
     }
 
@@ -92,14 +89,7 @@ public class AzureRepository extends BlobStoreRepository {
 
         blobStore = new AzureBlobStore(metadata, environment.settings(), storageService);
         String container = getValue(metadata.settings(), settings, Repository.CONTAINER_SETTING, Storage.CONTAINER_SETTING);
-        ByteSizeValue configuredChunkSize = getValue(metadata.settings(), settings, Repository.CHUNK_SIZE_SETTING, Storage.CHUNK_SIZE_SETTING);
-        if (configuredChunkSize.getMb() > MAX_CHUNK_SIZE.getMb()) {
-            Setting<ByteSizeValue> setting = getEffectiveSetting(metadata.settings(), Repository.CHUNK_SIZE_SETTING, Storage.CHUNK_SIZE_SETTING);
-            throw new SettingsException("["  + setting.getKey() + "] must not exceed [" + MAX_CHUNK_SIZE + "] but is set to [" + configuredChunkSize + "].");
-        } else {
-            this.chunkSize = configuredChunkSize;
-        }
-
+        this.chunkSize = getValue(metadata.settings(), settings, Repository.CHUNK_SIZE_SETTING, Storage.CHUNK_SIZE_SETTING);
         this.compress = getValue(metadata.settings(), settings, Repository.COMPRESS_SETTING, Storage.COMPRESS_SETTING);
         String modeStr = getValue(metadata.settings(), settings, Repository.LOCATION_MODE_SETTING, Storage.LOCATION_MODE_SETTING);
         Boolean forcedReadonly = metadata.settings().getAsBoolean("readonly", null);

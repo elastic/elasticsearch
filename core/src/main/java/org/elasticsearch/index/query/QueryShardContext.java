@@ -29,6 +29,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -308,12 +309,7 @@ public class QueryShardContext extends QueryRewriteContext {
         });
     }
 
-    @FunctionalInterface
-    private interface CheckedFunction<T, R> {
-       R apply(T t) throws IOException;
-    }
-
-    private ParsedQuery toQuery(QueryBuilder queryBuilder, CheckedFunction<QueryBuilder, Query> filterOrQuery) {
+    private ParsedQuery toQuery(QueryBuilder queryBuilder, CheckedFunction<QueryBuilder, Query, IOException> filterOrQuery) {
         reset();
         try {
             QueryBuilder rewriteQuery = QueryBuilder.rewriteQuery(queryBuilder, this);

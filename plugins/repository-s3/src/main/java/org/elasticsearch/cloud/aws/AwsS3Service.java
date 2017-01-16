@@ -23,6 +23,8 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.common.component.LifecycleComponent;
+import org.elasticsearch.common.settings.SecureSetting;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -39,13 +41,12 @@ public interface AwsS3Service extends LifecycleComponent {
     /**
      * cloud.aws.access_key: AWS Access key. Shared with discovery-ec2 plugin
      */
-    Setting<String> KEY_SETTING =
-        Setting.simpleString("cloud.aws.access_key", Property.NodeScope, Property.Filtered, Property.Shared);
+    SecureSetting<SecureString> KEY_SETTING = SecureSetting.secureString("cloud.aws.access_key", null, true, Property.Shared);
+
     /**
      * cloud.aws.secret_key: AWS Secret key. Shared with discovery-ec2 plugin
      */
-    Setting<String> SECRET_SETTING =
-        Setting.simpleString("cloud.aws.secret_key", Property.NodeScope, Property.Filtered, Property.Shared);
+    SecureSetting<SecureString> SECRET_SETTING = SecureSetting.secureString("cloud.aws.secret_key", null, true, Property.Shared);
     /**
      * cloud.aws.protocol: Protocol for AWS API: http or https. Defaults to https. Shared with discovery-ec2 plugin
      */
@@ -63,12 +64,14 @@ public interface AwsS3Service extends LifecycleComponent {
     /**
      * cloud.aws.proxy.username: In case of proxy with auth, define the username. Shared with discovery-ec2 plugin
      */
-    Setting<String> PROXY_USERNAME_SETTING = Setting.simpleString("cloud.aws.proxy.username", Property.NodeScope, Property.Shared);
+    SecureSetting<SecureString> PROXY_USERNAME_SETTING =
+        SecureSetting.secureString("cloud.aws.proxy.username", null, true, Property.Shared);
+
     /**
      * cloud.aws.proxy.password: In case of proxy with auth, define the password. Shared with discovery-ec2 plugin
      */
-    Setting<String> PROXY_PASSWORD_SETTING =
-        Setting.simpleString("cloud.aws.proxy.password", Property.NodeScope, Property.Filtered, Property.Shared);
+    SecureSetting<SecureString> PROXY_PASSWORD_SETTING =
+        SecureSetting.secureString("cloud.aws.proxy.password", null, true, Property.Shared);
     /**
      * cloud.aws.signer: If you are using an old AWS API version, you can define a Signer. Shared with discovery-ec2 plugin
      */
@@ -92,16 +95,13 @@ public interface AwsS3Service extends LifecycleComponent {
          * cloud.aws.s3.access_key: AWS Access key specific for S3 API calls. Defaults to cloud.aws.access_key.
          * @see AwsS3Service#KEY_SETTING
          */
-        Setting<String> KEY_SETTING =
-            new Setting<>("cloud.aws.s3.access_key", AwsS3Service.KEY_SETTING, Function.identity(),
-                Property.NodeScope, Property.Filtered);
+        SecureSetting<SecureString> KEY_SETTING = SecureSetting.secureString("cloud.aws.s3.access_key", AwsS3Service.KEY_SETTING, true);
         /**
          * cloud.aws.s3.secret_key: AWS Secret key specific for S3 API calls. Defaults to cloud.aws.secret_key.
          * @see AwsS3Service#SECRET_SETTING
          */
-        Setting<String> SECRET_SETTING =
-            new Setting<>("cloud.aws.s3.secret_key", AwsS3Service.SECRET_SETTING, Function.identity(),
-                Property.NodeScope, Property.Filtered);
+        SecureSetting<SecureString> SECRET_SETTING = SecureSetting.secureString("cloud.aws.s3.secret_key",
+            AwsS3Service.SECRET_SETTING, true);
         /**
          * cloud.aws.s3.protocol: Protocol for AWS API specific for S3 API calls: http or https. Defaults to cloud.aws.protocol.
          * @see AwsS3Service#PROTOCOL_SETTING
@@ -128,17 +128,16 @@ public interface AwsS3Service extends LifecycleComponent {
          * Defaults to cloud.aws.proxy.username.
          * @see AwsS3Service#PROXY_USERNAME_SETTING
          */
-        Setting<String> PROXY_USERNAME_SETTING =
-            new Setting<>("cloud.aws.s3.proxy.username", AwsS3Service.PROXY_USERNAME_SETTING, Function.identity(),
-                Property.NodeScope);
+        SecureSetting<SecureString> PROXY_USERNAME_SETTING =
+            SecureSetting.secureString("cloud.aws.s3.proxy.username", AwsS3Service.PROXY_USERNAME_SETTING, true);
         /**
          * cloud.aws.s3.proxy.password: In case of proxy with auth, define the password specific for S3 API calls.
          * Defaults to cloud.aws.proxy.password.
          * @see AwsS3Service#PROXY_PASSWORD_SETTING
          */
-        Setting<String> PROXY_PASSWORD_SETTING =
-            new Setting<>("cloud.aws.s3.proxy.password", AwsS3Service.PROXY_PASSWORD_SETTING, Function.identity(),
-                Property.NodeScope, Property.Filtered);
+        SecureSetting<SecureString> PROXY_PASSWORD_SETTING =
+            SecureSetting.secureString("cloud.aws.s3.proxy.password", AwsS3Service.PROXY_PASSWORD_SETTING, true);
+
         /**
          * cloud.aws.s3.signer: If you are using an old AWS API version, you can define a Signer. Specific for S3 API calls.
          * Defaults to cloud.aws.signer.

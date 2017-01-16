@@ -23,7 +23,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -475,7 +474,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContent {
     private static final ParseField PARSE_NUMBER_OF_FILES = new ParseField("number_of_files");
     private static final ParseField PARSE_TOTAL_SIZE = new ParseField("total_size");
     private static final ParseField PARSE_FILES = new ParseField("files");
-    private static final ParseFieldMatcher parseFieldMatcher = ParseFieldMatcher.EMPTY;
 
     /**
      * Serializes shard snapshot metadata info into JSON
@@ -559,5 +557,4 @@ public class BlobStoreIndexShardSnapshot implements ToXContent {
         return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, Collections.unmodifiableList(indexFiles),
                                                startTime, time, numberOfFiles, totalSize);
     }
-
 }

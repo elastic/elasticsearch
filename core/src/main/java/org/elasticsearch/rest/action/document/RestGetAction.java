@@ -76,11 +76,6 @@ public class RestGetAction extends BaseRestHandler {
 
         return channel -> client.get(getRequest, new RestToXContentListener<GetResponse>(channel) {
             @Override
-            protected boolean wrapInObject() {
-                return false;
-            }
-
-            @Override
             protected RestStatus getStatus(GetResponse response) {
                 return response.isExists() ? OK : NOT_FOUND;
             }

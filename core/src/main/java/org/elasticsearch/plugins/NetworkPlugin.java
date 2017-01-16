@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -42,8 +43,13 @@ public interface NetworkPlugin {
     /**
      * Returns a list of {@link TransportInterceptor} instances that are used to intercept incoming and outgoing
      * transport (inter-node) requests. This must not return <code>null</code>
+     *
+     * @param namedWriteableRegistry registry of all named writeables registered
+     * @param threadContext a {@link ThreadContext} of the current nodes or clients {@link ThreadPool} that can be used to set additional
+     *                      headers in the interceptors
      */
-    default List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
+    default List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                ThreadContext threadContext) {
         return Collections.emptyList();
     }
 

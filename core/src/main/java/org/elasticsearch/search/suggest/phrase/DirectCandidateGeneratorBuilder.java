@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder.CandidateGenerator;
 
@@ -387,7 +386,7 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         }
     }
 
-    private static ConstructingObjectParser<DirectCandidateGeneratorBuilder, QueryParseContext> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<DirectCandidateGeneratorBuilder, Void> PARSER = new ConstructingObjectParser<>(
             TYPE, args -> new DirectCandidateGeneratorBuilder((String) args[0]));
 
     static {
@@ -405,10 +404,6 @@ public final class DirectCandidateGeneratorBuilder implements CandidateGenerator
         PARSER.declareInt(DirectCandidateGeneratorBuilder::maxEdits, MAX_EDITS_FIELD);
         PARSER.declareInt(DirectCandidateGeneratorBuilder::minWordLength, MIN_WORD_LENGTH_FIELD);
         PARSER.declareInt(DirectCandidateGeneratorBuilder::prefixLength, PREFIX_LENGTH_FIELD);
-    }
-
-    public static DirectCandidateGeneratorBuilder fromXContent(QueryParseContext parseContext) throws IOException {
-        return PARSER.apply(parseContext.parser(), parseContext);
     }
 
     @Override

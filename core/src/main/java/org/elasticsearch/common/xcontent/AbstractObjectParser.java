@@ -20,7 +20,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -34,7 +33,7 @@ import java.util.function.BiFunction;
 /**
  * Superclass for {@link ObjectParser} and {@link ConstructingObjectParser}. Defines most of the "declare" methods so they can be shared.
  */
-public abstract class AbstractObjectParser<Value, Context extends ParseFieldMatcherSupplier>
+public abstract class AbstractObjectParser<Value, Context>
         implements BiFunction<XContentParser, Context, Value>, ContextParser<Context, Value> {
 
     /**

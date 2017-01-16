@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.range.ip;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,10 +32,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.BinaryRangeAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
@@ -61,7 +59,6 @@ import java.util.Objects;
 public final class IpRangeAggregationBuilder
         extends ValuesSourceAggregationBuilder<ValuesSource.Bytes, IpRangeAggregationBuilder> {
     public static final String NAME = "ip_range";
-    private static final InternalAggregation.Type TYPE = new InternalAggregation.Type(NAME);
     private static final ParseField MASK_FIELD = new ParseField("mask");
 
     private static final ObjectParser<IpRangeAggregationBuilder, QueryParseContext> PARSER;
@@ -81,7 +78,6 @@ public final class IpRangeAggregationBuilder
     }
 
     private static Range parseRange(XContentParser parser, QueryParseContext context) throws IOException {
-        final ParseFieldMatcher parseFieldMatcher = context.getParseFieldMatcher();
         String key = null;
         String from = null;
         String to = null;
@@ -235,11 +231,11 @@ public final class IpRangeAggregationBuilder
     private List<Range> ranges = new ArrayList<>();
 
     public IpRangeAggregationBuilder(String name) {
-        super(name, TYPE, ValuesSourceType.BYTES, ValueType.IP);
+        super(name, ValuesSourceType.BYTES, ValueType.IP);
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 
@@ -341,7 +337,7 @@ public final class IpRangeAggregationBuilder
     }
 
     public IpRangeAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE, ValuesSourceType.BYTES, ValueType.IP);
+        super(in, ValuesSourceType.BYTES, ValueType.IP);
         final int numRanges = in.readVInt();
         for (int i = 0; i < numRanges; ++i) {
             addRange(new Range(in));
@@ -376,7 +372,7 @@ public final class IpRangeAggregationBuilder
         for (Range range : this.ranges) {
             ranges.add(new BinaryRangeAggregator.Range(range.key, toBytesRef(range.from), toBytesRef(range.to)));
         }
-        return new BinaryRangeAggregatorFactory(name, TYPE, config, ranges,
+        return new BinaryRangeAggregatorFactory(name, config, ranges,
                 keyed, context, parent, subFactoriesBuilder, metaData);
     }
 

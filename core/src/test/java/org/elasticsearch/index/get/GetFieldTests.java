@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.UidFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,9 +42,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXC
 
 public class GetFieldTests extends ESTestCase {
 
-    public void testToXContent() throws IOException {
+    public void testToXContent() {
         GetField getField = new GetField("field", Arrays.asList("value1", "value2"));
-        String output = Strings.toString(getField, true);
+        String output = Strings.toString(getField);
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", output);
     }
 
@@ -58,7 +57,7 @@ public class GetFieldTests extends ESTestCase {
         Tuple<GetField, GetField> tuple = randomGetField(xContentType);
         GetField getField = tuple.v1();
         GetField expectedGetField = tuple.v2();
-        BytesReference originalBytes = toXContent(getField, xContentType, true);
+        BytesReference originalBytes = toXContent(getField, xContentType);
         //test that we can parse what we print out
         GetField parsedGetField;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -71,7 +70,7 @@ public class GetFieldTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
         assertEquals(expectedGetField, parsedGetField);
-        BytesReference finalBytes = toXContent(parsedGetField, xContentType, true);
+        BytesReference finalBytes = toXContent(parsedGetField, xContentType);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
     }
 

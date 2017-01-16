@@ -111,16 +111,16 @@ class Elasticsearch extends EnvironmentAwareCommand {
         final boolean quiet = options.has(quietOption);
 
         try {
-            init(daemonize, pidFile, quiet, env.settings());
+            init(daemonize, pidFile, quiet, env);
         } catch (NodeValidationException e) {
             throw new UserException(ExitCodes.CONFIG, e.getMessage());
         }
     }
 
-    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Settings initialSettings)
+    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv)
         throws NodeValidationException, UserException {
         try {
-            Bootstrap.init(!daemonize, pidFile, quiet, initialSettings);
+            Bootstrap.init(!daemonize, pidFile, quiet, initialEnv);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

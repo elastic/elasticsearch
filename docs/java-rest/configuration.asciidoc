@@ -93,9 +93,9 @@ https://hc.apache.org/httpcomponents-asyncclient-dev/httpasyncclient/apidocs/org
 
 [source,java]
 --------------------------------------------------
-KeyStore keyStore = KeyStore.getInstance("jks");
+KeyStore keystore = KeyStore.getInstance("jks");
 try (InputStream is = Files.newInputStream(keyStorePath)) {
-    keyStore.load(is, keyStorePass.toCharArray());
+    keystore.load(is, keyStorePass.toCharArray());
 }
 RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
         .setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {

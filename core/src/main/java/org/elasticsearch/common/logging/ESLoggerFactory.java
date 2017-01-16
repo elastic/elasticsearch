@@ -38,8 +38,8 @@ public final class ESLoggerFactory {
     public static final Setting<Level> LOG_DEFAULT_LEVEL_SETTING =
         new Setting<>("logger.level", Level.INFO.name(), Level::valueOf, Property.NodeScope);
     public static final Setting<Level> LOG_LEVEL_SETTING =
-        Setting.prefixKeySetting("logger.", Level.INFO.name(), Level::valueOf,
-            Property.Dynamic, Property.NodeScope);
+        Setting.prefixKeySetting("logger.", (key) -> new Setting<>(key, Level.INFO.name(), Level::valueOf, Property.Dynamic,
+            Property.NodeScope));
 
     public static Logger getLogger(String prefix, String name) {
         return getLogger(prefix, LogManager.getLogger(name));

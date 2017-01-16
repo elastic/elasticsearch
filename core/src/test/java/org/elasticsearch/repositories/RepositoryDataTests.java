@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -54,10 +55,10 @@ public class RepositoryDataTests extends ESTestCase {
     public void testXContent() throws IOException {
         RepositoryData repositoryData = generateRandomRepoData();
         XContentBuilder builder = JsonXContent.contentBuilder();
-        repositoryData.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        repositoryData.snapshotsToXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentParser parser = createParser(JsonXContent.jsonXContent, builder.bytes());
         long gen = (long) randomIntBetween(0, 500);
-        RepositoryData fromXContent = RepositoryData.fromXContent(parser, gen);
+        RepositoryData fromXContent = RepositoryData.snapshotsFromXContent(parser, gen);
         assertEquals(repositoryData, fromXContent);
         assertEquals(gen, fromXContent.getGenId());
     }
@@ -65,7 +66,6 @@ public class RepositoryDataTests extends ESTestCase {
     public void testAddSnapshots() {
         RepositoryData repositoryData = generateRandomRepoData();
         // test that adding the same snapshot id to the repository data throws an exception
-        final SnapshotId snapshotId = repositoryData.getSnapshotIds().get(0);
         Map<String, IndexId> indexIdMap = repositoryData.getIndices();
         // test that adding a snapshot and its indices works
         SnapshotId newSnapshot = new SnapshotId(randomAsciiOfLength(7), UUIDs.randomBase64UUID());
@@ -95,6 +95,22 @@ public class RepositoryDataTests extends ESTestCase {
         assertEquals(repositoryData.getGenId(), newRepoData.getGenId());
     }
 
+    public void testInitIndices() {
+        final int numSnapshots = randomIntBetween(1, 30);
+        final List<SnapshotId> snapshotIds = new ArrayList<>(numSnapshots);
+        for (int i = 0; i < numSnapshots; i++) {
+            snapshotIds.add(new SnapshotId(randomAsciiOfLength(8), UUIDs.randomBase64UUID()));
+        }
+        RepositoryData repositoryData = new RepositoryData(EMPTY_REPO_GEN, snapshotIds, Collections.emptyMap(), Collections.emptyList());
+        // test that initializing indices works
+        Map<IndexId, Set<SnapshotId>> indices = randomIndices(snapshotIds);
+        RepositoryData newRepoData = repositoryData.initIndices(indices);
+        assertEquals(repositoryData.getSnapshotIds(), newRepoData.getSnapshotIds());
+        for (IndexId indexId : indices.keySet()) {
+            assertEquals(indices.get(indexId), newRepoData.getSnapshots(indexId));
+        }
+    }
+
     public void testRemoveSnapshot() {
         RepositoryData repositoryData = generateRandomRepoData();
         List<SnapshotId> snapshotIds = new ArrayList<>(repositoryData.getSnapshotIds());
@@ -121,8 +137,12 @@ public class RepositoryDataTests extends ESTestCase {
     }
 
     public static RepositoryData generateRandomRepoData() {
-        List<SnapshotId> snapshotIds = randomSnapshots(new ArrayList<>());
-        return RepositoryData.initRepositoryData(snapshotIds, randomIndices(snapshotIds));
+        return generateRandomRepoData(new ArrayList<>());
+    }
+
+    public static RepositoryData generateRandomRepoData(final List<SnapshotId> origSnapshotIds) {
+        List<SnapshotId> snapshotIds = randomSnapshots(origSnapshotIds);
+        return new RepositoryData(EMPTY_REPO_GEN, snapshotIds, randomIndices(snapshotIds), Collections.emptyList());
     }
 
     private static List<SnapshotId> randomSnapshots(final List<SnapshotId> origSnapshotIds) {

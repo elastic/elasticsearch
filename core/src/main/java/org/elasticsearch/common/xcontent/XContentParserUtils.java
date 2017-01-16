@@ -20,6 +20,7 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
@@ -57,6 +58,14 @@ public final class XContentParserUtils {
     }
 
     /**
+     * @throws ParsingException with a "unknown token found" reason
+     */
+    public static void throwUnknownToken(XContentParser.Token token, XContentLocation location) {
+        String message = "Failed to parse object: unexpected token [%s] found";
+        throw new ParsingException(location, String.format(Locale.ROOT, message, token));
+    }
+
+    /**
      * Makes sure that provided token is of the expected type
      *
      * @throws ParsingException if the token is not equal to the expected type
@@ -66,5 +75,36 @@ public final class XContentParserUtils {
             String message = "Failed to parse object: expecting token of type [%s] but found [%s]";
             throw new ParsingException(location.get(), String.format(Locale.ROOT, message, expected, actual));
         }
+    }
+
+    /**
+     * Parse the current token depending on its token type. The following token types will be
+     * parsed by the corresponding parser methods:
+     * <ul>
+     *    <li>XContentParser.Token.VALUE_STRING: parser.text()</li>
+     *    <li>XContentParser.Token.VALUE_NUMBER: parser.numberValue()</li>
+     *    <li>XContentParser.Token.VALUE_BOOLEAN: parser.booleanValue()</li>
+     *    <li>XContentParser.Token.VALUE_EMBEDDED_OBJECT: parser.binaryValue()</li>
+     * </ul>
+     *
+     * @throws ParsingException if the token none of the allowed values
+     */
+    public static Object parseStoredFieldsValue(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        Object value = null;
+        if (token == XContentParser.Token.VALUE_STRING) {
+            //binary values will be parsed back and returned as base64 strings when reading from json and yaml
+            value = parser.text();
+        } else if (token == XContentParser.Token.VALUE_NUMBER) {
+            value = parser.numberValue();
+        } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+            value = parser.booleanValue();
+        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+            //binary values will be parsed back and returned as BytesArray when reading from cbor and smile
+            value = new BytesArray(parser.binaryValue());
+        } else {
+            throwUnknownToken(token, parser.getTokenLocation());
+        }
+        return value;
     }
 }

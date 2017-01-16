@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -122,7 +121,7 @@ public class RangeAggregator extends BucketsAggregator {
             return new Range(key, from, fromAsStr, to, toAsStr);
         }
 
-        public static Range fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
+        public static Range fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token;
             String currentFieldName = null;
             double from = Double.NEGATIVE_INFINITY;

@@ -25,7 +25,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +46,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.elasticsearch.index.get.GetField.readGetField;
 
-public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
+public class GetResult implements Streamable, Iterable<GetField>, ToXContentObject {
 
     private static final String _INDEX = "_index";
     private static final String _TYPE = "_type";
@@ -54,7 +54,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
     private static final String _VERSION = "_version";
     private static final String FOUND = "found";
     private static final String FIELDS = "fields";
-    
+
     private String index;
     private String type;
     private String id;
@@ -135,6 +135,10 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContent {
      * Returns bytes reference, also un compress the source if needed.
      */
     public BytesReference sourceRef() {
+        if (source == null) {
+            return null;
+        }
+
         try {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;

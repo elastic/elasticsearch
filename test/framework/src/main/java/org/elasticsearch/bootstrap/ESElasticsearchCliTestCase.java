@@ -35,7 +35,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 abstract class ESElasticsearchCliTestCase extends ESTestCase {
 
     interface InitConsumer {
-        void accept(final boolean foreground, final Path pidFile, final boolean quiet, final Settings initialSettings);
+        void accept(final boolean foreground, final Path pidFile, final boolean quiet, final Environment initialEnv);
     }
 
     void runTest(
@@ -57,9 +57,9 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
                     return new Environment(realSettings);
                 }
                 @Override
-                void init(final boolean daemonize, final Path pidFile, final boolean quiet, Settings initialSettings) {
+                void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv) {
                     init.set(true);
-                    initConsumer.accept(!daemonize, pidFile, quiet, initialSettings);
+                    initConsumer.accept(!daemonize, pidFile, quiet, initialEnv);
                 }
 
                 @Override

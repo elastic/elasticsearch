@@ -682,30 +682,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
     }
 
-    public void testGetAllField() throws Exception {
-        assertAcked(prepareCreate("test")
-                .addAlias(new Alias("alias"))
-                .addMapping("my-type1", jsonBuilder()
-                        .startObject()
-                        .startObject("my-type1")
-                        .startObject("_all")
-                        .field("store", true)
-                        .endObject()
-                        .startObject("properties")
-                        .startObject("some_field")
-                        .field("type", "text")
-                        .endObject()
-                        .endObject()
-                        .endObject()
-                        .endObject()));
-        index("test", "my-type1", "1", "some_field", "some text");
-        refresh();
-
-        GetResponse getResponse = client().prepareGet(indexOrAlias(), "my-type1", "1").setStoredFields("_all").get();
-        assertNotNull(getResponse.getField("_all").getValue());
-        assertThat(getResponse.getField("_all").getValue().toString(), equalTo("some text"));
-    }
-
     public void testUngeneratedFieldsThatAreNeverStored() throws IOException {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
@@ -804,7 +780,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGeneratedStringFieldsUnstored() throws IOException {
         indexSingleDocumentWithStringFieldsGeneratedFromText(false, randomBoolean());
-        String[] fieldsList = {"_all", "_field_names"};
+        String[] fieldsList = {"_field_names"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
@@ -817,7 +793,7 @@ public class GetActionIT extends ESIntegTestCase {
 
     public void testGeneratedStringFieldsStored() throws IOException {
         indexSingleDocumentWithStringFieldsGeneratedFromText(true, randomBoolean());
-        String[] fieldsList = {"_all"};
+        String[] fieldsList = {"text1", "text2"};
         String[] alwaysNotStoredFieldsList = {"_field_names"};
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
@@ -838,7 +814,16 @@ public class GetActionIT extends ESIntegTestCase {
                 "  \"mappings\": {\n" +
                 "    \"doc\": {\n" +
                 "      \"_source\" : {\"enabled\" : " + sourceEnabled + "}," +
-                "      \"_all\" : {\"enabled\" : true, \"store\":\"" + storedString + "\" }" +
+                "      \"properties\": {\n" +
+                "        \"text1\": {\n" +
+                "          \"type\": \"text\",\n" +
+                "          \"store\": \"" + storedString + "\"" +
+                "        },\n" +
+                "        \"text2\": {\n" +
+                "          \"type\": \"text\",\n" +
+                "          \"store\": \"" + storedString + "\"" +
+                "        }" +
+                "      }\n" +
                 "    }\n" +
                 "  }\n" +
                 "}";

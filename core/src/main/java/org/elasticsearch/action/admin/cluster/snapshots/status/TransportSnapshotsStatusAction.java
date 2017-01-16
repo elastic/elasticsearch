@@ -36,7 +36,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.Snapshot;
+import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -201,7 +203,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         final String repositoryName = request.repository();
         if (Strings.hasText(repositoryName) && request.snapshots() != null && request.snapshots().length > 0) {
             final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
-            final Map<String, SnapshotId> matchedSnapshotIds = snapshotsService.snapshotIds(repositoryName).stream()
+            final RepositoryData repositoryData = snapshotsService.getRepositoryData(repositoryName);
+            final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getAllSnapshotIds().stream()
                 .filter(s -> requestedSnapshotNames.contains(s.getName()))
                 .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
             for (final String snapshotName : request.snapshots()) {
@@ -220,6 +223,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     } else {
                         throw new SnapshotMissingException(repositoryName, snapshotName);
                     }
+                } else if (repositoryData.getIncompatibleSnapshotIds().contains(snapshotId)) {
+                    throw new SnapshotException(repositoryName, snapshotName, "cannot get the status for an incompatible snapshot");
                 }
                 SnapshotInfo snapshotInfo = snapshotsService.snapshot(repositoryName, snapshotId);
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
@@ -243,7 +248,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         default:
                             throw new IllegalArgumentException("Unknown snapshot state " + snapshotInfo.state());
                     }
-                    builder.add(new SnapshotStatus(new Snapshot(repositoryName, snapshotInfo.snapshotId()), state, Collections.unmodifiableList(shardStatusBuilder)));
+                    builder.add(new SnapshotStatus(new Snapshot(repositoryName, snapshotId), state, Collections.unmodifiableList(shardStatusBuilder)));
                 }
             }
         }

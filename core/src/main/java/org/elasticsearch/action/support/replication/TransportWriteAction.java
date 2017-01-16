@@ -21,6 +21,8 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.WriteResponse;
@@ -68,7 +70,8 @@ public abstract class TransportWriteAction<
      * async refresh is performed on the <code>primary</code> shard according to the <code>Request</code> refresh policy
      */
     @Override
-    protected abstract WritePrimaryResult shardOperationOnPrimary(Request request, IndexShard primary) throws Exception;
+    protected abstract WritePrimaryResult<ReplicaRequest, Response> shardOperationOnPrimary(
+            Request request, IndexShard primary) throws Exception;
 
     /**
      * Called once per replica with a reference to the replica {@linkplain IndexShard} to modify.
@@ -77,19 +80,24 @@ public abstract class TransportWriteAction<
      * async refresh is performed on the <code>replica</code> shard according to the <code>ReplicaRequest</code> refresh policy
      */
     @Override
-    protected abstract WriteReplicaResult shardOperationOnReplica(ReplicaRequest request, IndexShard replica) throws Exception;
+    protected abstract WriteReplicaResult<ReplicaRequest> shardOperationOnReplica(
+            ReplicaRequest request, IndexShard replica) throws Exception;
 
     /**
      * Result of taking the action on the primary.
      */
-    protected class WritePrimaryResult extends PrimaryResult implements RespondingWriteResult {
+    protected static class WritePrimaryResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>,
+            Response extends ReplicationResponse & WriteResponse> extends PrimaryResult<ReplicaRequest, Response>
+            implements RespondingWriteResult {
         boolean finishedAsyncActions;
+        public final Location location;
         ActionListener<Response> listener = null;
 
         public WritePrimaryResult(ReplicaRequest request, @Nullable Response finalResponse,
                                   @Nullable Location location, @Nullable Exception operationFailure,
-                                  IndexShard primary) {
+                                  IndexShard primary, Logger logger) {
             super(request, finalResponse, operationFailure);
+            this.location = location;
             assert location == null || operationFailure == null
                     : "expected either failure to be null or translog location to be null, " +
                     "but found: [" + location + "] translog location and [" + operationFailure + "] failure";
@@ -139,13 +147,16 @@ public abstract class TransportWriteAction<
     /**
      * Result of taking the action on the replica.
      */
-    protected class WriteReplicaResult extends ReplicaResult implements RespondingWriteResult {
+    protected static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>>
+            extends ReplicaResult implements RespondingWriteResult {
+        public final Location location;
         boolean finishedAsyncActions;
         private ActionListener<TransportResponse.Empty> listener;
 
         public WriteReplicaResult(ReplicaRequest request, @Nullable Location location,
-                                  @Nullable Exception operationFailure, IndexShard replica) {
+                                  @Nullable Exception operationFailure, IndexShard replica, Logger logger) {
             super(operationFailure);
+            this.location = location;
             if (operationFailure != null) {
                 this.finishedAsyncActions = true;
             } else {

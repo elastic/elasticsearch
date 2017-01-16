@@ -22,8 +22,8 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.DocWriteRequest.OpType;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -32,7 +32,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
@@ -43,7 +43,7 @@ import java.io.IOException;
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
  * of the relevant action, and if it has failed or not (with the failure message incase it failed).
  */
-public class BulkItemResponse implements Streamable, StatusToXContent {
+public class BulkItemResponse implements Streamable, StatusToXContentObject {
 
     @Override
     public RestStatus status() {
@@ -52,9 +52,10 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
         builder.startObject(opType.getLowercase());
         if (failure == null) {
-            response.toXContent(builder, params);
+            response.innerToXContent(builder, params);
             builder.field(Fields.STATUS, response.status().getStatus());
         } else {
             builder.field(Fields._INDEX, failure.getIndex());
@@ -65,6 +66,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
             ElasticsearchException.toXContent(builder, params, failure.getCause());
             builder.endObject();
         }
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -90,10 +92,10 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
         private final String index;
         private final String type;
         private final String id;
-        private final Throwable cause;
+        private final Exception cause;
         private final RestStatus status;
 
-        public Failure(String index, String type, String id, Throwable cause) {
+        public Failure(String index, String type, String id, Exception cause) {
             this.index = index;
             this.type = type;
             this.id = id;
@@ -159,7 +161,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
         /**
          * The actual cause of the failure.
          */
-        public Throwable getCause() {
+        public Exception getCause() {
             return cause;
         }
 
@@ -179,7 +181,7 @@ public class BulkItemResponse implements Streamable, StatusToXContent {
 
         @Override
         public String toString() {
-            return Strings.toString(this, true);
+            return Strings.toString(this);
         }
     }
 

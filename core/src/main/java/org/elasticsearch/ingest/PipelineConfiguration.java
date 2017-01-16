@@ -22,7 +22,6 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,7 +39,7 @@ import java.util.Map;
  */
 public final class PipelineConfiguration extends AbstractDiffable<PipelineConfiguration> implements ToXContent {
 
-    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", Builder::new);
     static {
         PARSER.declareString(Builder::setId, new ParseField("id"));
         PARSER.declareField((parser, builder, aVoid) -> {
@@ -50,8 +49,8 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
     }
 
-    public static ContextParser<ParseFieldMatcherSupplier, PipelineConfiguration> getParser() {
-        return (p, c) -> PARSER.apply(p ,c).build();
+    public static ContextParser<Void, PipelineConfiguration> getParser() {
+        return (parser, context) -> PARSER.apply(parser, null).build();
     }
     private static class Builder {
 

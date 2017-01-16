@@ -131,15 +131,15 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     /**
-     * Retrieves list of snapshot ids that are present in a repository
+     * Gets the {@link RepositoryData} for the given repository.
      *
      * @param repositoryName repository name
-     * @return list of snapshot ids
+     * @return repository data
      */
-    public List<SnapshotId> snapshotIds(final String repositoryName) {
+    public RepositoryData getRepositoryData(final String repositoryName) {
         Repository repository = repositoriesService.repository(repositoryName);
         assert repository != null; // should only be called once we've validated the repository exists
-        return repository.getRepositoryData().getSnapshotIds();
+        return repository.getRepositoryData();
     }
 
     /**
@@ -1004,6 +1004,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // First, look for the snapshot in the repository
         final Repository repository = repositoriesService.repository(repositoryName);
         final RepositoryData repositoryData = repository.getRepositoryData();
+        final Optional<SnapshotId> incompatibleSnapshotId =
+            repositoryData.getIncompatibleSnapshotIds().stream().filter(s -> snapshotName.equals(s.getName())).findFirst();
+        if (incompatibleSnapshotId.isPresent()) {
+            throw new SnapshotException(repositoryName, snapshotName, "cannot delete incompatible snapshot");
+        }
         Optional<SnapshotId> matchedEntry = repositoryData.getSnapshotIds()
                                                 .stream()
                                                 .filter(s -> s.getName().equals(snapshotName))

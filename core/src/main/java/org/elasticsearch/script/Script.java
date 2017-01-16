@@ -22,8 +22,6 @@ package org.elasticsearch.script;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,13 +30,12 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -88,7 +85,7 @@ import java.util.Objects;
  * </ul>
  * </ul>
  */
-public final class Script implements ToXContent, Writeable {
+public final class Script implements ToXContentObject, Writeable {
 
     /**
      * Standard logger necessary for allocation of the deprecation logger.
@@ -303,7 +300,7 @@ public final class Script implements ToXContent, Writeable {
         }
     }
 
-    private static final ObjectParser<Builder, ParseFieldMatcherSupplier> PARSER = new ObjectParser<>("script", Builder::new);
+    private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("script", Builder::new);
 
     static {
         // Defines the fields necessary to parse a Script as XContent using an ObjectParser.
@@ -316,19 +313,11 @@ public final class Script implements ToXContent, Writeable {
     }
 
     /**
-     * Convenience method to call {@link Script#parse(XContentParser, ParseFieldMatcher, String)}
+     * Convenience method to call {@link Script#parse(XContentParser, String)}
      * using the default scripting language.
      */
-    public static Script parse(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
-        return parse(parser, matcher, DEFAULT_SCRIPT_LANG);
-    }
-
-    /**
-     * Convenience method to call {@link Script#parse(XContentParser, ParseFieldMatcher, String)} using the
-     * {@link ParseFieldMatcher} and scripting language provided by the {@link QueryParseContext}.
-     */
-    public static Script parse(XContentParser parser, QueryParseContext context) throws IOException {
-        return parse(parser, context.getParseFieldMatcher(), context.getDefaultScriptLanguage());
+    public static Script parse(XContentParser parser) throws IOException {
+        return parse(parser, DEFAULT_SCRIPT_LANG);
     }
 
     /**
@@ -392,14 +381,13 @@ public final class Script implements ToXContent, Writeable {
      * }
      *
      * @param parser       The {@link XContentParser} to be used.
-     * @param matcher      The {@link ParseFieldMatcher} to be used.
      * @param defaultLang  The default language to use if no language is specified.  The default language isn't necessarily
      *                     the one defined by {@link Script#DEFAULT_SCRIPT_LANG} due to backwards compatiblity requirements
      *                     related to stored queries using previously default languauges.
      *
      * @return             The parsed {@link Script}.
      */
-    public static Script parse(XContentParser parser, ParseFieldMatcher matcher, String defaultLang) throws IOException {
+    public static Script parse(XContentParser parser, String defaultLang) throws IOException {
         Objects.requireNonNull(defaultLang);
 
         Token token = parser.currentToken();
@@ -412,7 +400,7 @@ public final class Script implements ToXContent, Writeable {
             return new Script(ScriptType.INLINE, defaultLang, parser.text(), Collections.emptyMap());
         }
 
-        return PARSER.apply(parser, () -> matcher).build(defaultLang);
+        return PARSER.apply(parser, null).build(defaultLang);
     }
 
     private final ScriptType type;

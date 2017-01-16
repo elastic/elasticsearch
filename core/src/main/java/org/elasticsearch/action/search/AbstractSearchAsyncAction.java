@@ -292,7 +292,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
     private void raiseEarlyFailure(Exception e) {
         for (AtomicArray.Entry<FirstResult> entry : firstResults.asList()) {
             try {
-                DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.shardTarget().nodeId());
+                DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.shardTarget().getNodeId());
                 sendReleaseSearchContext(entry.value.id(), node);
             } catch (Exception inner) {
                 inner.addSuppressed(e);
@@ -317,7 +317,7 @@ abstract class AbstractSearchAsyncAction<FirstResult extends SearchPhaseResult> 
                 if (queryResult.hasHits()
                     && docIdsToLoad.get(entry.index) == null) { // but none of them made it to the global top docs
                     try {
-                        DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.queryResult().shardTarget().nodeId());
+                        DiscoveryNode node = nodeIdToDiscoveryNode.apply(entry.value.queryResult().shardTarget().getNodeId());
                         sendReleaseSearchContext(entry.value.queryResult().id(), node);
                     } catch (Exception e) {
                         logger.trace("failed to release context", e);

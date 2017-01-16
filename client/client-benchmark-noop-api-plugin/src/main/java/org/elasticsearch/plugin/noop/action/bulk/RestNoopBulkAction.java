@@ -103,9 +103,7 @@ public class RestNoopBulkAction extends BaseRestHandler {
             builder.field(Fields.ERRORS, false);
             builder.startArray(Fields.ITEMS);
             for (int idx = 0; idx < bulkRequest.numberOfActions(); idx++) {
-                builder.startObject();
                 ITEM_RESPONSE.toXContent(builder, request);
-                builder.endObject();
             }
             builder.endArray();
             builder.endObject();

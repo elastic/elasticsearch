@@ -553,17 +553,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.IndexResult index(Engine engine, Engine.Index index) {
         active.set(true);
         final Engine.IndexResult result;
-        index = indexingOperationListeners.preIndex(index);
+        index = indexingOperationListeners.preIndex(shardId, index);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
             }
             result = engine.index(index);
         } catch (Exception e) {
-            indexingOperationListeners.postIndex(index, e);
+            indexingOperationListeners.postIndex(shardId, index, e);
             throw e;
         }
-        indexingOperationListeners.postIndex(index, result);
+        indexingOperationListeners.postIndex(shardId, index, result);
         return result;
     }
 
@@ -602,17 +602,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.DeleteResult delete(Engine engine, Engine.Delete delete) {
         active.set(true);
         final Engine.DeleteResult result;
-        delete = indexingOperationListeners.preDelete(delete);
+        delete = indexingOperationListeners.preDelete(shardId, delete);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("delete [{}]", delete.uid().text());
             }
             result = engine.delete(delete);
         } catch (Exception e) {
-            indexingOperationListeners.postDelete(delete, e);
+            indexingOperationListeners.postDelete(shardId, delete, e);
             throw e;
         }
-        indexingOperationListeners.postDelete(delete, result);
+        indexingOperationListeners.postDelete(shardId, delete, result);
         return result;
     }
 
@@ -661,7 +661,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public RefreshStats refreshStats() {
-        return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()));
+        // Null refreshListeners means this shard doesn't support them so there can't be any.
+        int listeners = refreshListeners == null ? 0 : refreshListeners.pendingCount();
+        return new RefreshStats(refreshMetric.count(), TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()), listeners);
     }
 
     public FlushStats flushStats() {
@@ -932,8 +934,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (engine != null && flushEngine) {
                         engine.flushAndClose();
                     }
-                } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    IOUtils.close(engine);
+                } finally {
+                    // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                    // Also closing refreshListeners to prevent us from accumulating any more listeners
+                    IOUtils.close(engine, refreshListeners);
                     indexShardOperationsLock.close();
                 }
             }

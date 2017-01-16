@@ -30,13 +30,17 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.S3ClientOptions;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.s3.S3Repository;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -93,14 +97,15 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         String proxyHost = CLOUD_S3.PROXY_HOST_SETTING.get(settings);
         if (Strings.hasText(proxyHost)) {
             Integer proxyPort = CLOUD_S3.PROXY_PORT_SETTING.get(settings);
-            String proxyUsername = CLOUD_S3.PROXY_USERNAME_SETTING.get(settings);
-            String proxyPassword = CLOUD_S3.PROXY_PASSWORD_SETTING.get(settings);
+            try (SecureString proxyUsername = CLOUD_S3.PROXY_USERNAME_SETTING.get(settings);
+                 SecureString proxyPassword = CLOUD_S3.PROXY_PASSWORD_SETTING.get(settings)) {
 
-            clientConfiguration
-                .withProxyHost(proxyHost)
-                .withProxyPort(proxyPort)
-                .withProxyUsername(proxyUsername)
-                .withProxyPassword(proxyPassword);
+                clientConfiguration
+                    .withProxyHost(proxyHost)
+                    .withProxyPort(proxyPort)
+                    .withProxyUsername(proxyUsername.toString())
+                    .withProxyPassword(proxyPassword.toString());
+            }
         }
 
         if (maxRetries != null) {
@@ -123,17 +128,19 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
 
     public static AWSCredentialsProvider buildCredentials(Logger logger, Settings settings, Settings repositorySettings) {
         AWSCredentialsProvider credentials;
-        String key = getValue(repositorySettings, settings,
-            S3Repository.Repository.KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
-        String secret = getValue(repositorySettings, settings,
-            S3Repository.Repository.SECRET_SETTING, S3Repository.Repositories.SECRET_SETTING);
+        try (SecureString key = getValue(repositorySettings, settings,
+                                         S3Repository.Repository.KEY_SETTING, S3Repository.Repositories.KEY_SETTING);
+             SecureString secret = getValue(repositorySettings, settings,
+                                            S3Repository.Repository.SECRET_SETTING, S3Repository.Repositories.SECRET_SETTING)) {
 
-        if (key.isEmpty() && secret.isEmpty()) {
-            logger.debug("Using either environment variables, system properties or instance profile credentials");
-            credentials = new DefaultAWSCredentialsProviderChain();
-        } else {
-            logger.debug("Using basic key/secret credentials");
-            credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key, secret));
+            if (key.length() == 0 && secret.length() == 0) {
+                // TODO: add deprecation, except for using instance profile
+                logger.debug("Using either environment variables, system properties or instance profile credentials");
+                credentials = new DefaultAWSCredentialsProviderChain();
+            } else {
+                logger.debug("Using basic key/secret credentials");
+                credentials = new StaticCredentialsProvider(new BasicAWSCredentials(key.toString(), secret.toString()));
+            }
         }
 
         return credentials;
@@ -220,6 +227,10 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
             case "us-gov-west":
             case "us-gov-west-1":
                 endpoint = "s3-us-gov-west-1.amazonaws.com";
+                break;
+            case "ca-central":
+            case "ca-central-1":
+                endpoint = "s3.ca-central-1.amazonaws.com";
                 break;
             default:
                 throw new IllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");

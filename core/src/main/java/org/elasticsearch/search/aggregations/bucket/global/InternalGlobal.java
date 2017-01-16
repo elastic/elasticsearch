@@ -32,7 +32,8 @@ import java.util.Map;
  * regardless the query.
  */
 public class InternalGlobal extends InternalSingleBucketAggregation implements Global {
-    InternalGlobal(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
+    InternalGlobal(String name, long docCount, InternalAggregations aggregations, List<PipelineAggregator> pipelineAggregators,
+            Map<String, Object> metaData) {
         super(name, docCount, aggregations, pipelineAggregators, metaData);
     }
 

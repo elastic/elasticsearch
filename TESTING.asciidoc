@@ -25,12 +25,6 @@ run it using Gradle:
 gradle run
 -------------------------------------
 
-or to attach a remote debugger, run it as:
-
--------------------------------------
-gradle run --debug-jvm
--------------------------------------
-
 === Test case filtering.
 
 - `tests.class` is a class-filtering shell-like glob pattern,
@@ -430,14 +424,32 @@ cd $BATS_ARCHIVES
 sudo -E bats $BATS_TESTS/*.bats
 -------------------------------------------------
 
-Note: Starting vagrant VM outside of the elasticsearch folder requires to
-indicates the folder that contains the Vagrantfile using the VAGRANT_CWD
-environment variable:
+You can also use Gradle to prepare the test environment and then starts a single VM:
 
 -------------------------------------------------
-gradle vagrantSetUp
-VAGRANT_CWD=/path/to/elasticsearch vagrant up centos-7 --provider virtualbox
+gradle vagrantFedora24#up
 -------------------------------------------------
+
+Or any of vagrantCentos6#up, vagrantDebian8#up, vagrantFedora24#up, vagrantOel6#up,
+vagrantOel7#up, vagrantOpensuse13#up, vagrantSles12#up, vagrantUbuntu1204#up,
+vagrantUbuntu1604#up.
+
+Once up, you can then connect to the VM using SSH from the elasticsearch directory:
+
+-------------------------------------------------
+vagrant ssh fedora-24
+-------------------------------------------------
+
+Or from another directory:
+
+-------------------------------------------------
+VAGRANT_CWD=/path/to/elasticsearch vagrant ssh fedora-24
+-------------------------------------------------
+
+Note: Starting vagrant VM outside of the elasticsearch folder requires to
+indicates the folder that contains the Vagrantfile using the VAGRANT_CWD
+environment variable.
+
 
 == Coverage analysis
 
@@ -462,7 +474,7 @@ Combined (Unit+Integration) coverage:
 mvn -Dtests.coverage verify jacoco:report
 ---------------------------------------------------------------------------
 
-== Debugging from an IDE
+== Launching and debugging from an IDE
 
 If you want to run elasticsearch from your IDE, the `gradle run` task
 supports a remote debugging option:
@@ -470,6 +482,17 @@ supports a remote debugging option:
 ---------------------------------------------------------------------------
 gradle run --debug-jvm
 ---------------------------------------------------------------------------
+
+== Debugging remotely from an IDE
+
+If you want to run Elasticsearch and be able to remotely attach the process
+for debugging purposes from your IDE, can start Elasticsearch using `ES_JAVA_OPTS`:
+
+---------------------------------------------------------------------------
+ES_JAVA_OPTS="-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=4000,suspend=y" ./bin/elasticsearch
+---------------------------------------------------------------------------
+
+Read your IDE documentation for how to attach a debugger to a JVM process.
 
 == Building with extra plugins
 Additional plugins may be built alongside elasticsearch, where their

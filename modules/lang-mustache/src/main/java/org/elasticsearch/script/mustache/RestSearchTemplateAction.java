@@ -23,8 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParseFieldMatcherSupplier;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -38,7 +36,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 
@@ -47,7 +44,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestSearchTemplateAction extends BaseRestHandler {
 
-    private static final ObjectParser<SearchTemplateRequest, ParseFieldMatcherSupplier> PARSER;
+    private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
     static {
         PARSER = new ObjectParser<>("search_template");
         PARSER.declareField((parser, request, s) ->
@@ -77,12 +74,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         }, new ParseField("inline", "template"), ObjectParser.ValueType.OBJECT_OR_STRING);
     }
 
-    private final SearchRequestParsers searchRequestParsers;
-
     @Inject
-    public RestSearchTemplateAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
+    public RestSearchTemplateAction(Settings settings, RestController controller) {
         super(settings);
-        this.searchRequestParsers = searchRequestParsers;
 
         controller.registerHandler(GET, "/_search/template", this);
         controller.registerHandler(POST, "/_search/template", this);
@@ -100,12 +94,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, null);
+        RestSearchAction.parseSearchRequest(searchRequest, request, null);
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
-            searchTemplateRequest = PARSER.parse(parser, new SearchTemplateRequest(), () -> ParseFieldMatcher.EMPTY);
+            searchTemplateRequest = PARSER.parse(parser, new SearchTemplateRequest(), null);
         }
         searchTemplateRequest.setRequest(searchRequest);
 
@@ -113,6 +107,6 @@ public class RestSearchTemplateAction extends BaseRestHandler {
     }
 
     public static SearchTemplateRequest parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, new SearchTemplateRequest(), () -> ParseFieldMatcher.EMPTY);
+        return PARSER.parse(parser, new SearchTemplateRequest(), null);
     }
 }

@@ -305,7 +305,9 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         QueryBuilder rewrittenQuery = query.rewrite(queryShardContext);
         if (rewrittenQuery != query) {
             InnerHitBuilder rewrittenInnerHit = InnerHitBuilder.rewrite(innerHit, rewrittenQuery);
-            return new HasParentQueryBuilder(type, rewrittenQuery, score, rewrittenInnerHit);
+            HasParentQueryBuilder hasParentQueryBuilder = new HasParentQueryBuilder(type, rewrittenQuery, score, rewrittenInnerHit);
+            hasParentQueryBuilder.ignoreUnmapped(ignoreUnmapped);
+            return hasParentQueryBuilder;
         }
         return this;
     }

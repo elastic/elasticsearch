@@ -406,7 +406,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
             MovAvgModel.AbstractModelParser modelParser = movingAverageMdelParserRegistry.lookup(model, parser.getTokenLocation());
             MovAvgModel movAvgModel;
             try {
-                movAvgModel = modelParser.parse(settings, pipelineAggregatorName, factory.window(), context.getParseFieldMatcher());
+                movAvgModel = modelParser.parse(settings, pipelineAggregatorName, factory.window());
             } catch (ParseException exception) {
                 throw new ParsingException(parser.getTokenLocation(), "Could not parse settings for model [" + model + "].", exception);
             }

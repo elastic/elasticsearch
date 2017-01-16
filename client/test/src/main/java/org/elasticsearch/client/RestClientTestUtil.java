@@ -19,7 +19,11 @@
 
 package org.elasticsearch.client;
 
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+import org.apache.http.Header;
+import org.apache.http.message.BasicHeader;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -80,5 +84,24 @@ final class RestClientTestUtil {
 
     static List<Integer> getAllStatusCodes() {
         return ALL_STATUS_CODES;
+    }
+
+    /**
+     * Create a random number of {@link Header}s.
+     * Generated header names will either be the {@code baseName} plus its index, or exactly the provided {@code baseName} so that the
+     * we test also support for multiple headers with same key and different values.
+     */
+    static Header[] randomHeaders(Random random, final String baseName) {
+        int numHeaders = RandomNumbers.randomIntBetween(random, 0, 5);
+        final Header[] headers = new Header[numHeaders];
+        for (int i = 0; i < numHeaders; i++) {
+            String headerName = baseName;
+            //randomly exercise the code path that supports multiple headers with same key
+            if (random.nextBoolean()) {
+                headerName = headerName + i;
+            }
+            headers[i] = new BasicHeader(headerName, RandomStrings.randomAsciiOfLengthBetween(random, 3, 10));
+        }
+        return headers;
     }
 }

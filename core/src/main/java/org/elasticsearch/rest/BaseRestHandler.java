@@ -22,7 +22,7 @@ package org.elasticsearch.rest;
 import org.apache.lucene.search.spell.LevensteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Setting;
@@ -53,11 +53,9 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
 
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
         Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
-    protected final ParseFieldMatcher parseFieldMatcher;
 
     protected BaseRestHandler(Settings settings) {
         super(settings);
-        this.parseFieldMatcher = new ParseFieldMatcher(settings);
     }
 
     @Override
@@ -128,14 +126,7 @@ public abstract class BaseRestHandler extends AbstractComponent implements RestH
      * the request against a channel.
      */
     @FunctionalInterface
-    protected interface RestChannelConsumer {
-        /**
-         * Executes a request against the given channel.
-         *
-         * @param channel the channel for sending the response
-         * @throws Exception if an exception occurred executing the request
-         */
-        void accept(RestChannel channel) throws Exception;
+    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {
     }
 
     /**

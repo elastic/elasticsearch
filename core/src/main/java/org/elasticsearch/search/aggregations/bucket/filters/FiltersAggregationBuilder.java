@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.filters.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -43,7 +42,6 @@ import java.util.Objects;
 
 public class FiltersAggregationBuilder extends AbstractAggregationBuilder<FiltersAggregationBuilder> {
     public static final String NAME = "filters";
-    private static final Type TYPE = new Type(NAME);
 
     private static final ParseField FILTERS_FIELD = new ParseField("filters");
     private static final ParseField OTHER_BUCKET_FIELD = new ParseField("other_bucket");
@@ -65,7 +63,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     private FiltersAggregationBuilder(String name, List<KeyedFilter> filters) {
-        super(name, TYPE);
+        super(name);
         // internally we want to have a fixed order of filters, regardless of the order of the filters in the request
         this.filters = new ArrayList<>(filters);
         Collections.sort(this.filters, (KeyedFilter kf1, KeyedFilter kf2) -> kf1.key().compareTo(kf2.key()));
@@ -79,7 +77,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
      *            the filters to use with this aggregation
      */
     public FiltersAggregationBuilder(String name, QueryBuilder... filters) {
-        super(name, TYPE);
+        super(name);
         List<KeyedFilter> keyedFilters = new ArrayList<>(filters.length);
         for (int i = 0; i < filters.length; i++) {
             keyedFilters.add(new KeyedFilter(String.valueOf(i), filters[i]));
@@ -92,7 +90,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
      * Read from a stream.
      */
     public FiltersAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE);
+        super(in);
         keyed = in.readBoolean();
         int filtersSize = in.readVInt();
         filters = new ArrayList<>(filtersSize);
@@ -176,7 +174,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
             rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(), 
                     context.getQueryShardContext())));
         }
-        return new FiltersAggregatorFactory(name, type, rewrittenFilters, keyed, otherBucket, otherBucketKey, context, parent,
+        return new FiltersAggregatorFactory(name, rewrittenFilters, keyed, otherBucket, otherBucketKey, context, parent,
                 subFactoriesBuilder, metaData);
     }
 
@@ -300,7 +298,7 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

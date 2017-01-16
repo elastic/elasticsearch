@@ -25,6 +25,7 @@ import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.plugins.PluginInfo;
 import org.junit.Assert;
 
@@ -88,6 +89,9 @@ public class BootstrapForTesting {
         } catch (Exception e) {
             throw new RuntimeException("found jar hell in test classpath", e);
         }
+
+        // Log ifconfig output before SecurityManager is installed
+        IfConfig.logIfNecessary();
 
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {

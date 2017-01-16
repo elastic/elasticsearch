@@ -48,7 +48,7 @@ public class GetResultTests extends ESTestCase {
         Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
         GetResult getResult = tuple.v1();
         GetResult expectedGetResult = tuple.v2();
-        BytesReference originalBytes = toXContent(getResult, xContentType, false);
+        BytesReference originalBytes = toXContent(getResult, xContentType);
         //test that we can parse what we print out
         GetResult parsedGetResult;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
@@ -57,7 +57,7 @@ public class GetResultTests extends ESTestCase {
         }
         assertEquals(expectedGetResult, parsedGetResult);
         //print the parsed object out and test that the output is the same as the original output
-        BytesReference finalBytes = toXContent(parsedGetResult, xContentType, false);
+        BytesReference finalBytes = toXContent(parsedGetResult, xContentType);
         assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
         //check that the source stays unchanged, no shuffling of keys nor anything like that
         assertEquals(expectedGetResult.sourceAsString(), parsedGetResult.sourceAsString());
@@ -68,14 +68,25 @@ public class GetResultTests extends ESTestCase {
             GetResult getResult = new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " +
                     "\"value1\", \"field2\":\"value2\"}"), Collections.singletonMap("field1", new GetField("field1",
                     Collections.singletonList("value1"))));
-            String output = Strings.toString(getResult, false);
+            String output = Strings.toString(getResult);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"found\":true,\"_source\":{ \"field1\" " +
                     ": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", output);
         }
         {
             GetResult getResult = new GetResult("index", "type", "id", 1, false, null, null);
-            String output = Strings.toString(getResult, false);
+            String output = Strings.toString(getResult);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
+        }
+    }
+
+    public void testGetSourceAsBytes() {
+        XContentType xContentType = randomFrom(XContentType.values());
+        Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
+        GetResult getResult = tuple.v1();
+        if (getResult.isExists() && getResult.isSourceEmpty() == false) {
+            assertNotNull(getResult.sourceRef());
+        } else {
+            assertNull(getResult.sourceRef());
         }
     }
 

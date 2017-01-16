@@ -39,8 +39,8 @@ setup:
 ---
 "Filters aggs with wrapper query":
   - skip:
-    version: " - 5.1.1"
-    reason:  Using filters aggs that needs rewriting, this was fixed in 5.1.2
+      version: " - 5.1.1"
+      reason:  Using filters aggs that needs rewriting, this was fixed in 5.1.2
 
   - do:
       search:

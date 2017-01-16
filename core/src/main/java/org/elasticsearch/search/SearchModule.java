@@ -93,9 +93,10 @@ import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtensionSpec;
+import org.elasticsearch.plugins.SearchPlugin.SuggesterSpec;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorParsers;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.children.ChildrenAggregationBuilder;
@@ -238,16 +239,14 @@ import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.search.suggest.Suggester;
-import org.elasticsearch.search.suggest.Suggesters;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
-import org.elasticsearch.search.suggest.completion.CompletionSuggester;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.Laplace;
 import org.elasticsearch.search.suggest.phrase.LinearInterpolation;
-import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggestionBuilder;
 import org.elasticsearch.search.suggest.phrase.SmoothingModel;
 import org.elasticsearch.search.suggest.phrase.StupidBackoff;
-import org.elasticsearch.search.suggest.term.TermSuggester;
+import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -267,28 +266,21 @@ public class SearchModule {
 
     private final boolean transportClient;
     private final Map<String, Highlighter> highlighters;
-    private final Map<String, Suggester<?>> suggesters;
-    private final ParseFieldRegistry<Aggregator.Parser> aggregationParserRegistry = new ParseFieldRegistry<>("aggregation");
-    private final ParseFieldRegistry<PipelineAggregator.Parser> pipelineAggregationParserRegistry = new ParseFieldRegistry<>(
-            "pipline_aggregation");
-    private final AggregatorParsers aggregatorParsers = new AggregatorParsers(aggregationParserRegistry, pipelineAggregationParserRegistry);
     private final ParseFieldRegistry<SignificanceHeuristicParser> significanceHeuristicParserRegistry = new ParseFieldRegistry<>(
             "significance_heuristic");
     private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
             "moving_avg_model");
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
-    private final SearchExtRegistry searchExtParserRegistry = new SearchExtRegistry();
 
     private final Settings settings;
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
-    private final SearchRequestParsers searchRequestParsers;
 
     public SearchModule(Settings settings, boolean transportClient, List<SearchPlugin> plugins) {
         this.settings = settings;
         this.transportClient = transportClient;
-        suggesters = setupSuggesters(plugins);
+        registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
         registerQueryParsers(plugins);
@@ -302,7 +294,6 @@ public class SearchModule {
         registerFetchSubPhases(plugins);
         registerSearchExts(plugins);
         registerShapes();
-        searchRequestParsers = new SearchRequestParsers(aggregatorParsers, getSuggesters(), searchExtParserRegistry);
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -311,14 +302,6 @@ public class SearchModule {
 
     public List<NamedXContentRegistry.Entry> getNamedXContents() {
         return namedXContents;
-    }
-
-    public Suggesters getSuggesters() {
-        return new Suggesters(suggesters);
-    }
-
-    public SearchRequestParsers getSearchRequestParsers() {
-        return searchRequestParsers;
     }
 
     /**
@@ -340,13 +323,6 @@ public class SearchModule {
      */
     public ParseFieldRegistry<MovAvgModel.AbstractModelParser> getMovingAverageModelParserRegistry() {
         return movingAverageModelParserRegistry;
-    }
-
-    /**
-     * Parsers for {@link AggregationBuilder}s and {@link PipelineAggregationBuilder}s.
-     */
-    public AggregatorParsers getAggregatorParsers() {
-        return aggregatorParsers;
     }
 
     private void registerAggregations(List<SearchPlugin> plugins) {
@@ -434,7 +410,10 @@ public class SearchModule {
 
     private void registerAggregation(AggregationSpec spec) {
         if (false == transportClient) {
-            aggregationParserRegistry.register(spec.getParser(), spec.getName());
+            namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
+                AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
+                return spec.getParser().parse(context.name, context.queryParseContext);
+            }));
         }
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(AggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
@@ -528,7 +507,10 @@ public class SearchModule {
 
     private void registerPipelineAggregation(PipelineAggregationSpec spec) {
         if (false == transportClient) {
-            pipelineAggregationParserRegistry.register(spec.getParser(), spec.getName());
+            namedXContents.add(new NamedXContentRegistry.Entry(BaseAggregationBuilder.class, spec.getName(), (p, c) -> {
+                AggregatorFactories.AggParseContext context = (AggregatorFactories.AggParseContext) c;
+                return spec.getParser().parse(context.name, context.queryParseContext);
+            }));
         }
         namedWriteables.add(
                 new NamedWriteableRegistry.Entry(PipelineAggregationBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
@@ -571,23 +553,22 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(SmoothingModel.class, StupidBackoff.NAME, StupidBackoff::new));
     }
 
-    private Map<String, Suggester<?>> setupSuggesters(List<SearchPlugin> plugins) {
+    private void registerSuggesters(List<SearchPlugin> plugins) {
         registerSmoothingModels(namedWriteables);
 
-        // Suggester<?> is weird - it is both a Parser and a reader....
-        NamedRegistry<Suggester<?>> suggesters = new NamedRegistry<Suggester<?>>("suggester") {
-            @Override
-            public void register(String name, Suggester<?> t) {
-                super.register(name, t);
-                namedWriteables.add(new NamedWriteableRegistry.Entry(SuggestionBuilder.class, name, t));
-            }
-        };
-        suggesters.register("phrase", PhraseSuggester.INSTANCE);
-        suggesters.register("term", TermSuggester.INSTANCE);
-        suggesters.register("completion", CompletionSuggester.INSTANCE);
+        registerSuggester(new SuggesterSpec<>("term", TermSuggestionBuilder::new, TermSuggestionBuilder::fromXContent));
+        registerSuggester(new SuggesterSpec<>("phrase", PhraseSuggestionBuilder::new, PhraseSuggestionBuilder::fromXContent));
+        registerSuggester(new SuggesterSpec<>("completion", CompletionSuggestionBuilder::new, CompletionSuggestionBuilder::fromXContent));
 
-        suggesters.extractAndRegister(plugins, SearchPlugin::getSuggesters);
-        return unmodifiableMap(suggesters.getRegistry());
+        registerFromPlugin(plugins, SearchPlugin::getSuggesters, this::registerSuggester);
+    }
+
+    private void registerSuggester(SuggesterSpec<?> suggester) {
+        namedWriteables.add(new NamedWriteableRegistry.Entry(
+                SuggestionBuilder.class, suggester.getName().getPreferredName(), suggester.getReader()));
+        // TODO Merge NoContextParser and FromXContent
+        namedXContents.add(new NamedXContentRegistry.Entry(SuggestionBuilder.class, suggester.getName(),
+                p -> suggester.getParser().parse(p)));
     }
 
     private Map<String, Highlighter> setupHighlighters(Settings settings, List<SearchPlugin> plugins) {
@@ -699,7 +680,8 @@ public class SearchModule {
     }
 
     private void registerSearchExt(SearchExtSpec<?> spec) {
-        searchExtParserRegistry.register(spec.getParser(), spec.getName());
+        // TODO merge NoContextParser and ToXContent
+        namedXContents.add(new NamedXContentRegistry.Entry(SearchExtBuilder.class, spec.getName(), p -> spec.getParser().parse(p)));
         namedWriteables.add(new NamedWriteableRegistry.Entry(SearchExtBuilder.class, spec.getName().getPreferredName(), spec.getReader()));
     }
 
@@ -781,9 +763,5 @@ public class SearchModule {
 
     public FetchPhase getFetchPhase() {
         return new FetchPhase(fetchSubPhases);
-    }
-
-    public SearchExtRegistry getSearchExtRegistry() {
-        return searchExtParserRegistry;
     }
 }

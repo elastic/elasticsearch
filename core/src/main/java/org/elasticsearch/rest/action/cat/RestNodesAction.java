@@ -193,6 +193,8 @@ public class RestNodesAction extends AbstractCatAction {
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
+        table.addCell("refresh.listeners", "alias:rli,refreshListeners;default:false;text-align:right;"
+                + "desc:number of pending refresh listeners");
 
         table.addCell("script.compilations", "alias:scrcc,scriptCompilations;default:false;text-align:right;desc:script compilations");
         table.addCell("script.cache_evictions",
@@ -346,6 +348,7 @@ public class RestNodesAction extends AbstractCatAction {
             RefreshStats refreshStats = indicesStats == null ? null : indicesStats.getRefresh();
             table.addCell(refreshStats == null ? null : refreshStats.getTotal());
             table.addCell(refreshStats == null ? null : refreshStats.getTotalTime());
+            table.addCell(refreshStats == null ? null : refreshStats.getListeners());
 
             ScriptStats scriptStats = stats == null ? null : stats.getScriptStats();
             table.addCell(scriptStats == null ? null : scriptStats.getCompilations());

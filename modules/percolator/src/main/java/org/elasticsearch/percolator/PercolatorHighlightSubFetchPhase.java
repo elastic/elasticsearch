@@ -86,7 +86,7 @@ public final class PercolatorHighlightSubFetchPhase extends HighlightPhase {
             try {
                 LeafReaderContext ctx = ctxs.get(ReaderUtil.subIndex(hit.docId(), ctxs));
                 int segmentDocId = hit.docId() - ctx.docBase;
-                query = queryStore.getQueries(ctx).getQuery(segmentDocId);
+                query = queryStore.getQueries(ctx).apply(segmentDocId);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

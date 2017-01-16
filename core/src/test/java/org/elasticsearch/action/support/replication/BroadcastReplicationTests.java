@@ -96,7 +96,7 @@ public class BroadcastReplicationTests extends ESTestCase {
             new NetworkService(Settings.EMPTY, Collections.emptyList()));
         clusterService = createClusterService(threadPool);
         transportService = new TransportService(clusterService.getSettings(), transport, threadPool,
-                TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+                TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> clusterService.localNode(), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         broadcastReplicationAction = new TestBroadcastReplicationAction(Settings.EMPTY, threadPool, clusterService, transportService,

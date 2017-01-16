@@ -24,18 +24,17 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimary
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.command.AllocationCommandRegistry;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry.FromXContent;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
@@ -76,12 +75,8 @@ public final class NetworkModule {
     private final Settings settings;
     private final boolean transportClient;
 
-    private static final AllocationCommandRegistry allocationCommandRegistry = new AllocationCommandRegistry();
     private static final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
-
-    private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
-    private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
-    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
+    private static final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
 
     static {
         registerAllocationCommand(CancelAllocationCommand::new, CancelAllocationCommand::fromXContent,
@@ -99,6 +94,11 @@ public final class NetworkModule {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
     }
+
+    private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
+    private final Map<String, Supplier<HttpServerTransport>> transportHttpFactories = new HashMap<>();
+    private final List<TransportInterceptor> transportIntercetors = new ArrayList<>();
+
     /**
      * Creates a network module that custom networking classes can be plugged into.
      * @param settings The settings for the node
@@ -125,7 +125,8 @@ public final class NetworkModule {
             for (Map.Entry<String, Supplier<Transport>> entry : httpTransportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
             }
-            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(namedWriteableRegistry);
+            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(namedWriteableRegistry,
+                threadPool.getThreadContext());
             for (TransportInterceptor interceptor : transportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
@@ -165,20 +166,17 @@ public final class NetworkModule {
      *        it is the name under which the command's reader is registered.
      */
     private static <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader,
-                                                                            AllocationCommand.Parser<T> parser, ParseField commandName) {
-        allocationCommandRegistry.register(parser, commandName);
-        namedWriteables.add(new Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
+                                                                                FromXContent<T> parser, ParseField commandName) {
+        namedXContents.add(new NamedXContentRegistry.Entry(AllocationCommand.class, commandName, parser));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
     }
 
-    /**
-     * The registry of allocation command parsers.
-     */
-    public static AllocationCommandRegistry getAllocationCommandRegistry() {
-        return allocationCommandRegistry;
-    }
-
-    public static List<Entry> getNamedWriteables() {
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return Collections.unmodifiableList(namedWriteables);
+    }
+
+    public static List<NamedXContentRegistry.Entry> getNamedXContents() {
+        return Collections.unmodifiableList(namedXContents);
     }
 
     public Supplier<HttpServerTransport> getHttpServerTransportSupplier() {

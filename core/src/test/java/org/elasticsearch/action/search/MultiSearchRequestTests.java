@@ -21,20 +21,14 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestMultiSearchAction;
-import org.elasticsearch.search.SearchRequestParsers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -144,11 +138,6 @@ public class MultiSearchRequestTests extends ESTestCase {
                     new MultiSearchResponse.Item(null, new IllegalStateException("baaaaaazzzz"))
         });
 
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-
         assertEquals("{\"responses\":["
                         + "{"
                         + "\"error\":{\"root_cause\":[{\"type\":\"illegal_state_exception\",\"reason\":\"foobar\"}],"
@@ -159,7 +148,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                         + "\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"},\"status\":500"
                         + "}"
                         + "]}",
-                builder.string());
+                Strings.toString(response));
     }
 
     public void testMaxConcurrentSearchRequests() {
@@ -172,7 +161,7 @@ public class MultiSearchRequestTests extends ESTestCase {
     private MultiSearchRequest parseMultiSearchRequest(String sample) throws IOException {
         byte[] data = StreamsUtils.copyToBytesFromClasspath(sample);
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data)).build();
-        return RestMultiSearchAction.parseRequest(restRequest, true, new SearchRequestParsers(null, null, null), ParseFieldMatcher.EMPTY);
+        return RestMultiSearchAction.parseRequest(restRequest, true);
     }
 
     @Override

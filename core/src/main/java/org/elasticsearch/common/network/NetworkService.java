@@ -90,7 +90,6 @@ public class NetworkService extends AbstractComponent {
 
     public NetworkService(Settings settings, List<CustomNameResolver> customNameResolvers) {
         super(settings);
-        IfConfig.logIfNecessary();
         this.customNameResolvers = customNameResolvers;
     }
 

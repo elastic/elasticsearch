@@ -144,6 +144,7 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("refresh.total", "alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("refresh.time", "alias:rti,refreshTime;default:false;text-align:right;desc:time spent in refreshes");
+        table.addCell("refresh.listeners", "alias:rli,refreshListeners;default:false;text-align:right;desc:number of pending refresh listeners");
 
         table.addCell("search.fetch_current", "alias:sfc,searchFetchCurrent;default:false;text-align:right;desc:current fetch phase ops");
         table.addCell("search.fetch_time", "alias:sfti,searchFetchTime;default:false;text-align:right;desc:time spent in fetch phase");
@@ -290,6 +291,7 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotal());
             table.addCell(commonStats == null ? null : commonStats.getRefresh().getTotalTime());
+            table.addCell(commonStats == null ? null : commonStats.getRefresh().getListeners());
 
             table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchCurrent());
             table.addCell(commonStats == null ? null : commonStats.getSearch().getTotal().getFetchTime());

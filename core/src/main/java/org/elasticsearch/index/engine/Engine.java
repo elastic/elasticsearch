@@ -512,7 +512,7 @@ public abstract class Engine implements Closeable {
                     manager.release(searcher);
                 }
             }
-        } catch (EngineClosedException ex) {
+        } catch (AlreadyClosedException ex) {
             throw ex;
         } catch (Exception ex) {
             ensureOpen(); // throw EngineCloseException here if we are already closed
@@ -530,7 +530,7 @@ public abstract class Engine implements Closeable {
 
     protected void ensureOpen() {
         if (isClosed.get()) {
-            throw new EngineClosedException(shardId, failedEngine.get());
+            throw new AlreadyClosedException("engine is closed", failedEngine.get());
         }
     }
 
@@ -1283,7 +1283,7 @@ public abstract class Engine implements Closeable {
                     logger.debug("flushing shard on close - this might take some time to sync files to disk");
                     try {
                         flush(); // TODO we might force a flush in the future since we have the write lock already even though recoveries are running.
-                    } catch (EngineClosedException ex) {
+                    } catch (AlreadyClosedException ex) {
                         logger.debug("engine already closed - skipping flushAndClose");
                     }
                 } finally {

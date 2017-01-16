@@ -1359,7 +1359,7 @@ public class InternalEngineTests extends ESTestCase {
                                     return;
                                 }
                             }
-                        } catch (AlreadyClosedException | EngineClosedException ex) {
+                        } catch (AlreadyClosedException ex) {
                             // fine
                         }
                     }
@@ -2601,7 +2601,7 @@ public class InternalEngineTests extends ESTestCase {
                     }
                     fail("engine should be closed");
                 } catch (Exception e) {
-                    assertThat(e, instanceOf(EngineClosedException.class));
+                    assertThat(e, instanceOf(AlreadyClosedException.class));
                 }
             }
         }
@@ -2875,7 +2875,7 @@ public class InternalEngineTests extends ESTestCase {
                             } catch (InterruptedException e) {
                                 throw new AssertionError(e);
                             }
-                            throw new AlreadyClosedException("boom");
+                            throw new ElasticsearchException("something completely different");
                         }
                     }
                 });
@@ -2895,11 +2895,11 @@ public class InternalEngineTests extends ESTestCase {
                 try {
                     internalEngine.refresh("test");
                     fail();
-                } catch (EngineClosedException ex) {
-                    // we can't guarantee that we are entering the refresh call before it's fully
-                    // closed so we also expecting ECE here
-                    assertTrue(ex.toString(), ex.getCause() instanceof MockDirectoryWrapper.FakeIOException);
-                } catch (RefreshFailedEngineException | AlreadyClosedException  ex) {
+                } catch (AlreadyClosedException ex) {
+                    if (ex.getCause() != null) {
+                        assertTrue(ex.toString(), ex.getCause() instanceof MockDirectoryWrapper.FakeIOException);
+                    }
+                } catch (RefreshFailedEngineException ex) {
                     // fine
                 } finally {
                     start.countDown();

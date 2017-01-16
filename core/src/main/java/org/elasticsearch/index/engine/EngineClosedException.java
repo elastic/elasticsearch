@@ -33,6 +33,7 @@ import java.io.IOException;
  *
  *
  */
+@Deprecated
 public class EngineClosedException extends IndexShardClosedException {
 
     public EngineClosedException(ShardId shardId) {

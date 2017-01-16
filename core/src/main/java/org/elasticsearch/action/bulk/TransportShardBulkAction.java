@@ -48,14 +48,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
@@ -388,8 +386,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         Exception failure = operationResult.getFailure();
                         assert failure instanceof VersionConflictEngineException
                             || failure instanceof MapperParsingException
-                            || failure instanceof EngineClosedException
-                            || failure instanceof IndexShardClosedException
                             : "expected any one of [version conflict, mapper parsing, engine closed, index shard closed]" +
                             " failures. got " + failure;
                         if (!ignoreReplicaException(failure)) {

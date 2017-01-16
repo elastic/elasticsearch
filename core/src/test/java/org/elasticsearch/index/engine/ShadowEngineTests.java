@@ -33,6 +33,7 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
@@ -864,7 +865,7 @@ public class ShadowEngineTests extends ESTestCase {
             MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
             searchResult.close();
             fail("exception expected");
-        } catch (EngineClosedException ex) {
+        } catch (AlreadyClosedException ex) {
             // all is well
         }
     }

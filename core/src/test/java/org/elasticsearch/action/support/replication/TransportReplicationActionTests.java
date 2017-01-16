@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -55,7 +56,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -431,12 +431,12 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
     }
 
-    private ElasticsearchException randomRetryPrimaryException(ShardId shardId) {
+    private Exception randomRetryPrimaryException(ShardId shardId) {
         return randomFrom(
             new ShardNotFoundException(shardId),
             new IndexNotFoundException(shardId.getIndex()),
             new IndexShardClosedException(shardId),
-            new EngineClosedException(shardId),
+            new AlreadyClosedException("primary is closed"),
             new ReplicationOperation.RetryOnPrimaryException(shardId, "hello")
         );
     }

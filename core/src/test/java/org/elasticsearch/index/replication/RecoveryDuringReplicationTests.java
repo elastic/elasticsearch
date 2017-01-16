@@ -36,6 +36,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestCase {
@@ -68,6 +69,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.flush();
             shards.getPrimary().updateGlobalCheckpointOnPrimary();
             final IndexShard originalReplica = shards.getReplicas().get(0);
+            long replicaCommittedLocalCheckpoint = docs - 1;
             boolean replicaHasDocsSinceLastFlushedCheckpoint = false;
             for (int i = 0; i < randomInt(2); i++) {
                 final int indexedDocs = shards.indexDocs(randomInt(5));
@@ -79,14 +81,13 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 final boolean flush = randomBoolean();
                 if (flush) {
                     originalReplica.flush(new FlushRequest());
+                    replicaHasDocsSinceLastFlushedCheckpoint = false;
+                    replicaCommittedLocalCheckpoint = docs - 1;
                 }
 
                 final boolean sync = randomBoolean();
                 if (sync) {
                     shards.getPrimary().updateGlobalCheckpointOnPrimary();
-                    if (flush) {
-                        replicaHasDocsSinceLastFlushedCheckpoint = false;
-                    }
                 }
             }
 
@@ -112,6 +113,9 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), not(empty()));
             } else {
                 assertThat(recoveredReplica.recoveryState().getIndex().fileDetails(), empty());
+                assertThat(
+                    recoveredReplica.recoveryState().getTranslog().recoveredOperations(),
+                    equalTo(Math.toIntExact(docs - (replicaCommittedLocalCheckpoint + 1))));
             }
 
             docs += shards.indexDocs(randomInt(5));

@@ -218,7 +218,7 @@ public class RecoverySourceHandler {
             }
             return tracker.getCheckpoint() >= endingSeqNo;
         }
-        return false;
+        return true;
     }
 
     /**
@@ -417,7 +417,7 @@ public class RecoverySourceHandler {
         logger.trace("{} recovery [phase2] to {}: sending transaction log operations", request.shardId(), request.targetNode());
 
         // send all the snapshot's translog operations to the target
-        final int totalOperations = sendSnapshot(snapshot);
+        final int totalOperations = sendSnapshot(request.startingSeqNo(), snapshot);
 
         stopWatch.stop();
         logger.trace("{} recovery [phase2] to {}: took [{}]", request.shardId(), request.targetNode(), stopWatch.totalTime());
@@ -465,15 +465,17 @@ public class RecoverySourceHandler {
     }
 
     /**
-     * Send the given snapshot's operations to this handler's target node.
+     * Send the given snapshot's operations with a sequence number greater than the specified staring sequence number to this handler's
+     * target node.
      * <p>
      * Operations are bulked into a single request depending on an operation count limit or size-in-bytes limit.
      *
-     * @param snapshot the translog snapshot to replay operations from
+     * @param startingSeqNo the sequence number for which only operations with a sequence number greater than this will be sent
+     * @param snapshot      the translog snapshot to replay operations from
      * @return the total number of translog operations that were sent
      * @throws IOException if an I/O exception occurred reading the translog snapshot
      */
-    protected int sendSnapshot(final Translog.Snapshot snapshot) throws IOException {
+    protected int sendSnapshot(final long startingSeqNo, final Translog.Snapshot snapshot) throws IOException {
         int ops = 0;
         long size = 0;
         int totalOperations = 0;
@@ -490,6 +492,7 @@ public class RecoverySourceHandler {
                 throw new IndexShardClosedException(request.shardId());
             }
             cancellableThreads.checkForCancel();
+            if (operation.seqNo() < startingSeqNo) continue;
             operations.add(operation);
             ops++;
             size += operation.estimateSize();

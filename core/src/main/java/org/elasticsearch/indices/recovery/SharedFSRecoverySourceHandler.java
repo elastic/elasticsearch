@@ -83,7 +83,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     }
 
     @Override
-    protected int sendSnapshot(final Translog.Snapshot snapshot) {
+    protected int sendSnapshot(final long startingSeqNo, final Translog.Snapshot snapshot) {
         logger.trace("{} skipping recovery of translog snapshot on shared filesystem to: {}", shard.shardId(), request.targetNode());
         return 0;
     }

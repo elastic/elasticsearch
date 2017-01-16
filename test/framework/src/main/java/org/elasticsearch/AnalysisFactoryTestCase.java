@@ -42,6 +42,7 @@ import org.elasticsearch.index.analysis.DelimitedPayloadTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenFilterFactory;
 import org.elasticsearch.index.analysis.EdgeNGramTokenizerFactory;
 import org.elasticsearch.index.analysis.ElisionTokenFilterFactory;
+import org.elasticsearch.index.analysis.FlattenGraphTokenFilterFactory;
 import org.elasticsearch.index.analysis.GermanNormalizationFilterFactory;
 import org.elasticsearch.index.analysis.GermanStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.HindiNormalizationFilterFactory;
@@ -248,6 +249,7 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("type",                      KeepTypesFilterFactory.class)
         .put("uppercase",                 UpperCaseTokenFilterFactory.class)
         .put("worddelimiter",             WordDelimiterTokenFilterFactory.class)
+        .put("flattengraph",              FlattenGraphTokenFilterFactory.class)
 
         // TODO: these tokenfilters are not yet exposed: useful?
 
@@ -277,8 +279,6 @@ public class AnalysisFactoryTestCase extends ESTestCase {
         .put("fingerprint",               Void.class)
         // for tee-sinks
         .put("daterecognizer",            Void.class)
-        // to flatten graphs created by the synonym graph filter
-        .put("flattengraph",              Void.class)
 
         .immutableMap();
 

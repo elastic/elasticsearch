@@ -20,6 +20,7 @@
 package org.elasticsearch.index.replication;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.index.shard.IndexShard;
@@ -106,7 +107,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 shards.flush();
             }
 
-            final IndexShard recoveredReplica = shards.addReplica(originalReplica);
+            originalReplica.close("disconnected", false);
+            IOUtils.close(originalReplica.store());
+            final IndexShard recoveredReplica =
+                shards.addReplicaWithExistingPath(originalReplica.shardPath(), originalReplica.routingEntry().currentNodeId());
             shards.recoverReplica(recoveredReplica);
             if (flushPrimary && replicaHasDocsSinceLastFlushedCheckpoint) {
                 // replica has something to catch up with, but since we flushed the primary, we should fall back to full recovery

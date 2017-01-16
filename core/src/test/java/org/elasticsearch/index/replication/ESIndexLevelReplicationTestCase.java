@@ -50,6 +50,7 @@ import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 
@@ -185,16 +186,14 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
             return replica;
         }
 
-        public synchronized IndexShard addReplica(IndexShard replica) throws IOException {
-            replica.close("add", false);
-            IOUtils.close(replica.store());
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+        public synchronized IndexShard addReplicaWithExistingPath(final ShardPath shardPath, final String nodeId) throws IOException {
+            final ShardRouting shardRouting = TestShardRouting.newShardRouting(
                 shardId,
-                replica.routingEntry().currentNodeId(),
+                nodeId,
                 false, ShardRoutingState.INITIALIZING,
                 RecoverySource.PeerRecoverySource.INSTANCE);
 
-            IndexShard newReplica = newShard(shardRouting, replica.shardPath(), indexMetaData, null, replicaGlobalCheckpointSyncer);
+            final IndexShard newReplica = newShard(shardRouting, shardPath, indexMetaData, null, replicaGlobalCheckpointSyncer);
             replicas.add(newReplica);
             updateAllocationIDsOnPrimary();
             return newReplica;

@@ -80,6 +80,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -743,7 +744,8 @@ public class IndicesRequestIT extends ESIntegTestCase {
         public static class TestPlugin extends Plugin implements NetworkPlugin {
             public final InterceptingTransportService instance = new InterceptingTransportService();
             @Override
-            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry) {
+            public List<TransportInterceptor> getTransportInterceptors(NamedWriteableRegistry namedWriteableRegistry,
+                                                                       ThreadContext threadContext) {
                 return Collections.singletonList(instance);
             }
         }

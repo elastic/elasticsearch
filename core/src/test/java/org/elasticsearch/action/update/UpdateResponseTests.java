@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetField;
@@ -80,10 +81,9 @@ public class UpdateResponseTests extends ESTestCase {
 
     public void testToAndFromXContent() throws IOException {
         final XContentType xContentType = randomFrom(XContentType.values());
+        final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse();
 
-        // Create a random UpdateResponse and converts it to XContent in bytes
-        UpdateResponse updateResponse = randomUpdateResponse();
-        BytesReference updateResponseBytes = toXContent(updateResponse, xContentType);
+        BytesReference updateResponseBytes = toXContent(tuple.v1(), xContentType);
 
         // Parse the XContent bytes to obtain a parsed UpdateResponse
         UpdateResponse parsedUpdateResponse;
@@ -92,41 +92,44 @@ public class UpdateResponseTests extends ESTestCase {
             assertNull(parser.nextToken());
         }
 
-        // We can't use equals() to compare the original and the parsed update response
-        // because the random update response can contain shard failures with exceptions,
-        // and those exceptions are not parsed back with the same types.
-
-        // Print the parsed object out and test that the output is the same as the original output
         BytesReference parsedUpdateResponseBytes = toXContent(parsedUpdateResponse, xContentType);
         try (XContentParser parser = createParser(xContentType.xContent(), parsedUpdateResponseBytes)) {
-            assertUpdateResponse(updateResponse, parser.map());
+            IndexResponseTests.assertDocWriteResponse(tuple.v2(), parser.map());
         }
+        assertEquals(tuple.v2().getGetResult(), parsedUpdateResponse.getGetResult());
     }
 
-    private static void assertUpdateResponse(UpdateResponse expected, Map<String, Object> actual) {
-        IndexResponseTests.assertDocWriteResponse(expected, actual);
-    }
+    private static Tuple<UpdateResponse, UpdateResponse> randomUpdateResponse() {
+        Tuple<GetResult, GetResult> getResults = GetResultTests.randomGetResult(randomFrom(XContentType.values()));
+        GetResult actualGetResult = getResults.v1();
+        GetResult expectedGetResult = getResults.v2();
 
-    private static UpdateResponse randomUpdateResponse() {
-        ShardId shardId = new ShardId(randomAsciiOfLength(5), randomAsciiOfLength(5), randomIntBetween(0, 5));
-        String type = randomAsciiOfLength(5);
-        String id = randomAsciiOfLength(5);
-        DocWriteResponse.Result result = randomFrom(DocWriteResponse.Result.values());
-        long version = (long) randomIntBetween(0, 5);
-        boolean forcedRefresh = randomBoolean();
+        ShardId shardId = new ShardId(actualGetResult.getIndex(), randomAsciiOfLength(5), randomIntBetween(0, 5));
+        String type = actualGetResult.getType();
+        String id = actualGetResult.getId();
+        long version = actualGetResult.getVersion();
+        DocWriteResponse.Result result = actualGetResult.isExists() ? DocWriteResponse.Result.UPDATED : DocWriteResponse.Result.NOT_FOUND;
 
-        UpdateResponse updateResponse = null;
-        if (rarely()) {
-            updateResponse = new UpdateResponse(shardId, type, id, version, result);
+        Long seqNo = randomBoolean() ? null : randomNonNegativeLong();
+
+        UpdateResponse actual, expected;
+        if (seqNo != null) {
+            ReplicationResponse.ShardInfo shardInfo = RandomObjects.randomShardInfo(random(), true);
+
+            actual = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
+            actual.setGetResult(actualGetResult);
+
+            expected = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
+            expected.setGetResult(expectedGetResult);
         } else {
-            long seqNo = randomIntBetween(0, 5);
-            ReplicationResponse.ShardInfo shardInfo = RandomObjects.randomShardInfo(random(), randomBoolean());
-            updateResponse = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
-
-            GetResult getResult = GetResultTests.randomGetResult(randomFrom(XContentType.values())).v1();
-            updateResponse.setGetResult(getResult);
+            actual = new UpdateResponse(shardId, type, id, version, result);
+            expected = new UpdateResponse(shardId, type, id, version, result);
         }
-        updateResponse.setForcedRefresh(forcedRefresh);
-        return updateResponse;
+
+        boolean forcedRefresh = randomBoolean();
+        actual.setForcedRefresh(forcedRefresh);
+        expected.setForcedRefresh(forcedRefresh);
+
+        return Tuple.tuple(actual, expected);
     }
 }

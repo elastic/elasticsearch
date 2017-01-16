@@ -86,7 +86,7 @@ public class IndexResponseTests extends ESTestCase {
         assertEquals(expected.getIndex(), actual.get("_index"));
         assertEquals(expected.getType(), actual.get("_type"));
         assertEquals(expected.getId(), actual.get("_id"));
-        assertEquals(expected.getVersion(), ((Integer) actual.get("_version")).longValue());
+        assertEquals(expected.getVersion(), ((Long) actual.get("_version")).longValue());
         assertEquals(expected.getResult().getLowercase(), actual.get("result"));
         if (expected.forcedRefresh()) {
             assertTrue((Boolean) actual.get("forced_refresh"));
@@ -94,7 +94,7 @@ public class IndexResponseTests extends ESTestCase {
             assertFalse(actual.containsKey("forced_refresh"));
         }
         if (expected.getSeqNo() >= 0) {
-            assertEquals(expected.getSeqNo(), ((Integer) actual.get("_seq_no")).longValue());
+            assertEquals(expected.getSeqNo(), ((Long) actual.get("_seq_no")).longValue());
         } else {
             assertFalse(actual.containsKey("_seq_no"));
         }

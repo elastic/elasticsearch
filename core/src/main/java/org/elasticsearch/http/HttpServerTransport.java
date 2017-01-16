@@ -25,7 +25,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 public interface HttpServerTransport extends LifecycleComponent {
 
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
-    String HTTP_SERVER_BOSS_THREAD_NAME_PREFIX = "http_server_boss";
 
     BoundTransportAddress boundAddress();
 

@@ -32,7 +32,6 @@ import io.netty.channel.ChannelOption;
 import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.oio.OioEventLoopGroup;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
@@ -79,7 +78,6 @@ import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty4.Netty4OpenChannelsHandler;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.netty4.channel.PrivilegedNioServerSocketChannel;
-import org.elasticsearch.transport.netty4.channel.PrivilegedOioServerSocketChannel;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -136,8 +134,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         boolSetting("http.tcp_no_delay", NetworkService.TcpSettings.TCP_NO_DELAY, Property.NodeScope, Property.Shared);
     public static final Setting<Boolean> SETTING_HTTP_TCP_KEEP_ALIVE =
         boolSetting("http.tcp.keep_alive", NetworkService.TcpSettings.TCP_KEEP_ALIVE, Property.NodeScope, Property.Shared);
-    public static final Setting<Boolean> SETTING_HTTP_TCP_BLOCKING_SERVER =
-        boolSetting("http.tcp.blocking_server", NetworkService.TcpSettings.TCP_BLOCKING_SERVER, Property.NodeScope, Property.Shared);
     public static final Setting<Boolean> SETTING_HTTP_TCP_REUSE_ADDRESS =
         boolSetting("http.tcp.reuse_address", NetworkService.TcpSettings.TCP_REUSE_ADDRESS, Property.NodeScope, Property.Shared);
 
@@ -174,8 +170,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     protected final ByteSizeValue maxChunkSize;
 
     protected final int workerCount;
-
-    protected final boolean blockingServer;
 
     protected final boolean pipelining;
 
@@ -240,7 +234,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
         this.maxCumulationBufferCapacity = SETTING_HTTP_NETTY_MAX_CUMULATION_BUFFER_CAPACITY.get(settings);
         this.maxCompositeBufferComponents = SETTING_HTTP_NETTY_MAX_COMPOSITE_BUFFER_COMPONENTS.get(settings);
         this.workerCount = SETTING_HTTP_WORKER_COUNT.get(settings);
-        this.blockingServer = SETTING_HTTP_TCP_BLOCKING_SERVER.get(settings);
         this.port = SETTING_HTTP_PORT.get(settings);
         this.bindHosts = SETTING_HTTP_BIND_HOST.get(settings).toArray(Strings.EMPTY_ARRAY);
         this.publishHosts = SETTING_HTTP_PUBLISH_HOST.get(settings).toArray(Strings.EMPTY_ARRAY);
@@ -298,15 +291,10 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             this.serverOpenChannels = new Netty4OpenChannelsHandler(logger);
 
             serverBootstrap = new ServerBootstrap();
-            if (blockingServer) {
-                serverBootstrap.group(new OioEventLoopGroup(workerCount, daemonThreadFactory(settings,
-                    HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-                serverBootstrap.channel(PrivilegedOioServerSocketChannel.class);
-            } else {
-                serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
-                    HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-                serverBootstrap.channel(PrivilegedNioServerSocketChannel.class);
-            }
+
+            serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
+                HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
+            serverBootstrap.channel(PrivilegedNioServerSocketChannel.class);
 
             serverBootstrap.childHandler(configureServerChannelHandler());
 

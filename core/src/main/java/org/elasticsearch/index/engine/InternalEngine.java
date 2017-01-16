@@ -674,7 +674,7 @@ public class InternalEngine extends Engine {
                 }
             }
             final long expectedVersion = index.version();
-            final Optional<IndexResult> checkVersionConflictResult =
+            final Optional<IndexResult> resultOnVersionConflict =
                 checkVersionConflict(
                     index,
                     currentVersion,
@@ -684,8 +684,8 @@ public class InternalEngine extends Engine {
                     e -> new IndexResult(e, currentVersion, index.seqNo()));
 
             final IndexResult indexResult;
-            if (checkVersionConflictResult.isPresent()) {
-                indexResult = checkVersionConflictResult.get();
+            if (resultOnVersionConflict.isPresent()) {
+                indexResult = resultOnVersionConflict.get();
             } else {
                 // no version conflict
                 if (index.origin() == Operation.Origin.PRIMARY) {
@@ -808,7 +808,7 @@ public class InternalEngine extends Engine {
 
             final long expectedVersion = delete.version();
 
-            final Optional<DeleteResult> checkVersionConflictResult =
+            final Optional<DeleteResult> resultOnVersionConflict =
                 checkVersionConflict(
                     delete,
                     currentVersion,
@@ -817,8 +817,8 @@ public class InternalEngine extends Engine {
                     () -> new DeleteResult(expectedVersion, delete.seqNo(), true),
                     e -> new DeleteResult(e, expectedVersion, delete.seqNo()));
             final DeleteResult deleteResult;
-            if (checkVersionConflictResult.isPresent()) {
-                deleteResult = checkVersionConflictResult.get();
+            if (resultOnVersionConflict.isPresent()) {
+                deleteResult = resultOnVersionConflict.get();
             } else {
                 if (delete.origin() == Operation.Origin.PRIMARY) {
                     seqNo = seqNoService().generateSeqNo();

@@ -60,7 +60,7 @@ public class RestRefreshAction extends BaseRestHandler {
                 builder.startObject();
                 buildBroadcastShardsHeader(builder, request, response);
                 builder.endObject();
-                return new BytesRestResponse(OK, builder);
+                return new BytesRestResponse(response.getStatus(), builder);
             }
         });
     }

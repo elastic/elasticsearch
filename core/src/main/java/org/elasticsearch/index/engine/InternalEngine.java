@@ -487,6 +487,10 @@ public class InternalEngine extends Engine {
                         op.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
                 result = onFailure.apply(e);
             } else {
+                /*
+                 * Version conflicts during recovery and on replicas are normal due to asynchronous execution; as such, we should return a
+                 * successful result.
+                 */
                 result = onSuccess.get();
             }
             return Optional.of(result);

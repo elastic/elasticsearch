@@ -38,6 +38,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -161,7 +162,7 @@ public final class NodeEnvironment  implements Closeable {
      * If true automatically append node lock id to custom data paths.
      */
     public static final Setting<Boolean> ADD_NODE_LOCK_ID_TO_CUSTOM_PATH =
-        Setting.boolSetting("node.add_lock_id_to_custom_path", true, Property.NodeScope, Property.Deprecated);
+        Setting.boolSetting("node.add_lock_id_to_custom_path", true, Property.NodeScope);
 
 
     /**

@@ -23,6 +23,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -30,13 +32,16 @@ import org.elasticsearch.test.RandomObjects;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.get.GetFieldTests.randomGetField;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -66,8 +71,8 @@ public class GetResultTests extends ESTestCase {
     public void testToXContent() throws IOException {
         {
             GetResult getResult = new GetResult("index", "type", "id", 1, true, new BytesArray("{ \"field1\" : " +
-                    "\"value1\", \"field2\":\"value2\"}"), Collections.singletonMap("field1", new GetField("field1",
-                    Collections.singletonList("value1"))));
+                    "\"value1\", \"field2\":\"value2\"}"), singletonMap("field1", new GetField("field1",
+                    singletonList("value1"))));
             String output = Strings.toString(getResult);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"_version\":1,\"found\":true,\"_source\":{ \"field1\" " +
                     ": \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}", output);
@@ -77,6 +82,54 @@ public class GetResultTests extends ESTestCase {
             String output = Strings.toString(getResult);
             assertEquals("{\"_index\":\"index\",\"_type\":\"type\",\"_id\":\"id\",\"found\":false}", output);
         }
+    }
+
+    public void testToAndFromXContentEmbedded() throws Exception {
+        XContentType xContentType = randomFrom(XContentType.values());
+        Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
+        GetResult getResult = tuple.v1();
+
+        // We don't expect to retrieve the index/type/id of the GetResult because they are not rendered
+        // by the toXContentEmbedded method.
+        GetResult expectedGetResult = new GetResult(null, null, null, -1,
+                tuple.v2().isExists(), tuple.v2().sourceRef(), tuple.v2().getFields());
+
+        BytesReference originalBytes = toXContentEmbedded(getResult, xContentType);
+
+        // Test that we can parse the result of toXContentEmbedded()
+        GetResult parsedEmbeddedGetResult;
+        try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            parsedEmbeddedGetResult = GetResult.fromXContentEmbedded(parser);
+            assertNull(parser.nextToken());
+        }
+
+        assertEquals(expectedGetResult, parsedEmbeddedGetResult);
+        //print the parsed object out and test that the output is the same as the original output
+        BytesReference finalBytes = toXContentEmbedded(parsedEmbeddedGetResult, xContentType);
+        assertToXContentEquivalent(originalBytes, finalBytes, xContentType);
+        //check that the source stays unchanged, no shuffling of keys nor anything like that
+        assertEquals(expectedGetResult.sourceAsString(), parsedEmbeddedGetResult.sourceAsString());
+    }
+
+    public void testToXContentEmbedded() throws IOException {
+        Map<String, GetField> fields = new HashMap<>();
+        fields.put("foo", new GetField("foo", singletonList("bar")));
+        fields.put("baz", new GetField("baz", Arrays.asList("baz_0", "baz_1")));
+
+        GetResult getResult = new GetResult("index", "type", "id", 2, true,
+                new BytesArray("{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]}"), fields);
+
+        BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON);
+        assertEquals("{\"found\":true,\"_source\":{\"foo\":\"bar\",\"baz\":[\"baz_0\",\"baz_1\"]}," +
+                "\"fields\":{\"foo\":[\"bar\"],\"baz\":[\"baz_0\",\"baz_1\"]}}", originalBytes.utf8ToString());
+    }
+
+    public void testToXContentEmbeddedNotFound() throws IOException {
+        GetResult getResult = new GetResult("index", "type", "id", 1, false, null, null);
+
+        BytesReference originalBytes = toXContentEmbedded(getResult, XContentType.JSON);
+        assertEquals("{\"found\":false}", originalBytes.utf8ToString());
     }
 
     public void testGetSourceAsBytes() {
@@ -159,5 +212,14 @@ public class GetResultTests extends ESTestCase {
             expectedFields.put(expectedGetField.getName(), expectedGetField);
         }
         return Tuple.tuple(fields, expectedFields);
+    }
+
+    private static BytesReference toXContentEmbedded(GetResult getResult, XContentType xContentType) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.startObject();
+            getResult.toXContentEmbedded(builder, ToXContent.EMPTY_PARAMS);
+            builder.endObject();
+            return builder.bytes();
+        }
     }
 }

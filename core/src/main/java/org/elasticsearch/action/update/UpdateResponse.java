@@ -25,10 +25,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.get.GetResult;
@@ -37,8 +34,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class UpdateResponse extends DocWriteResponse {
 
@@ -145,27 +140,11 @@ public class UpdateResponse extends DocWriteResponse {
                     } else {
                         updateResponse = new UpdateResponse(shardId, type, id, version, result);
                     }
-
-                    GetResult get = (GetResult) args[7];
-                    if (get != null) {
-                        GetResult getResult = new GetResult(index, type, id, version, get.isExists(), get.sourceRef(), get.getFields());
-                        updateResponse.setGetResult(getResult);
-                    }
                     return updateResponse;
                 });
 
         DocWriteResponse.declareParserFields(PARSER);
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> {
-            XContent xContent = p.contentType().xContent();
-            try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
-                // "get" field contains an embedded version of {@link GetResult} and requires
-                // to be parsed as if it was a full XContent object.
-                XContentHelper.copyCurrentStructure(builder.generator(), p);
-                try (XContentParser parser = xContent.createParser(NamedXContentRegistry.EMPTY, builder.bytes())) {
-                    return GetResult.fromXContent(parser);
-                }
-            }
-        }, new ParseField(GET));
+        PARSER.declareObject(UpdateResponse::setGetResult, (p, c) -> GetResult.fromXContentEmbedded(p), new ParseField(GET));
     }
 
     public static UpdateResponse fromXContent(XContentParser parser) throws IOException {

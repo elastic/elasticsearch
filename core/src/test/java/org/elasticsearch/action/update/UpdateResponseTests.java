@@ -83,26 +83,23 @@ public class UpdateResponseTests extends ESTestCase {
         final XContentType xContentType = randomFrom(XContentType.values());
         final Tuple<UpdateResponse, UpdateResponse> tuple = randomUpdateResponse();
 
-        BytesReference updateResponseBytes = toXContent(tuple.v1(), xContentType);
-
         // Parse the XContent bytes to obtain a parsed UpdateResponse
         UpdateResponse parsedUpdateResponse;
-        try (XContentParser parser = createParser(xContentType.xContent(), updateResponseBytes)) {
+        try (XContentParser parser = createParser(xContentType.xContent(), toXContent(tuple.v1(), xContentType))) {
             parsedUpdateResponse = UpdateResponse.fromXContent(parser);
             assertNull(parser.nextToken());
         }
 
-        BytesReference parsedUpdateResponseBytes = toXContent(parsedUpdateResponse, xContentType);
-        try (XContentParser parser = createParser(xContentType.xContent(), parsedUpdateResponseBytes)) {
-            IndexResponseTests.assertDocWriteResponse(tuple.v2(), parser.map());
+        final UpdateResponse updateResponse = tuple.v2();
+        try (XContentParser parser = createParser(xContentType.xContent(), toXContent(parsedUpdateResponse, xContentType))) {
+            IndexResponseTests.assertDocWriteResponse(updateResponse, parser.map());
         }
-        assertEquals(tuple.v2().getGetResult(), parsedUpdateResponse.getGetResult());
+        assertEquals(updateResponse.getGetResult(), parsedUpdateResponse.getGetResult());
     }
 
     private static Tuple<UpdateResponse, UpdateResponse> randomUpdateResponse() {
         Tuple<GetResult, GetResult> getResults = GetResultTests.randomGetResult(randomFrom(XContentType.values()));
         GetResult actualGetResult = getResults.v1();
-        GetResult expectedGetResult = getResults.v2();
 
         ShardId shardId = new ShardId(actualGetResult.getIndex(), randomAsciiOfLength(5), randomIntBetween(0, 5));
         String type = actualGetResult.getType();
@@ -120,6 +117,11 @@ public class UpdateResponseTests extends ESTestCase {
             actual.setGetResult(actualGetResult);
 
             expected = new UpdateResponse(shardInfo, shardId, type, id, seqNo, version, result);
+
+            // We don't expect to retrieve the index/type/id of the GetResult because they are not rendered
+            // by the toXContentEmbedded method.
+            GetResult expectedGetResult = new GetResult(null, null, null, -1,
+                    getResults.v2().isExists(), getResults.v2().sourceRef(), getResults.v2().getFields());
             expected.setGetResult(expectedGetResult);
         } else {
             actual = new UpdateResponse(shardId, type, id, version, result);

@@ -59,6 +59,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -288,12 +289,37 @@ public abstract class ESTestCase extends LuceneTestCase {
         logger.info("[{}]: after test", getTestName());
     }
 
+    /**
+     * A set of deprecation messages that should be ignored. These are indicative of features that are deprecated
+     * that will be dropped in the future but are still supported.
+     * Warning messages are matched against this array using @link Regex#simpleMatch}
+     */
+
+    static final String[] IGNORED_DEPRECATION_WARNINGS = new String[] {
+        "*" + IndexMetaData.INDEX_SHADOW_REPLICAS_SETTING.getKey() + "*",
+        "*" + IndexMetaData.INDEX_SHARED_FILESYSTEM_SETTING.getKey() + "*",
+        "*" + IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING.getKey() + "*",
+        "*" + IndexMetaData.INDEX_DATA_PATH_SETTING.getKey() + "*",
+        "*" + Environment.PATH_SHARED_DATA_SETTING.getKey() + "*",
+        "*" + NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey() + "*"
+    };
+
     private void ensureNoWarnings() throws IOException {
         //Check that there are no unaccounted warning headers. These should be checked with {@link #checkWarningHeaders(String...)} in the
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get(DeprecationLogger.WARNING_HEADER);
-            assertNull("unexpected warning headers", warnings);
+            if (warnings != null) {
+                final List<String> invalidWarnings = warnings.stream().filter(warning -> {
+                    for (final String ignoredPattern : IGNORED_DEPRECATION_WARNINGS) {
+                        if (Regex.simpleMatch(ignoredPattern, warning)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }).collect(Collectors.toList());
+                assertThat("unexpected warning headers", invalidWarnings, empty());
+            }
         } finally {
             resetDeprecationLogger();
         }

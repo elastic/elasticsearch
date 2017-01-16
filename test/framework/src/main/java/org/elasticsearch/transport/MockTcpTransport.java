@@ -49,8 +49,11 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.SocketTimeoutException;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
@@ -73,6 +76,8 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
      * types.
      */
     public static final ConnectionProfile LIGHT_PROFILE;
+
+    private final Set<MockChannel> openChannels = new HashSet<>();
 
     static  {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder();
@@ -264,7 +269,7 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         private final AtomicBoolean isOpen = new AtomicBoolean(true);
         private final InetSocketAddress localAddress;
         private final ServerSocket serverSocket;
-        private final ConcurrentHashMap<MockChannel, Boolean> workerChannels = new ConcurrentHashMap<>();
+        private final Set<MockChannel> workerChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
         private final Socket activeChannel;
         private final String profile;
         private final CancellableThreads cancellableThreads = new CancellableThreads();
@@ -284,6 +289,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             this.serverSocket = null;
             this.profile = profile;
             this.onClose = () -> onClose.accept(this);
+            synchronized (openChannels) {
+                openChannels.add(this);
+            }
         }
 
         /**
@@ -298,6 +306,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
             this.profile = profile;
             this.activeChannel = null;
             this.onClose = null;
+            synchronized (openChannels) {
+                openChannels.add(this);
+            }
         }
 
         public void accept(Executor executor) throws IOException {
@@ -306,11 +317,12 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                 MockChannel incomingChannel = null;
                 try {
                     configureSocket(incomingSocket);
-                    incomingChannel = new MockChannel(incomingSocket, localAddress, profile, workerChannels::remove);
-                    //establish a happens-before edge between closing and accepting a new connection
                     synchronized (this) {
                         if (isOpen.get()) {
-                            workerChannels.put(incomingChannel, Boolean.TRUE);
+                            incomingChannel = new MockChannel(incomingSocket, localAddress, profile, workerChannels::remove);
+                            //establish a happens-before edge between closing and accepting a new connection
+                            workerChannels.add(incomingChannel);
+
                             // this spawns a new thread immediately, so OK under lock
                             incomingChannel.loopRead(executor);
                             // the channel is properly registered and will be cleared by the close code.
@@ -333,8 +345,9 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
                     if (isOpen.get()) {
                         try {
                             onException(MockChannel.this, e);
-                        } catch (IOException ex) {
+                        } catch (Exception ex) {
                             logger.warn("failed on handling exception", ex);
+                            IOUtils.closeWhileHandlingException(MockChannel.this); // pure paranoia
                         }
                     }
                 }
@@ -351,15 +364,33 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
         }
 
         @Override
-        public void close() throws IOException {
+        public synchronized void close() throws IOException {
+            // establish a happens-before edge between closing and accepting a new connection
+            // we have to sync this entire block to ensure that our openChannels checks work correctly.
+            // The close block below will close all worker channels but if one of the worker channels runs into an exception
+            // for instance due to a disconnect the handling of this exception might be executed concurrently.
+            // now if we are in-turn concurrently call close we might not wait for the actual close to happen and that will, down the road
+            // make the assertion trip that not all channels are closed.
             if (isOpen.compareAndSet(true, false)) {
-                //establish a happens-before edge between closing and accepting a new connection
-                synchronized (this) {
-                    onChannelClosed(this);
-                    IOUtils.close(serverSocket, activeChannel, () -> IOUtils.close(workerChannels.keySet()),
-                        () -> cancellableThreads.cancel("channel closed"), onClose);
+                final boolean removedChannel;
+                synchronized (openChannels) {
+                    removedChannel = openChannels.remove(this);
                 }
+                onChannelClosed(this);
+                IOUtils.close(serverSocket, activeChannel, () -> IOUtils.close(workerChannels),
+                    () -> cancellableThreads.cancel("channel closed"), onClose);
+                assert removedChannel: "Channel was not removed or removed twice?";
             }
+        }
+
+        @Override
+        public String toString() {
+            return "MockChannel{" +
+                "profile='" + profile + '\'' +
+                ", isOpen=" + isOpen +
+                ", localAddress=" + localAddress +
+                ", isServerSocket=" + (serverSocket != null) +
+                '}';
         }
     }
 
@@ -388,12 +419,14 @@ public class MockTcpTransport extends TcpTransport<MockTcpTransport.MockChannel>
     @Override
     protected void stopInternal() {
         ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        synchronized (openChannels) {
+            assert openChannels.isEmpty() : "there are still open channels: " + openChannels;
+        }
     }
 
     @Override
     protected Version getCurrentVersion() {
         return mockVersion;
     }
-
 }
 

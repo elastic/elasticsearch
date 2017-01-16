@@ -197,9 +197,6 @@ public class ShadowEngine extends Engine {
             ensureOpen();
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
-            // This means there's a bug somewhere: don't suppress it
-            throw new AssertionError(e);
-        } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {
             try {

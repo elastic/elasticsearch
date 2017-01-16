@@ -185,7 +185,7 @@ class SearchScrollQueryThenFetchAsyncAction extends AbstractAsyncAction {
             final QuerySearchResult querySearchResult = queryResults.get(entry.index);
             ScoreDoc lastEmittedDoc = lastEmittedDocPerShard[entry.index];
             ShardFetchRequest shardFetchRequest = new ShardFetchRequest(querySearchResult.id(), docIds, lastEmittedDoc);
-            DiscoveryNode node = nodes.get(querySearchResult.shardTarget().nodeId());
+            DiscoveryNode node = nodes.get(querySearchResult.shardTarget().getNodeId());
             searchTransportService.sendExecuteFetchScroll(node, shardFetchRequest, task, new ActionListener<FetchSearchResult>() {
                 @Override
                 public void onResponse(FetchSearchResult result) {

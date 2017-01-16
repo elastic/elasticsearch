@@ -28,9 +28,9 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -45,6 +45,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasSize;
@@ -63,6 +64,14 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(CustomSuggesterPlugin.class);
+    }
+
+    public static class CustomSuggesterPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<SuggesterSpec<?>> getSuggesters() {
+            return singletonList(new SuggesterSpec<CustomSuggestionBuilder>("custom", CustomSuggestionBuilder::new,
+                    CustomSuggestionBuilder::fromXContent));
+        }
     }
 
     public void testThatCustomSuggestersCanBeRegisteredAndWork() throws Exception {
@@ -139,8 +148,7 @@ public class CustomSuggesterSearchIT extends ESIntegTestCase {
             return Objects.hash(randomSuffix);
         }
 
-        static CustomSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
-            XContentParser parser = parseContext.parser();
+        public static CustomSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token;
             String currentFieldName = null;
             String fieldname = null;

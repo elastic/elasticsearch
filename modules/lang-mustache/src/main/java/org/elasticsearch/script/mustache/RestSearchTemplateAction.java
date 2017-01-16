@@ -36,7 +36,6 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 
@@ -75,12 +74,9 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         }, new ParseField("inline", "template"), ObjectParser.ValueType.OBJECT_OR_STRING);
     }
 
-    private final SearchRequestParsers searchRequestParsers;
-
     @Inject
-    public RestSearchTemplateAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers) {
+    public RestSearchTemplateAction(Settings settings, RestController controller) {
         super(settings);
-        this.searchRequestParsers = searchRequestParsers;
 
         controller.registerHandler(GET, "/_search/template", this);
         controller.registerHandler(POST, "/_search/template", this);
@@ -98,7 +94,7 @@ public class RestSearchTemplateAction extends BaseRestHandler {
 
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
-        RestSearchAction.parseSearchRequest(searchRequest, request, searchRequestParsers, parseFieldMatcher, null);
+        RestSearchAction.parseSearchRequest(searchRequest, request, null);
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;

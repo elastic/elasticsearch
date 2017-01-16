@@ -80,6 +80,7 @@ public class TransportService extends AbstractLifecycleComponent {
     protected final ClusterName clusterName;
     protected final TaskManager taskManager;
     private final TransportInterceptor.AsyncSender asyncSender;
+    private final Function<BoundTransportAddress, DiscoveryNode> localNodeFactory;
 
     volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
@@ -143,10 +144,11 @@ public class TransportService extends AbstractLifecycleComponent {
      *        updates for {@link #TRACE_LOG_EXCLUDE_SETTING} and {@link #TRACE_LOG_INCLUDE_SETTING}.
      */
     public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor,
-            @Nullable ClusterSettings clusterSettings) {
+                            Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings) {
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
+        this.localNodeFactory = localNodeFactory;
         this.clusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings);
         setTracerLogInclude(TRACE_LOG_INCLUDE_SETTING.get(settings));
         setTracerLogExclude(TRACE_LOG_EXCLUDE_SETTING.get(settings));
@@ -162,15 +164,9 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     /**
-     * makes the transport service aware of the local node. this allows it to optimize requests sent
-     * from the local node to it self and by pass the network stack/ serialization
+     * Returns the local node representation
      */
-    public void setLocalNode(DiscoveryNode localNode) {
-        this.localNode = localNode;
-    }
-
-    // for testing
-    DiscoveryNode getLocalNode() {
+    public DiscoveryNode getLocalNode() {
         return localNode;
     }
 
@@ -200,18 +196,20 @@ public class TransportService extends AbstractLifecycleComponent {
         adapter.txMetric.clear();
         transport.transportServiceAdapter(adapter);
         transport.start();
+
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
             for (Map.Entry<String, BoundTransportAddress> entry : transport.profileBoundAddresses().entrySet()) {
                 logger.info("profile [{}]: {}", entry.getKey(), entry.getValue());
             }
         }
+        localNode = localNodeFactory.apply(transport.boundAddress());
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
             () -> HandshakeRequest.INSTANCE,
             ThreadPool.Names.SAME,
             (request, channel) -> channel.sendResponse(
-                    new HandshakeResponse(localNode, clusterName, localNode != null ? localNode.getVersion() : Version.CURRENT)));
+                    new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
     }
 
     @Override
@@ -294,7 +292,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * Returns <code>true</code> iff the given node is already connected.
      */
     public boolean nodeConnected(DiscoveryNode node) {
-        return node.equals(localNode) || transport.nodeConnected(node);
+        return isLocalNode(node) || transport.nodeConnected(node);
     }
 
     public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
@@ -308,7 +306,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
-        if (node.equals(localNode)) {
+        if (isLocalNode(node)) {
             return;
         }
         transport.connectToNode(node, connectionProfile);
@@ -321,7 +319,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * @param profile the connection profile to use
      */
     public Transport.Connection openConnection(final DiscoveryNode node, ConnectionProfile profile) throws IOException {
-        if (node.equals(localNode)) {
+        if (isLocalNode(node)) {
             return localNodeConnection;
         } else {
             return transport.openConnection(node, profile);
@@ -362,7 +360,7 @@ public class TransportService extends AbstractLifecycleComponent {
 
         if (!Objects.equals(clusterName, response.clusterName)) {
             throw new IllegalStateException("handshake failed, mismatched cluster name [" + response.clusterName + "] - " + node);
-        } else if (response.version.isCompatible((localNode != null ? localNode.getVersion() : Version.CURRENT)) == false) {
+        } else if (response.version.isCompatible(localNode.getVersion()) == false) {
             throw new IllegalStateException("handshake failed, incompatible version [" + response.version + "] - " + node);
         }
 
@@ -410,7 +408,7 @@ public class TransportService extends AbstractLifecycleComponent {
     }
 
     public void disconnectFromNode(DiscoveryNode node) {
-        if (node.equals(localNode)) {
+        if (isLocalNode(node)) {
             return;
         }
         transport.disconnectFromNode(node);
@@ -481,7 +479,7 @@ public class TransportService extends AbstractLifecycleComponent {
      * @throws NodeNotConnectedException if the given node is not connected
      */
     public Transport.Connection getConnection(DiscoveryNode node) {
-        if (Objects.requireNonNull(node, "node must be non-null").equals(localNode)) {
+        if (isLocalNode(node)) {
             return localNodeConnection;
         } else {
             return transport.getConnection(node);
@@ -1135,5 +1133,9 @@ public class TransportService extends AbstractLifecycleComponent {
         public String getChannelType() {
             return "direct";
         }
+    }
+
+    private boolean isLocalNode(DiscoveryNode discoveryNode) {
+        return Objects.requireNonNull(discoveryNode, "discovery node must not be null").equals(localNode);
     }
 }

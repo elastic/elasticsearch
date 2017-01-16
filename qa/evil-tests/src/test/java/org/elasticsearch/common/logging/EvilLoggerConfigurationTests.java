@@ -34,9 +34,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -149,6 +151,35 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         final Environment environment = new Environment(settings);
         UserException e = expectThrows(UserException.class, () -> LogConfigurator.configure(environment));
         assertThat(e, hasToString(containsString("no log4j2.properties found; tried")));
+    }
+
+    public void testLoggingLevelsFromSettings() throws IOException, UserException {
+        final Level rootLevel = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
+        final Level fooLevel = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
+        final Level barLevel = randomFrom(Level.TRACE, Level.DEBUG, Level.INFO, Level.WARN, Level.ERROR);
+        final Path configDir = getDataPath("minimal");
+        final Settings settings = Settings.builder()
+            .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put("logger.level", rootLevel.name())
+            .put("logger.foo", fooLevel.name())
+            .put("logger.bar", barLevel.name())
+            .build();
+        final Environment environment = new Environment(settings);
+        LogConfigurator.configure(environment);
+
+        final LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+        final Configuration config = ctx.getConfiguration();
+        final Map<String, LoggerConfig> loggerConfigs = config.getLoggers();
+        assertThat(loggerConfigs.size(), equalTo(3));
+        assertThat(loggerConfigs, hasKey(""));
+        assertThat(loggerConfigs.get("").getLevel(), equalTo(rootLevel));
+        assertThat(loggerConfigs, hasKey("foo"));
+        assertThat(loggerConfigs.get("foo").getLevel(), equalTo(fooLevel));
+        assertThat(loggerConfigs, hasKey("bar"));
+        assertThat(loggerConfigs.get("bar").getLevel(), equalTo(barLevel));
+
+        assertThat(ctx.getLogger(randomAsciiOfLength(16)).getLevel(), equalTo(rootLevel));
     }
 
 }

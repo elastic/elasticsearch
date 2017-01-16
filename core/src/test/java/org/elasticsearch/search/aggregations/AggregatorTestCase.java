@@ -30,6 +30,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -101,8 +102,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(searchContext.lookup()).thenReturn(searchLookup);
 
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        IndexFieldData<?> fieldData = fieldType.fielddataBuilder().build(indexSettings, fieldType, null, circuitBreakerService,
-                mock(MapperService.class));
+        IndexFieldData<?> fieldData = fieldType.fielddataBuilder().build(indexSettings, fieldType,
+            new IndexFieldDataCache.None(), circuitBreakerService, mock(MapperService.class));
         when(queryShardContext.fieldMapper(anyString())).thenReturn(fieldType);
         when(queryShardContext.getForField(any())).thenReturn(fieldData);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);

@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -40,19 +39,18 @@ import java.util.Objects;
 
 public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<ReverseNestedAggregationBuilder> {
     public static final String NAME = "reverse_nested";
-    private static final Type TYPE = new Type(NAME);
 
     private String path;
 
     public ReverseNestedAggregationBuilder(String name) {
-        super(name, TYPE);
+        super(name);
     }
 
     /**
      * Read from a stream.
      */
     public ReverseNestedAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE);
+        super(in);
         path = in.readOptionalString();
     }
 
@@ -93,7 +91,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         if (path != null) {
             parentObjectMapper = context.getObjectMapper(path);
             if (parentObjectMapper == null) {
-                return new ReverseNestedAggregatorFactory(name, type, true, null, context, parent, subFactoriesBuilder, metaData);
+                return new ReverseNestedAggregatorFactory(name, true, null, context, parent, subFactoriesBuilder, metaData);
             }
             if (parentObjectMapper.nested().isNested() == false) {
                 throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
@@ -103,7 +101,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
         NestedScope nestedScope = context.getQueryShardContext().nestedScope();
         try {
             nestedScope.nextLevel(parentObjectMapper);
-            return new ReverseNestedAggregatorFactory(name, type, false, parentObjectMapper, context, parent, subFactoriesBuilder,
+            return new ReverseNestedAggregatorFactory(name, false, parentObjectMapper, context, parent, subFactoriesBuilder,
                     metaData);
         } finally {
             nestedScope.previousLevel();
@@ -172,7 +170,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

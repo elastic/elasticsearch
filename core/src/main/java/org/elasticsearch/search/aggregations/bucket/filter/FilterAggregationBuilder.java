@@ -27,7 +27,6 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -35,7 +34,6 @@ import java.util.Objects;
 
 public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterAggregationBuilder> {
     public static final String NAME = "filter";
-    private static final Type TYPE = new Type(NAME);
 
     private final QueryBuilder filter;
 
@@ -48,7 +46,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
      *            {@link Filter} aggregation.
      */
     public FilterAggregationBuilder(String name, QueryBuilder filter) {
-        super(name, TYPE);
+        super(name);
         if (filter == null) {
             throw new IllegalArgumentException("[filter] must not be null: [" + name + "]");
         }
@@ -59,7 +57,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
      * Read from a stream.
      */
     public FilterAggregationBuilder(StreamInput in) throws IOException {
-        super(in, TYPE);
+        super(in);
         filter = in.readNamedWriteable(QueryBuilder.class);
     }
 
@@ -73,7 +71,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
             AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         // TODO this sucks we need a rewrite phase for aggregations too
         final QueryBuilder rewrittenFilter = QueryBuilder.rewriteQuery(filter, context.getQueryShardContext());
-        return new FilterAggregatorFactory(name, type, rewrittenFilter, context, parent, subFactoriesBuilder, metaData);
+        return new FilterAggregatorFactory(name, rewrittenFilter, context, parent, subFactoriesBuilder, metaData);
     }
 
     @Override
@@ -101,7 +99,7 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
-    public String getWriteableName() {
+    public String getType() {
         return NAME;
     }
 }

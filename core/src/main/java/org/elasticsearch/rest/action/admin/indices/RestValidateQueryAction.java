@@ -69,7 +69,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         try {
             request.withContentOrSourceParamParserOrNull(parser -> {
                 if (parser != null) {
-                    validateQueryRequest.query(RestActions.getQueryContent(parser, parseFieldMatcher));
+                    validateQueryRequest.query(RestActions.getQueryContent(parser));
                 } else if (request.hasParam("q")) {
                     validateQueryRequest.query(RestActions.urlParamsToQueryBuilder(request));
                 }

@@ -33,8 +33,6 @@ import io.netty.channel.FixedRecvByteBufAllocator;
 import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.oio.OioEventLoopGroup;
-import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.channel.socket.oio.OioServerSocketChannel;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.http.HttpContentCompressor;
 import io.netty.handler.codec.http.HttpContentDecompressor;
@@ -65,7 +63,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty4.cors.Netty4CorsConfig;
@@ -80,6 +77,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.netty4.Netty4OpenChannelsHandler;
 import org.elasticsearch.transport.netty4.Netty4Utils;
+import org.elasticsearch.transport.netty4.channel.PrivilegedNioServerSocketChannel;
+import org.elasticsearch.transport.netty4.channel.PrivilegedOioServerSocketChannel;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -210,6 +209,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
 
     protected final ByteSizeValue maxCumulationBufferCapacity;
     protected final int maxCompositeBufferComponents;
+    private final Dispatcher dispatcher;
 
     protected volatile ServerBootstrap serverBootstrap;
 
@@ -220,17 +220,17 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     // package private for testing
     Netty4OpenChannelsHandler serverOpenChannels;
 
-    protected volatile HttpServerAdapter httpServerAdapter;
 
     private final Netty4CorsConfig corsConfig;
 
     public Netty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
-            NamedXContentRegistry xContentRegistry) {
+                                     NamedXContentRegistry xContentRegistry, Dispatcher dispatcher) {
         super(settings);
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
+        this.dispatcher = dispatcher;
 
         ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
@@ -287,11 +287,6 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     }
 
     @Override
-    public void httpServerAdapter(HttpServerAdapter httpServerAdapter) {
-        this.httpServerAdapter = httpServerAdapter;
-    }
-
-    @Override
     protected void doStart() {
         boolean success = false;
         try {
@@ -301,11 +296,11 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             if (blockingServer) {
                 serverBootstrap.group(new OioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                     HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-                serverBootstrap.channel(OioServerSocketChannel.class);
+                serverBootstrap.channel(PrivilegedOioServerSocketChannel.class);
             } else {
                 serverBootstrap.group(new NioEventLoopGroup(workerCount, daemonThreadFactory(settings,
                     HTTP_SERVER_WORKER_THREAD_NAME_PREFIX)));
-                serverBootstrap.channel(NioServerSocketChannel.class);
+                serverBootstrap.channel(PrivilegedNioServerSocketChannel.class);
             }
 
             serverBootstrap.childHandler(configureServerChannelHandler());
@@ -331,6 +326,9 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
             serverBootstrap.childOption(ChannelOption.SO_REUSEADDR, reuseAddress);
 
             this.boundAddress = createBoundHttpAddress();
+            if (logger.isInfoEnabled()) {
+                logger.info("{}", boundAddress);
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -511,7 +509,7 @@ public class Netty4HttpServerTransport extends AbstractLifecycleComponent implem
     }
 
     protected void dispatchRequest(RestRequest request, RestChannel channel) {
-        httpServerAdapter.dispatchRequest(request, channel, threadPool.getThreadContext());
+        dispatcher.dispatch(request, channel, threadPool.getThreadContext());
     }
 
     protected void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {

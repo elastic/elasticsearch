@@ -1218,50 +1218,6 @@ public class DocumentParserTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("type.inner.inner_field"), equalTo("inner_value"));
     }
 
-    public void testIncludeInAllPropagation() throws IOException {
-        String defaultMapping = XContentFactory.jsonBuilder().startObject()
-                .startObject("type")
-                    .field("dynamic", "strict")
-                    .startObject("properties")
-                        .startObject("a")
-                            .field("type", "keyword")
-                        .endObject()
-                        .startObject("o")
-                            .field("include_in_all", false)
-                            .startObject("properties")
-                                .startObject("a")
-                                    .field("type", "keyword")
-                                .endObject()
-                                .startObject("o")
-                                    .field("include_in_all", true)
-                                    .startObject("properties")
-                                        .startObject("a")
-                                            .field("type", "keyword")
-                                        .endObject()
-                                    .endObject()
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject().endObject().string();
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse("type", new CompressedXContent(defaultMapping));
-        ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
-                .startObject()
-                    .field("a", "b")
-                    .startObject("o")
-                        .field("a", "c")
-                        .startObject("o")
-                            .field("a", "d")
-                        .endObject()
-                    .endObject()
-                .endObject().bytes());
-        Set<String> values = new HashSet<>();
-        for (IndexableField f : doc.rootDoc().getFields("_all")) {
-            values.add(f.stringValue());
-        }
-        assertEquals(new HashSet<>(Arrays.asList("b", "d")), values);
-    }
-
     public void testDynamicDateDetectionDisabledOnNumbers() throws IOException {
         DocumentMapperParser mapperParser = createIndex("test").mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

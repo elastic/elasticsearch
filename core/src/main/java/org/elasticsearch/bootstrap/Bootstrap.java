@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
+import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.env.Environment;
@@ -48,7 +49,7 @@ import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.InternalSettingsPreparer;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -227,7 +228,7 @@ final class Bootstrap {
         };
     }
 
-    private static KeyStoreWrapper loadKeyStore(Environment initialEnv) throws BootstrapException {
+    private static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
@@ -246,16 +247,17 @@ final class Bootstrap {
         return keystore;
     }
 
+
     private static Environment createEnvironment(boolean foreground, Path pidFile,
-                                                 KeyStoreWrapper keystore, Settings initialSettings) {
+                                                 SecureSettings secureSettings, Settings initialSettings) {
         Terminal terminal = foreground ? Terminal.DEFAULT : null;
         Settings.Builder builder = Settings.builder();
         if (pidFile != null) {
             builder.put(Environment.PIDFILE_SETTING.getKey(), pidFile);
         }
         builder.put(initialSettings);
-        if (keystore != null) {
-            builder.setKeyStore(keystore);
+        if (secureSettings != null) {
+            builder.setSecureSettings(secureSettings);
         }
         return InternalSettingsPreparer.prepareEnvironment(builder.build(), terminal, Collections.emptyMap());
     }
@@ -297,7 +299,7 @@ final class Bootstrap {
 
         INSTANCE = new Bootstrap();
 
-        final KeyStoreWrapper keystore = loadKeyStore(initialEnv);
+        final SecureSettings keystore = loadSecureSettings(initialEnv);
         Environment environment = createEnvironment(foreground, pidFile, keystore, initialEnv.settings());
         try {
             LogConfigurator.configure(environment);

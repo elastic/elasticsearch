@@ -71,9 +71,9 @@ import java.util.stream.StreamSupport;
 public class SearchPhaseController extends AbstractComponent {
 
     private static final Comparator<AtomicArray.Entry<? extends QuerySearchResultProvider>> QUERY_RESULT_ORDERING = (o1, o2) -> {
-        int i = o1.value.shardTarget().index().compareTo(o2.value.shardTarget().index());
+        int i = o1.value.shardTarget().getIndex().compareTo(o2.value.shardTarget().getIndex());
         if (i == 0) {
-            i = o1.value.shardTarget().shardId().id() - o2.value.shardTarget().shardId().id();
+            i = o1.value.shardTarget().getShardId().id() - o2.value.shardTarget().getShardId().id();
         }
         return i;
     };

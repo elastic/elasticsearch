@@ -333,6 +333,51 @@ via the REST API, should be written as a string:
 
 ==================================
 
+
+[float]
+===== Encoding URLs
+
+The `{{#url}}value{{/url}}` function can be used to encode a string value
+in a HTML encoding form as defined in by the http://www.w3.org/TR/html4/[HTML specification].
+
+As an example, it is useful to encode a URL:
+
+[source,js]
+------------------------------------------
+GET /_render/template
+{
+    "inline" : {
+        "query" : {
+            "term": {
+                "http_access_log": "{{#url}}{{host}}/{{page}}{{/url}}"
+            }
+        }
+    },
+    "params": {
+        "host": "https://www.elastic.co/",
+        "page": "learn"
+    }
+}
+------------------------------------------
+// CONSOLE
+
+The previous query will be rendered as:
+
+[source,js]
+------------------------------------------
+{
+    "template_output" : {
+        "query" : {
+            "term" : {
+                "http_access_log" : "https%3A%2F%2Fwww.elastic.co%2F%2Flearn"
+            }
+        }
+    }
+}
+------------------------------------------
+// TESTRESPONSE
+
+
 [float]
 [[pre-registered-templates]]
 ===== Pre-registered template

@@ -79,6 +79,17 @@ public class GetResultTests extends ESTestCase {
         }
     }
 
+    public void testGetSourceAsBytes() {
+        XContentType xContentType = randomFrom(XContentType.values());
+        Tuple<GetResult, GetResult> tuple = randomGetResult(xContentType);
+        GetResult getResult = tuple.v1();
+        if (getResult.isExists() && getResult.isSourceEmpty() == false) {
+            assertNotNull(getResult.sourceRef());
+        } else {
+            assertNull(getResult.sourceRef());
+        }
+    }
+
     public void testEqualsAndHashcode() {
         checkEqualsAndHashCode(randomGetResult(XContentType.JSON).v1(), GetResultTests::copyGetResult, GetResultTests::mutateGetResult);
     }

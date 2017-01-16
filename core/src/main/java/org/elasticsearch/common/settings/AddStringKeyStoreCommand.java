@@ -64,6 +64,9 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
         keystore.decrypt(new char[0] /* TODO: prompt for password when they are supported */);
 
         String setting = arguments.value(options);
+        if (setting == null) {
+            throw new UserException(ExitCodes.USAGE, "The setting name can not be null");
+        }
         if (keystore.getSettings().contains(setting) && options.has(forceOption) == false) {
             if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
                 terminal.println("Exiting without modifying keystore.");
@@ -80,7 +83,7 @@ class AddStringKeyStoreCommand extends EnvironmentAwareCommand {
         }
 
         try {
-            keystore.setStringSetting(setting, value);
+            keystore.setString(setting, value);
         } catch (IllegalArgumentException e) {
             throw new UserException(ExitCodes.DATA_ERROR, "String value must contain only ASCII");
         }

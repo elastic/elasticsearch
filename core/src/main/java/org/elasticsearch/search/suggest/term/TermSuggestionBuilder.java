@@ -32,7 +32,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SortBy;
@@ -104,7 +103,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     /**
      * Read from a stream.
      */
-    TermSuggestionBuilder(StreamInput in) throws IOException {
+    public TermSuggestionBuilder(StreamInput in) throws IOException {
         super(in);
         suggestMode = SuggestMode.readFromStream(in);
         accuracy = in.readFloat();
@@ -387,8 +386,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
         return builder;
     }
 
-    static TermSuggestionBuilder innerFromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static TermSuggestionBuilder fromXContent(XContentParser parser) throws IOException {
         TermSuggestionBuilder tmpSuggestion = new TermSuggestionBuilder("_na_");
         XContentParser.Token token;
         String currentFieldName = null;

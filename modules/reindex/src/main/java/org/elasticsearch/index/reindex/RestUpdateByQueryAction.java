@@ -22,15 +22,12 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchRequestParsers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,9 +42,8 @@ import static org.elasticsearch.script.Script.DEFAULT_SCRIPT_LANG;
 public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<UpdateByQueryRequest, UpdateByQueryAction> {
 
     @Inject
-    public RestUpdateByQueryAction(Settings settings, RestController controller, SearchRequestParsers searchRequestParsers,
-            ClusterService clusterService) {
-        super(settings, searchRequestParsers, clusterService, UpdateByQueryAction.INSTANCE);
+    public RestUpdateByQueryAction(Settings settings, RestController controller) {
+        super(settings, UpdateByQueryAction.INSTANCE);
         controller.registerHandler(POST, "/{index}/_update_by_query", this);
         controller.registerHandler(POST, "/{index}/{type}/_update_by_query", this);
     }
@@ -69,7 +65,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
 
         Map<String, Consumer<Object>> consumers = new HashMap<>();
         consumers.put("conflicts", o -> internal.setConflicts((String) o));
-        consumers.put("script", o -> internal.setScript(parseScript((Map<String, Object>)o, parseFieldMatcher)));
+        consumers.put("script", o -> internal.setScript(parseScript((Map<String, Object>)o)));
 
         parseInternalRequest(internal, request, consumers);
 
@@ -78,7 +74,7 @@ public class RestUpdateByQueryAction extends AbstractBulkByQueryRestHandler<Upda
     }
 
     @SuppressWarnings("unchecked")
-    static Script parseScript(Map<String, Object> config, ParseFieldMatcher parseFieldMatcher) {
+    private static Script parseScript(Map<String, Object> config) {
         String script = null;
         ScriptType type = null;
         String lang = DEFAULT_SCRIPT_LANG;

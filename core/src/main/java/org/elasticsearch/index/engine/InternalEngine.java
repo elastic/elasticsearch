@@ -463,10 +463,7 @@ public class InternalEngine extends Engine {
         }
 
         if (op.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
-            if (op.origin().isRecovery()) {
-                // version conflict, but okay
-                result = onSuccess.get();
-            } else {
+            if (op.origin() == Operation.Origin.PRIMARY) {
                 // fatal version conflict
                 final VersionConflictEngineException e =
                     new VersionConflictEngineException(
@@ -475,8 +472,13 @@ public class InternalEngine extends Engine {
                         op.id(),
                         op.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
                 result = onFailure.apply(e);
+            } else {
+                /*
+                 * Version conflicts during recovery and on replicas are normal due to asynchronous execution; as such, we should return a
+                 * successful result.
+                 */
+                result = onSuccess.get();
             }
-
             return Optional.of(result);
         } else {
             return Optional.empty();
@@ -530,6 +532,10 @@ public class InternalEngine extends Engine {
             // and set the error in operation.setFailure. In case of environment related errors, the failure
             // is bubbled up
             isDocumentFailure = maybeFailEngine(operation.operationType().getLowercase(), failure) == false;
+            if (failure instanceof AlreadyClosedException) {
+                // ensureOpen throws AlreadyClosedException which is not a document level issue
+                isDocumentFailure = false;
+            }
         } catch (Exception inner) {
             // we failed checking whether the failure can fail the engine, treat it as a persistent engine failure
             isDocumentFailure = false;
@@ -658,7 +664,7 @@ public class InternalEngine extends Engine {
                 }
             }
             final long expectedVersion = index.version();
-            final Optional<IndexResult> checkVersionConflictResult =
+            final Optional<IndexResult> resultOnVersionConflict =
                 checkVersionConflict(
                     index,
                     currentVersion,
@@ -668,15 +674,15 @@ public class InternalEngine extends Engine {
                     e -> new IndexResult(e, currentVersion, index.seqNo()));
 
             final IndexResult indexResult;
-            if (checkVersionConflictResult.isPresent()) {
-                indexResult = checkVersionConflictResult.get();
+            if (resultOnVersionConflict.isPresent()) {
+                indexResult = resultOnVersionConflict.get();
             } else {
                 // no version conflict
                 if (index.origin() == Operation.Origin.PRIMARY) {
                     seqNo = seqNoService().generateSeqNo();
                 }
 
-                /**
+                /*
                  * Update the document's sequence number and primary term; the sequence number here is derived here from either the sequence
                  * number service if this is on the primary, or the existing document's sequence number if this is on the replica. The
                  * primary term here has already been set, see IndexShard#prepareIndex where the Engine$Index operation is created.
@@ -693,10 +699,12 @@ public class InternalEngine extends Engine {
                     update(index.uid(), index.docs(), indexWriter);
                 }
                 indexResult = new IndexResult(updatedVersion, seqNo, deleted);
+                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion));
+            }
+            if (!indexResult.hasFailure()) {
                 location = index.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
                     ? translog.add(new Translog.Index(index, indexResult))
                     : null;
-                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion));
                 indexResult.setTranslogLocation(location);
             }
             indexResult.setTook(System.nanoTime() - index.startTime());
@@ -790,7 +798,7 @@ public class InternalEngine extends Engine {
 
             final long expectedVersion = delete.version();
 
-            final Optional<DeleteResult> result =
+            final Optional<DeleteResult> resultOnVersionConflict =
                 checkVersionConflict(
                     delete,
                     currentVersion,
@@ -798,10 +806,9 @@ public class InternalEngine extends Engine {
                     deleted,
                     () -> new DeleteResult(expectedVersion, delete.seqNo(), true),
                     e -> new DeleteResult(e, expectedVersion, delete.seqNo()));
-
             final DeleteResult deleteResult;
-            if (result.isPresent()) {
-                deleteResult = result.get();
+            if (resultOnVersionConflict.isPresent()) {
+                deleteResult = resultOnVersionConflict.get();
             } else {
                 if (delete.origin() == Operation.Origin.PRIMARY) {
                     seqNo = seqNoService().generateSeqNo();
@@ -809,11 +816,14 @@ public class InternalEngine extends Engine {
                 updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
                 found = deleteIfFound(delete.uid(), currentVersion, deleted, versionValue);
                 deleteResult = new DeleteResult(updatedVersion, seqNo, found);
+
+                versionMap.putUnderLock(delete.uid().bytes(),
+                    new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
+            }
+            if (!deleteResult.hasFailure()) {
                 location = delete.origin() != Operation.Origin.LOCAL_TRANSLOG_RECOVERY
                     ? translog.add(new Translog.Delete(delete, deleteResult))
                     : null;
-                versionMap.putUnderLock(delete.uid().bytes(),
-                    new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis()));
                 deleteResult.setTranslogLocation(location);
             }
             deleteResult.setTook(System.nanoTime() - delete.startTime());
@@ -880,8 +890,6 @@ public class InternalEngine extends Engine {
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
             throw e;
-        } catch (EngineClosedException e) {
-            throw e;
         } catch (Exception e) {
             try {
                 failEngine("refresh failed", e);
@@ -927,8 +935,6 @@ public class InternalEngine extends Engine {
             }
         } catch (AlreadyClosedException e) {
             failOnTragicEvent(e);
-            throw e;
-        } catch (EngineClosedException e) {
             throw e;
         } catch (Exception e) {
             try {
@@ -1108,7 +1114,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, EngineClosedException, IOException {
+                           final boolean upgrade, final boolean upgradeOnlyAncientSegments) throws EngineException, IOException {
         /*
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
          * that's fine since the IW.rollback should stop all the threads and trigger an IOException
@@ -1194,7 +1200,8 @@ public class InternalEngine extends Engine {
     }
 
     @SuppressWarnings("finally")
-    private void failOnTragicEvent(AlreadyClosedException ex) {
+    private boolean failOnTragicEvent(AlreadyClosedException ex) {
+        final boolean engineFailed;
         // if we are already closed due to some tragic exception
         // we need to fail the engine. it might have already been failed before
         // but we are double-checking it's failed and closed
@@ -1207,14 +1214,19 @@ public class InternalEngine extends Engine {
                 }
             } else {
                 failEngine("already closed by tragic event on the index writer", (Exception) indexWriter.getTragicException());
+                engineFailed = true;
             }
         } else if (translog.isOpen() == false && translog.getTragicException() != null) {
             failEngine("already closed by tragic event on the translog", translog.getTragicException());
-        } else if (failedEngine.get() == null) { // we are closed but the engine is not failed yet?
+            engineFailed = true;
+        } else if (failedEngine.get() == null && isClosed.get() == false) { // we are closed but the engine is not failed yet?
             // this smells like a bug - we only expect ACE if we are in a fatal case ie. either translog or IW is closed by
             // a tragic event or has closed itself. if that is not the case we are in a buggy state and raise an assertion error
             throw new AssertionError("Unexpected AlreadyClosedException", ex);
+        } else {
+            engineFailed = false;
         }
+        return engineFailed;
     }
 
     @Override
@@ -1227,8 +1239,7 @@ public class InternalEngine extends Engine {
         // exception that should only be thrown in a tragic event. we pass on the checks to failOnTragicEvent which will
         // throw and AssertionError if the tragic event condition is not met.
         if (e instanceof AlreadyClosedException) {
-            failOnTragicEvent((AlreadyClosedException)e);
-            return true;
+            return failOnTragicEvent((AlreadyClosedException)e);
         } else if (e != null &&
                 ((indexWriter.isOpen() == false && indexWriter.getTragicException() == e)
                         || (translog.isOpen() == false && translog.getTragicException() == e))) {

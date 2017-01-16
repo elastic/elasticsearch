@@ -130,6 +130,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -308,7 +309,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                     + Arrays.asList(expectedWarnings) + "\nActual: " + actualWarnings,
                     expectedWarnings.length, actualWarnings.size());
             for (String msg : expectedWarnings) {
-                assertThat(actualWarnings, hasItem(equalTo(msg)));
+                assertThat(actualWarnings, hasItem(containsString(msg)));
             }
         } finally {
             resetDeprecationLogger();

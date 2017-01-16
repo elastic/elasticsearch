@@ -102,6 +102,7 @@ public class ClusterService extends AbstractLifecycleComponent {
     public static final String UPDATE_THREAD_NAME = "clusterService#updateTask";
     private final ThreadPool threadPool;
     private final ClusterName clusterName;
+    private final Supplier<DiscoveryNode> localNodeSupplier;
 
     private BiConsumer<ClusterChangedEvent, Discovery.AckListener> clusterStatePublisher;
 
@@ -140,8 +141,9 @@ public class ClusterService extends AbstractLifecycleComponent {
     private DiscoverySettings discoverySettings;
 
     public ClusterService(Settings settings,
-                          ClusterSettings clusterSettings, ThreadPool threadPool) {
+                          ClusterSettings clusterSettings, ThreadPool threadPool, Supplier<DiscoveryNode> localNodeSupplier) {
         super(settings);
+        this.localNodeSupplier = localNodeSupplier;
         this.operationRouting = new OperationRouting(settings, clusterSettings);
         this.threadPool = threadPool;
         this.clusterSettings = clusterSettings;
@@ -165,14 +167,6 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public synchronized void setClusterStatePublisher(BiConsumer<ClusterChangedEvent, Discovery.AckListener> publisher) {
         clusterStatePublisher = publisher;
-    }
-
-    public synchronized void setLocalNode(DiscoveryNode localNode) {
-        assert state().nodes().getLocalNodeId() == null : "local node is already set";
-        updateState(clusterState -> {
-            DiscoveryNodes nodes = DiscoveryNodes.builder(clusterState.nodes()).add(localNode).localNodeId(localNode.getId()).build();
-            return ClusterState.builder(clusterState).nodes(nodes).build();
-        });
     }
 
     private void updateState(UnaryOperator<ClusterState> updateFunction) {
@@ -214,11 +208,16 @@ public class ClusterService extends AbstractLifecycleComponent {
     @Override
     protected synchronized void doStart() {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
-        Objects.requireNonNull(state().nodes().getLocalNode(), "please set the local node before starting");
         Objects.requireNonNull(nodeConnectionsService, "please set the node connection service before starting");
         Objects.requireNonNull(discoverySettings, "please set discovery settings before starting");
         addListener(localNodeMasterListeners);
-        updateState(state -> ClusterState.builder(state).blocks(initialBlocks).build());
+        DiscoveryNode localNode = localNodeSupplier.get();
+        assert localNode != null;
+        updateState(state -> {
+            assert state.nodes().getLocalNodeId() == null : "local node is already set";
+            DiscoveryNodes nodes = DiscoveryNodes.builder(state.nodes()).add(localNode).localNodeId(localNode.getId()).build();
+            return ClusterState.builder(state).nodes(nodes).blocks(initialBlocks).build();
+        });
         this.threadPoolExecutor = EsExecutors.newSinglePrioritizing(UPDATE_THREAD_NAME, daemonThreadFactory(settings, UPDATE_THREAD_NAME),
                 threadPool.getThreadContext());
     }
@@ -772,7 +771,7 @@ public class ClusterService extends AbstractLifecycleComponent {
             taskOutputs.createAckListener(threadPool, newClusterState) :
             null;
 
-        nodeConnectionsService.connectToNodes(clusterChangedEvent.nodesDelta().addedNodes());
+        nodeConnectionsService.connectToNodes(newClusterState.nodes());
 
         // if we are the master, publish the new state to all nodes
         // we publish here before we send a notification to all the listeners, since if it fails
@@ -788,7 +787,8 @@ public class ClusterService extends AbstractLifecycleComponent {
                         "failing [{}]: failed to commit cluster state version [{}]", taskInputs.summary, version),
                     t);
                 // ensure that list of connected nodes in NodeConnectionsService is in-sync with the nodes of the current cluster state
-                nodeConnectionsService.disconnectFromNodes(clusterChangedEvent.nodesDelta().addedNodes());
+                nodeConnectionsService.connectToNodes(previousClusterState.nodes());
+                nodeConnectionsService.disconnectFromNodesExcept(previousClusterState.nodes());
                 taskOutputs.publishingFailed(t);
                 return;
             }
@@ -808,7 +808,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         logger.debug("set local cluster state to version {}", newClusterState.version());
         callClusterStateAppliers(newClusterState, clusterChangedEvent);
 
-        nodeConnectionsService.disconnectFromNodes(clusterChangedEvent.nodesDelta().removedNodes());
+        nodeConnectionsService.disconnectFromNodesExcept(newClusterState.nodes());
 
         updateState(css -> newClusterState);
 

@@ -40,8 +40,6 @@ import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,7 +57,7 @@ public class ClientYamlTestClient {
      * Query params that don't need to be declared in the spec, they are supported by default.
      */
     private static final Set<String> ALWAYS_ACCEPTED_QUERY_STRING_PARAMS = Sets.newHashSet(
-            "error_trace", "filter_path", "pretty", "source");
+            "ignore", "error_trace", "human", "filter_path", "pretty", "source");
 
     private final ClientYamlSuiteRestSpec restSpec;
     private final RestClient restClient;
@@ -101,31 +99,12 @@ public class ClientYamlTestClient {
             }
         }
 
-        List<Integer> ignores = new ArrayList<>();
-        Map<String, String> requestParams;
-        if (params == null) {
-            requestParams = Collections.emptyMap();
-        } else {
-            requestParams = new HashMap<>(params);
-            if (params.isEmpty() == false) {
-                //ignore is a special parameter supported by the clients, shouldn't be sent to es
-                String ignoreString = requestParams.remove("ignore");
-                if (ignoreString != null) {
-                    try {
-                        ignores.add(Integer.valueOf(ignoreString));
-                    } catch (NumberFormatException e) {
-                        throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead");
-                    }
-                }
-            }
-        }
-
         ClientYamlSuiteRestApi restApi = restApi(apiName);
 
         //divide params between ones that go within query string and ones that go within path
         Map<String, String> pathParts = new HashMap<>();
         Map<String, String> queryStringParams = new HashMap<>();
-        for (Map.Entry<String, String> entry : requestParams.entrySet()) {
+        for (Map.Entry<String, String> entry : params.entrySet()) {
             if (restApi.getPathParts().contains(entry.getKey())) {
                 pathParts.put(entry.getKey(), entry.getValue());
             } else {
@@ -197,9 +176,6 @@ public class ClientYamlTestClient {
             Response response = restClient.performRequest(requestMethod, requestPath, queryStringParams, requestBody, requestHeaders);
             return new ClientYamlTestResponse(response);
         } catch(ResponseException e) {
-            if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
-                return new ClientYamlTestResponse(e.getResponse());
-            }
             throw new ClientYamlTestResponseException(e);
         }
     }

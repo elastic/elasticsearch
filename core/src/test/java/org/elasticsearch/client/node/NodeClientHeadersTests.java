@@ -43,7 +43,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         Settings settings = HEADER_SETTINGS;
         Actions actions = new Actions(settings, threadPool, testedActions);
         NodeClient client = new NodeClient(settings, threadPool);
-        client.initialize(actions);
+        client.initialize(actions, () -> "test");
         return client;
     }
 

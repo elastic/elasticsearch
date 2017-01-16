@@ -72,7 +72,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.Stack;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -80,6 +79,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -422,7 +422,7 @@ public class UnicastZenPingTests extends ESTestCase {
             Version.CURRENT);
         closeables.push(transport);
         final TransportService transportService =
-            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
         final int limitPortCounts = randomIntBetween(1, 10);
         final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
@@ -465,7 +465,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(transport);
 
         final TransportService transportService =
-            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
 
         final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
@@ -515,7 +515,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(transport);
 
         final TransportService transportService =
-            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
         final TimeValue resolveTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 3));
         try {
@@ -703,7 +703,7 @@ public class UnicastZenPingTests extends ESTestCase {
         closeables.push(transport);
 
         final TransportService transportService =
-            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            new TransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null);
         closeables.push(transportService);
         final List<DiscoveryNode> discoveryNodes = TestUnicastZenPing.resolveHostsLists(
             executorService,
@@ -751,7 +751,8 @@ public class UnicastZenPingTests extends ESTestCase {
             .build();
         final Transport transport = supplier.apply(nodeSettings, version);
         final MockTransportService transportService =
-            new MockTransportService(nodeSettings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, null);
+            new MockTransportService(nodeSettings, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,  boundAddress ->
+                new DiscoveryNode(nodeId, nodeId, boundAddress.publishAddress(), emptyMap(), nodeRoles, version), null);
         transportService.start();
         transportService.acceptIncomingRequests();
         final ConcurrentMap<TransportAddress, AtomicInteger> counters = ConcurrentCollections.newConcurrentMap();
@@ -762,10 +763,7 @@ public class UnicastZenPingTests extends ESTestCase {
                 counters.get(node.getAddress()).incrementAndGet();
             }
         });
-        final DiscoveryNode node =
-            new DiscoveryNode(nodeId, nodeId, transportService.boundAddress().publishAddress(), emptyMap(), nodeRoles, version);
-        transportService.setLocalNode(node);
-        return new NetworkHandle(transport.boundAddress().publishAddress(), transportService, node, counters);
+        return new NetworkHandle(transport.boundAddress().publishAddress(), transportService, transportService.getLocalNode(), counters);
     }
 
     private static class NetworkHandle {
@@ -797,21 +795,22 @@ public class UnicastZenPingTests extends ESTestCase {
 
         volatile CountDownLatch allTasksCompleted;
         volatile AtomicInteger pendingTasks;
+        volatile CountDownLatch pingingRoundClosed;
 
         PingCollection pingAndWait() throws ExecutionException, InterruptedException {
             allTasksCompleted = new CountDownLatch(1);
+            pingingRoundClosed = new CountDownLatch(1);
             pendingTasks = new AtomicInteger();
-            // make the three sending rounds to come as started
+            // mark the three sending rounds as ongoing
             markTaskAsStarted("send pings");
             markTaskAsStarted("send pings");
             markTaskAsStarted("send pings");
-            final CompletableFuture<PingCollection> response = new CompletableFuture<>();
-            try {
-                ping(response::complete, TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(1));
-            } catch (Exception ex) {
-                response.completeExceptionally(ex);
-            }
-            return response.get();
+            final AtomicReference<PingCollection> response = new AtomicReference<>();
+            ping(response::set, TimeValue.timeValueMillis(1), TimeValue.timeValueSeconds(1));
+            pingingRoundClosed.await();
+            final PingCollection result = response.get();
+            assertNotNull("pinging didn't complete",  result);
+            return result;
         }
 
         @Override
@@ -823,6 +822,7 @@ public class UnicastZenPingTests extends ESTestCase {
                 // ok, finish anyway
             }
             super.finishPingingRound(pingingRound);
+            pingingRoundClosed.countDown();
         }
 
         @Override

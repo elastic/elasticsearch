@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.suggest.phrase.WordScorer.WordScorerFactory;
 
 import java.io.IOException;
@@ -130,8 +129,7 @@ public final class LinearInterpolation extends SmoothingModel {
         return Objects.hash(trigramLambda, bigramLambda, unigramLambda);
     }
 
-    public static LinearInterpolation innerFromXContent(QueryParseContext parseContext) throws IOException {
-        XContentParser parser = parseContext.parser();
+    public static LinearInterpolation fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         String fieldName = null;
         double trigramLambda = 0.0;

@@ -255,7 +255,9 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
         QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
         if (rewrittenQuery != query) {
             InnerHitBuilder rewrittenInnerHit = InnerHitBuilder.rewrite(innerHitBuilder, rewrittenQuery);
-            return new NestedQueryBuilder(path, rewrittenQuery, scoreMode, rewrittenInnerHit);
+            NestedQueryBuilder nestedQuery = new NestedQueryBuilder(path, rewrittenQuery, scoreMode, rewrittenInnerHit);
+            nestedQuery.ignoreUnmapped(ignoreUnmapped);
+            return nestedQuery;
         }
         return this;
     }

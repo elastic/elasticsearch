@@ -29,6 +29,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
 import org.elasticsearch.index.shard.IndexingOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestTestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.TaskInfo;
@@ -269,12 +270,12 @@ public class CancelTests extends ReindexTestCase {
     public static class BlockingOperationListener implements IndexingOperationListener {
 
         @Override
-        public Engine.Index preIndex(Engine.Index index) {
+        public Engine.Index preIndex(ShardId shardId, Engine.Index index) {
             return preCheck(index, index.type());
         }
 
         @Override
-        public Engine.Delete preDelete(Engine.Delete delete) {
+        public Engine.Delete preDelete(ShardId shardId, Engine.Delete delete) {
             return preCheck(delete, delete.type());
         }
 

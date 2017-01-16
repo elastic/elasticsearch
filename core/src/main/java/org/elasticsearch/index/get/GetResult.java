@@ -54,7 +54,7 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
     private static final String _VERSION = "_version";
     private static final String FOUND = "found";
     private static final String FIELDS = "fields";
-    
+
     private String index;
     private String type;
     private String id;
@@ -135,6 +135,10 @@ public class GetResult implements Streamable, Iterable<GetField>, ToXContentObje
      * Returns bytes reference, also un compress the source if needed.
      */
     public BytesReference sourceRef() {
+        if (source == null) {
+            return null;
+        }
+
         try {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
             return this.source;

@@ -88,11 +88,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
     }
 
     @Override
-    public void clearScroll(String scrollId) {
-        /*
-         * Fire off the clear scroll but don't wait for it it return before
-         * we send the use their response.
-         */
+    public void clearScroll(String scrollId, Runnable onCompletion) {
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.addScrollId(scrollId);
         /*
@@ -103,13 +99,20 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
             @Override
             public void onResponse(ClearScrollResponse response) {
                 logger.debug("Freed [{}] contexts", response.getNumFreed());
+                onCompletion.run();
             }
 
             @Override
             public void onFailure(Exception e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
+                onCompletion.run();
             }
         });
+    }
+
+    @Override
+    protected void cleanup() {
+        // Nothing to do
     }
 
     /**
@@ -182,7 +185,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         } else {
             failures = new ArrayList<>(response.getShardFailures().length);
             for (ShardSearchFailure failure: response.getShardFailures()) {
-                String nodeId = failure.shard() == null ? null : failure.shard().nodeId();
+                String nodeId = failure.shard() == null ? null : failure.shard().getNodeId();
                 failures.add(new SearchFailure(failure.getCause(), failure.index(), failure.shardId(), nodeId));
             }
         }

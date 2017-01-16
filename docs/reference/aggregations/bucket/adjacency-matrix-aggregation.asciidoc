@@ -105,11 +105,12 @@ Response:
 // TESTRESPONSE[s/"_shards": \.\.\./"_shards": $body._shards/]
 // TESTRESPONSE[s/"hits": \.\.\./"hits": $body.hits/]
 
-By default buckets are returned where the number of matched documents is 1 or greater but it is
-possible to increase this threshold by passing a `min_doc_count` parameter.
-
 ==== Usage
 On its own this aggregation can provide all of the data required to create an undirected weighted graph.
 However, when used with child aggregations such as a `date_histogram` the results can provide the
 additional levels of data required to perform https://en.wikipedia.org/wiki/Dynamic_network_analysis[dynamic network analysis]
 where examining interactions _over time_ becomes important.
+
+==== Limitations
+For N filters the matrix of buckets produced can be N²/2 and so there is a default maximum 
+imposed of 100 filters . This setting can be changed using the `index.max_adjacency_matrix_filters` index-level setting.

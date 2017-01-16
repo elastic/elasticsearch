@@ -40,7 +40,6 @@ public class AdjacencyMatrixTests extends BaseAggregationTestCase<AdjacencyMatri
             filters.put(key, QueryBuilders.termQuery(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20)));
         }
         factory = new AdjacencyMatrixAggregationBuilder(randomAsciiOfLengthBetween(1, 20), filters)
-                .minDocCount(randomIntBetween(1, 20))
                 .separator(randomFrom("&","+","\t"));       
         return factory;
     }

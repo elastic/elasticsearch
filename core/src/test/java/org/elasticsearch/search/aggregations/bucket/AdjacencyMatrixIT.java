@@ -21,14 +21,19 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 
@@ -42,7 +47,10 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.adjacencyMatrix;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
@@ -52,11 +60,17 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class AdjacencyMatrixIT extends ESIntegTestCase {
 
     static int numDocs, numSingleTag1Docs, numSingleTag2Docs, numTag1Docs, numTag2Docs, numMultiTagDocs;
+    static final int MAX_NUM_FILTERS = 3;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
         createIndex("idx2");
+        assertAcked(client().admin().indices().prepareUpdateSettings("idx")
+                .setSettings(
+                        Settings.builder().put(IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey(), MAX_NUM_FILTERS))
+                .get());
+        
         numDocs = randomIntBetween(5, 20);
         numTag1Docs = randomIntBetween(1, numDocs - 1);
         numTag2Docs = randomIntBetween(1, numDocs - numTag1Docs);
@@ -151,24 +165,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
         }
 
     }
-    
-    public void testMinDocCountFilter() throws Exception {
-        
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(adjacencyMatrix("tags", newMap("tag1", termQuery("tag", "tag1"))
-                        .add("tag2", termQuery("tag", "tag2")))
-                        .minDocCount(numMultiTagDocs +1) 
-                     )
-                .execute().actionGet();
-
-        assertSearchResponse(response);
-
-        AdjacencyMatrix matrix = response.getAggregations().get("tags");
-
-        AdjacencyMatrix.Bucket bucket = matrix.getBucketByKey("tag1&ttag2");
-        assertThat(bucket, Matchers.nullValue());
-    }    
-    
+          
 
     // See NullPointer issue when filters are empty:
     // https://github.com/elastic/elasticsearch/issues/8438
@@ -301,6 +298,24 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
         }
 
 
+    }
+    
+    public void testTooLargeMatrix() throws Exception{
+    
+        // Create more filters than is permitted by index settings.        
+        MapBuilder filtersMap = new MapBuilder();
+        for (int i = 0; i <= MAX_NUM_FILTERS; i++) {
+            filtersMap.add("tag" + i, termQuery("tag", "tag" + i));
+        }
+        
+        try {
+            client().prepareSearch("idx")
+                .addAggregation(adjacencyMatrix("tags", "\t", filtersMap))
+                .execute().actionGet();
+            fail("SearchPhaseExecutionException should have been thrown");
+        } catch (SearchPhaseExecutionException ex) {
+            assertThat(ex.getCause().getCause().getMessage(), containsString("Number of filters is too large"));
+        }        
     }
 
     public void testAsSubAggregation() {

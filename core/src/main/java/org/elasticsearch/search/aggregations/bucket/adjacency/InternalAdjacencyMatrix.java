@@ -115,13 +115,11 @@ public class InternalAdjacencyMatrix
 
     private final List<InternalBucket> buckets;
     private Map<String, InternalBucket> bucketMap;
-    private final int minDocCount;
 
-    public InternalAdjacencyMatrix(String name, int minDocCount, List<InternalBucket> buckets, 
+    public InternalAdjacencyMatrix(String name, List<InternalBucket> buckets, 
             List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) {
         super(name, pipelineAggregators, metaData);
         this.buckets = buckets;
-        this.minDocCount = minDocCount;
     }
 
     /**
@@ -129,7 +127,6 @@ public class InternalAdjacencyMatrix
      */
     public InternalAdjacencyMatrix(StreamInput in) throws IOException {
         super(in);
-        this.minDocCount = in.readVInt();
         int size = in.readVInt();
         List<InternalBucket> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -141,7 +138,6 @@ public class InternalAdjacencyMatrix
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(minDocCount);
         out.writeVInt(buckets.size());
         for (InternalBucket bucket : buckets) {
             bucket.writeTo(out);
@@ -155,7 +151,7 @@ public class InternalAdjacencyMatrix
 
     @Override
     public InternalAdjacencyMatrix create(List<InternalBucket> buckets) {
-        return new InternalAdjacencyMatrix(this.name, this.minDocCount, buckets, this.pipelineAggregators(), this.metaData);
+        return new InternalAdjacencyMatrix(this.name, buckets, this.pipelineAggregators(), this.metaData);
     }
 
     @Override
@@ -197,14 +193,13 @@ public class InternalAdjacencyMatrix
         ArrayList<InternalBucket> reducedBuckets = new ArrayList<>(bucketsMap.size());
         for (List<InternalBucket> sameRangeList : bucketsMap.values()) {
             InternalBucket reducedBucket = sameRangeList.get(0).reduce(sameRangeList, reduceContext);
-            if(reducedBucket.docCount >= minDocCount){                
+            if(reducedBucket.docCount >= 1){                
                 reducedBuckets.add(reducedBucket);
             }
         }
         Collections.sort(reducedBuckets, Comparator.comparing(InternalBucket::getKey));
         
-        InternalAdjacencyMatrix reduced = new InternalAdjacencyMatrix(name, minDocCount, 
-                reducedBuckets, pipelineAggregators(), 
+        InternalAdjacencyMatrix reduced = new InternalAdjacencyMatrix(name, reducedBuckets, pipelineAggregators(), 
                 getMetaData());
 
         return reduced;

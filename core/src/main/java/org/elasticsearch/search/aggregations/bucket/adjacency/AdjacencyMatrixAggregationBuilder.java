@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAggregator.KeyedFilter;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,19 +50,15 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     public static final String NAME = "adjacency_matrix";
 
     private static final String DEFAULT_SEPARATOR = "&";
-    private static final int DEFAULT_MIN_DOC_COUNT = 1;
 
     private static final ParseField SEPARATOR_FIELD = new ParseField("separator");
-    private static final ParseField MIN_DOC_COUNT_FIELD = new ParseField("min_doc_count");
     private static final ParseField FILTERS_FIELD = new ParseField("filters");
     private List<KeyedFilter> filters;
     private String separator = DEFAULT_SEPARATOR;
-    private int minDocCount = DEFAULT_MIN_DOC_COUNT;
 
     public static Aggregator.Parser getParser() {
         ObjectParser<AdjacencyMatrixAggregationBuilder, QueryParseContext> parser = new ObjectParser<>(
                 AdjacencyMatrixAggregationBuilder.NAME);
-        parser.declareInt(AdjacencyMatrixAggregationBuilder::minDocCount, MIN_DOC_COUNT_FIELD);
         parser.declareString(AdjacencyMatrixAggregationBuilder::separator, SEPARATOR_FIELD);
         parser.declareNamedObjects(AdjacencyMatrixAggregationBuilder::setFiltersAsList, KeyedFilter.PARSER, FILTERS_FIELD);
         return new Aggregator.Parser() {
@@ -142,7 +140,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         super(in);
         int filtersSize = in.readVInt();
         separator = in.readString();
-        minDocCount = in.readVInt();
         filters = new ArrayList<>(filtersSize);
         for (int i = 0; i < filtersSize; i++) {
             filters.add(new KeyedFilter(in));
@@ -153,7 +150,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(filters.size());
         out.writeString(separator);
-        out.writeVInt(minDocCount);
         for (KeyedFilter keyedFilter : filters) {
             keyedFilter.writeTo(out);
         }
@@ -175,27 +171,7 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
      */
     public String separator() {
         return separator;
-    }    
-    
-    
-    /**
-     * Set the miniumum number of docs a bucket should contain before it is returned
-     */
-    public AdjacencyMatrixAggregationBuilder minDocCount(int minDocCount) {
-        if (minDocCount <= 0) {
-            throw new IllegalArgumentException("["+MIN_DOC_COUNT_FIELD.getPreferredName()
-                +"] must be greater than 0. Found [" + minDocCount + "] in [" + name + "]");
-        }
-        this.minDocCount = minDocCount;        
-        return this;
-    }
-
-    /**
-     * Get the miniumum number of docs a bucket should contain before it is returned
-     */
-    public int minDocCount() {
-        return minDocCount;
-    }
+    }        
     
     /**
      * Get the filters. This will be an unmodifiable map
@@ -212,11 +188,21 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     @Override
     protected AggregatorFactory<?> doBuild(SearchContext context, AggregatorFactory<?> parent, Builder subFactoriesBuilder)
             throws IOException {
+        int maxFilters = context.indexShard().indexSettings().getMaxAdjacencyMatrixFilters();
+        if (filters.size() > maxFilters){
+            throw new QueryPhaseExecutionException(context,
+                    "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was ["
+                            + filters.size() + "]."
+                            + "This limit can be set by changing the [" + IndexSettings.MAX_ADJACENCY_MATRIX_FILTERS_SETTING.getKey()
+                            + "] index level setting.");
+        }
+
         List<KeyedFilter> rewrittenFilters = new ArrayList<>();
         for (KeyedFilter kf : filters) {
             rewrittenFilters.add(new KeyedFilter(kf.key(), QueryBuilder.rewriteQuery(kf.filter(), context.getQueryShardContext())));
         }
-        return new AdjacencyMatrixAggregatorFactory(name, rewrittenFilters, separator, minDocCount, context, parent,
+
+        return new AdjacencyMatrixAggregatorFactory(name, rewrittenFilters, separator, context, parent,
                 subFactoriesBuilder, metaData);
     }
 
@@ -224,7 +210,6 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(SEPARATOR_FIELD.getPreferredName(), separator);
-        builder.field(MIN_DOC_COUNT_FIELD.getPreferredName(), minDocCount);
         builder.startObject(AdjacencyMatrixAggregator.FILTERS_FIELD.getPreferredName());
         for (KeyedFilter keyedFilter : filters) {
             builder.field(keyedFilter.key(), keyedFilter.filter());
@@ -236,14 +221,13 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(filters, separator, minDocCount);
+        return Objects.hash(filters, separator);
     }
 
     @Override
     protected boolean doEquals(Object obj) {
         AdjacencyMatrixAggregationBuilder other = (AdjacencyMatrixAggregationBuilder) obj;
-        return Objects.equals(filters, other.filters) && Objects.equals(separator, other.separator)
-                && minDocCount == other.minDocCount;
+        return Objects.equals(filters, other.filters) && Objects.equals(separator, other.separator);
     }
 
     @Override

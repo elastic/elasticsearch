@@ -133,14 +133,12 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     private final int totalNumKeys;
     private final int totalNumIntersections;
     private final String separator;
-    private final int minDocCount;
 
-    public AdjacencyMatrixAggregator(String name, AggregatorFactories factories, String separator, int minDocCount, String[] keys, 
+    public AdjacencyMatrixAggregator(String name, AggregatorFactories factories, String separator, String[] keys, 
             Weight[] filters, SearchContext context, Aggregator parent, List<PipelineAggregator> pipelineAggregators, 
             Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, pipelineAggregators, metaData);
         this.separator = separator;
-        this.minDocCount = minDocCount;
         this.keys = keys;
         this.filters = filters;
         this.totalNumIntersections = ((keys.length * keys.length) - keys.length) / 2;
@@ -229,13 +227,13 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                 pos++;
             }
         }
-        return new InternalAdjacencyMatrix(name, minDocCount, buckets, pipelineAggregators(), metaData());
+        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(0);
-        return new InternalAdjacencyMatrix(name, minDocCount, buckets, pipelineAggregators(), metaData());
+        return new InternalAdjacencyMatrix(name, buckets, pipelineAggregators(), metaData());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {

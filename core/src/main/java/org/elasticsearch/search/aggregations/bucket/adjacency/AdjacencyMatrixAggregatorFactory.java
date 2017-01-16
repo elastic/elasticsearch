@@ -38,15 +38,13 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory<Adjacenc
     private final String[] keys;
     private final Weight[] weights;
     private final String separator;
-    private final int minDocCount;
 
-    public AdjacencyMatrixAggregatorFactory(String name, List<KeyedFilter> filters, String separator, int minDocCount, 
+    public AdjacencyMatrixAggregatorFactory(String name, List<KeyedFilter> filters, String separator, 
             SearchContext context, AggregatorFactory<?> parent, AggregatorFactories.Builder subFactories, 
             Map<String, Object> metaData) throws IOException {
         super(name, context, parent, subFactories, metaData);
         IndexSearcher contextSearcher = context.searcher();
         this.separator = separator;
-        this.minDocCount = minDocCount;
         weights = new Weight[filters.size()];
         keys = new String[filters.size()];
         for (int i = 0; i < filters.size(); ++i) {
@@ -60,7 +58,7 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory<Adjacenc
     @Override
     public Aggregator createInternal(Aggregator parent, boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators,
             Map<String, Object> metaData) throws IOException {
-        return new AdjacencyMatrixAggregator(name, factories, separator, minDocCount, keys, weights, context, parent,
+        return new AdjacencyMatrixAggregator(name, factories, separator, keys, weights, context, parent,
                 pipelineAggregators, metaData);
     }
 

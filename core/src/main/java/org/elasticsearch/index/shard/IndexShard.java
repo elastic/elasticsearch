@@ -1666,7 +1666,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine createNewEngine(EngineConfig config) {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
-                throw new AlreadyClosedException("can't create engine - shard is closed");
+                throw new AlreadyClosedException(shardId + " can't create engine - shard is closed");
             }
             assert this.currentEngineReference.get() == null;
             Engine engine = newEngine(config);

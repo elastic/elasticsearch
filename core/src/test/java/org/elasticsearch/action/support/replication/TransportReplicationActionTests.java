@@ -436,7 +436,7 @@ public class TransportReplicationActionTests extends ESTestCase {
             new ShardNotFoundException(shardId),
             new IndexNotFoundException(shardId.getIndex()),
             new IndexShardClosedException(shardId),
-            new AlreadyClosedException("primary is closed"),
+            new AlreadyClosedException(shardId + " primary is closed"),
             new ReplicationOperation.RetryOnPrimaryException(shardId, "hello")
         );
     }

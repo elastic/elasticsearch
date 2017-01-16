@@ -530,7 +530,7 @@ public abstract class Engine implements Closeable {
 
     protected void ensureOpen() {
         if (isClosed.get()) {
-            throw new AlreadyClosedException("engine is closed", failedEngine.get());
+            throw new AlreadyClosedException(shardId + " engine is closed", failedEngine.get());
         }
     }
 

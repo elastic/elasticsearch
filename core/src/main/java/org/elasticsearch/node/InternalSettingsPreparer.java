@@ -106,7 +106,8 @@ public class InternalSettingsPreparer {
             }
         }
         if (foundSuffixes.size() > 1) {
-            throw new SettingsException("multiple settings files found with suffixes: " + Strings.collectionToDelimitedString(foundSuffixes, ","));
+            throw new SettingsException("multiple settings files found with suffixes: "
+                + Strings.collectionToDelimitedString(foundSuffixes, ","));
         }
 
         // re-initialize settings now that the config file has been loaded
@@ -195,7 +196,9 @@ public class InternalSettingsPreparer {
 
     private static String promptForValue(String key, Terminal terminal, boolean secret) {
         if (terminal == null) {
-            throw new UnsupportedOperationException("found property [" + key + "] with value [" + (secret ? SECRET_PROMPT_VALUE : TEXT_PROMPT_VALUE) +"]. prompting for property values is only supported when running elasticsearch in the foreground");
+            throw new UnsupportedOperationException("found property [" + key + "] with value ["
+                + (secret ? SECRET_PROMPT_VALUE : TEXT_PROMPT_VALUE)
+                + "]. prompting for property values is only supported when running elasticsearch in the foreground");
         }
 
         if (secret) {

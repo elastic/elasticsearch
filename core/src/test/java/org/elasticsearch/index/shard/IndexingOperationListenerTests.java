@@ -132,7 +132,8 @@ public class IndexingOperationListenerTests extends ESTestCase{
             }
         }
         Collections.shuffle(indexingOperationListeners, random());
-        IndexingOperationListener.CompositeListener compositeListener = new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
+        IndexingOperationListener.CompositeListener compositeListener =
+            new IndexingOperationListener.CompositeListener(indexingOperationListeners, logger);
         ParsedDocument doc = InternalEngineTests.createParsedDoc("1", "test", null);
         Engine.Delete delete = new Engine.Delete("test", "1", new Term("_uid", doc.uid()));
         Engine.Index index = new Engine.Index(new Term("_uid", doc.uid()), doc);

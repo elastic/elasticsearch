@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -64,9 +66,6 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
-
-import static org.elasticsearch.action.support.replication.ReplicationOperation.ignoreReplicaException;
-import static org.elasticsearch.action.support.replication.ReplicationOperation.isConflictException;
 
 /** Performs shard-level bulk (index, delete or update) operations */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
@@ -235,6 +234,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return location;
     }
 
+    private static boolean isConflictException(final Exception e) {
+        return ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException;
+    }
+
     private static class UpdateResultHolder {
         final BulkItemRequest replicaRequest;
         final Engine.Result operationResult;
@@ -392,7 +395,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                             || failure instanceof IndexShardClosedException
                             : "expected any one of [version conflict, mapper parsing, engine closed, index shard closed]" +
                             " failures. got " + failure;
-                        if (!ignoreReplicaException(failure)) {
+                        if (!TransportActions.isShardNotAvailableException(failure)) {
                             throw failure;
                         }
                     } else {
@@ -401,7 +404,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 } catch (Exception e) {
                     // if its not an ignore replica failure, we need to make sure to bubble up the failure
                     // so we will fail the shard
-                    if (!ignoreReplicaException(e)) {
+                    if (!TransportActions.isShardNotAvailableException(e)) {
                         throw e;
                     }
                 }

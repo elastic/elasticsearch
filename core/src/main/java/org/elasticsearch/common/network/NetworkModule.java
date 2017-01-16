@@ -125,7 +125,8 @@ public final class NetworkModule {
             for (Map.Entry<String, Supplier<Transport>> entry : httpTransportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
             }
-            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(namedWriteableRegistry);
+            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(namedWriteableRegistry,
+                threadPool.getThreadContext());
             for (TransportInterceptor interceptor : transportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }

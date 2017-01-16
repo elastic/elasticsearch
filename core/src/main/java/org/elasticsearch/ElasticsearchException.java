@@ -21,6 +21,7 @@ package org.elasticsearch;
 
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -82,7 +83,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final String ERROR = "error";
     private static final String ROOT_CAUSE = "root_cause";
 
-    private static final Map<Integer, FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException>> ID_TO_SUPPLIER;
+    private static final Map<Integer, CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException>> ID_TO_SUPPLIER;
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
     private final Map<String, List<String>> headers = new HashMap<>();
 
@@ -223,7 +224,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     }
 
     public static ElasticsearchException readException(StreamInput input, int id) throws IOException {
-        FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException> elasticsearchException = ID_TO_SUPPLIER.get(id);
+        CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> elasticsearchException = ID_TO_SUPPLIER.get(id);
         if (elasticsearchException == null) {
             throw new IllegalStateException("unknown exception for id: " + id);
         }
@@ -792,12 +793,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 org.elasticsearch.common.xcontent.NamedXContentRegistry.UnknownNamedObjectException::new, 148, Version.V_5_2_0_UNRELEASED);
 
         final Class<? extends ElasticsearchException> exceptionClass;
-        final FunctionThatThrowsIOException<StreamInput, ? extends ElasticsearchException> constructor;
+        final CheckedFunction<StreamInput, ? extends ElasticsearchException, IOException> constructor;
         final int id;
         final Version versionAdded;
 
         <E extends ElasticsearchException> ElasticsearchExceptionHandle(Class<E> exceptionClass,
-                                                                        FunctionThatThrowsIOException<StreamInput, E> constructor, int id,
+                                                                        CheckedFunction<StreamInput, E, IOException> constructor, int id,
                                                                         Version versionAdded) {
             // We need the exceptionClass because you can't dig it out of the constructor reliably.
             this.exceptionClass = exceptionClass;
@@ -890,10 +891,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
         builder.endArray();
         ElasticsearchException.toXContent(builder, params, e);
         builder.endObject();
-    }
-
-    interface FunctionThatThrowsIOException<T, R> {
-        R apply(T t) throws IOException;
     }
 
     // lower cases and adds underscores to transitions in a name

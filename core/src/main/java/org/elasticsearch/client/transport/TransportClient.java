@@ -160,7 +160,7 @@ public abstract class TransportClient extends AbstractClient {
             }
             modules.add(b -> b.bind(ThreadPool.class).toInstance(threadPool));
             ActionModule actionModule = new ActionModule(true, settings, null, settingsModule.getClusterSettings(),
-                threadPool, pluginsService.filterPlugins(ActionPlugin.class));
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class), null, null);
             modules.add(actionModule);
 
             CircuitBreakerService circuitBreakerService = Node.createCircuitBreakerService(settingsModule.getSettings(),
@@ -170,7 +170,7 @@ public abstract class TransportClient extends AbstractClient {
             resourcesToClose.add(bigArrays);
             modules.add(settingsModule);
             NetworkModule networkModule = new NetworkModule(settings, true, pluginsService.filterPlugins(NetworkPlugin.class), threadPool,
-                bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService);
+                bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry, networkService, null);
             final Transport transport = networkModule.getTransportSupplier().get();
             final TransportService transportService = new TransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(),

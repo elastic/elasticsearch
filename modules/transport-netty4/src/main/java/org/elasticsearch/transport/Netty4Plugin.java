@@ -93,9 +93,11 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-            CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-            NamedXContentRegistry xContentRegistry, NetworkService networkService) {
+                                                                        CircuitBreakerService circuitBreakerService,
+                                                                        NamedWriteableRegistry namedWriteableRegistry,
+                                                                        NamedXContentRegistry xContentRegistry,
+                                                                        NetworkService networkService, HttpServerTransport.Dispatcher dispatcher) {
         return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME,
-            () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry));
+            () -> new Netty4HttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher));
     }
 }

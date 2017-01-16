@@ -38,7 +38,6 @@ public class NodeModule extends AbstractModule {
     protected void configure() {
         bind(Node.class).toInstance(node);
         bind(MonitorService.class).toInstance(monitorService);
-        bind(NodeService.class).asEagerSingleton();
         bind(DiskThresholdMonitor.class).asEagerSingleton();
     }
 }

@@ -218,9 +218,9 @@ There will also be a `rewrite` metric showing the total time spent rewriting the
 
 ==== Human readable output
 
-As with other statistics apis, the Profile API supports human readable outputs for the time values. Those can be turned on by adding 
+As with other statistics apis, the Profile API supports human readable outputs for the time values. This can be turned on by adding
 `?human=true` to the query string. In this case, in addition to the `"time_in_nanos"` field, the output contains the additional `"time"`
-field with the time in milliseconds, (e.g. `"time": "0.3919430000ms"`). 
+field with containing a rounded, human readable time value , (e.g. `"time": "391,9ms"`, `"time": "123.3micros"`).
 
 === Profiling Queries
 

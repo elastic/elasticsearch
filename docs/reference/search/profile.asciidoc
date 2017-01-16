@@ -304,8 +304,8 @@ values ("search test"), our BooleanQuery holds two children TermQueries.  They h
 breakdown, etc).  Children are allowed to have their own children.
 
 NOTE: The `"time"` field is only intended for human consumption. If you need exact timing values use `"time_in nanos"`. The `"time"`
-field is currently printed by default, but this will change with the next major version where `"time_in_nanos"` will be
-printed by default. The `"time"` field needs to be switched on by using the `?human=false` <<common-options, common options>> flag then.
+field is currently printed by default, but this will change with the next major version (6.0.0) where `"time_in_nanos"` will be
+printed by default.
 
 
 ===== Timing Breakdown

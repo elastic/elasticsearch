@@ -285,8 +285,6 @@ public class RestClient implements Closeable {
                                     ResponseListener responseListener, Header... headers) {
         Objects.requireNonNull(params, "params must not be null");
         Map<String, String> requestParams = new HashMap<>(params);
-
-
         //ignore is a special parameter supported by the clients, shouldn't be sent to es
         String ignoreString = requestParams.remove("ignore");
         Set<Integer> ignoreErrorCodes;

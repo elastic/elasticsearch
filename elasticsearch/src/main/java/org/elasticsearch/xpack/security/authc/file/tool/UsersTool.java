@@ -16,7 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.xpack.XPackSettings;
 import org.elasticsearch.xpack.security.authc.file.FileUserPasswdStore;
 import org.elasticsearch.xpack.security.authc.file.FileUserRolesStore;

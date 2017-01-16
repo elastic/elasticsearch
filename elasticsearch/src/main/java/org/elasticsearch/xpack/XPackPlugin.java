@@ -476,9 +476,9 @@ public class XPackPlugin extends Plugin implements ScriptPlugin, ActionPlugin, I
                                                                         CircuitBreakerService circuitBreakerService,
                                                                         NamedWriteableRegistry namedWriteableRegistry,
                                                                         NamedXContentRegistry xContentRegistry,
-                                                                        NetworkService networkService) {
+                                                                        NetworkService networkService, HttpServerTransport.Dispatcher dispatcher) {
         return security.getHttpTransports(settings, threadPool, bigArrays, circuitBreakerService, namedWriteableRegistry, xContentRegistry,
-                networkService);
+                networkService, dispatcher);
     }
 
     @Override

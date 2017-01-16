@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
+import org.elasticsearch.rest.RestController;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.xpack.ssl.SSLService;
@@ -35,8 +36,9 @@ public class SecurityNetty4HttpServerTransport extends Netty4HttpServerTransport
     private final boolean ssl;
 
     public SecurityNetty4HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, IPFilter ipFilter,
-                                             SSLService sslService, ThreadPool threadPool, NamedXContentRegistry xContentRegistry) {
-        super(settings, networkService, bigArrays, threadPool, xContentRegistry);
+                                             SSLService sslService, ThreadPool threadPool, NamedXContentRegistry xContentRegistry,
+                                             Dispatcher dispatcher) {
+        super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher);
         this.ipFilter = ipFilter;
         this.ssl = HTTP_SSL_ENABLED.get(settings);
         this.sslService =  sslService;

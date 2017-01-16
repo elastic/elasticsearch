@@ -721,13 +721,15 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
 
     @Override
     public Map<String, Supplier<HttpServerTransport>> getHttpTransports(Settings settings, ThreadPool threadPool, BigArrays bigArrays,
-            CircuitBreakerService circuitBreakerService, NamedWriteableRegistry namedWriteableRegistry,
-            NamedXContentRegistry xContentRegistry, NetworkService networkService) {
+                                                                        CircuitBreakerService circuitBreakerService,
+                                                                        NamedWriteableRegistry namedWriteableRegistry,
+                                                                        NamedXContentRegistry xContentRegistry,
+                                                                        NetworkService networkService, HttpServerTransport.Dispatcher dispatcher) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }
         return Collections.singletonMap(Security.NAME4, () -> new SecurityNetty4HttpServerTransport(settings, networkService, bigArrays,
-                ipFilter.get(), sslService, threadPool, xContentRegistry));
+                ipFilter.get(), sslService, threadPool, xContentRegistry, dispatcher));
     }
 
     @Override

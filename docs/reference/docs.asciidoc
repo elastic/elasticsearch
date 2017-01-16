@@ -16,6 +16,7 @@ detailed description of the following CRUD APIs:
 .Multi-document APIs
 * <<docs-multi-get>>
 * <<docs-bulk>>
+* <<docs-delete-by-query>>
 * <<docs-update-by-query>>
 * <<docs-reindex>>
 

@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 class ScheduledJob {
@@ -41,7 +42,7 @@ class ScheduledJob {
 
     private volatile long lookbackStartTimeMs;
     private volatile Long lastEndTimeMs;
-    private volatile boolean running = true;
+    private AtomicBoolean running = new AtomicBoolean(true);
 
     ScheduledJob(String jobId, long frequencyMs, long queryDelayMs, DataExtractorFactory dataExtractorFactory,
                  Client client, Auditor auditor, Supplier<Long> currentTimeSupplier,
@@ -103,13 +104,23 @@ class ScheduledJob {
         return nextRealtimeTimestamp();
     }
 
-    public void stop() {
-        running = false;
-        auditor.info(Messages.getMessage(Messages.JOB_AUDIT_SCHEDULER_STOPPED));
+    /**
+     * Stops the scheduled job
+     *
+     * @return <code>true</code> when the scheduler was running and this method invocation stopped it,
+     *         otherwise <code>false</code> is returned
+     */
+    public boolean stop() {
+        if (running.compareAndSet(true, false)) {
+            auditor.info(Messages.getMessage(Messages.JOB_AUDIT_SCHEDULER_STOPPED));
+            return true;
+        } else {
+            return false;
+        }
     }
 
     public boolean isRunning() {
-        return running;
+        return running.get();
     }
 
     private void run(long start, long end, FlushJobAction.Request flushRequest) throws IOException {

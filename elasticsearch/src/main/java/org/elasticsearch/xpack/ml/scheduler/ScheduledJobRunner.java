@@ -269,10 +269,14 @@ public class ScheduledJobRunner extends AbstractComponent {
         }
 
         public void stop(Exception e) {
-            logger.info("Stopping scheduler [{}] for job [{}]", scheduler.getId(), scheduler.getJobId());
-            scheduledJob.stop();
-            FutureUtils.cancel(future);
-            setJobSchedulerStatus(scheduler.getId(), SchedulerStatus.STOPPED, error -> handler.accept(e));
+            logger.info("attempt to stop scheduler [{}] for job [{}]", scheduler.getId(), scheduler.getJobId());
+            if (scheduledJob.stop()) {
+                FutureUtils.cancel(future);
+                setJobSchedulerStatus(scheduler.getId(), SchedulerStatus.STOPPED, error -> handler.accept(e));
+                logger.info("scheduler [{}] for job [{}] has been stopped", scheduler.getId(), scheduler.getJobId());
+            } else {
+                logger.info("scheduler [{}] for job [{}] was already stopped", scheduler.getId(), scheduler.getJobId());
+            }
         }
 
     }

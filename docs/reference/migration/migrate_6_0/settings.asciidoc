@@ -20,3 +20,10 @@ recognized anymore.
 The `default` `index.store.type` has been removed. If you were using it, we
 advise that you simply remove it from your index settings and Elasticsearch
 will use the best `store` implementation for your operating system.
+
+==== Network settings
+
+The blocking tcp client, blocking tcp server, and blocking http server have been removed.
+As a consequence, the `network.tcp.blocking_server`, `network.tcp.blocking_client`,
+`network.tcp.blocking`,`transport.tcp.blocking_client`, `transport.tcp.blocking_server`,
+and `http.tcp.blocking_server` settings are not recognized anymore.

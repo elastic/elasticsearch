@@ -220,23 +220,45 @@ public class RestClientSingleHostTests extends RestClientTestCase {
      */
     public void testErrorStatusCodes() throws IOException {
         for (String method : getHttpMethods()) {
+            Set<Integer> expectedIgnores = new HashSet<>();
+            String ignoreParam = "";
+            if (HttpHead.METHOD_NAME.equals(method)) {
+                expectedIgnores.add(404);
+            }
+            if (randomBoolean()) {
+                int numIgnores = randomIntBetween(1, 3);
+                for (int i = 0; i < numIgnores; i++) {
+                    Integer code = randomFrom(getAllErrorStatusCodes());
+                    expectedIgnores.add(code);
+                    ignoreParam += code;
+                    if (i < numIgnores - 1) {
+                        ignoreParam += ",";
+                    }
+                }
+            }
             //error status codes should cause an exception to be thrown
             for (int errorStatusCode : getAllErrorStatusCodes()) {
                 try {
-                    Response response = performRequest(method, "/" + errorStatusCode);
-                    if (method.equals("HEAD") && errorStatusCode == 404) {
-                        //no exception gets thrown although we got a 404
-                        assertThat(response.getStatusLine().getStatusCode(), equalTo(errorStatusCode));
+                    Map<String, String> params;
+                    if (ignoreParam.isEmpty()) {
+                        params = Collections.emptyMap();
+                    } else {
+                        params = Collections.singletonMap("ignore", ignoreParam);
+                    }
+                    Response response = performRequest(method, "/" + errorStatusCode, params);
+                    if (expectedIgnores.contains(errorStatusCode)) {
+                        //no exception gets thrown although we got an error status code, as it was configured to be ignored
+                        assertEquals(errorStatusCode, response.getStatusLine().getStatusCode());
                     } else {
                         fail("request should have failed");
                     }
                 } catch(ResponseException e) {
-                    if (method.equals("HEAD") && errorStatusCode == 404) {
+                    if (expectedIgnores.contains(errorStatusCode)) {
                         throw e;
                     }
-                    assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(errorStatusCode));
+                    assertEquals(errorStatusCode, e.getResponse().getStatusLine().getStatusCode());
                 }
-                if (errorStatusCode <= 500) {
+                if (errorStatusCode <= 500 || expectedIgnores.contains(errorStatusCode)) {
                     failureListener.assertNotCalled();
                 } else {
                     failureListener.assertCalled(httpHost);
@@ -372,17 +394,24 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     private HttpUriRequest performRandomRequest(String method) throws Exception {
         String uriAsString = "/" + randomStatusCode(getRandom());
         URIBuilder uriBuilder = new URIBuilder(uriAsString);
-        Map<String, String> params = Collections.emptyMap();
+        final Map<String, String> params = new HashMap<>();
         boolean hasParams = randomBoolean();
         if (hasParams) {
             int numParams = randomIntBetween(1, 3);
-            params = new HashMap<>(numParams);
             for (int i = 0; i < numParams; i++) {
                 String paramKey = "param-" + i;
                 String paramValue = randomAsciiOfLengthBetween(3, 10);
                 params.put(paramKey, paramValue);
                 uriBuilder.addParameter(paramKey, paramValue);
             }
+        }
+        if (randomBoolean()) {
+            //randomly add some ignore parameter, which doesn't get sent as part of the request
+            String ignore = Integer.toString(randomFrom(RestClientTestUtil.getAllErrorStatusCodes()));
+            if (randomBoolean()) {
+                ignore += "," + Integer.toString(randomFrom(RestClientTestUtil.getAllErrorStatusCodes()));
+            }
+            params.put("ignore", ignore);
         }
         URI uri = uriBuilder.build();
 
@@ -455,16 +484,25 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     private Response performRequest(String method, String endpoint, Header... headers) throws IOException {
-        switch(randomIntBetween(0, 2)) {
+        return performRequest(method, endpoint, Collections.<String, String>emptyMap(), headers);
+    }
+
+    private Response performRequest(String method, String endpoint, Map<String, String> params, Header... headers) throws IOException {
+        int methodSelector;
+        if (params.isEmpty()) {
+            methodSelector = randomIntBetween(0, 2);
+        } else {
+            methodSelector = randomIntBetween(1, 2);
+        }
+        switch(methodSelector) {
             case 0:
                 return restClient.performRequest(method, endpoint, headers);
             case 1:
-                return restClient.performRequest(method, endpoint, Collections.<String, String>emptyMap(), headers);
+                return restClient.performRequest(method, endpoint, params, headers);
             case 2:
-                return restClient.performRequest(method, endpoint, Collections.<String, String>emptyMap(), (HttpEntity)null, headers);
+                return restClient.performRequest(method, endpoint, params, (HttpEntity)null, headers);
             default:
                 throw new UnsupportedOperationException();
         }
     }
-
 }

@@ -206,7 +206,14 @@ access to the returned response.
 NOTE: A `ResponseException` is **not** thrown for `HEAD` requests that return
 a `404` status code because it is an expected `HEAD` response that simply
 denotes that the resource is not found. All other HTTP methods (e.g., `GET`)
-throw a `ResponseException` for `404` responses.
+throw a `ResponseException` for `404` responses unless the `ignore` parameter
+contains `404`. `ignore` is a special client parameter that doesn't get sent
+to Elasticsearch and contains a comma separated list of error status codes.
+It allows to control whether some error status code should be treated as an
+expected response rather than as an exception. This is useful for instance
+with the get api as it can return `404` when the document is missing, in which
+case the response body will not contain an error but rather the usual get api
+response, just without the document as it was not found.
 
 
 === Example requests

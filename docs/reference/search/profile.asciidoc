@@ -216,11 +216,9 @@ a `query` array and a `collector` array.  Alongside the `search` object is an `a
 
 There will also be a `rewrite` metric showing the total time spent rewriting the query (in nanoseconds).
 
-=== Human readable output
-
-As with other statistics apis, the Profile API supports human readable outputs for the time values. This can be turned on by adding
-`?human=true` to the query string. In this case, in addition to the `"time_in_nanos"` field, the output contains the additional `"time"`
-field with containing a rounded, human readable time value , (e.g. `"time": "391,9ms"`, `"time": "123.3micros"`).
+NOTE: As with other statistics apis, the Profile API supports human readable outputs. This can be turned on by adding
+`?human=true` to the query string. In this case, the output contains the additional `"time"` field containing rounded,
+human readable timing information (e.g. `"time": "391,9ms"`, `"time": "123.3micros"`).
 
 === Profiling Queries
 

@@ -42,7 +42,7 @@ setup:
 
   - skip:
       version: " - 5.2.99"
-      reason:  Partitioning is a 5.3.0 feature
+      reason:  Adjacency Matrix is a 5.3.0 feature
       
   - do:
       search:
@@ -69,7 +69,7 @@ setup:
 
   - skip:
       version: " - 5.2.99"
-      reason:  Partitioning is a 5.3.0 feature
+      reason:  Adjacency Matrix is a 5.3.0 feature
       
   - do:
       search:

@@ -186,18 +186,6 @@ public abstract class RestRequest implements ToXContent.Params {
         }
     }
 
-    public Integer paramAsInteger(String key, Integer defaultValue) {
-        String sValue = param(key);
-        if(sValue == null) {
-            return defaultValue;
-        }
-        try {
-            return Integer.valueOf(sValue);
-        } catch (NumberFormatException e) {
-            throw new IllegalArgumentException("Failed to parse Integer parameter [" + key + "] with value [" + sValue + "]", e);
-        }
-    }
-
     public long paramAsLong(String key, long defaultValue) {
         String sValue = param(key);
         if (sValue == null) {

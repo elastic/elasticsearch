@@ -126,9 +126,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private QueryBuilder postQueryBuilder;
 
-    private Integer from = null;
+    private int from = -1;
 
-    private Integer size = null;
+    private int size = -1;
 
     private Boolean explain;
 
@@ -303,7 +303,10 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * From index to start the search from. Defaults to <tt>0</tt>.
      */
-    public SearchSourceBuilder from(Integer from) {
+    public SearchSourceBuilder from(int from) {
+        if (from < 0) {
+            throw new IllegalArgumentException("from must be no negative but was [" + from + "]");
+        }
         this.from = from;
         return this;
     }
@@ -311,14 +314,17 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Gets the from index to start the search from.
      **/
-    public Integer from() {
+    public int from() {
         return from;
     }
 
     /**
      * The number of search hits to return. Defaults to <tt>10</tt>.
      */
-    public SearchSourceBuilder size(Integer size) {
+    public SearchSourceBuilder size(int size) {
+        if (size < 0) {
+            throw new IllegalArgumentException("size must be no negative but was [" + size + "]");
+        }
         this.size = size;
         return this;
     }
@@ -326,7 +332,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     /**
      * Gets the number of search hits to return.
      */
-    public Integer size() {
+    public int size() {
         return size;
     }
 

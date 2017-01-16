@@ -366,6 +366,26 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
         }
     }
 
+    public void testInvalidFormAndSize() throws IOException {
+        {
+            SearchSourceBuilder builder = new SearchSourceBuilder();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.from(-1));
+            assertEquals("from must be no negative but was [-1]", e.getMessage());
+        }
+        {
+            SearchSourceBuilder builder = new SearchSourceBuilder();
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.size(-1));
+            assertEquals("size must be no negative but was [-1]", e.getMessage());
+        }
+    }
+
+    private void assertInvalidFromAndSizeException(String restContent, String expectedErrorMessage) throws IOException {
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> SearchSourceBuilder.fromXContent(createParseContext(parser)));
+            assertEquals(expectedErrorMessage, e.getMessage());
+        }
+    }
+
     private void assertIndicesBoostParseErrorMessage(String restContent, String expectedErrorMessage) throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, restContent)) {
             ParsingException e = expectThrows(ParsingException.class, () -> SearchSourceBuilder.fromXContent(createParseContext(parser)));

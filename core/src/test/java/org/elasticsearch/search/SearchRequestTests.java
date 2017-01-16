@@ -86,21 +86,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         checkEqualsAndHashCode(createSearchRequest(), SearchRequestTests::copyRequest, this::mutate);
     }
 
-    public void testInvalidFromAndSize() throws IOException {
-        SearchRequest searchRequest = createSearchRequest();
-        searchRequest.source(new SearchSourceBuilder()).source().from(new Integer(-1));
-        ActionRequestValidationException ex = searchRequest.validate();
-        assertNotNull("from validation should fail", ex);
-        assertTrue(ex.getMessage().contains("from must be no negative but was [-1]"));
-
-        searchRequest =  createSearchRequest();
-        searchRequest.source(new SearchSourceBuilder()).source().size(new Integer(-1));
-        ex = searchRequest.validate();
-        assertNotNull("size validation should fail", ex);
-        assertTrue(ex.getMessage().contains("size must be no negative but was [-1]"));
-
-    }
-
     private SearchRequest mutate(SearchRequest searchRequest) throws IOException {
         SearchRequest mutation = copyRequest(searchRequest);
         List<Runnable> mutators = new ArrayList<>();

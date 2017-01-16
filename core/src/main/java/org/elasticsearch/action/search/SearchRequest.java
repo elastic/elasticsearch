@@ -102,20 +102,7 @@ public final class SearchRequest extends ActionRequest implements IndicesRequest
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (source().from() != null) {
-            int from = source().from().intValue();
-            if (from  < 0) {
-                validationException = addValidationError("from must be no negative but was [" + from + "]", validationException);
-            }
-        }
-        if(source().size() != null) {
-            int size = source().size().intValue();
-            if (size < 0) {
-                validationException = addValidationError("size must be no negative but was [" + size + "]", validationException);
-            }
-        }
-        return validationException;
+        return null;
     }
 
     /**

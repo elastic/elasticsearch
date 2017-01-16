@@ -1478,76 +1478,121 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testVersioningReplicaConflict1() {
-        ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
-        Engine.Index index = indexForDoc(doc);
-        Engine.IndexResult indexResult = engine.index(index);
-        assertThat(indexResult.getVersion(), equalTo(1L));
+        final ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
+        final Engine.Index v1Index = indexForDoc(doc);
+        final Engine.IndexResult v1Result = engine.index(v1Index);
+        assertThat(v1Result.getVersion(), equalTo(1L));
 
-        index = indexForDoc(doc);
-        indexResult = engine.index(index);
-        assertThat(indexResult.getVersion(), equalTo(2L));
+        final Engine.Index v2Index = indexForDoc(doc);
+        final Engine.IndexResult v2Result = engine.index(v2Index);
+        assertThat(v2Result.getVersion(), equalTo(2L));
 
         // apply the second index to the replica, should work fine
-        index = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), index.primaryTerm(), indexResult.getVersion(), VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA,  0, -1, false);
-        indexResult = replicaEngine.index(index);
-        assertThat(indexResult.getVersion(), equalTo(2L));
+        final Engine.Index replicaV2Index = new Engine.Index(
+            newUid(doc),
+            doc,
+            v2Result.getSeqNo(),
+            v2Index.primaryTerm(),
+            v2Result.getVersion(),
+            VersionType.INTERNAL.versionTypeForReplicationAndRecovery(),
+            REPLICA,
+            0,
+            -1,
+            false);
+        final Engine.IndexResult replicaV2Result = replicaEngine.index(replicaV2Index);
+        assertThat(replicaV2Result.getVersion(), equalTo(2L));
 
-        long seqNo = indexResult.getSeqNo();
-        long primaryTerm = index.primaryTerm();
-        // now, the old one should not work
-        index = new Engine.Index(newUid(doc), doc, seqNo, primaryTerm, 1L, VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
-        indexResult = replicaEngine.index(index);
-        assertTrue(indexResult.hasFailure());
-        assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
+        // now, the old one should produce an indexing result
+        final Engine.Index replicaV1Index = new Engine.Index(
+            newUid(doc),
+            doc,
+            v1Result.getSeqNo(),
+            v1Index.primaryTerm(),
+            v1Result.getVersion(),
+            VersionType.INTERNAL.versionTypeForReplicationAndRecovery(),
+            REPLICA,
+            0,
+            -1,
+            false);
+        final Engine.IndexResult replicaV1Result = replicaEngine.index(replicaV1Index);
+        assertFalse(replicaV1Result.hasFailure());
+        assertFalse(replicaV1Result.isCreated());
+        assertThat(replicaV1Result.getVersion(), equalTo(2L));
 
         // second version on replica should fail as well
-        index = new Engine.Index(newUid(doc), doc, seqNo, primaryTerm, 2L
-                , VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
-        indexResult = replicaEngine.index(index);
-        assertThat(indexResult.getVersion(), equalTo(2L));
-        assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
+        final Engine.IndexResult replicaV2ReplayResult = replicaEngine.index(replicaV2Index);
+        assertFalse(replicaV2Result.hasFailure());
+        assertFalse(replicaV1Result.isCreated());
+        assertThat(replicaV2ReplayResult.getVersion(), equalTo(2L));
     }
 
     public void testVersioningReplicaConflict2() {
-        ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
-        Engine.Index index = indexForDoc(doc);
-        Engine.IndexResult indexResult = engine.index(index);
-        assertThat(indexResult.getVersion(), equalTo(1L));
+        final ParsedDocument doc = testParsedDocument("1", "test", null, testDocument(), B_1, null);
+        final Engine.Index v1Index = indexForDoc(doc);
+        final Engine.IndexResult v1Result = engine.index(v1Index);
+        assertThat(v1Result.getVersion(), equalTo(1L));
 
         // apply the first index to the replica, should work fine
-        index = new Engine.Index(newUid(doc), doc, indexResult.getSeqNo(), index.primaryTerm(), 1L,
-                VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
-        indexResult = replicaEngine.index(index);
-        assertThat(indexResult.getVersion(), equalTo(1L));
+        final Engine.Index replicaV1Index = new Engine.Index(
+            newUid(doc),
+            doc,
+            v1Result.getSeqNo(),
+            v1Index.primaryTerm(),
+            v1Result.getVersion(),
+            VersionType.INTERNAL.versionTypeForReplicationAndRecovery(),
+            REPLICA,
+            0,
+            -1,
+            false);
+        Engine.IndexResult replicaV1Result = replicaEngine.index(replicaV1Index);
+        assertThat(replicaV1Result.getVersion(), equalTo(1L));
 
         // index it again
-        index = indexForDoc(doc);
-        indexResult = engine.index(index);
-        assertThat(indexResult.getVersion(), equalTo(2L));
+        final Engine.Index v2Index = indexForDoc(doc);
+        final Engine.IndexResult v2Result = engine.index(v2Index);
+        assertThat(v2Result.getVersion(), equalTo(2L));
 
         // now delete it
-        Engine.Delete delete = new Engine.Delete("test", "1", newUid(doc));
-        Engine.DeleteResult deleteResult = engine.delete(delete);
+        final Engine.Delete delete = new Engine.Delete("test", "1", newUid(doc));
+        final Engine.DeleteResult deleteResult = engine.delete(delete);
         assertThat(deleteResult.getVersion(), equalTo(3L));
 
         // apply the delete on the replica (skipping the second index)
-        delete = new Engine.Delete("test", "1", newUid(doc), deleteResult.getSeqNo(), delete.primaryTerm(), 3L
-                , VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
-        deleteResult = replicaEngine.delete(delete);
-        assertThat(deleteResult.getVersion(), equalTo(3L));
+        final Engine.Delete replicaDelete = new Engine.Delete(
+            "test",
+            "1",
+            newUid(doc),
+            deleteResult.getSeqNo(),
+            delete.primaryTerm(),
+            deleteResult.getVersion(),
+            VersionType.INTERNAL.versionTypeForReplicationAndRecovery(),
+            REPLICA,
+            0);
+        final Engine.DeleteResult replicaDeleteResult = replicaEngine.delete(replicaDelete);
+        assertThat(replicaDeleteResult.getVersion(), equalTo(3L));
 
-        // second time delete with same version should fail
-        delete = new Engine.Delete("test", "1", newUid(doc), deleteResult.getSeqNo(), delete.primaryTerm(), 3L
-                , VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
-        deleteResult = replicaEngine.delete(delete);
-        assertTrue(deleteResult.hasFailure());
-        assertThat(deleteResult.getFailure(), instanceOf(VersionConflictEngineException.class));
+        // second time delete with same version should just produce the same version
+        final Engine.DeleteResult deleteReplayResult = replicaEngine.delete(replicaDelete);
+        assertFalse(deleteReplayResult.hasFailure());
+        assertTrue(deleteReplayResult.isFound());
+        assertThat(deleteReplayResult.getVersion(), equalTo(3L));
 
-        // now do the second index on the replica, it should fail
-        index = new Engine.Index(newUid(doc), doc, deleteResult.getSeqNo(), delete.primaryTerm(), 2L, VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0, -1, false);
-        indexResult = replicaEngine.index(index);
-        assertTrue(indexResult.hasFailure());
-        assertThat(indexResult.getFailure(), instanceOf(VersionConflictEngineException.class));
+        // now do the second index on the replica, it should result in the current version
+        final Engine.Index replicaV2Index = new Engine.Index(
+            newUid(doc),
+            doc,
+            v2Result.getSeqNo(),
+            v2Index.primaryTerm(),
+            v2Result.getVersion(),
+            VersionType.INTERNAL.versionTypeForReplicationAndRecovery(),
+            REPLICA,
+            0,
+            -1,
+            false);
+        final Engine.IndexResult replicaV2Result = replicaEngine.index(replicaV2Index);
+        assertFalse(replicaV2Result.hasFailure());
+        assertFalse(replicaV2Result.isCreated());
+        assertThat(replicaV2Result.getVersion(), equalTo(3L));
     }
 
     public void testBasicCreatedFlag() {

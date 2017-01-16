@@ -485,20 +485,14 @@ gradle run --debug-jvm
 
 == Debugging remotely from an IDE
 
-If you want to run elasticsearch and be able to remotely attach the process
-for debugging purposes from your IDE, you need to add the following line in
-`config/jvm.options`:
+If you want to run Elasticsearch and be able to remotely attach the process
+for debugging purposes from your IDE, can start Elasticsearch using `ES_JAVA_OPTS`:
 
 ---------------------------------------------------------------------------
--Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=4000,suspend=n
+ES_JAVA_OPTS="-Xdebug -Xrunjdwp:server=y,transport=dt_socket,address=4000,suspend=y" ./bin/elasticsearch
 ---------------------------------------------------------------------------
 
-Then start elasticsearch with `bin/elasticsearch` as usual.
-
-If you are using IntelliJ, create a new Run/Debug configuration, choose `Remote`
-and define the same port you defined in `config/jvm.options`. Then start the
-remote debug session from IntelliJ.
-
+Read your IDE documentation for how to attach a debugger to a JVM process.
 
 == Building with extra plugins
 Additional plugins may be built alongside elasticsearch, where their

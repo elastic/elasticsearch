@@ -24,6 +24,8 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashSet;
 import java.util.Locale;
@@ -40,7 +42,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbersService.UNASSIGNED_SE
  * <p>
  * The global checkpoint is maintained by the primary shard and is replicated to all the replicas (via {@link GlobalCheckpointSyncAction}).
  */
-public class GlobalCheckpointTracker {
+public class GlobalCheckpointTracker extends AbstractIndexShardComponent {
 
     /*
      * This map holds the last known local checkpoint for every active shard and initializing shard copies that has been brought up to speed
@@ -62,22 +64,20 @@ public class GlobalCheckpointTracker {
      */
     private long globalCheckpoint;
 
-    private final Logger logger;
-
     /**
      * Initialize the global checkpoint service. The specified global checkpoint should be set to the last known global checkpoint, or
      * {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}.
      *
+     * @param shardId          the shard ID
      * @param indexSettings    the index settings
      * @param globalCheckpoint the last known global checkpoint for this shard, or {@link SequenceNumbersService#UNASSIGNED_SEQ_NO}
-     * @param logger           a component logger
      */
-    GlobalCheckpointTracker(final IndexSettings indexSettings, final long globalCheckpoint, final Logger logger) {
+    GlobalCheckpointTracker(final ShardId shardId, final IndexSettings indexSettings, final long globalCheckpoint) {
+        super(shardId, indexSettings);
         assert globalCheckpoint >= UNASSIGNED_SEQ_NO : "illegal initial global checkpoint: " + globalCheckpoint;
         inSyncLocalCheckpoints = new ObjectLongHashMap<>(1 + indexSettings.getNumberOfReplicas());
         assignedAllocationIds = new HashSet<>(1 + indexSettings.getNumberOfReplicas());
         this.globalCheckpoint = globalCheckpoint;
-        this.logger = logger;
     }
 
     /**

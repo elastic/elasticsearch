@@ -20,6 +20,7 @@ package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
@@ -48,7 +49,10 @@ public class GlobalCheckpointTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         tracker =
-            new GlobalCheckpointTracker(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), UNASSIGNED_SEQ_NO, logger);
+            new GlobalCheckpointTracker(
+                new ShardId("test", "_na_", 0),
+                IndexSettingsModule.newIndexSettings("test", Settings.EMPTY),
+                UNASSIGNED_SEQ_NO);
     }
 
     public void testEmptyShards() {

@@ -113,7 +113,7 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot = new Store.MetadataSnapshot(in);
         primaryRelocation = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            startingSeqNo = in.readZLong();
+            startingSeqNo = in.readLong();
         } else {
             startingSeqNo = SequenceNumbersService.UNASSIGNED_SEQ_NO;
         }
@@ -129,7 +129,7 @@ public class StartRecoveryRequest extends TransportRequest {
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
         if (out.getVersion().onOrAfter(Version.V_6_0_0_alpha1_UNRELEASED)) {
-            out.writeZLong(startingSeqNo);
+            out.writeLong(startingSeqNo);
         }
     }
 

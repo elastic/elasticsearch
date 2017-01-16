@@ -548,7 +548,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void index(Engine engine, Engine.Index index) {
         active.set(true);
-        index = indexingOperationListeners.preIndex(index);
+        index = indexingOperationListeners.preIndex(shardId, index);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("index [{}][{}]{}", index.type(), index.id(), index.docs());
@@ -556,10 +556,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             engine.index(index);
             index.endTime(System.nanoTime());
         } catch (Exception e) {
-            indexingOperationListeners.postIndex(index, e);
+            indexingOperationListeners.postIndex(shardId, index, e);
             throw e;
         }
-        indexingOperationListeners.postIndex(index, index.isCreated());
+        indexingOperationListeners.postIndex(shardId, index, index.isCreated());
     }
 
     public Engine.Delete prepareDeleteOnPrimary(String type, String id, long version, VersionType versionType) {
@@ -592,7 +592,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private void delete(Engine engine, Engine.Delete delete) {
         active.set(true);
-        delete = indexingOperationListeners.preDelete(delete);
+        delete = indexingOperationListeners.preDelete(shardId, delete);
         try {
             if (logger.isTraceEnabled()) {
                 logger.trace("delete [{}]", delete.uid().text());
@@ -600,11 +600,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             engine.delete(delete);
             delete.endTime(System.nanoTime());
         } catch (Exception e) {
-            indexingOperationListeners.postDelete(delete, e);
+            indexingOperationListeners.postDelete(shardId, delete, e);
             throw e;
         }
-
-        indexingOperationListeners.postDelete(delete);
+        indexingOperationListeners.postDelete(shardId, delete);
     }
 
     public Engine.GetResult get(Engine.Get get) {

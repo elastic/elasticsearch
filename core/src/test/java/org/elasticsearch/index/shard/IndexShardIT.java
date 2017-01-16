@@ -409,7 +409,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         IndexingOperationListener listener = new IndexingOperationListener() {
 
             @Override
-            public void postIndex(Engine.Index index, boolean created) {
+            public void postIndex(ShardId sharId, Engine.Index index, boolean created) {
                 try {
                     assertNotNull(shardRef.get());
                     // this is all IMC needs to do - check current memory and refresh
@@ -423,7 +423,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
 
             @Override
-            public void postDelete(Engine.Delete delete) {
+            public void postDelete(ShardId shardId, Engine.Delete delete) {
                 try {
                     assertNotNull(shardRef.get());
                     // this is all IMC needs to do - check current memory and refresh

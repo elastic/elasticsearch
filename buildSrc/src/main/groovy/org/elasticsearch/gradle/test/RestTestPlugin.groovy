@@ -32,6 +32,7 @@ import org.gradle.api.Project
 public class RestTestPlugin implements Plugin<Project> {
     List REQUIRED_PLUGINS = [
         'elasticsearch.build',
+        'elasticsearch.messy-rest-test',
         'elasticsearch.standalone-rest-test']
 
     @Override

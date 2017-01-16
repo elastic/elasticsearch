@@ -26,15 +26,17 @@ import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.tasks.Copy
 
 /**
- * A plugin to run messy tests, which are generally tests that depend on plugins.
+ * A plugin to run messy REST tests. Messy tests are tests that depend on another
+ * plugin or module.
  *
- * This plugin will add the same test configuration as standalone tests, except
+ * This plugin will add the same test configuration as standalone rest tests, except
  * also add the plugin-metadata and properties files for each plugin project
  * dependency.
  */
-class MessyTestPlugin extends StandaloneTestPlugin {
+class MessyRestTestPlugin extends StandaloneRestTestPlugin {
+
     @Override
-    public void apply(Project project) {
+    void apply(Project project) {
         super.apply(project)
 
         project.configurations.testCompile.dependencies.all { Dependency dep ->
@@ -55,9 +57,5 @@ class MessyTestPlugin extends StandaloneTestPlugin {
         copyPluginMetadata.from(pluginProject.tasks.pluginProperties)
         copyPluginMetadata.from(pluginProject.file('src/main/plugin-metadata'))
         project.sourceSets.test.output.dir(outputDir, builtBy: taskName)
-
-        // add each generated dir to the test classpath in IDEs
-        //project.eclipse.classpath.sourceSets = [project.sourceSets.test]
-        project.idea.module.singleEntryLibraries= ['TEST': [project.file(outputDir)]]
     }
 }

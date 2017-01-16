@@ -232,7 +232,7 @@ public class IndexMetaData implements Diffable<IndexMetaData>, ToXContent {
     public static final String SETTING_INDEX_UUID = "index.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";
     public static final Setting<String> INDEX_DATA_PATH_SETTING =
-        new Setting<>(SETTING_DATA_PATH, "", Function.identity(), Property.IndexScope, Property.Deprecated);
+        new Setting<>(SETTING_DATA_PATH, "", Function.identity(), Property.IndexScope);
     public static final String SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE = "index.shared_filesystem.recover_on_any_node";
     public static final Setting<Boolean> INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING =
         Setting.boolSetting(SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false,

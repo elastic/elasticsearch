@@ -161,7 +161,7 @@ public final class NodeEnvironment  implements Closeable {
      * If true automatically append node lock id to custom data paths.
      */
     public static final Setting<Boolean> ADD_NODE_LOCK_ID_TO_CUSTOM_PATH =
-        Setting.boolSetting("node.add_lock_id_to_custom_path", true, Property.NodeScope, Property.Deprecated);
+        Setting.boolSetting("node.add_lock_id_to_custom_path", true, Property.NodeScope);
 
 
     /**

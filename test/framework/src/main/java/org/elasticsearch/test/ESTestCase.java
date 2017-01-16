@@ -296,12 +296,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
 
     static final String[] IGNORED_DEPRECATION_WARNINGS = new String[] {
-        "*" + IndexMetaData.INDEX_SHADOW_REPLICAS_SETTING.getKey() + "*",
-        "*" + IndexMetaData.INDEX_SHARED_FILESYSTEM_SETTING.getKey() + "*",
-        "*" + IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING.getKey() + "*",
-        "*" + IndexMetaData.INDEX_DATA_PATH_SETTING.getKey() + "*",
-        "*" + Environment.PATH_SHARED_DATA_SETTING.getKey() + "*",
-        "*" + NodeEnvironment.ADD_NODE_LOCK_ID_TO_CUSTOM_PATH.getKey() + "*"
+//        "*" + IndexMetaData.INDEX_SHADOW_REPLICAS_SETTING.getKey() + "*",
+//        "*" + IndexMetaData.INDEX_SHARED_FILESYSTEM_SETTING.getKey() + "*",
+//        "*" + IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING.getKey() + "*"
     };
 
     private void ensureNoWarnings() throws IOException {

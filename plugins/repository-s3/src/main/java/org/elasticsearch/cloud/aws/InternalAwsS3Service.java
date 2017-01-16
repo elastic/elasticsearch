@@ -118,7 +118,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent implements 
         String awsSigner = CLOUD_S3.SIGNER_SETTING.get(settings);
         if (Strings.hasText(awsSigner)) {
             logger.debug("using AWS API signer [{}]", awsSigner);
-            AwsSigner.configureSigner(awsSigner, clientConfiguration, endpoint);
+            AwsS3Signer.configureSigner(awsSigner, clientConfiguration, endpoint);
         }
 
         clientConfiguration.setSocketTimeout((int) CLOUD_S3.READ_TIMEOUT.get(settings).millis());

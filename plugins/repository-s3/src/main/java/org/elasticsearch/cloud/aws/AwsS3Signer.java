@@ -24,11 +24,11 @@ import com.amazonaws.auth.SignerFactory;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.logging.Loggers;
 
-public class AwsSigner {
+public class AwsS3Signer {
 
-    private static final Logger logger = Loggers.getLogger(AwsSigner.class);
+    private static final Logger logger = Loggers.getLogger(AwsS3Signer.class);
 
-    private AwsSigner() {
+    private AwsS3Signer() {
 
     }
 

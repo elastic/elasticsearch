@@ -105,7 +105,7 @@ public class AwsEc2ServiceImpl extends AbstractComponent implements AwsEc2Servic
         String awsSigner = CLOUD_EC2.SIGNER_SETTING.get(settings);
         if (Strings.hasText(awsSigner)) {
             logger.debug("using AWS API signer [{}]", awsSigner);
-            AwsSigner.configureSigner(awsSigner, clientConfiguration);
+            AwsEc2Signer.configureSigner(awsSigner, clientConfiguration);
         }
 
         // Increase the number of retries in case of 5xx API responses

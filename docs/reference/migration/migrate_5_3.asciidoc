@@ -1,0 +1,22 @@
+[[breaking-changes-5.3]]
+== Breaking changes in 5.3
+
+[[breaking_53_packaging_changes]]
+[float]
+=== Packaging changes
+
+[float]
+==== Logging configuration
+
+Previously Elasticsearch exposed a single system property (`es.logs`) that
+included the absolute path to the configured logs directory, and the prefix of
+the filenames used for the various logging files (the main log file, the
+deprecation log, and the slow logs). This property has been replaced in favor of
+three properties:
+ - `es.logs.base_path`: the absolute path to the configured logs directory
+ - `es.logs.cluster_name`: the default prefix of the filenames used for the
+   various logging files
+ - `es.logs.node_name`: exposed if `node.name` is configured for inclusion in
+   the filenames of the various logging files (if you prefer)
+
+The property `es.logs` is deprecated and will be removed in Elasticsearch 6.0.0.

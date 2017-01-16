@@ -29,9 +29,11 @@ import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
@@ -71,7 +73,11 @@ public class EvilLoggerTests extends ESTestCase {
         testLogger.info("This is an info message");
         testLogger.debug("This is a debug message");
         testLogger.trace("This is a trace message");
-        final String path = System.getProperty("es.logs") + ".log";
+        final String path =
+            System.getProperty("es.logs.base_path") +
+                System.getProperty("file.separator") +
+                System.getProperty("es.logs.cluster_name") +
+                ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
         assertThat(events.size(), equalTo(5));
         final String location = "org.elasticsearch.common.logging.EvilLoggerTests.testLocationInfoTest";
@@ -89,7 +95,11 @@ public class EvilLoggerTests extends ESTestCase {
         final DeprecationLogger deprecationLogger = new DeprecationLogger(ESLoggerFactory.getLogger("deprecation"));
 
         deprecationLogger.deprecated("This is a deprecation message");
-        final String deprecationPath = System.getProperty("es.logs") + "_deprecation.log";
+        final String deprecationPath =
+            System.getProperty("es.logs.base_path") +
+                System.getProperty("file.separator") +
+                System.getProperty("es.logs.cluster_name") +
+                "_deprecation.log";
         final List<String> deprecationEvents = Files.readAllLines(PathUtils.get(deprecationPath));
         assertThat(deprecationEvents.size(), equalTo(1));
         assertLogLine(
@@ -137,7 +147,11 @@ public class EvilLoggerTests extends ESTestCase {
         final Exception e = new Exception("exception");
         logger.info(new ParameterizedMessage("{}", "test"), e);
 
-        final String path = System.getProperty("es.logs") + ".log";
+        final String path =
+            System.getProperty("es.logs.base_path") +
+                System.getProperty("file.separator") +
+                System.getProperty("es.logs.cluster_name") +
+                ".log";
         final List<String> events = Files.readAllLines(PathUtils.get(path));
 
         final StringWriter sw = new StringWriter();
@@ -155,14 +169,39 @@ public class EvilLoggerTests extends ESTestCase {
         }
     }
 
+    public void testProperties() throws IOException, UserException {
+        final Settings.Builder builder = Settings.builder().put("cluster.name", randomAsciiOfLength(16));
+        if (randomBoolean()) {
+            builder.put("node.name", randomAsciiOfLength(16));
+        }
+        final Settings settings = builder.build();
+        setupLogging("minimal", settings);
+
+        assertNotNull(System.getProperty("es.logs.base_path"));
+
+        assertThat(System.getProperty("es.logs.cluster_name"), equalTo(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()));
+        if (Node.NODE_NAME_SETTING.exists(settings)) {
+            assertThat(System.getProperty("es.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
+        } else {
+            assertNull(System.getProperty("es.logs.node_name"));
+        }
+    }
+
     private void setupLogging(final String config) throws IOException, UserException {
+        setupLogging(config, Settings.EMPTY);
+    }
+
+    private void setupLogging(final String config, final Settings settings) throws IOException, UserException {
+        assert !Environment.PATH_CONF_SETTING.exists(settings);
+        assert !Environment.PATH_HOME_SETTING.exists(settings);
         final Path configDir = getDataPath(config);
         // need to set custom path.conf so we can use a custom log4j2.properties file for the test
-        final Settings settings = Settings.builder()
-                .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
-        final Environment environment = new Environment(settings);
+        final Settings mergedSettings = Settings.builder()
+            .put(settings)
+            .put(Environment.PATH_CONF_SETTING.getKey(), configDir.toAbsolutePath())
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        final Environment environment = new Environment(mergedSettings);
         LogConfigurator.configure(environment);
     }
 

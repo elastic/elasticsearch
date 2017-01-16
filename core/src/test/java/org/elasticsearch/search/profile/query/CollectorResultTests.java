@@ -60,12 +60,14 @@ public class CollectorResultTests extends ESTestCase {
         CollectorResult collectorResult = createTestItem(1);
         XContentType xcontentType = randomFrom(XContentType.values());
         XContentBuilder builder = XContentFactory.contentBuilder(xcontentType);
+        boolean humanReadable = randomBoolean();
+        builder.humanReadable(humanReadable);
         builder = collectorResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         XContentParser parser = createParser(builder);
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
         CollectorResult parsed = CollectorResult.fromXContent(parser);
-        assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType), xcontentType);
+        assertToXContentEquivalent(builder.bytes(), toXContent(parsed, xcontentType, humanReadable), xcontentType);
         assertNull(parser.nextToken());
     }
 

@@ -65,7 +65,6 @@ public class SearchProfileShardResultsTests  extends ESTestCase {
         builder.startObject();
         builder = shardResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        System.out.println(builder.string());
 
         XContentParser parser = createParser(builder);
         ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser::getTokenLocation);

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.node.internal;
+package org.elasticsearch.node;
 
 import java.io.IOException;
 import java.nio.file.Files;

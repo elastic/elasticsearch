@@ -33,9 +33,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -63,7 +61,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;

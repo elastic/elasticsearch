@@ -100,8 +100,6 @@ import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;

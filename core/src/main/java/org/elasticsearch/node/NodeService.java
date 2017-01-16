@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.node.service;
+package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
@@ -27,7 +27,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.discovery.Discovery;
@@ -60,8 +59,7 @@ public class NodeService extends AbstractComponent implements Closeable {
 
     private final Discovery discovery;
 
-    @Inject
-    public NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
+    NodeService(Settings settings, ThreadPool threadPool, MonitorService monitorService, Discovery discovery,
                        TransportService transportService, IndicesService indicesService, PluginsService pluginService,
                        CircuitBreakerService circuitBreakerService, ScriptService scriptService,
                        @Nullable HttpServerTransport httpServerTransport, IngestService ingestService, ClusterService clusterService,

@@ -29,11 +29,28 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.UnaryOperator;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.HttpStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.transport.local.LocalTransport;
+import org.junit.Before;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -43,10 +60,39 @@ import static org.mockito.Mockito.verify;
 
 public class RestControllerTests extends ESTestCase {
 
+    private static final ByteSizeValue BREAKER_LIMIT = new ByteSizeValue(20);
+    private CircuitBreaker inFlightRequestsBreaker;
+    private RestController restController;
+    private HierarchyCircuitBreakerService circuitBreakerService;
+
+    @Before
+    public void setup() {
+        Settings settings = Settings.EMPTY;
+        circuitBreakerService = new HierarchyCircuitBreakerService(
+            Settings.builder()
+                .put(HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), BREAKER_LIMIT)
+                .build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        // we can do this here only because we know that we don't adjust breaker settings dynamically in the test
+        inFlightRequestsBreaker = circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS);
+
+        HttpServerTransport httpServerTransport = new TestHttpServerTransport();
+        restController = new RestController(settings, Collections.emptySet(), null, null, circuitBreakerService);
+        restController.registerHandler(RestRequest.Method.GET, "/",
+            (request, channel, client) -> channel.sendResponse(
+                new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)));
+        restController.registerHandler(RestRequest.Method.GET, "/error", (request, channel, client) -> {
+            throw new IllegalArgumentException("test error");
+        });
+
+        httpServerTransport.start();
+    }
+
+
     public void testApplyRelevantHeaders() throws Exception {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         Set<String> headers = new HashSet<>(Arrays.asList("header.1", "header.2"));
-        final RestController restController = new RestController(Settings.EMPTY, headers, null);
+        final RestController restController = new RestController(Settings.EMPTY, headers, null, null, circuitBreakerService);
         restController.registerHandler(RestRequest.Method.GET, "/",
             (RestRequest request, RestChannel channel, NodeClient client) -> {
                 assertEquals("true", threadContext.getHeader("header.1"));
@@ -66,7 +112,7 @@ public class RestControllerTests extends ESTestCase {
     }
 
     public void testCanTripCircuitBreaker() throws Exception {
-        RestController controller = new RestController(Settings.EMPTY, Collections.emptySet(), null);
+        RestController controller = new RestController(Settings.EMPTY, Collections.emptySet(), null, null, circuitBreakerService);
         // trip circuit breaker by default
         controller.registerHandler(RestRequest.Method.GET, "/trip", new FakeRestHandler(true));
         controller.registerHandler(RestRequest.Method.GET, "/do-not-trip", new FakeRestHandler(false));
@@ -126,7 +172,8 @@ public class RestControllerTests extends ESTestCase {
             assertSame(handler, h);
             return (RestRequest request, RestChannel channel, NodeClient client) -> wrapperCalled.set(true);
         };
-        final RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), wrapper);
+        final RestController restController = new RestController(Settings.EMPTY, Collections.emptySet(), wrapper, null,
+            circuitBreakerService);
         restController.registerHandler(RestRequest.Method.GET, "/", handler);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         restController.dispatchRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null, null, threadContext);
@@ -153,5 +200,157 @@ public class RestControllerTests extends ESTestCase {
         public boolean canTripCircuitBreaker() {
             return canTripCircuitBreaker;
         }
+    }
+
+    public void testDispatchRequestAddsAndFreesBytesOnSuccess() {
+        int contentLength = BREAKER_LIMIT.bytesAsInt();
+        String content = randomAsciiOfLength(contentLength);
+        TestRestRequest request = new TestRestRequest("/", content);
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
+
+        restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+
+        assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    public void testDispatchRequestAddsAndFreesBytesOnError() {
+        int contentLength = BREAKER_LIMIT.bytesAsInt();
+        String content = randomAsciiOfLength(contentLength);
+        TestRestRequest request = new TestRestRequest("/error", content);
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
+
+        restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+
+        assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    public void testDispatchRequestAddsAndFreesBytesOnlyOnceOnError() {
+        int contentLength = BREAKER_LIMIT.bytesAsInt();
+        String content = randomAsciiOfLength(contentLength);
+        // we will produce an error in the rest handler and one more when sending the error response
+        TestRestRequest request = new TestRestRequest("/error", content);
+        ExceptionThrowingChannel channel = new ExceptionThrowingChannel(request, true);
+
+        restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+
+        assertEquals(0, inFlightRequestsBreaker.getTrippedCount());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    public void testDispatchRequestLimitsBytes() {
+        int contentLength = BREAKER_LIMIT.bytesAsInt() + 1;
+        String content = randomAsciiOfLength(contentLength);
+        TestRestRequest request = new TestRestRequest("/", content);
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.SERVICE_UNAVAILABLE);
+
+        restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+
+        assertEquals(1, inFlightRequestsBreaker.getTrippedCount());
+        assertEquals(0, inFlightRequestsBreaker.getUsed());
+    }
+
+    private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements
+        HttpServerTransport {
+
+        public TestHttpServerTransport() {
+            super(Settings.EMPTY);
+        }
+
+        @Override
+        protected void doStart() {
+        }
+
+        @Override
+        protected void doStop() {
+        }
+
+        @Override
+        protected void doClose() {
+        }
+
+        @Override
+        public BoundTransportAddress boundAddress() {
+            TransportAddress transportAddress = new LocalTransportAddress(randomAsciiOfLengthBetween(1, 5));
+            return new BoundTransportAddress(new TransportAddress[] {transportAddress} ,transportAddress);
+        }
+
+        @Override
+        public HttpInfo info() {
+            return null;
+        }
+
+        @Override
+        public HttpStats stats() {
+            return null;
+        }
+    }
+
+    private static final class AssertingChannel extends AbstractRestChannel {
+        private final RestStatus expectedStatus;
+
+        protected AssertingChannel(RestRequest request, boolean detailedErrorsEnabled, RestStatus expectedStatus) {
+            super(request, detailedErrorsEnabled);
+            this.expectedStatus = expectedStatus;
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            assertEquals(expectedStatus, response.status());
+        }
+    }
+
+    private static final class ExceptionThrowingChannel extends AbstractRestChannel {
+
+        protected ExceptionThrowingChannel(RestRequest request, boolean detailedErrorsEnabled) {
+            super(request, detailedErrorsEnabled);
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            throw new IllegalStateException("always throwing an exception for testing");
+        }
+    }
+
+    private static final class TestRestRequest extends RestRequest {
+
+        private final BytesReference content;
+
+        private TestRestRequest(String path, String content) {
+            super(NamedXContentRegistry.EMPTY, Collections.emptyMap(), path);
+            this.content = new BytesArray(content);
+        }
+
+        @Override
+        public Method method() {
+            return Method.GET;
+        }
+
+        @Override
+        public String uri() {
+            return null;
+        }
+
+        @Override
+        public boolean hasContent() {
+            return true;
+        }
+
+        @Override
+        public BytesReference content() {
+            return content;
+        }
+
+        @Override
+        public String header(String name) {
+            return null;
+        }
+
+        @Override
+        public Iterable<Map.Entry<String, String>> headers() {
+            return null;
+        }
+
     }
 }

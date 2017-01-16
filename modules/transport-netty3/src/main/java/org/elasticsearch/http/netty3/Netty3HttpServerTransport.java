@@ -44,7 +44,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.http.BindHttpException;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.netty3.cors.Netty3CorsConfig;
@@ -209,6 +208,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
 
     protected final ByteSizeValue maxCumulationBufferCapacity;
     protected final int maxCompositeBufferComponents;
+    private final Dispatcher dispatcher;
 
     protected volatile ServerBootstrap serverBootstrap;
 
@@ -219,17 +219,16 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
     // package private for testing
     Netty3OpenChannelsHandler serverOpenChannels;
 
-    protected volatile HttpServerAdapter httpServerAdapter;
-
     private final Netty3CorsConfig corsConfig;
 
     public Netty3HttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays, ThreadPool threadPool,
-            NamedXContentRegistry xContentRegistry) {
+            NamedXContentRegistry xContentRegistry, HttpServerTransport.Dispatcher dispatcher) {
         super(settings);
         this.networkService = networkService;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.xContentRegistry = xContentRegistry;
+        this.dispatcher = dispatcher;
 
         ByteSizeValue maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
@@ -281,11 +280,6 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
 
     public Settings settings() {
         return this.settings;
-    }
-
-    @Override
-    public void httpServerAdapter(HttpServerAdapter httpServerAdapter) {
-        this.httpServerAdapter = httpServerAdapter;
     }
 
     @Override
@@ -493,7 +487,7 @@ public class Netty3HttpServerTransport extends AbstractLifecycleComponent implem
     }
 
     protected void dispatchRequest(RestRequest request, RestChannel channel) {
-        httpServerAdapter.dispatchRequest(request, channel, threadPool.getThreadContext());
+        dispatcher.dispatch(request, channel, threadPool.getThreadContext());
     }
 
     protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {

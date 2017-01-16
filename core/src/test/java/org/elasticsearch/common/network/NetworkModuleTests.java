@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.http.HttpServerAdapter;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -96,8 +95,6 @@ public class NetworkModuleTests extends ModuleTestCase {
         public HttpStats stats() {
             return null;
         }
-        @Override
-        public void httpServerAdapter(HttpServerAdapter httpServerAdapter) {}
     }
 
 
@@ -162,7 +159,8 @@ public class NetworkModuleTests extends ModuleTestCase {
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedWriteableRegistry namedWriteableRegistry,
                                                                                 NamedXContentRegistry xContentRegistry,
-                                                                                NetworkService networkService) {
+                                                                                NetworkService networkService,
+                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
                 return Collections.singletonMap("custom", custom);
             }
         });
@@ -202,7 +200,8 @@ public class NetworkModuleTests extends ModuleTestCase {
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedWriteableRegistry namedWriteableRegistry,
                                                                                 NamedXContentRegistry xContentRegistry,
-                                                                                NetworkService networkService) {
+                                                                                NetworkService networkService,
+                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -235,7 +234,8 @@ public class NetworkModuleTests extends ModuleTestCase {
                                                                                 CircuitBreakerService circuitBreakerService,
                                                                                 NamedWriteableRegistry namedWriteableRegistry,
                                                                                 NamedXContentRegistry xContentRegistry,
-                                                                                NetworkService networkService) {
+                                                                                NetworkService networkService,
+                                                                                HttpServerTransport.Dispatcher requestDispatcher) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
                 supplierMap.put("default_custom", def);
@@ -281,6 +281,7 @@ public class NetworkModuleTests extends ModuleTestCase {
     }
 
     private NetworkModule newNetworkModule(Settings settings, boolean transportClient, NetworkPlugin... plugins) {
-        return new NetworkModule(settings, transportClient, Arrays.asList(plugins), threadPool, null, null, null, xContentRegistry(), null);
+        return new NetworkModule(settings, transportClient, Arrays.asList(plugins), threadPool, null, null, null, xContentRegistry(), null,
+            (a, b, c) -> {});
     }
 }

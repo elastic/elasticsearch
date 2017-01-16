@@ -84,8 +84,9 @@ public class Netty3Plugin extends Plugin implements NetworkPlugin {
                                                                         CircuitBreakerService circuitBreakerService,
                                                                         NamedWriteableRegistry namedWriteableRegistry,
                                                                         NamedXContentRegistry xContentRegistry,
-                                                                        NetworkService networkService) {
+                                                                        NetworkService networkService,
+                                                                        HttpServerTransport.Dispatcher dispatcher) {
         return Collections.singletonMap(NETTY_HTTP_TRANSPORT_NAME, () -> new Netty3HttpServerTransport(settings, networkService,
-            bigArrays, threadPool, xContentRegistry));
+            bigArrays, threadPool, xContentRegistry, dispatcher));
     }
 }

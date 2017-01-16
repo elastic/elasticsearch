@@ -58,7 +58,7 @@ This will yield the following result:
                     {
                        "type": "BooleanQuery",
                        "description": "message:message message:number",
-                       "time": "1.873811000ms",
+                       "time_in_nanos": "1873811",
                        "breakdown": {
                           "score": 51306,
                           "score_count": 4,
@@ -77,7 +77,7 @@ This will yield the following result:
                           {
                              "type": "TermQuery",
                              "description": "message:message",
-                             "time": "0.3919430000ms",
+                             "time_in_nanos": "391943",
                              "breakdown": {
                                 "score": 28776,
                                 "score_count": 4,
@@ -96,7 +96,7 @@ This will yield the following result:
                           {
                              "type": "TermQuery",
                              "description": "message:number",
-                             "time": "0.2106820000ms",
+                             "time_in_nanos": "210682",
                              "breakdown": {
                                 "score": 4552,
                                 "score_count": 4,
@@ -120,12 +120,12 @@ This will yield the following result:
                     {
                        "name": "CancellableCollector",
                        "reason": "search_cancelled",
-                       "time": "0.3043110000ms",
+                       "time_in_nanos": "304311",
                        "children": [
                          {
                            "name": "SimpleTopScoreDocCollector",
                            "reason": "search_top_hits",
-                           "time": "0.03227300000ms"
+                           "time_in_nanos": "32273"
                          }
                        ]
                     }
@@ -143,22 +143,22 @@ This will yield the following result:
 // TESTRESPONSE[s/"id": "\[2aE02wS1R8q_QFnYu6vDVQ\]\[twitter\]\[1\]"/"id": $body.profile.shards.0.id/]
 // TESTRESPONSE[s/"rewrite_time": 51443/"rewrite_time": $body.profile.shards.0.searches.0.rewrite_time/]
 // TESTRESPONSE[s/"score": 51306/"score": $body.profile.shards.0.searches.0.query.0.breakdown.score/]
-// TESTRESPONSE[s/"time": "1.873811000ms"/"time": $body.profile.shards.0.searches.0.query.0.time/]
+// TESTRESPONSE[s/"time_in_nanos": "1873811"/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.time_in_nanos/]
 // TESTRESPONSE[s/"build_scorer": 2935582/"build_scorer": $body.profile.shards.0.searches.0.query.0.breakdown.build_scorer/]
 // TESTRESPONSE[s/"create_weight": 919297/"create_weight": $body.profile.shards.0.searches.0.query.0.breakdown.create_weight/]
 // TESTRESPONSE[s/"next_doc": 53876/"next_doc": $body.profile.shards.0.searches.0.query.0.breakdown.next_doc/]
-// TESTRESPONSE[s/"time": "0.3919430000ms"/"time": $body.profile.shards.0.searches.0.query.0.children.0.time/]
+// TESTRESPONSE[s/"time_in_nanos": "391943"/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.children.0.time_in_nanos/]
 // TESTRESPONSE[s/"score": 28776/"score": $body.profile.shards.0.searches.0.query.0.children.0.breakdown.score/]
 // TESTRESPONSE[s/"build_scorer": 784451/"build_scorer": $body.profile.shards.0.searches.0.query.0.children.0.breakdown.build_scorer/]
 // TESTRESPONSE[s/"create_weight": 1669564/"create_weight": $body.profile.shards.0.searches.0.query.0.children.0.breakdown.create_weight/]
 // TESTRESPONSE[s/"next_doc": 10111/"next_doc": $body.profile.shards.0.searches.0.query.0.children.0.breakdown.next_doc/]
-// TESTRESPONSE[s/"time": "0.2106820000ms"/"time": $body.profile.shards.0.searches.0.query.0.children.1.time/]
+// TESTRESPONSE[s/"time_in_nanos": "210682"/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.children.1.time_in_nanos/]
 // TESTRESPONSE[s/"score": 4552/"score": $body.profile.shards.0.searches.0.query.0.children.1.breakdown.score/]
 // TESTRESPONSE[s/"build_scorer": 42602/"build_scorer": $body.profile.shards.0.searches.0.query.0.children.1.breakdown.build_scorer/]
 // TESTRESPONSE[s/"create_weight": 89323/"create_weight": $body.profile.shards.0.searches.0.query.0.children.1.breakdown.create_weight/]
 // TESTRESPONSE[s/"next_doc": 2852/"next_doc": $body.profile.shards.0.searches.0.query.0.children.1.breakdown.next_doc/]
-// TESTRESPONSE[s/"time": "0.3043110000ms"/"time": $body.profile.shards.0.searches.0.collector.0.time/]
-// TESTRESPONSE[s/"time": "0.03227300000ms"/"time": $body.profile.shards.0.searches.0.collector.0.children.0.time/]
+// TESTRESPONSE[s/"time_in_nanos": "304311"/"time_in_nanos": $body.profile.shards.0.searches.0.collector.0.time_in_nanos/]
+// TESTRESPONSE[s/"time_in_nanos": "32273"/"time_in_nanos": $body.profile.shards.0.searches.0.collector.0.children.0.time_in_nanos/]
 // Sorry for this mess....
 
 <1> Search results are returned, but were omitted here for brevity
@@ -216,6 +216,12 @@ a `query` array and a `collector` array.  Alongside the `search` object is an `a
 
 There will also be a `rewrite` metric showing the total time spent rewriting the query (in nanoseconds).
 
+==== Human readable output
+
+As with other statistics apis, the Profile API supports human readable outputs for the time values. This can be turned on by adding
+`?human=true` to the query string. In this case, in addition to the `"time_in_nanos"` field, the output contains the additional `"time"`
+field with containing a rounded, human readable time value , (e.g. `"time": "391,9ms"`, `"time": "123.3micros"`).
+
 === Profiling Queries
 
 [NOTE]
@@ -244,19 +250,19 @@ The overall structure of this query tree will resemble your original Elasticsear
     {
        "type": "BooleanQuery",
        "description": "message:message message:number",
-       "time": "1.873811000ms",
+       "time_in_nanos": "1873811",
        "breakdown": {...},               <1>
        "children": [
           {
              "type": "TermQuery",
              "description": "message:message",
-             "time": "0.3919430000ms",
+             "time_in_nanos": "391943",
              "breakdown": {...}
           },
           {
              "type": "TermQuery",
              "description": "message:number",
-             "time": "0.2106820000ms",
+             "time_in_nanos": "210682",
              "breakdown": {...}
           }
        ]
@@ -265,9 +271,9 @@ The overall structure of this query tree will resemble your original Elasticsear
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"searches": [{\n/]
 // TESTRESPONSE[s/]$/],"rewrite_time": $body.profile.shards.0.searches.0.rewrite_time, "collector": $body.profile.shards.0.searches.0.collector}], "aggregations": []}]}}/]
-// TESTRESPONSE[s/"time": "1.873811000ms",\n.+"breakdown": \{...\}/"time": $body.profile.shards.0.searches.0.query.0.time, "breakdown": $body.profile.shards.0.searches.0.query.0.breakdown/]
-// TESTRESPONSE[s/"time": "0.3919430000ms",\n.+"breakdown": \{...\}/"time": $body.profile.shards.0.searches.0.query.0.children.0.time, "breakdown": $body.profile.shards.0.searches.0.query.0.children.0.breakdown/]
-// TESTRESPONSE[s/"time": "0.2106820000ms",\n.+"breakdown": \{...\}/"time": $body.profile.shards.0.searches.0.query.0.children.1.time, "breakdown": $body.profile.shards.0.searches.0.query.0.children.1.breakdown/]
+// TESTRESPONSE[s/"time_in_nanos": "1873811",\n.+"breakdown": \{...\}/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.time_in_nanos, "breakdown": $body.profile.shards.0.searches.0.query.0.breakdown/]
+// TESTRESPONSE[s/"time_in_nanos": "391943",\n.+"breakdown": \{...\}/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.children.0.time_in_nanos, "breakdown": $body.profile.shards.0.searches.0.query.0.children.0.breakdown/]
+// TESTRESPONSE[s/"time_in_nanos": "210682",\n.+"breakdown": \{...\}/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.children.1.time_in_nanos, "breakdown": $body.profile.shards.0.searches.0.query.0.children.1.breakdown/]
 <1> The breakdown timings are omitted for simplicity
 
 Based on the profile structure, we can see that our `match` query was rewritten by Lucene into a BooleanQuery with two
@@ -276,7 +282,7 @@ the equivalent name in Elasticsearch.  The `"description"` field displays the Lu
 is made available to help differentiating between parts of your query (e.g. both `"message:search"` and `"message:test"`
 are TermQuery's and would appear identical otherwise.
 
-The `"time"` field shows that this query took ~15ms for the entire BooleanQuery to execute.  The recorded time is inclusive
+The `"time_in_nanos"` field shows that this query took ~1.8ms for the entire BooleanQuery to execute.  The recorded time is inclusive
 of all children.
 
 The `"breakdown"` field will give detailed stats about how the time was spent, we'll look at
@@ -305,16 +311,16 @@ The `"breakdown"` component lists detailed timing statistics about low-level Luc
    "advance_count": 0
 }
 --------------------------------------------------
-// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:message message:number",\n"time": $body.profile.shards.0.searches.0.query.0.time,/]
+// TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"searches": [{\n"query": [{\n"type": "BooleanQuery",\n"description": "message:message message:number",\n"time_in_nanos": $body.profile.shards.0.searches.0.query.0.time_in_nanos,/]
 // TESTRESPONSE[s/}$/},\n"children": $body.profile.shards.0.searches.0.query.0.children}],\n"rewrite_time": $body.profile.shards.0.searches.0.rewrite_time, "collector": $body.profile.shards.0.searches.0.collector}], "aggregations": []}]}}/]
 // TESTRESPONSE[s/"score": 51306/"score": $body.profile.shards.0.searches.0.query.0.breakdown.score/]
-// TESTRESPONSE[s/"time": "1.873811000ms"/"time": $body.profile.shards.0.searches.0.query.0.time/]
+// TESTRESPONSE[s/"time_in_nanos": "1873811"/"time_in_nanos": $body.profile.shards.0.searches.0.query.0.time_in_nanos/]
 // TESTRESPONSE[s/"build_scorer": 2935582/"build_scorer": $body.profile.shards.0.searches.0.query.0.breakdown.build_scorer/]
 // TESTRESPONSE[s/"create_weight": 919297/"create_weight": $body.profile.shards.0.searches.0.query.0.breakdown.create_weight/]
 // TESTRESPONSE[s/"next_doc": 53876/"next_doc": $body.profile.shards.0.searches.0.query.0.breakdown.next_doc/]
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all.  All caveats about the overall
-`"time"` apply here.  The intention of the breakdown is to give you a feel for A) what machinery in Lucene is
+`"time_in_nanos"` apply here.  The intention of the breakdown is to give you a feel for A) what machinery in Lucene is
 actually eating time, and B) the magnitude of differences in times between the various components.  Like the overall time,
 the breakdown is inclusive of all children times.
 
@@ -401,12 +407,12 @@ Looking at the previous example:
    {
       "name": "CancellableCollector",
       "reason": "search_cancelled",
-      "time": "0.3043110000ms",
+      "time_in_nanos": "304311",
       "children": [
         {
           "name": "SimpleTopScoreDocCollector",
           "reason": "search_top_hits",
-          "time": "0.03227300000ms"
+          "time_in_nanos": "32273"
         }
       ]
    }
@@ -414,12 +420,12 @@ Looking at the previous example:
 --------------------------------------------------
 // TESTRESPONSE[s/^/{\n"took": $body.took,\n"timed_out": $body.timed_out,\n"_shards": $body._shards,\n"hits": $body.hits,\n"profile": {\n"shards": [ {\n"id": "$body.profile.shards.0.id",\n"searches": [{\n"query": $body.profile.shards.0.searches.0.query,\n"rewrite_time": $body.profile.shards.0.searches.0.rewrite_time,/]
 // TESTRESPONSE[s/]$/]}], "aggregations": []}]}}/]
-// TESTRESPONSE[s/"time": "0.3043110000ms"/"time": $body.profile.shards.0.searches.0.collector.0.time/]
-// TESTRESPONSE[s/"time": "0.03227300000ms"/"time": $body.profile.shards.0.searches.0.collector.0.children.0.time/]
+// TESTRESPONSE[s/"time_in_nanos": "304311"/"time_in_nanos": $body.profile.shards.0.searches.0.collector.0.time_in_nanos/]
+// TESTRESPONSE[s/"time_in_nanos": "32273"/"time_in_nanos": $body.profile.shards.0.searches.0.collector.0.children.0.time_in_nanos/]
 
 We see a single collector named `SimpleTopScoreDocCollector` wrapped into `CancellableCollector`. `SimpleTopScoreDocCollector` is the default "scoring and sorting"
 `Collector` used by Elasticsearch.  The `"reason"` field attempts to give a plain english description of the class name.  The
-`"time"` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
+`"time_in_nanos"` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
 all sub-collectors. The `CancellableCollector` that wraps `SimpleTopScoreDocCollector` is used by elasticsearch to detect if the current
 search was cancelled and stop collecting documents as soon as it occurs.
 
@@ -564,7 +570,7 @@ And the response:
                         {
                            "type": "TermQuery",
                            "description": "my_field:foo",
-                           "time": "0.4094560000ms",
+                           "time_in_nanos": "409456",
                            "breakdown": {
                               "score": 0,
                               "score_count": 1,
@@ -583,7 +589,7 @@ And the response:
                         {
                            "type": "TermQuery",
                            "description": "message:search",
-                           "time": "0.3037020000ms",
+                           "time_in_nanos": "303702",
                            "breakdown": {
                               "score": 0,
                               "score_count": 1,
@@ -605,24 +611,24 @@ And the response:
                         {
                            "name": "MultiCollector",
                            "reason": "search_multi",
-                           "time": "1.378943000ms",
+                           "time_in_nanos": "1378943",
                            "children": [
                               {
                                  "name": "FilteredCollector",
                                  "reason": "search_post_filter",
-                                 "time": "0.4036590000ms",
+                                 "time_in_nanos": "403659",
                                  "children": [
                                     {
                                        "name": "SimpleTopScoreDocCollector",
                                        "reason": "search_top_hits",
-                                       "time": "0.006391000000ms"
+                                       "time_in_nanos": "6391"
                                     }
                                  ]
                               },
                               {
                                  "name": "BucketCollector: [[non_global_term, another_agg]]",
                                  "reason": "aggregation",
-                                 "time": "0.9546020000ms"
+                                 "time_in_nanos": "954602"
                               }
                            ]
                         }
@@ -633,7 +639,7 @@ And the response:
                         {
                            "type": "MatchAllDocsQuery",
                            "description": "*:*",
-                           "time": "0.04829300000ms",
+                           "time_in_nanos": "48293",
                            "breakdown": {
                               "score": 0,
                               "score_count": 1,
@@ -655,7 +661,7 @@ And the response:
                         {
                            "name": "GlobalAggregator: [global_agg]",
                            "reason": "aggregation_global",
-                           "time": "0.1226310000ms"
+                           "time_in_nanos": "122631"
                         }
                      ]
                   }
@@ -738,7 +744,7 @@ Which yields the following aggregation profile output
   {
     "type": "org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator",
     "description": "property_type",
-    "time": "4280.456978ms",
+    "time_in_nanos": "4280456978",
     "breakdown": {
       "reduce": 0,
       "reduce_count": 0,
@@ -753,7 +759,7 @@ Which yields the following aggregation profile output
       {
         "type": "org.elasticsearch.search.aggregations.metrics.avg.AvgAggregator",
         "description": "avg_price",
-        "time": "1124.864392ms",
+        "time_in_nanos": "1124864392",
         "breakdown": {
           "reduce": 0,
           "reduce_count": 0,
@@ -773,7 +779,7 @@ Which yields the following aggregation profile output
 From the profile structure we can see our `property_type` terms aggregation which is internally represented by the
 `GlobalOrdinalsStringTermsAggregator` class and the sub aggregator `avg_price` which is internally represented by the `AvgAggregator` class. The `type` field displays the class used internally to represent the aggregation. The `description` field displays the name of the aggregation.
 
-The `"time"` field shows that it took ~4 seconds for the entire aggregation to execute.  The recorded time is inclusive
+The `"time_in_nanos"` field shows that it took ~4 seconds for the entire aggregation to execute.  The recorded time is inclusive
 of all children.
 
 The `"breakdown"` field will give detailed stats about how the time was spent, we'll look at

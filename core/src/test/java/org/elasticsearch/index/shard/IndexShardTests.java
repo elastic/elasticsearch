@@ -29,6 +29,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
@@ -657,7 +658,7 @@ public class IndexShardTests extends IndexShardTestCase {
         try {
             shard.index(index);
             fail();
-        } catch (IllegalIndexShardStateException e) {
+        } catch (AlreadyClosedException e) {
 
         }
 
@@ -671,7 +672,7 @@ public class IndexShardTests extends IndexShardTestCase {
         try {
             shard.delete(delete);
             fail();
-        } catch (IllegalIndexShardStateException e) {
+        } catch (AlreadyClosedException e) {
 
         }
 

@@ -184,6 +184,9 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
 
             cancellableThreads = recoveryTarget.cancellableThreads();
             timer = recoveryTarget.state().getTimer();
+
+            logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
+            recoveryTarget.indexShard().prepareForIndexRecovery();
         }
 
         try {
@@ -352,9 +355,6 @@ public class PeerRecoveryTargetService extends AbstractComponent implements Inde
                         startingSeqNo,
                         recoveryTarget.sourceNode());
             }
-
-            logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
-            recoveryTarget.indexShard().prepareForIndexRecovery();
 
             request = new StartRecoveryRequest(
                 recoveryTarget.shardId(),

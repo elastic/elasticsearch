@@ -172,8 +172,8 @@
 ---
 "Test cat shards with shadow replicas":
   - skip:
-      version: " - 5.1.99"
-      reason: deprecation was added in 5.2.0
+      version: " - 5.99.99"
+      reason: deprecation was added in 5.2.0 (but we disable up to 6.0 until we push to all branches)
       features: "warnings"
 
   - do:

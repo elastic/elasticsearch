@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ml.job.Job;
@@ -145,17 +144,15 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
 
         private final JobManager jobManager;
         private final Client client;
-        private final TaskManager taskManager;
 
         @Inject
         public TransportAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, JobManager jobManager,
-                               Client client, TaskManager taskManager) {
+                               Client client) {
             super(settings, DeleteJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
                     indexNameExpressionResolver, Request::new);
             this.jobManager = jobManager;
             this.client = client;
-            this.taskManager = taskManager;
         }
 
         @Override
@@ -170,13 +167,7 @@ public class DeleteJobAction extends Action<DeleteJobAction.Request, DeleteJobAc
 
         @Override
         protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-            jobManager.deleteJob(client, request, ActionListener.wrap(response -> {
-                taskManager.unregister(task);
-                listener.onResponse(response);
-            }, e -> {
-                taskManager.unregister(task);
-                listener.onFailure(e);
-            }));
+            jobManager.deleteJob(client, request, listener);
         }
 
         @Override

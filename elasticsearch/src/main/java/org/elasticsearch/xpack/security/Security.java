@@ -724,7 +724,8 @@ public class Security implements ActionPlugin, IngestPlugin, NetworkPlugin {
                                                                         CircuitBreakerService circuitBreakerService,
                                                                         NamedWriteableRegistry namedWriteableRegistry,
                                                                         NamedXContentRegistry xContentRegistry,
-                                                                        NetworkService networkService, HttpServerTransport.Dispatcher dispatcher) {
+                                                                        NetworkService networkService,
+                                                                        HttpServerTransport.Dispatcher dispatcher) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }

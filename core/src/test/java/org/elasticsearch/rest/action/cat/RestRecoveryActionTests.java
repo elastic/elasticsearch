@@ -50,7 +50,7 @@ public class RestRecoveryActionTests extends ESTestCase {
 
     public void testRestRecoveryAction() {
         final Settings settings = Settings.EMPTY;
-        final RestController restController = new RestController(settings, Collections.emptySet(), null);
+        final RestController restController = new RestController(settings, Collections.emptySet(), null, null, null);
         final RestRecoveryAction action = new RestRecoveryAction(settings, restController, restController);
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));

@@ -41,7 +41,7 @@ public class RestIndicesStatsActionTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        action = new RestIndicesStatsAction(Settings.EMPTY, new RestController(Settings.EMPTY, Collections.emptySet(), null));
+        action = new RestIndicesStatsAction(Settings.EMPTY, new RestController(Settings.EMPTY, Collections.emptySet(), null, null, null));
     }
 
     public void testUnrecognizedMetric() throws IOException {

@@ -476,10 +476,8 @@ public abstract class PrimaryShardAllocator extends BaseGatewayShardAllocator {
      * recovered on any node
      */
     private boolean recoverOnAnyNode(IndexMetaData metaData) {
-        // don't use the settings directly, not to trigger manny deprecation logging
         return (IndexMetaData.isOnSharedFilesystem(metaData.getSettings()) || IndexMetaData.isOnSharedFilesystem(this.settings))
-            && (metaData.getSettings().getAsBoolean(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false) ||
-                this.settings.getAsBoolean(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false));
+            && IndexMetaData.INDEX_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE_SETTING.get(metaData.getSettings(), this.settings);
     }
 
     protected abstract FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation);

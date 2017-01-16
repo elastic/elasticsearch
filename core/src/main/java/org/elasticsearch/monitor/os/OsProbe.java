@@ -203,13 +203,10 @@ public class OsProbe {
         final Map<String, String> controllerMap = new HashMap<>();
         for (final String line : lines) {
             final Matcher matcher = CONTROL_GROUP_PATTERN.matcher(line);
-            // note that Matcher#matches must be invoked as
-            // matching is lazy; this can not happen in an assert
-            // as assertions might not be enabled
+            // Matcher#matches must be invoked as matching is lazy; this can not happen in an assert as assertions might not be enabled
             final boolean matches = matcher.matches();
             assert matches : line;
-            // at this point we have captured the subsystems and the
-            // control group
+            // at this point we have captured the subsystems and the control group
             final String[] controllers = matcher.group(1).split(",");
             for (final String controller : controllers) {
                 controllerMap.put(controller, matcher.group(2));
@@ -376,7 +373,7 @@ public class OsProbe {
      * @return {@code true} if the stats are available, otherwise {@code false}
      */
     @SuppressForbidden(reason = "access /proc/self/cgroup, /sys/fs/cgroup/cpu, and /sys/fs/cgroup/cpuacct")
-    protected boolean areCgroupStatsAvailable() {
+    boolean areCgroupStatsAvailable() {
         if (!Files.exists(PathUtils.get("/proc/self/cgroup"))) {
             return false;
         }
@@ -421,9 +418,7 @@ public class OsProbe {
                     cpuStat);
             }
         } catch (final IOException e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("error reading control group stats", e);
-            }
+            logger.debug("error reading control group stats", e);
             return null;
         }
     }

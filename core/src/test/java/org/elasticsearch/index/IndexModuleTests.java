@@ -234,7 +234,7 @@ public class IndexModuleTests extends ESTestCase {
         AtomicBoolean executed = new AtomicBoolean(false);
         IndexingOperationListener listener = new IndexingOperationListener() {
             @Override
-            public Engine.Index preIndex(Engine.Index operation) {
+            public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
                 executed.set(true);
                 return operation;
             }
@@ -251,8 +251,9 @@ public class IndexModuleTests extends ESTestCase {
 
         ParsedDocument doc = InternalEngineTests.createParsedDoc("1", "test", null);
         Engine.Index index = new Engine.Index(new Term("_uid",  doc.uid()), doc);
+        ShardId shardId = new ShardId(new Index("foo", "bar"), 0);
         for (IndexingOperationListener l : indexService.getIndexOperationListeners()) {
-            l.preIndex(index);
+            l.preIndex(shardId, index);
         }
         assertTrue(executed.get());
         indexService.close("simon says", false);

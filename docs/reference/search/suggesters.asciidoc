@@ -14,7 +14,7 @@ POST twitter/_search
 {
   "query" : {
     "match": {
-      "message": "tring out Elasticsearch"
+      "message": "trying out Elasticsearch"
     }
   },
   "suggest" : {

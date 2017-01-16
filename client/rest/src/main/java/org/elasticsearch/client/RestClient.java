@@ -285,20 +285,30 @@ public class RestClient implements Closeable {
                                     ResponseListener responseListener, Header... headers) {
         Objects.requireNonNull(params, "params must not be null");
         Map<String, String> requestParams = new HashMap<>(params);
-        Set<Integer> ignoreErrorCodes = new HashSet<>();
-        if (HttpHead.METHOD_NAME.equals(method)) {
-            //404 doesn't cause error if returned for a HEAD request
-            ignoreErrorCodes.add(404);
-        }
+
+
         //ignore is a special parameter supported by the clients, shouldn't be sent to es
         String ignoreString = requestParams.remove("ignore");
-        if (ignoreString != null) {
+        Set<Integer> ignoreErrorCodes;
+        if (ignoreString == null) {
+            if (HttpHead.METHOD_NAME.equals(method)) {
+                //404 never causes error if returned for a HEAD request
+                ignoreErrorCodes = Collections.singleton(404);
+            } else {
+                ignoreErrorCodes = Collections.emptySet();
+            }
+        } else {
             String[] ignoresArray = ignoreString.split(",");
+            ignoreErrorCodes = new HashSet<>();
+            if (HttpHead.METHOD_NAME.equals(method)) {
+                //404 never causes error if returned for a HEAD request
+                ignoreErrorCodes.add(404);
+            }
             for (String ignoreCode : ignoresArray) {
                 try {
                     ignoreErrorCodes.add(Integer.valueOf(ignoreCode));
                 } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead");
+                    throw new IllegalArgumentException("ignore value should be a number, found [" + ignoreString + "] instead", e);
                 }
             }
         }
